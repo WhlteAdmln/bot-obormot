@@ -1,4 +1,5 @@
 from pathlib import Path
+import uuid
 
 import pytest
 
@@ -137,6 +138,36 @@ async def test_history_usecase_returns_image_parts_and_reset_removes_files(test_
 
 
 @pytest.mark.asyncio
+async def test_reset_history_does_not_delete_unmanaged_or_external_files(
+    test_db, tmp_path
+):
+    managed_image = test_db.images_dir / f"{uuid.uuid4().hex}.jpg"
+    unmanaged_image = test_db.images_dir / "notes.txt"
+    external_image = tmp_path / f"{uuid.uuid4().hex}.jpg"
+    for path in (managed_image, unmanaged_image, external_image):
+        path.write_bytes(b"keep-or-delete-check")
+
+    cursor = await test_db.connection.execute(
+        "INSERT INTO messages(user_id, role, content) VALUES (?, 'user', 'clear me')",
+        (USER_ID,),
+    )
+    message_id = cursor.lastrowid
+    for path in (managed_image, unmanaged_image, external_image):
+        await test_db.connection.execute(
+            "INSERT INTO message_media(message_id, file_path, mime_type) VALUES (?, ?, 'image/jpeg')",
+            (message_id, str(path)),
+        )
+    await test_db.connection.commit()
+
+    await test_db.reset_history(USER_ID)
+
+    assert not managed_image.exists()
+    assert unmanaged_image.read_bytes() == b"keep-or-delete-check"
+    assert external_image.read_bytes() == b"keep-or-delete-check"
+    assert await test_db.get_history(USER_ID) == []
+
+
+@pytest.mark.asyncio
 async def test_facade_system_prompt_methods_preserve_default_behavior(test_db):
     assert await test_db.get_system_prompt(USER_ID) == config.DEFAULT_SYSTEM_PROMPT
     await test_db.set_system_prompt(USER_ID, "Новый промпт")
@@ -145,7 +176,7 @@ async def test_facade_system_prompt_methods_preserve_default_behavior(test_db):
 
 @pytest.mark.asyncio
 async def test_cleanup_usecase_deletes_old_image_but_keeps_message(test_db):
-    image_path = test_db.images_dir / "old-image.jpg"
+    image_path = test_db.images_dir / f"{uuid.uuid4().hex}.jpg"
     image_path.write_bytes(b"old-image")
 
     cursor = await test_db.connection.execute(

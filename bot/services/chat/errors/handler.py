@@ -7,9 +7,10 @@ from aiogram.types import Message
 from bot.services.chat.errors.catalog import CHAT_ERROR_RULES, ChatErrorRule
 from bot.services.chat.errors import texts
 from bot.services.chat.reporting import report_error
+from bot.utils.text import log_safe
 
 
-logger = logging.getLogger("bot.services.chat_error_handler")
+logger = logging.getLogger("bot.services.chat.errors.handler")
 
 
 def _log_rule_error(rule: ChatErrorRule, error: Exception, user_id: int) -> None:
@@ -18,9 +19,9 @@ def _log_rule_error(rule: ChatErrorRule, error: Exception, user_id: int) -> None
 
     values = {
         "user_id": user_id,
-        "error": error,
+        "error": log_safe(error, 300),
         "status": getattr(error, "status", None),
-        "detail": getattr(error, "detail", None),
+        "detail": log_safe(getattr(error, "detail", None), 300),
     }
     args = tuple(values[field] for field in rule.log_fields)
     kwargs = {}

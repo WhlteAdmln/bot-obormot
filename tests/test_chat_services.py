@@ -7,6 +7,8 @@ import pytest
 from bot.errors import (
     WhisperEmptyAudioError,
     WhisperError,
+    WhisperAPIError,
+    LLMAPIError,
     MediaError,
     DocumentAPIError,
 )
@@ -90,6 +92,31 @@ async def test_aggregator_combines_continuation_parts_and_cleans_state(monkeypat
 
 
 @pytest.mark.asyncio
+async def test_aggregator_caps_accumulated_text_and_tracks_background_task(monkeypatch):
+    monkeypatch.setattr(aggregator_module, "MESSAGE_LENGTH_THRESHOLD", 1)
+    monkeypatch.setattr(aggregator_module, "MESSAGE_AGGREGATION_WINDOW", 0.5)
+    aggregator = MessageAggregator()
+
+    first = asyncio.create_task(aggregator.collect(_message("x" * 4000, 404)))
+    await asyncio.sleep(0)
+
+    assert len(aggregator._tasks) == 1
+    background_task = next(iter(aggregator._tasks))
+    assert background_task.get_name() == "message_aggregation_404"
+
+    for _ in range(4):
+        assert await aggregator.collect(_message("y" * 4000, 404)) is None
+
+    result = await asyncio.wait_for(first, timeout=1.0)
+    assert len(result) <= aggregator_module.MAX_INPUT_TEXT_LENGTH + 4096
+    assert len(result) > aggregator_module.MAX_INPUT_TEXT_LENGTH
+
+    await asyncio.sleep(0)
+    assert aggregator._tasks == set()
+    assert 404 not in aggregator._states
+
+
+@pytest.mark.asyncio
 async def test_aggregator_ignores_messages_without_text_or_user():
     aggregator = MessageAggregator()
 
@@ -114,13 +141,16 @@ async def test_user_lock_serializes_same_user_and_releases_registry():
 
     first = asyncio.create_task(first_worker())
     await first_inside.wait()
+    assert chat_locks.pending_requests(202) == 1
     second = asyncio.create_task(second_worker())
     await asyncio.sleep(0)
     assert not second_inside.is_set()
+    assert chat_locks.pending_requests(202) == 2
 
     release_first.set()
     await asyncio.gather(first, second)
     assert second_inside.is_set()
+    assert chat_locks.pending_requests(202) == 0
     assert 202 not in chat_locks._user_locks
 
 
@@ -155,6 +185,9 @@ async def test_chat_pipeline_streams_calls_callback_and_persists_exchange(monkey
         async def add_exchange(self, *args, **kwargs):
             calls.append(("save", args, kwargs))
 
+        async def prune_history(self, user_id):
+            calls.append(("prune", user_id))
+
     class FakeLLM:
         async def fit_messages_to_context(self, **kwargs):
             calls.append(("fit", kwargs))
@@ -181,11 +214,86 @@ async def test_chat_pipeline_streams_calls_callback_and_persists_exchange(monkey
 
     assert result == "ответ готов"
     assert updates == ["ответ", "ответ готов"]
-    assert calls[-1] == (
+    assert calls[-2] == (
         "save",
         (77, "сохранённый вход", "ответ готов"),
         {"media": [b"image"]},
     )
+    assert calls[-1] == ("prune", 77)
+
+
+@pytest.mark.asyncio
+async def test_chat_pipeline_caps_history_limit_at_100(monkeypatch):
+    calls = []
+
+    class FakeDatabase:
+        async def get_system_prompt(self, user_id):
+            return "system"
+
+        async def get_history_limit(self, user_id):
+            return 500
+
+        async def get_history(self, user_id, limit):
+            calls.append((user_id, limit))
+            return []
+
+        async def add_exchange(self, *args, **kwargs):
+            return None
+
+        async def prune_history(self, user_id):
+            return None
+
+    class FakeLLM:
+        async def fit_messages_to_context(self, **kwargs):
+            return []
+
+        async def stream(self, messages):
+            yield "ответ"
+
+    monkeypatch.setattr(chat_pipeline, "db", FakeDatabase())
+    monkeypatch.setattr(chat_pipeline, "llm_client", FakeLLM())
+
+    result = await chat_pipeline.process_chat(77, "вход", "вход")
+
+    assert result == "ответ"
+    assert calls == [(77, 100)]
+
+
+@pytest.mark.asyncio
+async def test_chat_pipeline_keeps_history_limit_below_cap(monkeypatch):
+    calls = []
+
+    class FakeDatabase:
+        async def get_system_prompt(self, user_id):
+            return "system"
+
+        async def get_history_limit(self, user_id):
+            return 17
+
+        async def get_history(self, user_id, limit):
+            calls.append(limit)
+            return []
+
+        async def add_exchange(self, *args, **kwargs):
+            return None
+
+        async def prune_history(self, user_id):
+            return None
+
+    class FakeLLM:
+        async def fit_messages_to_context(self, **kwargs):
+            return []
+
+        async def stream(self, messages):
+            yield "ответ"
+
+    monkeypatch.setattr(chat_pipeline, "db", FakeDatabase())
+    monkeypatch.setattr(chat_pipeline, "llm_client", FakeLLM())
+
+    result = await chat_pipeline.process_chat(77, "вход", "вход")
+
+    assert result == "ответ"
+    assert calls == [17]
 
 
 @pytest.mark.asyncio
@@ -302,6 +410,30 @@ async def test_chat_error_handler_preserves_api_error_log_fields(monkeypatch, ca
 
 
 @pytest.mark.asyncio
+async def test_chat_error_handler_sanitizes_whisper_and_llm_error_bodies(
+    monkeypatch,
+    caplog,
+):
+    async def fake_report(message, status, text):
+        return None
+
+    monkeypatch.setattr(chat_error_handler, "report_error", fake_report)
+
+    with caplog.at_level(logging.ERROR, logger=chat_error_handler.logger.name):
+        await chat_error_handler.handle_chat_error(
+            object(), None, 909, WhisperAPIError("sensitive\nwhisper response")
+        )
+        await chat_error_handler.handle_chat_error(
+            object(), None, 909, LLMAPIError(503, "sensitive\nllm response")
+        )
+
+    assert r"sensitive\nwhisper response" in caplog.text
+    assert r"sensitive\nllm response" in caplog.text
+    assert "sensitive\nwhisper response" not in caplog.text
+    assert "sensitive\nllm response" not in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_chat_error_handler_formats_media_error_and_unknown_fallback(monkeypatch):
     captured = []
 
@@ -370,31 +502,63 @@ def test_incoming_log_records_message_types(caplog):
     assert "ANIMATION INFO: mime_type=image/gif" in caplog.text
 
 
-def test_legacy_modules_reexport_new_implementations():
-    from bot.services import (
-        chat_error_handler as legacy_error_handler,
-        chat_logging as legacy_logging,
-        chat_processing as legacy_processing,
-        error_handler as legacy_reporting,
-        message_aggregator as legacy_aggregator,
-        message_formatter as legacy_formatter,
-        user_locks as legacy_locks,
+def test_incoming_log_sanitizes_user_supplied_document_metadata(caplog):
+    document = SimpleNamespace(
+        file_name="report.pdf\nERROR forged entry",
+        mime_type="application/pdf\rINFO forged entry",
+    )
+    message = SimpleNamespace(
+        content_type="document",
+        animation=None,
+        video=None,
+        document=document,
+        sticker=None,
+        photo=None,
     )
 
-    from bot.services.chat.errors.handler import handle_chat_error
-    from bot.services.chat.incoming_log import log_incoming_message
-    from bot.services.chat.pipeline import process_chat
-    from bot.services.chat.reporting import report_error, safe_edit
-    from bot.services.chat.aggregation import message_aggregator
-    from bot.services.chat.formatting import format_roleplay, split_formatted_message
-    from bot.services.chat.locks import get_user_lock
+    with caplog.at_level(logging.INFO, logger=incoming_log.logger.name):
+        incoming_log.log_incoming_message(message)
 
-    assert legacy_error_handler.handle_chat_error is handle_chat_error
-    assert legacy_logging.log_incoming_message is log_incoming_message
-    assert legacy_processing.process_chat is process_chat
-    assert legacy_reporting.report_error is report_error
-    assert legacy_reporting.safe_edit is safe_edit
-    assert legacy_aggregator.message_aggregator is message_aggregator
-    assert legacy_formatter.format_roleplay is format_roleplay
-    assert legacy_formatter.split_formatted_message is split_formatted_message
-    assert legacy_locks.get_user_lock is get_user_lock
+    assert r"filename=report.pdf\nERROR forged entry" in caplog.text
+    assert r"mime_type=application/pdf\rINFO forged entry" in caplog.text
+    assert "\nERROR forged entry" not in caplog.text
+    assert "\rINFO forged entry" not in caplog.text
+
+
+def test_chat_services_are_loaded_from_canonical_modules():
+    assert incoming_log.__name__ == "bot.services.chat.incoming_log"
+    assert chat_pipeline.__name__ == "bot.services.chat.pipeline"
+    assert reporting.__name__ == "bot.services.chat.reporting"
+    assert chat_error_handler.__name__ == "bot.services.chat.errors.handler"
+    assert aggregator_module.__name__ == "bot.services.chat.aggregation.aggregator"
+
+
+@pytest.mark.asyncio
+async def test_chat_pipeline_returns_response_when_history_pruning_fails(monkeypatch):
+    class FakeDatabase:
+        async def get_system_prompt(self, user_id):
+            return "system"
+
+        async def get_history_limit(self, user_id):
+            return 10
+
+        async def get_history(self, user_id, limit):
+            return []
+
+        async def add_exchange(self, *args, **kwargs):
+            return None
+
+        async def prune_history(self, user_id):
+            raise RuntimeError("test prune failure")
+
+    class FakeLLM:
+        async def fit_messages_to_context(self, **kwargs):
+            return []
+
+        async def stream(self, messages):
+            yield "ответ"
+
+    monkeypatch.setattr(chat_pipeline, "db", FakeDatabase())
+    monkeypatch.setattr(chat_pipeline, "llm_client", FakeLLM())
+
+    assert await chat_pipeline.process_chat(77, "вход", "вход") == "ответ"

@@ -125,13 +125,17 @@ def chat_handler(monkeypatch):
         inspect_message=inspect,
         prepare_message=prepare,
     )
-    module("bot.services.chat.locks", get_user_lock=user_lock)
+    module(
+        "bot.services.chat.locks",
+        get_user_lock=user_lock,
+        pending_requests=lambda _user_id: 0,
+    )
     module("bot.services.chat.pipeline", process_chat=process_chat)
     module("bot.services.chat.reporting", safe_edit=safe_edit)
-    module("bot.services.chat_actions", keep_typing=keep_typing)
+    module("bot.services.telegram.chat_action", keep_typing=keep_typing)
     module("bot.services.llm", llm_client=FakeLLM())
 
-    # Ensure a fresh package import binds the stubs above.
+    # Ensure a fresh package import binds the test doubles above.
     sys.modules.pop("bot.handlers.chat.handler", None)
     sys.modules.pop("bot.handlers.chat", None)
     import bot.handlers
@@ -247,6 +251,21 @@ async def test_handler_returns_early_for_aggregated_continuation(chat_handler):
     assert chat_handler._test_calls == ["log", "inspect", "aggregate"]
     assert not chat_handler._test_lock_entered.is_set()
     assert message.answers == []
+
+
+@pytest.mark.asyncio
+async def test_handler_rejects_user_when_pending_request_limit_is_reached(chat_handler):
+    message = Message()
+    handler_module = importlib.import_module("bot.handlers.chat.handler")
+    handler_module.pending_requests = lambda user_id: 3
+
+    await chat_handler.handle_message(message)
+
+    assert message.answers == [
+        ("⏳ Я ещё обрабатываю твои предыдущие сообщения. Подожди немного.", {})
+    ]
+    assert "lock-enter" not in chat_handler._test_calls
+    assert not chat_handler._test_typing_started.is_set()
 
 
 @pytest.mark.asyncio

@@ -3,6 +3,26 @@ import os
 import warnings
 
 
+def get_bool(name: str, default: bool = False) -> bool:
+    """Читает логическую переменную окружения (true/false, 1/0, yes/no, on/off)."""
+    value = os.getenv(name)
+
+    if value is None or not value.strip():
+        return default
+
+    normalized = value.strip().lower()
+
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+
+    raise ValueError(
+        f"Настройка {name} должна быть true или false. Получено: {value!r}"
+    )
+
+
 def get_int(name: str, default: str, minimum: int = 1) -> int:
     value = os.getenv(name, default)
 

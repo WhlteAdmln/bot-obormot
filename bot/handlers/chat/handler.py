@@ -10,7 +10,7 @@ from bot.services.chat.aggregation import message_aggregator
 from bot.services.chat.errors.handler import handle_chat_error
 from bot.services.chat.incoming_log import log_incoming_message
 from bot.services.chat.input import inspect_message, prepare_message
-from bot.services.chat.locks import get_user_lock
+from bot.services.chat.locks import get_user_lock, pending_requests
 from bot.services.chat.pipeline import process_chat
 from bot.services.chat.reporting import safe_edit
 from bot.services.chat.streaming import (
@@ -21,8 +21,10 @@ from bot.services.chat.streaming import (
     deliver_final_response,
 )
 from bot.services.chat.formatting import format_roleplay, split_formatted_message
-from bot.services.chat_actions import keep_typing
+from bot.services.telegram.chat_action import keep_typing
 from bot.services.llm import llm_client
+
+MAX_PENDING_PER_USER = 3
 
 router = Router()
 logger = logging.getLogger("bot.handlers.chat")
@@ -55,6 +57,12 @@ async def handle_message(message: Message):
         # Его обработает handler первого сообщения.
         if aggregated_text is None:
             return
+
+    if pending_requests(user_id) >= MAX_PENDING_PER_USER:
+        await message.answer(
+            "⏳ Я ещё обрабатываю твои предыдущие сообщения. Подожди немного."
+        )
+        return
 
     async with get_user_lock(user_id):
         responder = StreamingResponder(
@@ -124,6 +132,7 @@ async def handle_message(message: Message):
 
 __all__ = [
     "MAX_MESSAGE_LENGTH",
+    "MAX_PENDING_PER_USER",
     "STREAM_TOKEN_THRESHOLD",
     "STREAM_UPDATE_INTERVAL",
     "handle_message",

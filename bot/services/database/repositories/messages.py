@@ -63,3 +63,36 @@ async def delete_user_messages(
         (user_id,),
     )
     await connection.commit()
+
+
+async def prune_user_history(
+    connection: aiosqlite.Connection,
+    user_id: int,
+    keep_last_messages: int,
+) -> list[str]:
+    """Удаляет самые старые сообщения пользователя. Возвращает пути их картинок."""
+    keep_ids = """
+        SELECT id FROM messages
+        WHERE user_id = ?
+        ORDER BY id DESC
+        LIMIT ?
+    """
+
+    cursor = await connection.execute(
+        f"""
+        SELECT mm.file_path
+        FROM message_media AS mm
+        JOIN messages AS m ON m.id = mm.message_id
+        WHERE m.user_id = ? AND m.id NOT IN ({keep_ids})
+        """,
+        (user_id, user_id, keep_last_messages),
+    )
+    paths = [row["file_path"] for row in await cursor.fetchall() if row["file_path"]]
+
+    await connection.execute(
+        f"DELETE FROM messages WHERE user_id = ? AND id NOT IN ({keep_ids})",
+        (user_id, user_id, keep_last_messages),
+    )
+    await connection.commit()
+
+    return paths

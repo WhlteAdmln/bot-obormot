@@ -32,6 +32,9 @@ def router_dependencies(monkeypatch):
     class FakeAccessMiddleware:
         pass
 
+    class FakeThrottleMiddleware:
+        pass
+
     class FakeCleanupMiddleware:
         pass
 
@@ -52,6 +55,11 @@ def router_dependencies(monkeypatch):
     monkeypatch.setitem(sys.modules, "bot.handlers", handlers_package)
     monkeypatch.setitem(
         sys.modules,
+        "bot.middlewares.throttle",
+        _module("bot.middlewares.throttle", ThrottleMiddleware=FakeThrottleMiddleware),
+    )
+    monkeypatch.setitem(
+        sys.modules,
         "bot.middlewares.access",
         _module("bot.middlewares.access", AccessMiddleware=FakeAccessMiddleware),
     )
@@ -69,6 +77,7 @@ def router_dependencies(monkeypatch):
     routers_module = importlib.import_module("bot.app.routers")
     yield (
         FakeDispatcher,
+        FakeThrottleMiddleware,
         FakeAccessMiddleware,
         FakeCleanupMiddleware,
         router_refs,
@@ -82,6 +91,7 @@ def test_dispatcher_registers_middlewares_and_routers_once_in_original_order(
 ):
     (
         FakeDispatcher,
+        FakeThrottleMiddleware,
         FakeAccessMiddleware,
         FakeCleanupMiddleware,
         router_refs,
@@ -92,9 +102,10 @@ def test_dispatcher_registers_middlewares_and_routers_once_in_original_order(
     configured = routers_module.configure_dispatcher(dispatcher)
 
     assert configured is dispatcher
-    assert len(dispatcher.middleware_calls) == 2
-    assert isinstance(dispatcher.middleware_calls[0], FakeAccessMiddleware)
-    assert isinstance(dispatcher.middleware_calls[1], FakeCleanupMiddleware)
+    assert len(dispatcher.middleware_calls) == 3
+    assert isinstance(dispatcher.middleware_calls[0], FakeThrottleMiddleware)
+    assert isinstance(dispatcher.middleware_calls[1], FakeAccessMiddleware)
+    assert isinstance(dispatcher.middleware_calls[2], FakeCleanupMiddleware)
     assert len(dispatcher.routers) == 4
     assert dispatcher.routers == [
         router_refs["start"],
@@ -308,10 +319,27 @@ def test_bootstrap_main_calls_components_in_order(monkeypatch):
             configure_logging=lambda: calls.append("logging"),
         ),
     )
+    media_package = _module("bot.services.media")
+    media_package.__path__ = []
+    monkeypatch.setitem(sys.modules, "bot.services.media", media_package)
+    monkeypatch.setitem(
+        sys.modules,
+        "bot.services.media.safety",
+        _module(
+            "bot.services.media.safety",
+            configure_pillow_limits=lambda: calls.append("pillow_limits"),
+        ),
+    )
     sys.modules.pop("bot.app.bootstrap", None)
     bootstrap = importlib.import_module("bot.app.bootstrap")
 
+    monkeypatch.setattr(
+        bootstrap.os, "umask", lambda mask: calls.append(("umask", mask))
+    )
     monkeypatch.setattr(bootstrap, "configure_logging", lambda: calls.append("logging"))
+    monkeypatch.setattr(
+        bootstrap, "log_access_mode", lambda: calls.append("access_mode")
+    )
     monkeypatch.setattr(
         bootstrap, "create_bot", lambda: (calls.append("bot"), bot_instance)[1]
     )
@@ -324,7 +352,15 @@ def test_bootstrap_main_calls_components_in_order(monkeypatch):
     monkeypatch.setattr(bootstrap, "run_application", run_application)
     asyncio.run(bootstrap.main())
 
-    assert calls == ["logging", "bot", "dispatcher", "run"]
+    assert calls == [
+        ("umask", 0o077),
+        "logging",
+        "pillow_limits",
+        "access_mode",
+        "bot",
+        "dispatcher",
+        "run",
+    ]
 
 
 def test_main_module_is_a_thin_compatible_entrypoint():
@@ -338,3 +374,117 @@ def test_main_module_is_a_thin_compatible_entrypoint():
     assert main_module.main is main
     assert main_module.periodic_image_cleanup is periodic_image_cleanup
     assert main_module.IMAGE_CLEANUP_INTERVAL == IMAGE_CLEANUP_INTERVAL
+
+
+@pytest.mark.parametrize(
+    ("allow_all", "allowed_users", "expected_message", "expected_level"),
+    [
+        (
+            True,
+            {10},
+            "ACCESS MODE: open to everyone (ALLOW_ALL_USERS=true)",
+            "WARNING",
+        ),
+        (False, {10, 20}, "ACCESS MODE: allowlist, 2 users", "INFO"),
+        (
+            False,
+            set(),
+            "ACCESS MODE: only supervisor and administrators (ALLOWED_USERS is empty)",
+            "WARNING",
+        ),
+    ],
+)
+def test_log_access_mode_reports_configured_mode(
+    monkeypatch, caplog, allow_all, allowed_users, expected_message, expected_level
+):
+    import logging
+
+    from bot.app import bootstrap
+    from bot.config import config
+
+    monkeypatch.setattr(config, "ALLOW_ALL_USERS", allow_all)
+    monkeypatch.setattr(config, "ALLOWED_USERS", allowed_users)
+
+    with caplog.at_level(logging.DEBUG, logger="bot.main"):
+        bootstrap.log_access_mode()
+
+    assert any(
+        record.levelname == expected_level and expected_message in record.message
+        for record in caplog.records
+    )
+
+
+@pytest.fixture
+def bootstrap_module(monkeypatch):
+    created_tokens = []
+
+    class FakeBot:
+        def __init__(self, token):
+            self.token = token
+            created_tokens.append(token)
+
+    monkeypatch.setitem(
+        sys.modules,
+        "aiogram",
+        _module("aiogram", Bot=FakeBot, Dispatcher=object),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "bot.app.lifecycle",
+        _module("bot.app.lifecycle", run_application=None),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "bot.app.logging_setup",
+        _module("bot.app.logging_setup", configure_logging=None),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "bot.app.routers",
+        _module("bot.app.routers", configure_dispatcher=None),
+    )
+    media_package = _module("bot.services.media")
+    media_package.__path__ = []
+    monkeypatch.setitem(sys.modules, "bot.services.media", media_package)
+    monkeypatch.setitem(
+        sys.modules,
+        "bot.services.media.safety",
+        _module("bot.services.media.safety", configure_pillow_limits=None),
+    )
+
+    sys.modules.pop("bot.app.bootstrap", None)
+    bootstrap = importlib.import_module("bot.app.bootstrap")
+    yield bootstrap, created_tokens
+    sys.modules.pop("bot.app.bootstrap", None)
+
+
+@pytest.mark.parametrize(
+    "token",
+    [
+        "",
+        "YOUR_TELEGRAM_BOT_TOKEN",
+        "abc",
+        "123456789:SHORT",
+        "12345:contains spaces and punctuation!",
+        "123456789:" + "A" * 29,
+    ],
+)
+def test_create_bot_rejects_invalid_token(bootstrap_module, monkeypatch, token):
+    bootstrap, created_tokens = bootstrap_module
+    monkeypatch.setattr(bootstrap.config, "BOT_TOKEN", token)
+
+    with pytest.raises(RuntimeError, match="BOT_TOKEN имеет неверный формат"):
+        bootstrap.create_bot()
+
+    assert created_tokens == []
+
+
+def test_create_bot_accepts_token_with_expected_format(bootstrap_module, monkeypatch):
+    bootstrap, created_tokens = bootstrap_module
+    token = "123456789:" + "A_b-9" * 7
+    monkeypatch.setattr(bootstrap.config, "BOT_TOKEN", token)
+
+    bot = bootstrap.create_bot()
+
+    assert bot.token == token
+    assert created_tokens == [token]

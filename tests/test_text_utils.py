@@ -1,7 +1,9 @@
-from bot.utils.text import utf16_length
+from bot.utils.text import log_safe
 
 
-def test_utf16_length_counts_basic_and_non_bmp_characters():
-    assert utf16_length("hello") == 5
-    assert utf16_length("a😀b") == 4
-    assert utf16_length("") == 0
+def test_log_safe_escapes_line_breaks_and_truncates_values():
+    assert log_safe("a\nERROR fake") == "a\\nERROR fake"
+    assert log_safe("a\rERROR fake") == "a\\rERROR fake"
+    assert log_safe("a\x00b") == "a?b"
+    assert log_safe("abcdefgh", limit=5) == "abcde"
+    assert log_safe(None) == ""

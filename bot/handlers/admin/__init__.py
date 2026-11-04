@@ -10,6 +10,8 @@ from bot.handlers.admin.handler import (
     cmd_admins,
     cmd_admin_add,
     cmd_admin_remove,
+    cmd_ban,
+    cmd_unban,
 )
 
 __all__ = [
@@ -22,4 +24,6 @@ __all__ = [
     "cmd_admins",
     "cmd_admin_add",
     "cmd_admin_remove",
+    "cmd_ban",
+    "cmd_unban",
 ]

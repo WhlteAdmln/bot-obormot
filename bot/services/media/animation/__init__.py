@@ -1,4 +1,4 @@
-"""Совместимый фасад извлечения кадров из анимаций и видео."""
+"""Извлечение кадров из анимаций и видео."""
 
 import logging
 
@@ -18,7 +18,7 @@ from bot.services.media.animation.sampling import sample_frame_indices
 from bot.services.media.animation.tgs import extract_tgs
 from bot.services.media.animation.video import extract_video
 
-logger = logging.getLogger("bot.services.animation")
+logger = logging.getLogger("bot.services.media.animation")
 _animation_semaphore = _concurrency._animation_semaphore
 
 # Сохраняем прежние внутренние имена на старом пути импорта.

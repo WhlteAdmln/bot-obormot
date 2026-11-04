@@ -1,7 +1,22 @@
 """Низкоуровневые операции с файлами изображений истории."""
 
 import base64
+import re
 from pathlib import Path
+
+
+_MANAGED_NAME = re.compile(r"[0-9a-f]{32}\.jpg")
+
+
+def is_managed_image(path: Path, images_dir: Path) -> bool:
+    """True, если файл лежит прямо в images_dir и называется как наши файлы."""
+    try:
+        return (
+            path.resolve().parent == images_dir.resolve()
+            and _MANAGED_NAME.fullmatch(path.name) is not None
+        )
+    except OSError:
+        return False
 
 
 def read_image_as_base64(image_path: Path, mime_type: str) -> str:

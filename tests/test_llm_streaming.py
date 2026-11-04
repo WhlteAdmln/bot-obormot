@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 import aiohttp
 import pytest
@@ -109,8 +110,11 @@ async def test_stream_unlimited_yields_content_and_ignores_non_content_chunks(
 
 
 @pytest.mark.asyncio
-async def test_stream_unlimited_raises_api_error_with_response_details(monkeypatch):
-    session = FakeSession(FakeResponse(status=503, body="model unavailable"))
+async def test_stream_unlimited_raises_api_error_with_response_details(
+    monkeypatch, caplog
+):
+    private_detail = "prompt fragment\nsecond line"
+    session = FakeSession(FakeResponse(status=503, body=private_detail))
     client = LLMClient()
 
     async def get_session():
@@ -118,11 +122,14 @@ async def test_stream_unlimited_raises_api_error_with_response_details(monkeypat
 
     monkeypatch.setattr(client, "_get_session", get_session)
 
-    with pytest.raises(LLMAPIError) as error:
-        await collect(stream_unlimited(client, []))
+    with caplog.at_level(logging.ERROR, logger="bot.services.llm.streaming"):
+        with pytest.raises(LLMAPIError) as error:
+            await collect(stream_unlimited(client, []))
 
     assert error.value.status == 503
-    assert error.value.detail == "model unavailable"
+    assert error.value.detail == private_detail
+    assert r"prompt fragment\nsecond line" in caplog.text
+    assert "prompt fragment\nsecond line" not in caplog.text
 
 
 @pytest.mark.asyncio

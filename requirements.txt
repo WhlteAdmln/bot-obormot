@@ -2,5 +2,5 @@ aiogram>=3.20,<4.0
 aiohttp>=3.11,<4.0
 aiosqlite>=0.21,<1.0
 python-dotenv>=1.0,<2.0
-Pillow
-rlottie-python
+Pillow>=13.0.0,<14.0.0
+rlottie-python>=1.3.8,<2.0.0

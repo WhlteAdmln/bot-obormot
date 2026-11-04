@@ -5,7 +5,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import Message
 
 
-logger = logging.getLogger("bot.services.error_handler")
+logger = logging.getLogger("bot.services.chat.reporting")
 
 
 async def safe_edit(message: Message, text: str):

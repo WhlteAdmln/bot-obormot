@@ -21,6 +21,18 @@ async def cmd_history_clear(message: Message, state: FSMContext):
     )
 
 
+@router.message(Command("forget_me"))
+async def cmd_forget_me(message: Message, state: FSMContext):
+    """Полностью удаляет сохранённые данные пользователя."""
+    await db.forget_user(message.from_user.id)
+
+    await send_prompt_status(
+        message,
+        state,
+        "🧹 Все твои данные удалены.",
+    )
+
+
 async def show_history_limit(message: Message, state: FSMContext):
     """Показывает текущий лимит истории временным сообщением."""
     user_id = message.from_user.id

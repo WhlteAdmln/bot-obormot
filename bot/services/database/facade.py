@@ -14,6 +14,7 @@ from bot.services.database.migrations.admin_ids import migrate_admin_ids
 from bot.services.database.schema import create_schema
 from bot.services.database.repositories import (
     admins as admins_repository,
+    blocked_users as blocked_users_repository,
     history_limits as history_limits_repository,
     media as media_repository,
     messages as messages_repository,
@@ -29,6 +30,7 @@ from bot.services.database.usecases.history import (
 )
 from bot.services.database.files.image_storage import (
     delete_image,
+    is_managed_image,
     read_image_as_base64,
 )
 
@@ -126,6 +128,20 @@ class Database:
         )
 
     @handle_database_errors
+    async def prune_history(self, user_id: int) -> None:
+        """Ограничивает число хранимых сообщений пользователя."""
+        paths = await messages_repository.prune_user_history(
+            self.connection,
+            user_id,
+            config.MAX_STORED_EXCHANGES * 2,
+        )
+
+        for file_path in paths:
+            image_path = Path(file_path)
+            if is_managed_image(image_path, self.images_dir):
+                await asyncio.to_thread(delete_image, image_path)
+
+    @handle_database_errors
     async def get_history(
         self,
         user_id: int,
@@ -166,6 +182,28 @@ class Database:
             user_id,
             delete_image,
             logger,
+            images_dir=self.images_dir,
+        )
+
+    @handle_database_errors
+    async def forget_user(self, user_id: int) -> None:
+        """Удаляет историю, персональный промпт и индивидуальный лимит пользователя."""
+        # Вызываем use case и репозитории напрямую: вложенные методы фасада
+        # повторно захватили бы тот же asyncio.Lock.
+        await reset_history_usecase(
+            self.connection,
+            user_id,
+            delete_image,
+            logger,
+            images_dir=self.images_dir,
+        )
+        await user_settings_repository.delete_system_prompt(
+            self.connection,
+            user_id,
+        )
+        await history_limits_repository.delete_history_limit(
+            self.connection,
+            user_id,
         )
 
     @handle_database_errors
@@ -272,6 +310,27 @@ class Database:
             self.connection,
             user_id,
         )
+
+    # --------------------------------------------------
+    # Блокировка пользователей
+    # --------------------------------------------------
+
+    @handle_database_errors
+    async def get_blocked_ids(self) -> set[int]:
+        """Возвращает ID заблокированных пользователей."""
+        return await blocked_users_repository.get_blocked_ids(self.connection)
+
+    @handle_database_errors
+    async def block_user(self, user_id: int) -> bool:
+        """Блокирует пользователя, кроме Supervisor."""
+        if user_id == config.SUPERVISOR_ID:
+            return False
+        return await blocked_users_repository.block_user(self.connection, user_id)
+
+    @handle_database_errors
+    async def unblock_user(self, user_id: int) -> bool:
+        """Снимает блокировку с пользователя."""
+        return await blocked_users_repository.unblock_user(self.connection, user_id)
 
 
 db = Database()

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 from bot.errors import DocumentTooLongError
@@ -43,12 +44,10 @@ def build_user_content(
 
     elif info.has_document:
         document = info.document
+        raw_name = document.file_name or "document"
+        safe_name = re.sub(r"[\r\n\[\]]+", " ", raw_name)[:100]
 
-        user_content = (
-            f"[Содержимое документа: "
-            f"{document.file_name or 'document'}]\n\n"
-            f"{document_text}"
-        )
+        user_content = f"[Содержимое документа: {safe_name}]\n\n{document_text}"
 
         if message.caption:
             user_content = f"{message.caption}\n\n{user_content}"

@@ -9,10 +9,11 @@ from bot.services.chat.aggregation.config import (
     MESSAGE_LENGTH_THRESHOLD,
 )
 from bot.services.chat.aggregation.state import _AggregationState
+from bot.services.validation import MAX_INPUT_TEXT_LENGTH
 from bot.utils.text import utf16_length
 
 
-logger = logging.getLogger("bot.services.message_aggregator")
+logger = logging.getLogger("bot.services.chat.aggregation.aggregator")
 _utf16_length = utf16_length
 
 
@@ -22,6 +23,7 @@ class MessageAggregator:
     def __init__(self) -> None:
         self._states: dict[int, _AggregationState] = {}
         self._lock = asyncio.Lock()
+        self._tasks: set[asyncio.Task] = set()
 
     async def collect(self, message: Message) -> str | None:
         """
@@ -57,6 +59,14 @@ class MessageAggregator:
                 is_continuation = elapsed <= MESSAGE_AGGREGATION_WINDOW
 
                 if is_continuation:
+                    collected = sum(len(part) for part in state.parts)
+
+                    # Дальнейшие части не принимаем, если накопленный текст
+                    # уже превысил допустимую длину. Итоговая валидация
+                    # сообщит пользователю об ошибке длины.
+                    if collected > MAX_INPUT_TEXT_LENGTH:
+                        return None
+
                     state.parts.append(text)
                     state.last_activity = now
                     state.event.set()
@@ -118,10 +128,12 @@ class MessageAggregator:
                 MESSAGE_AGGREGATION_WINDOW,
             )
 
-            asyncio.create_task(
+            task = asyncio.create_task(
                 self._wait_for_continuation(user_id, state),
                 name=f"message_aggregation_{user_id}",
             )
+            self._tasks.add(task)
+            task.add_done_callback(self._tasks.discard)
 
         # Отмена обработчика не отменяет общий Future.
         return await asyncio.shield(future)

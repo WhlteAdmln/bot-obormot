@@ -1,9 +1,54 @@
 """Нормализация сообщений и подготовка мультимодального содержимого."""
 
 import json
+import re
 from typing import Any
 
 from bot.errors import LLMUnavailableError
+
+
+_LITERALS = (
+    "<s>",
+    "</s>",
+    "[INST]",
+    "[/INST]",
+    "<<SYS>>",
+    "<</SYS>>",
+    "<start_of_turn>",
+    "<end_of_turn>",
+)
+_CONTROL_RE = re.compile(
+    "|".join([r"<\|[^|>\n]{1,64}\|>"] + [re.escape(value) for value in _LITERALS]),
+    re.IGNORECASE,
+)
+
+
+def neutralize_control_tokens(text: str) -> str:
+    """Вставляет невидимый символ, чтобы служебная строка стала обычным текстом."""
+    return _CONTROL_RE.sub(
+        lambda match: match.group(0).replace("<", "<\u200b").replace("[", "[\u200b"),
+        text,
+    )
+
+
+def _neutralize_content(content: Any) -> Any:
+    if isinstance(content, str):
+        return neutralize_control_tokens(content)
+
+    if isinstance(content, list):
+        cleaned = []
+        for part in content:
+            if isinstance(part, dict) and part.get("type") == "text":
+                part = {
+                    **part,
+                    "text": neutralize_control_tokens(str(part.get("text", ""))),
+                }
+            elif isinstance(part, str):
+                part = neutralize_control_tokens(part)
+            cleaned.append(part)
+        return cleaned
+
+    return content
 
 
 def normalize_content(content: Any) -> str | list:
@@ -42,6 +87,10 @@ def normalize_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
             raise LLMUnavailableError(f"Invalid message role at index {index}")
 
         content = normalize_content(message.get("content"))
+
+        if role != "system":
+            content = _neutralize_content(content)
+
         normalized.append({**message, "role": role, "content": content})
 
     return normalized

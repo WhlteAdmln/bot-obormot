@@ -13,22 +13,24 @@ async def user_has_access(
     supervisor_id: int,
     allowed_users: set[int],
     database,
+    allow_all: bool = False,
 ) -> bool:
-    """Определяет доступ, сохраняя исходный приоритет ролей.
-
-    Список администраторов читается из БД до проверки allowlist — так же,
-    как это делалось в прежнем AccessMiddleware.
-    """
+    """Определяет доступ. Пустой allowlist не открывает доступ автоматически."""
 
     if is_supervisor(user_id, supervisor_id):
         return True
+
+    blocked_ids = await database.get_blocked_ids()
+
+    if user_id in blocked_ids:
+        return False
 
     admin_ids = await database.get_admin_ids()
 
     if is_database_admin(user_id, admin_ids):
         return True
 
-    if not allowed_users:
+    if allow_all:
         return True
 
     return is_allowlisted(user_id, allowed_users)

@@ -1,14 +1,9 @@
 from bot.handlers import admin, chat, commands, fallback, history, prompt, start
-from bot.handlers.commands import (
-    PromptStates,
-    PROMPT_FLOW_KEY,
-    TemporaryMessagesCleanupMiddleware,
-    cmd_unknown,
-)
-from bot.fsm.keys import WELCOME_MESSAGE_KEY
-from bot.middlewares.temporary_messages import (
-    TemporaryMessagesCleanupMiddleware as Middleware,
-)
+from bot.handlers.history.basic import cmd_forget_me
+from bot.handlers.admin.handler import cmd_ban, cmd_unban
+from bot.fsm.keys import PROMPT_FLOW_KEY, WELCOME_MESSAGE_KEY
+from bot.fsm.states import PromptStates
+from bot.middlewares.temporary_messages import TemporaryMessagesCleanupMiddleware
 
 
 def test_handler_package_routers_are_exported():
@@ -22,12 +17,14 @@ def test_handler_package_routers_are_exported():
     assert chat.router is not None
 
 
-def test_command_compatibility_exports_are_preserved():
+def test_fsm_and_middleware_imports_use_canonical_modules():
     assert PromptStates.waiting_for_prompt is not None
     assert PROMPT_FLOW_KEY == "prompt_flow_message_ids"
     assert WELCOME_MESSAGE_KEY == "start_welcome_message_id"
-    assert cmd_unknown is fallback.cmd_unknown
-    assert TemporaryMessagesCleanupMiddleware is Middleware
+    assert (
+        TemporaryMessagesCleanupMiddleware.__module__
+        == "bot.middlewares.temporary_messages.middleware"
+    )
 
 
 def test_commands_router_keeps_original_registration_groups_in_order():
@@ -42,3 +39,30 @@ def test_commands_router_keeps_original_registration_groups_in_order():
 def test_unknown_command_router_is_last():
     assert commands.router.sub_routers[-1] is fallback.router
     assert len(fallback.router.message.handlers) == 1
+
+
+def test_forget_me_command_is_registered():
+    assert any(
+        handler.callback is cmd_forget_me
+        for handler in history.basic.router.message.handlers
+    )
+
+
+def test_ban_commands_are_registered():
+    callbacks = {handler.callback for handler in admin.router.message.handlers}
+    assert cmd_ban in callbacks
+    assert cmd_unban in callbacks
+
+
+def test_commands_package_only_exports_router():
+    assert commands.__all__ == ["router"]
+    assert set(vars(commands).keys()).isdisjoint(
+        {
+            "cmd_history_clear",
+            "cmd_history",
+            "cmd_prompt",
+            "cmd_prompt_set",
+            "cmd_history_limit",
+            "cmd_unknown",
+        }
+    )

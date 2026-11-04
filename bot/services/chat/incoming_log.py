@@ -2,8 +2,9 @@ import logging
 
 from aiogram.types import Message
 
+from bot.utils.text import log_safe
 
-logger = logging.getLogger("bot.services.chat_logging")
+logger = logging.getLogger("bot.services.chat.incoming_log")
 
 
 def log_incoming_message(message: Message):
@@ -23,13 +24,13 @@ def log_incoming_message(message: Message):
     if message.document:
         logger.info(
             "DOCUMENT INFO: filename=%s, mime_type=%s",
-            message.document.file_name,
-            message.document.mime_type,
+            log_safe(message.document.file_name),
+            log_safe(message.document.mime_type),
         )
 
     if message.animation:
         logger.info(
             "ANIMATION INFO: mime_type=%s, file_id=%s",
-            message.animation.mime_type,
+            log_safe(message.animation.mime_type),
             message.animation.file_id,
         )

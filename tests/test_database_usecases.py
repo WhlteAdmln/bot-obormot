@@ -1,6 +1,7 @@
 import logging
 import os
 import time
+import uuid
 
 import pytest
 
@@ -49,10 +50,12 @@ async def test_add_exchange_rolls_back_database_and_removes_saved_images(test_db
 
 @pytest.mark.asyncio
 async def test_cleanup_usecase_removes_only_expired_orphan_images(test_db):
-    expired_orphan = test_db.images_dir / "expired-orphan.jpg"
-    recent_orphan = test_db.images_dir / "recent-orphan.jpg"
+    expired_orphan = test_db.images_dir / f"{uuid.uuid4().hex}.jpg"
+    recent_orphan = test_db.images_dir / f"{uuid.uuid4().hex}.jpg"
+    non_managed_file = test_db.images_dir / "readme.txt"
     expired_orphan.write_bytes(b"expired")
     recent_orphan.write_bytes(b"recent")
+    non_managed_file.write_text("keep this file", encoding="utf-8")
     old_time = time.time() - 48 * 60 * 60
     os.utime(expired_orphan, (old_time, old_time))
 
@@ -67,6 +70,7 @@ async def test_cleanup_usecase_removes_only_expired_orphan_images(test_db):
     assert result == {"old_images": 0, "orphan_images": 1, "failed": 0}
     assert not expired_orphan.exists()
     assert recent_orphan.exists()
+    assert non_managed_file.read_text(encoding="utf-8") == "keep this file"
 
 
 @pytest.mark.asyncio

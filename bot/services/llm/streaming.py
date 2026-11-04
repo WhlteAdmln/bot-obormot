@@ -9,6 +9,7 @@ import aiohttp
 
 from bot.config import config
 from bot.errors import LLMAPIError, LLMTimeoutError, LLMUnavailableError
+from bot.utils.text import log_safe
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +52,7 @@ async def stream_unlimited(
                 logger.error(
                     "chat/completions failed: HTTP %s: %s",
                     response.status,
-                    detail,
+                    log_safe(detail, 300),
                 )
                 raise LLMAPIError(response.status, detail)
 

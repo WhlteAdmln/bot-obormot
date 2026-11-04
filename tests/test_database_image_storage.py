@@ -1,7 +1,9 @@
 import base64
+import uuid
 
 from bot.services.database.files.image_storage import (
     delete_image,
+    is_managed_image,
     list_image_files,
     read_image_as_base64,
     save_image,
@@ -43,3 +45,19 @@ def test_list_image_files_returns_direct_children(tmp_path):
     result = list_image_files(tmp_path)
 
     assert set(result) == {first, second, tmp_path / "nested"}
+
+
+def test_is_managed_image_requires_uuid_jpg_directly_in_images_dir(tmp_path):
+    images_dir = tmp_path / "images"
+    images_dir.mkdir()
+    valid = images_dir / f"{uuid.uuid4().hex}.jpg"
+    invalid_name = images_dir / "notes.txt"
+    nested_dir = images_dir / "nested"
+    nested_dir.mkdir()
+    nested = nested_dir / f"{uuid.uuid4().hex}.jpg"
+    outside = tmp_path / f"{uuid.uuid4().hex}.jpg"
+
+    assert is_managed_image(valid, images_dir) is True
+    assert is_managed_image(invalid_name, images_dir) is False
+    assert is_managed_image(nested, images_dir) is False
+    assert is_managed_image(outside, images_dir) is False

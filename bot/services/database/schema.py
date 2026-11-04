@@ -68,3 +68,10 @@ async def create_schema(connection: aiosqlite.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_message_media_message_id
         ON message_media(message_id)
     """)
+
+    await connection.execute("""
+        CREATE TABLE IF NOT EXISTS blocked_users (
+            user_id INTEGER PRIMARY KEY,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)

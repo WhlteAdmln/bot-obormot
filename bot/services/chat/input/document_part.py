@@ -7,11 +7,12 @@ from typing import TYPE_CHECKING, Callable, Awaitable
 
 from bot.errors import DocumentAPIError
 from bot.services.chat.input.models import MessageInfo
+from bot.utils.text import log_safe
 
 if TYPE_CHECKING:
     from aiogram.types import Message
 
-logger = logging.getLogger("bot.services.message_preparation")
+logger = logging.getLogger("bot.services.chat.input.document_part")
 
 
 async def prepare_document(
@@ -37,7 +38,7 @@ async def prepare_document(
 
     logger.info(
         "DOCUMENT: начинаю скачивание: %s",
-        document.file_name,
+        log_safe(document.file_name),
     )
 
     document_data = await downloader(

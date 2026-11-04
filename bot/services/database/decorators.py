@@ -7,10 +7,19 @@ import aiosqlite
 
 from bot.errors import DatabaseError
 
-
-# Сохраняем исходное имя логгера фасада, чтобы формат и маршрутизация
-# существующих лог-записей не менялись после переноса декоратора.
+# Прежнее имя логгера сохраняется, чтобы не менять маршрутизацию логов.
 logger = logging.getLogger("bot.services.database.facade")
+
+
+async def _rollback_quietly(connection) -> None:
+    """Сбрасывает незавершённую транзакцию, не скрывая исходную ошибку."""
+    if connection is None:
+        return
+
+    try:
+        await connection.rollback()
+    except aiosqlite.Error:
+        logger.exception("Database rollback failed")
 
 
 def handle_database_errors(func):
@@ -26,13 +35,15 @@ def handle_database_errors(func):
                 raise
 
             except aiosqlite.Error as error:
-                logger.exception(
-                    "Database error in %s",
-                    func.__name__,
-                )
+                await _rollback_quietly(getattr(self, "connection", None))
+                logger.exception("Database error in %s", func.__name__)
 
                 raise DatabaseError(
                     f"Database operation failed: {func.__name__}"
                 ) from error
+
+            except Exception:
+                await _rollback_quietly(getattr(self, "connection", None))
+                raise
 
     return wrapper

@@ -4,7 +4,10 @@ from collections.abc import Awaitable, Callable
 from bot.services.database import db
 from bot.services.llm import llm_client
 
-logger = logging.getLogger("bot.services.chat_processing")
+logger = logging.getLogger("bot.services.chat.pipeline")
+
+# Более длинная история создаёт лишние запросы при подгонке контекста.
+MAX_CONTEXT_EXCHANGES = 100
 
 
 async def process_chat(
@@ -26,7 +29,7 @@ async def process_chat(
 
     # Получаем индивидуальный лимит пользователя.
     # Если настройки нет, используется стандартный лимит.
-    history_limit = await db.get_history_limit(user_id)
+    history_limit = min(await db.get_history_limit(user_id), MAX_CONTEXT_EXCHANGES)
 
     # limit теперь означает количество полных обменов,
     # а не количество отдельных сообщений.
@@ -60,5 +63,14 @@ async def process_chat(
         response,
         media=media,
     )
+
+    try:
+        await db.prune_history(user_id)
+    except Exception:
+        logger.warning(
+            "History pruning failed for user_id=%s",
+            user_id,
+            exc_info=True,
+        )
 
     return response

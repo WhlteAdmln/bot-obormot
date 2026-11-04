@@ -26,6 +26,7 @@ async def test_create_schema_is_idempotent():
             "admins",
             "app_migrations",
             "message_media",
+            "blocked_users",
         } <= tables
     finally:
         await connection.close()

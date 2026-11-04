@@ -37,3 +37,9 @@ async def get_user_lock(user_id: int):
             _user_locks.pop(user_id, None)
         else:
             _user_locks[user_id] = (current_lock, remaining_users)
+
+
+def pending_requests(user_id: int) -> int:
+    """Число запросов пользователя, выполняющихся или ожидающих lock."""
+    entry = _user_locks.get(user_id)
+    return entry[1] if entry else 0

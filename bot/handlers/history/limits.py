@@ -7,6 +7,7 @@ from aiogram.types import Message
 from bot.config import config
 from bot.services.database import db
 from bot.handlers.prompt.handler import send_prompt_status
+from bot.utils.audit import audit
 
 router = Router()
 
@@ -116,6 +117,12 @@ async def cmd_history_limit(
             return
 
         await db.set_history_limit(target_user_id, exchange_limit)
+        audit(
+            "history_limit_set",
+            user_id,
+            target_user_id,
+            str(exchange_limit),
+        )
 
         await send_prompt_status(
             message,

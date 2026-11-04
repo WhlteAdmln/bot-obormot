@@ -14,7 +14,7 @@ from bot.fsm.keys import (
 )
 from bot.fsm.states import PromptStates
 
-logger = logging.getLogger("bot.handlers.commands")
+logger = logging.getLogger("bot.middlewares.temporary_messages.middleware")
 
 
 class TemporaryMessagesCleanupMiddleware(BaseMiddleware):

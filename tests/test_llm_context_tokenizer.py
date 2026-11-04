@@ -1,9 +1,11 @@
 from collections import deque
 
+import logging
+
 import pytest
 
 from bot.config import config
-from bot.errors import LLMUnavailableError
+from bot.errors import LLMAPIError, LLMUnavailableError
 from bot.services.llm import LLMClient
 
 
@@ -185,3 +187,48 @@ async def test_count_text_tokens_rejects_invalid_token_list(monkeypatch):
 
     with pytest.raises(LLMUnavailableError, match="invalid token list"):
         await client.count_text_tokens("hello")
+
+
+@pytest.mark.asyncio
+async def test_context_size_logs_sanitized_error_detail(monkeypatch, caplog):
+    private_detail = "user prompt\nsecond line"
+    fake_session = FakeSession([FakeResponse({}, status=503, body=private_detail)])
+    client = LLMClient()
+    attach_session(monkeypatch, client, fake_session)
+
+    with caplog.at_level(logging.ERROR, logger="bot.services.llm.context_size"):
+        with pytest.raises(LLMAPIError) as error:
+            await client.get_context_size()
+
+    assert error.value.detail == private_detail
+    assert r"user prompt\nsecond line" in caplog.text
+    assert "user prompt\nsecond line" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_count_text_tokens_logs_sanitized_error_detail(monkeypatch, caplog):
+    private_detail = "user prompt\nsecond line"
+    fake_session = FakeSession([FakeResponse({}, status=503, body=private_detail)])
+    client = LLMClient()
+    attach_session(monkeypatch, client, fake_session)
+
+    with caplog.at_level(logging.ERROR, logger="bot.services.llm.tokenizer"):
+        with pytest.raises(LLMAPIError) as error:
+            await client.count_text_tokens("private request")
+
+    assert error.value.detail == private_detail
+    assert r"user prompt\nsecond line" in caplog.text
+    assert "user prompt\nsecond line" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_health_check_does_not_return_raw_unexpected_server_payload(monkeypatch):
+    payload = {"status": "error", "details": "private prompt content"}
+    fake_session = FakeSession([FakeResponse(payload)])
+    client = LLMClient()
+    attach_session(monkeypatch, client, fake_session)
+
+    result = await client.health_check()
+
+    assert result == (False, "Неожиданный ответ сервера")
+    assert "private prompt content" not in result[1]

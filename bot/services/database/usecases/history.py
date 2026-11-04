@@ -7,6 +7,7 @@ from typing import Callable
 
 import aiosqlite
 
+from bot.services.database.files.image_storage import is_managed_image
 from bot.services.database.repositories import messages
 
 ImageReader = Callable[[Path, str], str]
@@ -104,6 +105,7 @@ async def reset_history(
     user_id: int,
     delete_image: ImageDeleter,
     logger: logging.Logger,
+    images_dir: Path | None = None,
 ) -> None:
     """Удаляет историю пользователя и связанные файлы изображений."""
     rows = await messages.fetch_user_media_paths(connection, user_id)
@@ -111,6 +113,11 @@ async def reset_history(
 
     for row in rows:
         image_path = Path(row["file_path"])
+
+        if images_dir is not None and not is_managed_image(image_path, images_dir):
+            logger.warning("Skipping image outside images directory: %s", image_path)
+            continue
+
         try:
             await asyncio.to_thread(delete_image, image_path)
         except OSError:

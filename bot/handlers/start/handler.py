@@ -37,6 +37,7 @@ async def cmd_start(message: Message, state: FSMContext):
         BotCommand(command="history", description="Показать лимит истории"),
         BotCommand(command="history_limit", description="Изменить лимит истории"),
         BotCommand(command="history_clear", description="Очистить историю диалога"),
+        BotCommand(command="forget_me", description="Удалить все свои данные"),
         BotCommand(command="prompt", description="Показать системный промпт"),
         BotCommand(command="prompt_set", description="Установить системный промпт"),
         BotCommand(command="prompt_reset", description="Сбросить системный промпт"),
@@ -44,11 +45,21 @@ async def cmd_start(message: Message, state: FSMContext):
     ]
 
     if is_admin:
-        commands.append(
-            BotCommand(
-                command="health",
-                description="Проверить состояние бота",
-            )
+        commands.extend(
+            [
+                BotCommand(
+                    command="health",
+                    description="Проверить состояние бота",
+                ),
+                BotCommand(
+                    command="ban",
+                    description="Заблокировать пользователя",
+                ),
+                BotCommand(
+                    command="unban",
+                    description="Снять блокировку пользователя",
+                ),
+            ]
         )
 
     # Управление администраторами доступно только Supervisor.
@@ -86,6 +97,7 @@ async def cmd_start(message: Message, state: FSMContext):
         "/history — показать текущий лимит истории\n"
         "/history_limit ЧИСЛО — изменить свой лимит\n"
         "/history_clear — очистить историю диалога\n\n"
+        "/forget_me — удалить все свои данные\n\n"
         "🧠 Системный промпт:\n"
         "/prompt — показать текущий промпт\n"
         "/prompt_set — установить персональный промпт\n"
@@ -100,7 +112,9 @@ async def cmd_start(message: Message, state: FSMContext):
             "📚 Управление историей:\n"
             f"/history_limit ЧИСЛО — изменить свой лимит "
             f"(до {config.MAX_HISTORY_EXCHANGES})\n"
-            "/history_limit ID ЧИСЛО — изменить лимит пользователя\n\n"
+            "/history_limit ID ЧИСЛО — изменить лимит пользователя\n"
+            "/ban ID — заблокировать пользователя\n"
+            "/unban ID — снять блокировку пользователя\n\n"
         )
 
     # Блок управления администраторами видит только Supervisor.

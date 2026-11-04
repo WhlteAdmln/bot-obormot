@@ -1,11 +1,12 @@
+import asyncio
 from types import SimpleNamespace
 
 import pytest
 
 from bot.errors import MediaError
 from bot.services import media
-from bot.services.chat_actions import keep_typing as legacy_keep_typing
 from bot.services.telegram import keep_typing
+from bot.services.telegram.constants import MAX_CONCURRENT_DOWNLOADS
 from bot.services.telegram.downloader import download_telegram_file
 
 
@@ -52,14 +53,67 @@ async def test_telegram_downloader_rejects_reported_oversized_file():
 
 @pytest.mark.asyncio
 async def test_telegram_downloader_rejects_oversized_download_result():
-    bot = FakeBot(data=b"x" * (media.MAX_MEDIA_SIZE + 1))
+    bot = FakeBot(file_size=10, data=b"x" * (media.MAX_MEDIA_SIZE + 1))
 
     with pytest.raises(MediaError, match="слишком большой"):
-        await download_telegram_file(make_message(bot), "unreported-large-file")
+        await download_telegram_file(make_message(bot), "oversized-download")
 
-    assert bot.download_calls == ["files/unreported-large-file"]
+    assert bot.download_calls == ["files/oversized-download"]
 
 
-def test_legacy_import_paths_remain_available():
+@pytest.mark.asyncio
+async def test_telegram_downloader_rejects_unknown_file_size():
+    bot = FakeBot(file_size=None)
+
+    with pytest.raises(MediaError, match="размер файла"):
+        await download_telegram_file(make_message(bot), "unknown-size")
+
+    assert bot.download_calls == []
+
+
+@pytest.mark.asyncio
+async def test_telegram_downloader_limits_concurrent_downloads():
+    class ConcurrentFakeBot(FakeBot):
+        def __init__(self):
+            super().__init__(file_size=3, data=b"abc")
+            self.active_downloads = 0
+            self.max_active_downloads = 0
+            self.three_started = asyncio.Event()
+            self.release_downloads = asyncio.Event()
+
+        async def download_file(self, file_path, destination):
+            self.download_calls.append(file_path)
+            self.active_downloads += 1
+            self.max_active_downloads = max(
+                self.max_active_downloads,
+                self.active_downloads,
+            )
+            if self.active_downloads == MAX_CONCURRENT_DOWNLOADS:
+                self.three_started.set()
+
+            try:
+                await self.release_downloads.wait()
+                destination.write(self.data)
+            finally:
+                self.active_downloads -= 1
+
+    bot = ConcurrentFakeBot()
+    tasks = [
+        asyncio.create_task(download_telegram_file(make_message(bot), f"file-{index}"))
+        for index in range(MAX_CONCURRENT_DOWNLOADS + 2)
+    ]
+
+    await asyncio.wait_for(bot.three_started.wait(), timeout=1)
+    assert bot.active_downloads == MAX_CONCURRENT_DOWNLOADS
+    assert bot.max_active_downloads == MAX_CONCURRENT_DOWNLOADS
+
+    bot.release_downloads.set()
+    results = await asyncio.gather(*tasks)
+
+    assert results == [b"abc"] * (MAX_CONCURRENT_DOWNLOADS + 2)
+    assert bot.max_active_downloads == MAX_CONCURRENT_DOWNLOADS
+
+
+def test_telegram_services_are_imported_from_canonical_modules():
     assert media.download_telegram_file is download_telegram_file
-    assert legacy_keep_typing is keep_typing
+    assert keep_typing.__module__ == "bot.services.telegram.chat_action"

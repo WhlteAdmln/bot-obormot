@@ -53,3 +53,25 @@ def test_database_error_decorator_preserves_function_metadata():
 
     assert operation.__name__ == "operation"
     assert operation.__doc__ == "operation documentation"
+
+
+@pytest.mark.asyncio
+async def test_failed_write_rolls_back_and_next_exchange_succeeds(test_db):
+    """Ошибка CHECK не должна оставлять транзакцию для следующей записи."""
+    with pytest.raises(DatabaseError, match="Database operation failed: add_message"):
+        await test_db.add_message(1, "bad-role", "x")
+
+    assert not test_db.connection.in_transaction
+
+    await test_db.add_exchange(1, "q", "a")
+
+    cursor = await test_db.connection.execute(
+        "SELECT role, content FROM messages WHERE user_id = ? ORDER BY id",
+        (1,),
+    )
+    rows = await cursor.fetchall()
+
+    assert [(row["role"], row["content"]) for row in rows] == [
+        ("user", "q"),
+        ("assistant", "a"),
+    ]

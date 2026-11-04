@@ -130,7 +130,7 @@ class LLMClient:
                 if data.get("status") == "ok":
                     return True, "Доступен"
 
-                return False, f"Неожиданный ответ: {data}"
+                return False, "Неожиданный ответ сервера"
 
         except asyncio.TimeoutError:
             return False, "Тайм-аут при обращении к LLM-серверу"

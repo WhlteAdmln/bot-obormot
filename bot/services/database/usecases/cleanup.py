@@ -7,7 +7,11 @@ from pathlib import Path
 
 import aiosqlite
 
-from bot.services.database.files.image_storage import delete_image, list_image_files
+from bot.services.database.files.image_storage import (
+    delete_image,
+    is_managed_image as is_managed_image_path,
+    list_image_files,
+)
 from bot.services.database.repositories import media as media_repository
 
 
@@ -44,11 +48,8 @@ async def cleanup_old_images(
     resolved_images_dir = images_dir.resolve()
 
     def is_managed_image(path: Path) -> bool:
-        """Проверяет, что файл находится непосредственно в images_dir."""
-        try:
-            return path.resolve().parent == resolved_images_dir
-        except OSError:
-            return False
+        """Проверяет, что файл создан нашим хранилищем изображений."""
+        return is_managed_image_path(path, resolved_images_dir)
 
     deleted_old = 0
     deleted_orphans = 0

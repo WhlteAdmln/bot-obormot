@@ -8,6 +8,7 @@ import aiohttp
 
 from bot.config import config
 from bot.errors import LLMAPIError, LLMTimeoutError, LLMUnavailableError
+from bot.utils.text import log_safe
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,7 @@ async def count_tokens(
                 logger.error(
                     "apply-template failed: HTTP %s: %s",
                     response.status,
-                    detail,
+                    log_safe(detail, 300),
                 )
                 raise LLMAPIError(response.status, detail)
 
@@ -93,7 +94,7 @@ async def count_tokens(
                 logger.error(
                     "tokenize failed: HTTP %s: %s",
                     response.status,
-                    detail,
+                    log_safe(detail, 300),
                 )
                 raise LLMAPIError(response.status, detail)
 
@@ -136,7 +137,7 @@ async def count_text_tokens(client: TokenizerClient, text: str) -> int:
                 logger.error(
                     "Text tokenize failed: HTTP %s: %s",
                     response.status,
-                    detail,
+                    log_safe(detail, 300),
                 )
                 raise LLMAPIError(response.status, detail)
 

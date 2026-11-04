@@ -1,6 +1,6 @@
 import os
 
-from bot.config.env import get_float, get_int, get_log_level, parse_ids
+from bot.config.env import get_bool, get_float, get_int, get_log_level, parse_ids
 from bot.config.prompts import load_default_system_prompt
 
 
@@ -16,6 +16,9 @@ class Config:
     ADMIN_IDS = parse_ids("ADMIN_IDS")
 
     ALLOWED_USERS = parse_ids("ALLOWED_USERS")
+
+    # Если True, бот открыт всем. По умолчанию доступ закрыт.
+    ALLOW_ALL_USERS = get_bool("ALLOW_ALL_USERS", False)
 
     LLM_BASE_URL = os.getenv(
         "LLM_BASE_URL",
@@ -53,6 +56,9 @@ class Config:
         "1000",
     )
 
+    # Максимальное число хранимых полных обменов на пользователя.
+    MAX_STORED_EXCHANGES = get_int("MAX_STORED_EXCHANGES", "2000")
+
     STREAM_UPDATE_INTERVAL = get_float(
         "STREAM_UPDATE_INTERVAL",
         "1.0",
@@ -73,6 +79,7 @@ class Config:
         "WHISPER_API_URL",
         "",
     ).rstrip("/")
+    WHISPER_API_KEY = os.getenv("WHISPER_API_KEY", "").strip()
 
     WHISPER_TIMEOUT = get_int(
         "WHISPER_TIMEOUT",
@@ -87,6 +94,7 @@ class Config:
         .strip()
         .rstrip("/")
     )
+    DOCUMENT_API_KEY = os.getenv("DOCUMENT_API_KEY", "").strip()
 
     DOCUMENT_TIMEOUT = get_int(
         "DOCUMENT_TIMEOUT",

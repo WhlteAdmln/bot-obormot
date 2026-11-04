@@ -1,12 +1,24 @@
+import asyncio
 import base64
+import gzip
 import io
+import json
+import os
+import struct
+import threading
+import time
+from pathlib import Path
+import warnings
 from types import SimpleNamespace
 
 import pytest
 from PIL import Image
 
 from bot.errors import MediaError
-from bot.services import animation, media
+from bot.services import media
+from bot.services.media import animation
+from bot.services.media import pipeline as media_pipeline
+from bot.services.media.animation.gif import extract_gif
 from bot.services.media.animation.sampling import sample_frame_indices
 
 
@@ -109,7 +121,7 @@ def test_sample_frame_indices_rejects_empty_animation():
         sample_frame_indices(0)
 
 
-def test_dispatcher_routes_formats_and_preserves_legacy_patch_points(monkeypatch):
+def test_animation_dispatcher_routes_formats_and_preserves_patch_points(monkeypatch):
     calls = []
     monkeypatch.setattr(
         animation, "_extract_gif", lambda data: calls.append(("gif", data)) or [b"g"]
@@ -139,13 +151,13 @@ def test_image_to_bytes_encodes_bounded_jpeg_frame():
 
 
 @pytest.mark.asyncio
-async def test_process_media_uses_legacy_package_level_dependencies(monkeypatch):
+async def test_process_media_uses_canonical_media_dependencies(monkeypatch):
     message = make_message()
     calls = []
 
     async def fake_download(received_message, file_id):
         calls.append(("download", received_message, file_id))
-        return b"animation-data"
+        return b"GIF89a" + b"animation-data"
 
     async def fake_extract(data, media_type):
         calls.append(("extract", data, media_type))
@@ -164,7 +176,7 @@ async def test_process_media_uses_legacy_package_level_dependencies(monkeypatch)
     assert result == ["encoded:frame-1", "encoded:frame-2"]
     assert calls[:2] == [
         ("download", message, "file-id"),
-        ("extract", b"animation-data", "gif"),
+        ("extract", b"GIF89a" + b"animation-data", "gif"),
     ]
     assert {call[1] for call in calls if call[0] == "prepare"} == {
         b"frame-1",
@@ -204,7 +216,7 @@ def test_extract_gif_returns_at_most_six_jpeg_frames():
 @pytest.mark.asyncio
 async def test_process_media_wraps_unexpected_pipeline_errors(monkeypatch):
     async def fake_download(message, file_id):
-        return b"broken-animation"
+        return b"GIF89a" + b"broken-animation"
 
     async def fake_extract(data, media_type):
         raise ValueError("decoder failed")
@@ -214,3 +226,337 @@ async def test_process_media_wraps_unexpected_pipeline_errors(monkeypatch):
 
     with pytest.raises(MediaError, match="Failed to prepare gif media"):
         await media.process_media(make_message(), "gif", "file-id")
+
+
+def tiny_gif(width: int, height: int) -> bytes:
+    """Минимальный GIF с указанным логическим размером холста."""
+    header = b"GIF89a" + struct.pack("<HHBBB", width, height, 0x80, 0, 0)
+    header += bytes([0, 0, 0, 255, 255, 255])
+    frame = b"," + struct.pack("<HHHHB", 0, 0, 1, 1, 0) + bytes([2, 2, 0x44, 0x01, 0])
+    return header + frame + b";"
+
+
+def test_huge_gif_canvas_is_rejected_before_frame_decode():
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", Image.DecompressionBombWarning)
+        with pytest.raises(MediaError, match="слишком большое"):
+            extract_gif(tiny_gif(13000, 13000))
+
+
+def test_gif_frame_count_limit_is_enforced(monkeypatch):
+    frames = [Image.new("RGB", (2, 2), (index, 20, 30)) for index in range(3)]
+    source = io.BytesIO()
+    frames[0].save(
+        source,
+        format="GIF",
+        save_all=True,
+        append_images=frames[1:],
+        duration=50,
+        loop=0,
+    )
+    monkeypatch.setattr("bot.services.media.animation.gif.MAX_GIF_FRAMES", 2)
+
+    with pytest.raises(MediaError, match="слишком много кадров"):
+        extract_gif(source.getvalue())
+
+
+def test_check_image_size_rejects_invalid_and_oversized_dimensions():
+    from types import SimpleNamespace
+
+    from bot.services.media.safety import check_image_size
+
+    with pytest.raises(MediaError):
+        check_image_size(SimpleNamespace(size=(0, 10)), 100)
+    with pytest.raises(MediaError):
+        check_image_size(SimpleNamespace(size=(11, 10)), 100)
+    check_image_size(SimpleNamespace(size=(10, 10)), 100)
+
+
+def test_configure_pillow_limits_sets_global_decompression_limit(monkeypatch):
+    import warnings
+    from PIL import Image
+
+    from bot.services.media.limits import MAX_IMAGE_PIXELS
+    from bot.services.media.safety import configure_pillow_limits
+
+    # Не оставляем глобальный warning filter изменённым для других тестов.
+    monkeypatch.setattr(warnings, "filters", warnings.filters.copy())
+    monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", None)
+    configure_pillow_limits()
+    assert Image.MAX_IMAGE_PIXELS == MAX_IMAGE_PIXELS
+    assert any(
+        action == "error" and category is Image.DecompressionBombWarning
+        for action, _message, category, _module, _lineno in warnings.filters
+    )
+
+
+@pytest.mark.asyncio
+async def test_run_limited_caps_concurrent_image_jobs(monkeypatch):
+    monkeypatch.setattr(media_pipeline, "_image_jobs", asyncio.Semaphore(2))
+    guard = threading.Lock()
+    active = 0
+    maximum = 0
+
+    def work(value):
+        nonlocal active, maximum
+        with guard:
+            active += 1
+            maximum = max(maximum, active)
+        try:
+            time.sleep(0.03)
+            return value
+        finally:
+            with guard:
+                active -= 1
+
+    results = await asyncio.gather(
+        *(media_pipeline._run_limited(work, value) for value in range(7))
+    )
+
+    assert results == list(range(7))
+    assert maximum == 2
+
+
+# TGS security checks: validate compressed data before it reaches rlottie.
+def test_validate_tgs_accepts_bounded_gzip_json():
+    from bot.services.media.animation.tgs import validate_tgs
+
+    data = gzip.compress(json.dumps({"w": 512, "h": 512}).encode("utf-8"))
+
+    validate_tgs(data)
+
+
+def test_validate_tgs_rejects_gzip_decompression_bomb():
+    from bot.services.media.animation.tgs import MAX_TGS_JSON, validate_tgs
+
+    data = gzip.compress(b"0" * (MAX_TGS_JSON + 1))
+
+    with pytest.raises(MediaError, match="после распаковки"):
+        validate_tgs(data)
+
+
+def test_validate_tgs_rejects_compressed_data_over_limit():
+    from bot.services.media.animation.tgs import MAX_TGS_COMPRESSED, validate_tgs
+
+    data = os.urandom(MAX_TGS_COMPRESSED + 1)
+
+    with pytest.raises(MediaError, match="Стикер слишком большой"):
+        validate_tgs(data)
+
+
+def test_validate_tgs_rejects_invalid_gzip_and_trailing_data():
+    from bot.services.media.animation.tgs import validate_tgs
+
+    with pytest.raises(MediaError, match="Некорректный файл"):
+        validate_tgs(b"not-a-gzip-file")
+
+    valid = gzip.compress(json.dumps({"w": 512, "h": 512}).encode("utf-8"))
+    with pytest.raises(MediaError, match="Некорректный файл"):
+        validate_tgs(valid + b"trailing-data")
+    with pytest.raises(MediaError, match="Некорректный файл"):
+        validate_tgs(valid[:-3])
+
+
+@pytest.mark.parametrize(
+    "document",
+    [
+        {"w": 0, "h": 512},
+        {"w": 1025, "h": 512},
+        {"w": 512, "h": -1},
+        {"w": True, "h": 512},
+        {"w": 512.0, "h": 512},
+        [512, 512],
+    ],
+)
+def test_validate_tgs_rejects_invalid_canvas(document):
+    from bot.services.media.animation.tgs import validate_tgs
+
+    data = gzip.compress(json.dumps(document).encode("utf-8"))
+
+    with pytest.raises(MediaError, match="размер анимации"):
+        validate_tgs(data)
+
+
+def test_extract_tgs_validates_before_importing_rlottie():
+    from bot.services.media.animation.tgs import extract_tgs
+
+    with pytest.raises(MediaError, match="Некорректный файл"):
+        extract_tgs(b"not-a-gzip-file")
+
+
+def test_video_container_sniffer_accepts_webm_and_mp4():
+    from bot.services.media.animation.video import _check_container
+
+    _check_container(b"\x1a\x45\xdf\xa3" + b"webm-data")
+    _check_container(b"\x00\x00\x00\x18ftypmp42" + b"mp4-data")
+
+
+def test_video_container_sniffer_rejects_playlist_and_unknown_data():
+    from bot.services.media.animation.video import _check_container
+
+    for data in (b"#EXTM3U\nhttps://example.invalid/video", b"", b"not-a-video"):
+        with pytest.raises(MediaError, match="формат видео"):
+            _check_container(data)
+
+
+def test_probe_dimensions_uses_local_file_protocol_and_parses_dimensions(
+    monkeypatch, tmp_path
+):
+    from bot.services.media.animation import video
+
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        return SimpleNamespace(returncode=0, stdout=b"1920x1080\n", stderr=b"")
+
+    monkeypatch.setattr(video.subprocess, "run", fake_run)
+
+    assert video._probe_dimensions(tmp_path / "sample.webm") == (1920, 1080)
+    assert calls[0][0] == "ffprobe"
+    assert calls[0][calls[0].index("-protocol_whitelist") + 1] == "file"
+    assert calls[0][calls[0].index("-select_streams") + 1] == "v:0"
+
+
+def test_extract_video_rejects_resolution_before_running_ffmpeg(monkeypatch):
+    from bot.services.media.animation import video
+
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        if command[0] == "ffprobe" and "format=duration" in command:
+            return SimpleNamespace(returncode=0, stdout=b"1.0\n", stderr=b"")
+        if command[0] == "ffprobe":
+            return SimpleNamespace(returncode=0, stdout=b"3840x2161\n", stderr=b"")
+        raise AssertionError("ffmpeg must not run for oversized input")
+
+    monkeypatch.setattr(video.subprocess, "run", fake_run)
+
+    with pytest.raises(MediaError, match="Разрешение исходного видео"):
+        video.extract_video(b"\x1a\x45\xdf\xa3" + b"fake-webm")
+
+    assert len(calls) == 2
+    assert all(call[0] == "ffprobe" for call in calls)
+
+
+def test_extract_video_passes_resource_and_protocol_limits(monkeypatch):
+    from bot.services.media.animation import video
+
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        if command[0] == "ffprobe" and "format=duration" in command:
+            return SimpleNamespace(returncode=0, stdout=b"1.0\n", stderr=b"")
+        if command[0] == "ffprobe":
+            return SimpleNamespace(returncode=0, stdout=b"32x24\n", stderr=b"")
+
+        assert command[0] == "ffmpeg"
+        output_pattern = Path(command[-1])
+        Image.new("RGB", (16, 12), (20, 40, 60)).save(
+            output_pattern.parent / "frame_01.png", format="PNG"
+        )
+        return SimpleNamespace(returncode=0, stdout=b"", stderr=b"")
+
+    monkeypatch.setattr(video.subprocess, "run", fake_run)
+
+    frames = video.extract_video(b"\x1a\x45\xdf\xa3" + b"fake-webm")
+
+    assert len(frames) == 1
+    ffprobes = [call for call in calls if call[0] == "ffprobe"]
+    ffmpeg = next(call for call in calls if call[0] == "ffmpeg")
+    assert len(ffprobes) == 2
+    for command in ffprobes:
+        assert command[command.index("-protocol_whitelist") + 1] == "file"
+    assert "-nostdin" in ffmpeg
+    assert ffmpeg[ffmpeg.index("-protocol_whitelist") + 1] == "file"
+    assert ffmpeg[ffmpeg.index("-max_alloc") + 1] == "1073741824"
+    assert ffmpeg[ffmpeg.index("-threads") + 1] == "1"
+
+
+# Content sniffing checks: the user-provided filename/MIME type is not trusted.
+@pytest.mark.parametrize(
+    ("data", "expected"),
+    [
+        (b"GIF87a" + b"payload", "gif"),
+        (b"GIF89a" + b"payload", "gif"),
+        (b"\x1f\x8b" + b"payload", "tgs"),
+        (b"\x1a\x45\xdf\xa3" + b"payload", "webm"),
+        (b"\x00\x00\x00\x18ftypmp42" + b"payload", "mp4"),
+        (b"\xff\xd8\xff" + b"payload", "image"),
+        (b"\x89PNG\r\n\x1a\n" + b"payload", "image"),
+        (b"RIFF\x00\x00\x00\x00WEBP" + b"payload", "image"),
+        (b"BM" + b"payload", "image"),
+        (b"II*\x00" + b"payload", "image"),
+        (b"MM\x00*" + b"payload", "image"),
+    ],
+)
+def test_sniff_media_type_recognizes_supported_signatures(data, expected):
+    from bot.services.media.sniff import sniff_media_type
+
+    assert sniff_media_type(data) == expected
+
+
+def test_sniff_media_type_rejects_unknown_or_short_mp4_data():
+    from bot.services.media.sniff import sniff_media_type
+
+    assert sniff_media_type(b"not-a-media-file") is None
+    assert sniff_media_type(b"\x00\x00\x00\x08ftyp") is None
+
+
+@pytest.mark.parametrize(
+    ("data", "declared"),
+    [
+        (b"GIF89a" + b"payload", "gif"),
+        (b"\x1f\x8b" + b"payload", "tgs"),
+        (b"\x89PNG\r\n\x1a\n" + b"payload", "image"),
+        (b"\x1a\x45\xdf\xa3" + b"payload", "webm"),
+        (b"\x00\x00\x00\x18ftypmp42" + b"payload", "mp4"),
+        (b"\x1a\x45\xdf\xa3" + b"payload", "video"),
+        # Telegram may report either MP4 or WEBM for supported video inputs.
+        (b"\x1a\x45\xdf\xa3" + b"payload", "mp4"),
+        (b"\x00\x00\x00\x18ftypmp42" + b"payload", "webm"),
+    ],
+)
+def test_verify_declared_type_accepts_matching_types_and_video_family(data, declared):
+    from bot.services.media.sniff import verify_declared_type
+
+    assert verify_declared_type(data, declared) is None
+
+
+def test_verify_declared_type_rejects_mismatched_types():
+    from bot.services.media.sniff import verify_declared_type
+
+    with pytest.raises(MediaError, match="не совпадает"):
+        verify_declared_type(b"GIF89a" + b"payload", "mp4")
+
+    with pytest.raises(MediaError, match="не совпадает"):
+        verify_declared_type(b"\x89PNG\r\n\x1a\n" + b"payload", "tgs")
+
+    with pytest.raises(MediaError, match="Неподдерживаемый"):
+        verify_declared_type(b"not-a-media-file", "image")
+
+
+@pytest.mark.asyncio
+async def test_process_media_rejects_declared_type_mismatch_before_decoder():
+    calls = []
+
+    async def fake_download(message, file_id):
+        return b"\x89PNG\r\n\x1a\n" + b"payload"
+
+    async def fake_extract(data, media_type):
+        calls.append((data, media_type))
+        return [b"frame"]
+
+    with pytest.raises(MediaError, match="не совпадает"):
+        await media_pipeline.process_media(
+            make_message(),
+            "gif",
+            "file-id",
+            downloader=fake_download,
+            animation_extractor=fake_extract,
+            image_preparer=lambda data: "unused",
+        )
+
+    assert calls == []

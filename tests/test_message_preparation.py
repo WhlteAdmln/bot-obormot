@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import base64
+import logging
 from types import SimpleNamespace
 
 import pytest
 
-from bot.services.message_preparation import (
+from bot.services.chat.input import (
     MessageInfo,
     PreparedMessage,
     inspect_message,
@@ -200,6 +201,37 @@ def test_build_user_content_keeps_document_prefix_and_caption():
     )
 
 
+def test_build_user_content_sanitizes_document_filename():
+    document = SimpleNamespace(file_name="report\n[ERROR forged].pdf")
+    info = MessageInfo(
+        None,
+        None,
+        None,
+        None,
+        document,
+        False,
+        False,
+        True,
+        False,
+    )
+
+    content = content_module.build_user_content(
+        make_message(text=None),
+        info,
+        text_override=None,
+        transcribed_text=None,
+        image_urls=None,
+        document_text="Содержимое отчёта",
+        document_format="pdf",
+    )
+
+    assert content == (
+        "[Содержимое документа: report ERROR forged .pdf]\n\nСодержимое отчёта"
+    )
+    assert "\nERROR forged" not in content
+    assert "[ERROR forged]" not in content
+
+
 def test_build_user_content_validates_plain_text(monkeypatch):
     info = MessageInfo(
         None,
@@ -356,7 +388,9 @@ def test_build_saved_user_text_preserves_document_format_label():
 
 
 @pytest.mark.asyncio
-async def test_prepare_audio_preserves_validation_download_and_transcription_order():
+async def test_prepare_audio_preserves_validation_download_and_transcription_order(
+    caplog,
+):
     events = []
     info = MessageInfo(
         None,
@@ -381,15 +415,19 @@ async def test_prepare_audio_preserves_validation_download_and_transcription_ord
         events.append(("transcribe", data, filename))
         return "Распознано"
 
-    result = await audio_module.prepare_audio(
-        make_message(),
-        info,
-        duration_validator=validate,
-        downloader=download,
-        transcriber=transcribe,
-    )
+    with caplog.at_level(logging.INFO, logger=audio_module.logger.name):
+        result = await audio_module.prepare_audio(
+            make_message(),
+            info,
+            duration_validator=validate,
+            downloader=download,
+            transcriber=transcribe,
+        )
 
     assert result == "Распознано"
+    assert "Распознано" not in caplog.text
+    assert "AUDIO: распознано символов: 10" in caplog.text
+    assert "Recognized audio text" not in caplog.text
     assert events == [
         "validate",
         ("download", "voice-id"),
@@ -428,8 +466,9 @@ async def test_prepare_media_decodes_data_urls_to_original_image_bytes():
 
 
 @pytest.mark.asyncio
-async def test_prepare_document_rejects_empty_extracted_text():
-    document = SimpleNamespace(file_id="doc-id", file_name="empty.pdf")
+async def test_prepare_document_rejects_empty_extracted_text(caplog):
+    filename = "empty.pdf\nERROR forged entry"
+    document = SimpleNamespace(file_id="doc-id", file_name=filename)
     info = MessageInfo(
         None,
         None,
@@ -446,17 +485,25 @@ async def test_prepare_document_rejects_empty_extracted_text():
         assert file_id == "doc-id"
         return b"document-bytes"
 
-    async def process(_data, filename):
-        assert filename == "empty.pdf"
+    async def process(_data, actual_filename):
+        # Очистка относится только к логам, а не к имени файла для сервиса.
+        assert actual_filename == filename
         return {"text": "  ", "format": "pdf", "characters": 0}
 
-    with pytest.raises(DocumentAPIError, match="Document contains no extractable text"):
-        await documents_module.prepare_document(
-            make_message(),
-            info,
-            downloader=download,
-            document_processor=process,
-        )
+    with caplog.at_level(logging.INFO, logger=documents_module.logger.name):
+        with pytest.raises(
+            DocumentAPIError,
+            match="Document contains no extractable text",
+        ):
+            await documents_module.prepare_document(
+                make_message(),
+                info,
+                downloader=download,
+                document_processor=process,
+            )
+
+    assert r"DOCUMENT: начинаю скачивание: empty.pdf\nERROR forged entry" in caplog.text
+    assert "\nERROR forged entry" not in caplog.text
 
 
 @pytest.mark.asyncio

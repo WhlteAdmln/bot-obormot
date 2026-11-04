@@ -15,7 +15,7 @@ from bot.services.chat.input.models import MessageInfo, PreparedMessage
 if TYPE_CHECKING:
     from aiogram.types import Message
 
-logger = logging.getLogger("bot.services.message_preparation")
+logger = logging.getLogger("bot.services.chat.input.prepare")
 
 
 async def prepare_message(

@@ -10,7 +10,7 @@ from bot.services.chat.input.models import MessageInfo
 if TYPE_CHECKING:
     from aiogram.types import Message
 
-logger = logging.getLogger("bot.services.message_preparation")
+logger = logging.getLogger("bot.services.chat.input.audio_part")
 
 
 async def prepare_audio(
@@ -59,14 +59,6 @@ async def prepare_audio(
         info.audio_filename,
     )
 
-    logger.info(
-        "AUDIO: распознавание завершено: %s",
-        transcribed_text[:200],
-    )
-
-    logger.info(
-        "Recognized audio text: %s",
-        transcribed_text[:200],
-    )
+    logger.info("AUDIO: распознано символов: %d", len(transcribed_text))
 
     return transcribed_text

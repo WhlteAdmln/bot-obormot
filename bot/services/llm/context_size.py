@@ -8,6 +8,7 @@ import aiohttp
 
 from bot.config import config
 from bot.errors import LLMAPIError, LLMTimeoutError, LLMUnavailableError
+from bot.utils.text import log_safe
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,7 @@ async def get_context_size(client: ContextSizeClient) -> int:
                 logger.error(
                     "props failed: HTTP %s: %s",
                     response.status,
-                    detail,
+                    log_safe(detail, 300),
                 )
                 raise LLMAPIError(response.status, detail)
 

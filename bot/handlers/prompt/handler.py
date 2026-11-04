@@ -11,7 +11,7 @@ from bot.fsm.states import PromptStates
 from bot.config import config
 from bot.services.database import db
 
-logger = logging.getLogger("bot.handlers.commands")
+logger = logging.getLogger("bot.handlers.prompt.handler")
 router = Router()
 MAX_SYSTEM_PROMPT_LENGTH = 4000
 MAX_DISPLAY_LENGTH = 3500

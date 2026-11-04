@@ -8,6 +8,7 @@ from aiogram.types import Message
 from bot.config import config
 from bot.services.database import db
 from bot.services.llm import llm_client
+from bot.utils.audit import audit
 
 
 router = Router()
@@ -18,6 +19,12 @@ def is_supervisor(message: Message) -> bool:
     return (
         message.from_user is not None and message.from_user.id == config.SUPERVISOR_ID
     )
+
+
+def _audit_denied(message: Message) -> None:
+    """Журналирует отказ в административной команде, если известен отправитель."""
+    if message.from_user is not None:
+        audit("admin_denied", message.from_user.id, None, "denied")
 
 
 async def check_telegram(message: Message) -> tuple[bool, str]:
@@ -65,6 +72,7 @@ async def cmd_health(message: Message):
             return
 
         if user_id not in admin_ids:
+            audit("admin_denied", user_id, None, "denied")
             await message.answer("⛔ Доступ запрещён.")
             return
 
@@ -102,6 +110,7 @@ async def cmd_health(message: Message):
 @router.message(Command("admin"))
 async def cmd_admin(message: Message):
     if not is_supervisor(message):
+        _audit_denied(message)
         await message.answer("⛔ Доступ запрещён.")
         return
 
@@ -122,6 +131,7 @@ async def cmd_admin(message: Message):
 @router.message(Command("admins"))
 async def cmd_admins(message: Message):
     if not is_supervisor(message):
+        _audit_denied(message)
         await message.answer("⛔ Доступ запрещён.")
         return
 
@@ -144,6 +154,7 @@ async def cmd_admin_add(
     command: CommandObject,
 ):
     if not is_supervisor(message):
+        _audit_denied(message)
         await message.answer("⛔ Доступ запрещён.")
         return
 
@@ -170,6 +181,12 @@ async def cmd_admin_add(
         return
 
     added = await db.add_admin(user_id)
+    audit(
+        "admin_add",
+        message.from_user.id,
+        user_id,
+        "added" if added else "already",
+    )
 
     if added:
         await message.answer(
@@ -185,6 +202,7 @@ async def cmd_admin_remove(
     command: CommandObject,
 ):
     if not is_supervisor(message):
+        _audit_denied(message)
         await message.answer("⛔ Доступ запрещён.")
         return
 
@@ -211,6 +229,12 @@ async def cmd_admin_remove(
         return
 
     removed = await db.remove_admin(user_id)
+    audit(
+        "admin_remove",
+        message.from_user.id,
+        user_id,
+        "removed" if removed else "not_found",
+    )
 
     if removed:
         await message.answer(
@@ -220,3 +244,78 @@ async def cmd_admin_remove(
         await message.answer(
             f"ℹ️ Пользователь {user_id} не найден среди администраторов."
         )
+
+
+async def is_admin_or_supervisor(user_id: int) -> bool:
+    """Проверяет право управлять блокировками пользователей."""
+    if user_id == config.SUPERVISOR_ID:
+        return True
+    return user_id in await db.get_admin_ids()
+
+
+def _parse_target_id(command: CommandObject) -> int | None:
+    try:
+        target_id = int((command.args or "").strip())
+    except ValueError:
+        return None
+    return target_id if target_id > 0 else None
+
+
+@router.message(Command("ban"))
+async def cmd_ban(message: Message, command: CommandObject):
+    """Блокирует пользователя до отдельной команды /unban."""
+    if message.from_user is None:
+        return
+
+    actor_id = message.from_user.id
+    if not await is_admin_or_supervisor(actor_id):
+        _audit_denied(message)
+        await message.answer("⛔ Доступ запрещён.")
+        return
+
+    target_id = _parse_target_id(command)
+    if target_id is None:
+        await message.answer("Укажи положительный Telegram ID. Пример: /ban 123456789")
+        return
+
+    if target_id == config.SUPERVISOR_ID or target_id in await db.get_admin_ids():
+        await message.answer(
+            "⛔ Этого пользователя заблокировать нельзя. Сначала сними права администратора."
+        )
+        return
+
+    changed = await db.block_user(target_id)
+    audit("ban", actor_id, target_id, "blocked" if changed else "already")
+    await message.answer(
+        f"✅ Пользователь {target_id} заблокирован."
+        if changed
+        else f"ℹ️ Пользователь {target_id} уже заблокирован."
+    )
+
+
+@router.message(Command("unban"))
+async def cmd_unban(message: Message, command: CommandObject):
+    """Снимает блокировку с пользователя."""
+    if message.from_user is None:
+        return
+
+    actor_id = message.from_user.id
+    if not await is_admin_or_supervisor(actor_id):
+        _audit_denied(message)
+        await message.answer("⛔ Доступ запрещён.")
+        return
+
+    target_id = _parse_target_id(command)
+    if target_id is None:
+        await message.answer(
+            "Укажи положительный Telegram ID. Пример: /unban 123456789"
+        )
+        return
+
+    changed = await db.unblock_user(target_id)
+    audit("unban", actor_id, target_id, "unblocked" if changed else "not_found")
+    await message.answer(
+        f"✅ Блокировка пользователя {target_id} снята."
+        if changed
+        else f"ℹ️ Пользователь {target_id} не был заблокирован."
+    )

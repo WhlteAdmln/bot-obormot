@@ -14,7 +14,71 @@ For the module map and request flow, see [`docs/architecture.md`](docs/architect
 
 ## Installation
 
-Run commands from the project root — the directory containing `requirements.txt`, `bot/`, and `prompts/`.
+### Quick installation on Linux
+
+The project provides an installer that downloads a published GitHub Release, checks the required system tools, creates a Python virtual environment, installs the locked dependencies, and prepares the configuration file. The default installation directory is `~/bot-obormot`.
+
+Install the latest stable release:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/WhlteAdmln/bot-obormot/main/install.sh | sh -s -- --latest
+```
+
+Install the latest published GitHub prerelease (the newest release marked as a prerelease):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/WhlteAdmln/bot-obormot/main/install.sh | sh -s -- --nightly
+```
+
+Add `--systemd` to create a per-user systemd unit at `~/.config/systemd/user/bot-obormot.service`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/WhlteAdmln/bot-obormot/main/install.sh | sh -s -- --latest --systemd
+# or
+curl -fsSL https://raw.githubusercontent.com/WhlteAdmln/bot-obormot/main/install.sh | sh -s -- --nightly --systemd
+```
+
+The installer must be run as a regular user, not as root. It uses `sudo` only when system packages need to be installed. It supports APT, DNF/YUM, Pacman, Zypper, and APK package managers. It checks for Python 3.11+, `pip`/`venv`, `unzip`, `curl`, build tools, CMake, and FFmpeg tools. On distributions whose repositories provide Python older than 3.11, install Python 3.11 or newer first. FFmpeg installation is best-effort; video processing will be unavailable if `ffmpeg`/`ffprobe` are missing.
+
+The installer creates `~/bot-obormot`, renames `.env.example` to `.env`, sets restrictive permissions on `.env`, creates `.venv`, and installs packages from `requirements-lock.txt`. It does not overwrite an existing installation directory. Back up or move an existing directory before reinstalling.
+
+After installation, edit the configuration and set at least `BOT_TOKEN` and `SUPERVISOR_ID`:
+
+```bash
+nano ~/bot-obormot/.env
+```
+
+When `--systemd` is used, the unit is created and systemd reloads its unit files, but the service is deliberately not enabled or started before `.env` is configured. After editing `.env`, run:
+
+```bash
+systemctl --user enable --now bot-obormot.service
+systemctl --user status bot-obormot.service
+journalctl --user -u bot-obormot.service -f
+```
+
+To start a user service at boot without an interactive login, an administrator may enable lingering for the account:
+
+```bash
+sudo loginctl enable-linger "$USER"
+```
+
+Optional installer environment variables:
+
+- `BOT_INSTALL_DIR` — choose a different installation directory.
+- `BOT_GITHUB_REPOSITORY` — override the default GitHub repository (`WhlteAdmln/bot-obormot`).
+- `GITHUB_TOKEN` — provide a GitHub token if API rate limits or a private repository require authentication. Keep the token private and avoid placing it directly in shell history.
+
+For a safer alternative to piping directly into a shell, download and inspect the installer first:
+
+```bash
+curl -fsSLo install.sh https://raw.githubusercontent.com/WhlteAdmln/bot-obormot/main/install.sh
+less install.sh
+sh install.sh --latest
+```
+
+### Manual installation
+
+For a manual installation, run commands from the project root — the directory containing `requirements.txt`, `bot/`, and `prompts/`.
 
 ```bash
 python3 -m venv .venv

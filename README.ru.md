@@ -14,7 +14,71 @@
 
 ## Установка
 
-Команды выполняются из корня проекта — каталога, в котором находятся `requirements.txt`, `bot/` и `prompts/`.
+### Быстрая установка в Linux
+
+В проекте есть установочный скрипт. Он скачивает опубликованный GitHub Release, проверяет системные инструменты, создаёт виртуальное окружение Python, устанавливает закреплённые зависимости и подготавливает конфигурацию. Каталог установки по умолчанию — `~/bot-obormot`.
+
+Установка последнего стабильного релиза:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/WhlteAdmln/bot-obormot/main/install.sh | sh -s -- --latest
+```
+
+Установка последнего опубликованного prerelease (самого нового релиза GitHub с признаком prerelease):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/WhlteAdmln/bot-obormot/main/install.sh | sh -s -- --nightly
+```
+
+Добавьте `--systemd`, чтобы создать пользовательский systemd-юнит в `~/.config/systemd/user/bot-obormot.service`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/WhlteAdmln/bot-obormot/main/install.sh | sh -s -- --latest --systemd
+# или
+curl -fsSL https://raw.githubusercontent.com/WhlteAdmln/bot-obormot/main/install.sh | sh -s -- --nightly --systemd
+```
+
+Установщик нужно запускать от обычного пользователя, не от `root`. `sudo` используется только при необходимости установить системные пакеты. Поддерживаются менеджеры пакетов APT, DNF/YUM, Pacman, Zypper и APK. Скрипт проверяет Python 3.11+, `pip`/`venv`, `unzip`, `curl`, инструменты сборки C/C++, CMake и FFmpeg. Если в репозиториях дистрибутива доступна только версия Python ниже 3.11, сначала установите Python 3.11 или новее. Установка FFmpeg выполняется по возможности; без `ffmpeg`/`ffprobe` обработка видео работать не будет.
+
+Установщик создаёт `~/bot-obormot`, переименовывает `.env.example` в `.env`, ограничивает права `.env`, создаёт `.venv` и устанавливает пакеты из `requirements-lock.txt`. Существующий каталог установки не перезаписывается. Перед повторной установкой переместите или сохраните существующий каталог.
+
+После установки откройте конфигурацию и обязательно задайте `BOT_TOKEN` и `SUPERVISOR_ID`:
+
+```bash
+nano ~/bot-obormot/.env
+```
+
+При использовании `--systemd` установщик создаёт юнит и обновляет конфигурацию systemd, но намеренно не включает и не запускает службу до настройки `.env`. После редактирования `.env` выполните:
+
+```bash
+systemctl --user enable --now bot-obormot.service
+systemctl --user status bot-obormot.service
+journalctl --user -u bot-obormot.service -f
+```
+
+Чтобы пользовательская служба запускалась при старте системы без интерактивного входа пользователя, администратор может включить lingering для учётной записи:
+
+```bash
+sudo loginctl enable-linger "$USER"
+```
+
+Дополнительные переменные установщика:
+
+- `BOT_INSTALL_DIR` — другой каталог установки.
+- `BOT_GITHUB_REPOSITORY` — переопределение GitHub-репозитория (по умолчанию `WhlteAdmln/bot-obormot`).
+- `GITHUB_TOKEN` — токен GitHub, если требуется обход ограничений API или доступ к приватному репозиторию. Храните токен в секрете и не записывайте его непосредственно в историю команд.
+
+Более безопасная альтернатива `curl | sh` — сначала скачать и просмотреть установщик:
+
+```bash
+curl -fsSLo install.sh https://raw.githubusercontent.com/WhlteAdmln/bot-obormot/main/install.sh
+less install.sh
+sh install.sh --latest
+```
+
+### Ручная установка
+
+При ручной установке команды выполняются из корня проекта — каталога, в котором находятся `requirements.txt`, `bot/` и `prompts/`.
 
 ```bash
 python3 -m venv .venv

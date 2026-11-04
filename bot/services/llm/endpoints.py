@@ -1,0 +1,8 @@
+"""Построение URL-адресов локального llama.cpp сервера."""
+
+from bot.config import config
+
+
+def server_url() -> str:
+    """Возвращает корневой URL сервера без суффикса OpenAI API `/v1`."""
+    return config.LLM_BASE_URL.rstrip("/").removesuffix("/v1")

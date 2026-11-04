@@ -1,0 +1,20 @@
+from aiogram import F, Router
+from aiogram.fsm.context import FSMContext
+from aiogram.types import Message
+
+from bot.fsm.keys import UNKNOWN_COMMAND_MESSAGE_KEY, UNKNOWN_COMMAND_STATUS_MESSAGE_KEY
+
+router = Router()
+
+
+@router.message(F.text.startswith("/"))
+async def cmd_unknown(message: Message, state: FSMContext):
+    """Обрабатывает неизвестные команды."""
+    response = await message.answer("⛔ Доступ запрещён.")
+
+    await state.update_data(
+        **{
+            UNKNOWN_COMMAND_MESSAGE_KEY: message.message_id,
+            UNKNOWN_COMMAND_STATUS_MESSAGE_KEY: response.message_id,
+        }
+    )

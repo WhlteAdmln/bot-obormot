@@ -1,0 +1,96 @@
+"""Подбор истории сообщений под доступное контекстное окно LLM."""
+
+import logging
+from typing import Any, Protocol
+
+from bot.config import config
+from bot.errors import InputTooLongError, LLMUnavailableError
+from bot.services.llm.constants import CONTEXT_SAFETY_MARGIN, IMAGE_TOKEN_RESERVE
+
+logger = logging.getLogger(__name__)
+
+
+class FittingClient(Protocol):
+    """Минимальный интерфейс клиента, необходимый для fitting истории."""
+
+    async def get_context_size(self) -> int: ...
+
+    def _normalize_messages(
+        self,
+        messages: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]: ...
+
+    @staticmethod
+    def _count_images(messages: list[dict[str, Any]]) -> int: ...
+
+    async def count_tokens(self, messages: list[dict[str, Any]]) -> int: ...
+
+
+async def fit_messages_to_context(
+    client: FittingClient,
+    system_prompt: str,
+    history: list[dict[str, Any]],
+    user_message: Any,
+) -> list[dict[str, Any]]:
+    """Подбирает максимально возможную историю под контекст модели."""
+
+    context_size = await client.get_context_size()
+
+    history = list(history)
+
+    # История должна начинаться с пользовательского сообщения.
+    while history and history[0].get("role") != "user":
+        history.pop(0)
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        *history,
+        {"role": "user", "content": user_message},
+    ]
+
+    messages = client._normalize_messages(messages)
+
+    while True:
+        # Число изображений меняется при удалении старых обменов.
+        image_count = client._count_images(messages)
+
+        reserved_tokens = (
+            config.LLM_MAX_TOKENS
+            + CONTEXT_SAFETY_MARGIN
+            + IMAGE_TOKEN_RESERVE * image_count
+        )
+
+        available_tokens = context_size - reserved_tokens
+
+        if available_tokens <= 0:
+            raise InputTooLongError("Недостаточно места в контексте для запроса.")
+
+        token_count = await client.count_tokens(messages)
+
+        if token_count <= available_tokens:
+            logger.info(
+                "Context fit: %s/%s tokens, history messages: %s, images: %s",
+                token_count,
+                available_tokens,
+                len(messages) - 2,
+                image_count,
+            )
+            return messages
+
+        # В списке остаются только system и текущий user:
+        # даже они не помещаются в доступный контекст.
+        if len(messages) <= 2:
+            raise InputTooLongError("Сообщение слишком большое для контекста модели.")
+
+        # История должна быть организована парами user/assistant.
+        if messages[1].get("role") != "user":
+            raise LLMUnavailableError("Invalid history: expected a user message")
+
+        # Удаляем старейшее пользовательское сообщение.
+        messages.pop(1)
+
+        # Удаляем следующий за ним ответ ассистента, если он есть.
+        if len(messages) > 2 and messages[1].get("role") == "assistant":
+            messages.pop(1)
+
+        logger.debug("Context overflow: removed oldest history exchange")

@@ -36,6 +36,17 @@ HISTORY_WITH_MEDIA = """
         SELECT assistant_message_id AS message_id
         FROM recent_exchanges
     ),
+    recent_media_messages AS (
+        SELECT
+            mm.message_id,
+            MAX(mm.id) AS latest_media_id
+        FROM message_media AS mm
+        JOIN selected_messages AS sm
+            ON sm.message_id = mm.message_id
+        GROUP BY mm.message_id
+        ORDER BY latest_media_id DESC
+        LIMIT ?
+    ),
     recent_media AS (
         SELECT
             mm.id,
@@ -43,10 +54,8 @@ HISTORY_WITH_MEDIA = """
             mm.file_path,
             mm.mime_type
         FROM message_media AS mm
-        JOIN selected_messages AS sm
-            ON sm.message_id = mm.message_id
-        ORDER BY mm.id DESC
-        LIMIT ?
+        JOIN recent_media_messages AS rmm
+            ON rmm.message_id = mm.message_id
     )
     SELECT
         m.id,

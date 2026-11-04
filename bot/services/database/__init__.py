@@ -7,6 +7,7 @@
 
 from bot.services.database.facade import (
     MAX_HISTORY_IMAGES,
+    MAX_HISTORY_MEDIA_MESSAGES,
     Database,
     db,
     handle_database_errors,
@@ -15,6 +16,7 @@ from bot.services.database.facade import (
 
 __all__ = [
     "MAX_HISTORY_IMAGES",
+    "MAX_HISTORY_MEDIA_MESSAGES",
     "Database",
     "db",
     "handle_database_errors",

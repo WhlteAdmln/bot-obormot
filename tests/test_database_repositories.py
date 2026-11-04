@@ -1,7 +1,10 @@
-from pathlib import Path
+import base64
+import io
 import uuid
+from pathlib import Path
 
 import pytest
+from PIL import Image
 
 from bot.config import config
 from bot.services.database.repositories import (
@@ -135,6 +138,42 @@ async def test_history_usecase_returns_image_parts_and_reset_removes_files(test_
     await test_db.reset_history(USER_ID)
     assert await test_db.get_history(USER_ID) == []
     assert not Path(image_path).exists()
+
+
+@pytest.mark.asyncio
+async def test_history_combines_all_legacy_animation_frames_into_one_image(test_db):
+    frames = []
+    for index in range(6):
+        output = io.BytesIO()
+        Image.new("RGB", (48, 32), (index * 30, 80, 140)).save(
+            output,
+            format="JPEG",
+        )
+        frames.append(output.getvalue())
+
+    await test_db.add_exchange(
+        USER_ID,
+        "Посмотри на стикер",
+        "Это анимированный стикер",
+        media=frames,
+    )
+
+    # max_images теперь ограничивает число медиа-сообщений, а не кадров
+    # внутри одного сообщения: все шесть исторических кадров загружаются.
+    history = await test_db.get_history(USER_ID, max_images=1)
+    user_content = history[0]["content"]
+
+    assert user_content[0] == {
+        "type": "text",
+        "text": "Посмотри на стикер",
+    }
+    assert len(user_content) == 2
+
+    data_url = user_content[1]["image_url"]["url"]
+    image_data = base64.b64decode(data_url.split(",", 1)[1])
+    with Image.open(io.BytesIO(image_data)) as contact_sheet:
+        assert contact_sheet.format == "JPEG"
+        assert contact_sheet.size == (3 * 512, 2 * 384)
 
 
 @pytest.mark.asyncio

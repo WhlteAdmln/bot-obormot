@@ -5,6 +5,7 @@ from aiogram.types import Message
 
 from bot.errors import MediaError
 from bot.services.media.animation import extract_animation_frames
+from bot.services.media.contact_sheet import build_contact_sheet
 from bot.services.media.images import prepare_image
 from bot.services.media.limits import MAX_CONCURRENT_IMAGE_JOBS
 from bot.services.media.sniff import verify_declared_type
@@ -37,6 +38,7 @@ async def process_media(
     downloader=download_telegram_file,
     animation_extractor=extract_animation_frames,
     image_preparer=prepare_image,
+    contact_sheet_builder=build_contact_sheet,
 ) -> list[str]:
     """Скачивает и преобразует медиа в изображения для LLM."""
 
@@ -48,10 +50,14 @@ async def process_media(
             return [await _run_limited(image_preparer, data)]
 
         frames = await animation_extractor(data, media_type)
+        if not frames:
+            raise MediaError("Animation did not produce any frames")
 
-        return await asyncio.gather(
-            *(_run_limited(image_preparer, frame) for frame in frames)
-        )
+        # Передаём Vision-модели один монтаж с нумерованными кадрами,
+        # а не несколько независимых image_url-частей.
+        contact_sheet = await _run_limited(contact_sheet_builder, frames)
+        prepared_image = await _run_limited(image_preparer, contact_sheet)
+        return [prepared_image]
 
     except MediaError:
         raise

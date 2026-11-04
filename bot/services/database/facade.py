@@ -37,7 +37,10 @@ from bot.services.database.files.image_storage import (
 
 logger = logging.getLogger(__name__)
 
-MAX_HISTORY_IMAGES = 3
+# Максимум медиа-сообщений в истории; все кадры сообщения загружаются вместе.
+MAX_HISTORY_MEDIA_MESSAGES = 3
+# Старое имя оставлено для совместимости с публичными импортами.
+MAX_HISTORY_IMAGES = MAX_HISTORY_MEDIA_MESSAGES
 
 
 class Database:
@@ -146,7 +149,7 @@ class Database:
         self,
         user_id: int,
         limit: int | None = None,
-        max_images: int = MAX_HISTORY_IMAGES,
+        max_images: int = MAX_HISTORY_MEDIA_MESSAGES,
     ) -> list[dict]:
         """Загружает последние полные обмены пользователя."""
         return await get_history_usecase(

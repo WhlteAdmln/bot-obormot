@@ -1,5 +1,6 @@
 from collections import deque
 from copy import deepcopy
+import logging
 
 import pytest
 
@@ -195,3 +196,28 @@ async def test_llm_client_method_delegates_without_changing_public_signature(
         "history": history,
         "user_message": "new",
     }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("image_count", "expected_budget"),
+    [(1, 27_392), (7, 15_104), (3, 23_296)],
+)
+async def test_context_fit_log_distinguishes_window_from_available_budget(
+    image_count, expected_budget, caplog
+):
+    client = FakeFittingClient(context_size=32_000, token_counts=[100])
+    content = [
+        {"type": "text", "text": "Incoming media"},
+        *[
+            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,"}}
+            for _ in range(image_count)
+        ],
+    ]
+
+    caplog.set_level(logging.INFO, logger="bot.services.llm.fitting")
+    await fit_messages_to_context(client, "system", [], content)
+
+    assert f"input_budget={expected_budget}" in caplog.text
+    assert "context_window=32000" in caplog.text
+    assert f"images={image_count}" in caplog.text

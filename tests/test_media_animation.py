@@ -84,15 +84,51 @@ def test_get_media_info_classifies_video_documents_by_mime_type():
     assert media.get_media_info(message) == ("video-id", "mp4")
 
 
-def test_get_user_content_preserves_frame_order_and_adds_sequence_note():
+def test_build_contact_sheet_combines_frames_into_one_jpeg():
+    from bot.services.media.contact_sheet import build_contact_sheet
+
+    frames = []
+    for color in ((255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)):
+        output = io.BytesIO()
+        Image.new("RGB", (40, 30), color).save(output, format="JPEG")
+        frames.append(output.getvalue())
+
+    result = build_contact_sheet(frames)
+
+    with Image.open(io.BytesIO(result)) as sheet:
+        assert sheet.format == "JPEG"
+        assert sheet.size == (3 * 512, 2 * 384)
+
+
+def test_build_contact_sheet_returns_single_frame_unchanged():
+    from bot.services.media.contact_sheet import build_contact_sheet
+
+    frame = b"one-frame"
+    assert build_contact_sheet([frame]) == frame
+
+
+def test_build_contact_sheet_rejects_empty_or_excessive_frames():
+    from bot.services.media.animation.limits import MAX_FRAMES
+    from bot.services.media.contact_sheet import build_contact_sheet
+
+    with pytest.raises(ValueError, match="without frames"):
+        build_contact_sheet([])
+    with pytest.raises(ValueError, match="at most"):
+        build_contact_sheet([b"x"] * (MAX_FRAMES + 1))
+
+
+def test_get_user_content_describes_animation_contact_sheet():
     message = make_message(caption=None, sticker=None, text="ignored")
-    urls = ["data:image/jpeg;base64,first", "data:image/jpeg;base64,second"]
+    content = media.get_user_content(
+        message,
+        ["data:image/jpeg;base64,combined"],
+        "tgs",
+    )
 
-    content = media.get_user_content(message, urls, "gif")
-
-    assert content[0]["type"] == "text"
-    assert "хронологическом порядке" in content[0]["text"]
-    assert [part["image_url"]["url"] for part in content[1:]] == urls
+    assert len(content) == 2
+    assert content[1]["image_url"]["url"] == "data:image/jpeg;base64,combined"
+    assert "одно нумерованное изображение-монтаж" in content[0]["text"]
+    assert "сверху вниз" in content[0]["text"]
 
 
 def test_prepare_image_returns_jpeg_data_url_and_composites_transparency():
@@ -163,25 +199,35 @@ async def test_process_media_uses_canonical_media_dependencies(monkeypatch):
         calls.append(("extract", data, media_type))
         return [b"frame-1", b"frame-2"]
 
-    def fake_prepare(frame):
-        calls.append(("prepare", frame))
-        return f"encoded:{frame.decode()}"
+    def fake_contact_sheet(frames):
+        calls.append(("contact_sheet", frames))
+        return b"combined-frames"
+
+    def fake_prepare(image_data):
+        calls.append(("prepare", image_data))
+        return f"encoded:{image_data.decode()}"
 
     monkeypatch.setattr(media, "download_telegram_file", fake_download)
     monkeypatch.setattr(media, "extract_animation_frames", fake_extract)
     monkeypatch.setattr(media, "prepare_image", fake_prepare)
 
-    result = await media.process_media(message, "gif", "file-id")
+    result = await media_pipeline.process_media(
+        message,
+        "gif",
+        "file-id",
+        downloader=media.download_telegram_file,
+        animation_extractor=media.extract_animation_frames,
+        image_preparer=media.prepare_image,
+        contact_sheet_builder=fake_contact_sheet,
+    )
 
-    assert result == ["encoded:frame-1", "encoded:frame-2"]
-    assert calls[:2] == [
+    assert result == ["encoded:combined-frames"]
+    assert calls[:3] == [
         ("download", message, "file-id"),
         ("extract", b"GIF89a" + b"animation-data", "gif"),
+        ("contact_sheet", [b"frame-1", b"frame-2"]),
     ]
-    assert {call[1] for call in calls if call[0] == "prepare"} == {
-        b"frame-1",
-        b"frame-2",
-    }
+    assert calls[3] == ("prepare", b"combined-frames")
 
 
 @pytest.mark.asyncio

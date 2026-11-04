@@ -54,10 +54,11 @@ async def fit_messages_to_context(
         # Число изображений меняется при удалении старых обменов.
         image_count = client._count_images(messages)
 
+        image_reserved_tokens = IMAGE_TOKEN_RESERVE * image_count
         reserved_tokens = (
             config.LLM_MAX_TOKENS
             + CONTEXT_SAFETY_MARGIN
-            + IMAGE_TOKEN_RESERVE * image_count
+            + image_reserved_tokens
         )
 
         available_tokens = context_size - reserved_tokens
@@ -69,11 +70,19 @@ async def fit_messages_to_context(
 
         if token_count <= available_tokens:
             logger.info(
-                "Context fit: %s/%s tokens, history messages: %s, images: %s",
+                (
+                    "Context fit: prompt_tokens=%s, input_budget=%s, "
+                    "context_window=%s, output_reserve=%s, safety_margin=%s, "
+                    "images=%s, image_reserve=%s, history_messages=%s"
+                ),
                 token_count,
                 available_tokens,
-                len(messages) - 2,
+                context_size,
+                config.LLM_MAX_TOKENS,
+                CONTEXT_SAFETY_MARGIN,
                 image_count,
+                image_reserved_tokens,
+                len(messages) - 2,
             )
             return messages
 

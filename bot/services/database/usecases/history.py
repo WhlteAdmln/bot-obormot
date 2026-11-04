@@ -1,6 +1,7 @@
 """Сценарии чтения и сброса истории диалога."""
 
 import asyncio
+import base64
 import logging
 from pathlib import Path
 from typing import Callable
@@ -9,6 +10,7 @@ import aiosqlite
 
 from bot.services.database.files.image_storage import is_managed_image
 from bot.services.database.repositories import messages
+from bot.services.media.contact_sheet import build_contact_sheet
 
 ImageReader = Callable[[Path, str], str]
 ImageDeleter = Callable[[Path], None]
@@ -22,7 +24,7 @@ async def get_history(
     read_image_as_base64: ImageReader,
     logger: logging.Logger,
 ) -> list[dict]:
-    """Собирает полные обмены в формат сообщений LLM."""
+    """Собирает обмены для LLM; max_images ограничивает медиа-сообщения."""
     max_images = max(0, max_images)
     exchange_limit = -1 if limit is None else max(0, limit)
     rows = await messages.fetch_history_rows(
@@ -42,13 +44,43 @@ async def get_history(
         if current_id is None:
             return
 
-        if image_parts:
+        message_image_parts = list(image_parts)
+        if len(message_image_parts) > 1:
+            # Старые версии сохраняли каждый кадр анимации отдельным файлом.
+            # При чтении истории сводим такие кадры в один монтаж, чтобы не
+            # раздувать число image_url и не терять связь между кадрами.
+            try:
+                frame_data = []
+                for part in message_image_parts:
+                    data_url = part["image_url"]["url"]
+                    _header, separator, encoded = data_url.partition(",")
+                    if not separator:
+                        raise ValueError("Invalid image data URL in history")
+                    frame_data.append(base64.b64decode(encoded, validate=True))
+
+                contact_sheet = build_contact_sheet(frame_data)
+                encoded_sheet = base64.b64encode(contact_sheet).decode("ascii")
+                message_image_parts = [
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{encoded_sheet}"
+                        },
+                    }
+                ]
+            except Exception:
+                logger.exception(
+                    "Could not combine historical animation frames: message_id=%s",
+                    current_id,
+                )
+
+        if message_image_parts:
             content = [
                 {
                     "type": "text",
                     "text": current_content,
                 },
-                *image_parts,
+                *message_image_parts,
             ]
         else:
             content = current_content

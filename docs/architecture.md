@@ -105,11 +105,12 @@ The default system prompt is stored in `prompts/systemPrompt.md`; users may have
 
 The video path requires `ffmpeg` and `ffprobe` on `PATH`.
 
-### Whisper and Document Engine
+### audiodoc: audio and documents
 
-- `bot/services/audio/client.py` sends audio to Whisper; `bot/services/documents/client.py` sends documents to Document Engine and validates the returned structure.
-- Both services are optional and disabled when their URL is empty.
-- `WHISPER_API_KEY` and `DOCUMENT_API_KEY` add optional Bearer authorization headers. Use HTTPS when either service is remote; API keys do not encrypt HTTP traffic.
+- `bot/services/audio/client.py` sends audio to [audiodoc](https://github.com/WhlteAdmln/audiodoc) at the configured `/transcribe` URL; `bot/services/documents/client.py` sends documents to its `/process-document` endpoint and validates the returned structure.
+- audiodoc is optional. Audio and document processing are disabled independently when their respective URL is empty.
+- The setting names `WHISPER_*` and `DOCUMENT_*` are historical; both groups connect to the same audiodoc service. `WHISPER_API_KEY` and `DOCUMENT_API_KEY` add separate optional Bearer authorization headers. Use HTTPS when audiodoc is remote; API keys do not encrypt HTTP traffic.
+- Configure the complete endpoint URL, including `/transcribe` or `/process-document`. See the [audiodoc repository](https://github.com/WhlteAdmln/audiodoc) for supported document formats and server configuration.
 - `bot/services/http_limits.py` reads response bodies incrementally in 64 KiB chunks, with a 2 MiB limit for successful service responses and a 2 KiB limit for HTTP error-body reads.
 
 ## 6. SQLite and local files
@@ -145,4 +146,4 @@ The application still depends on host-level protection, correct `.env` permissio
 - The obsolete `bot.services.*` compatibility shims were removed in the structural cleanup. No legacy service shims are part of the current source tree. Import code from its actual package (`bot.services.chat.input`, `bot.services.media`, `bot.services.chat.aggregation`, etc.).
 - `bot/handlers/commands/__init__.py` remains solely as a root-router aggregator; old helper/FSM re-exports were removed.
 
-Run the standard tests with `python -m pytest -q`. Run tests marked `integration` separately with `python -m pytest -m integration -q` when a compatible `llama-server` is available.
+Run the standard tests with `python -m pytest -q`. Run tests marked `integration` separately with `python -m pytest -m integration -q` when an external LLM server that implements the `/tokenize` endpoint is available.

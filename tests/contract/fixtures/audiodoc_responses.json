@@ -1,0 +1,13 @@
+{
+  "transcribe": {
+    "text": "Recognized speech.",
+    "language": "en",
+    "duration": 1.25
+  },
+  "process_document": {
+    "format": "txt",
+    "text": "Example document text.",
+    "characters": 22,
+    "truncated": false
+  }
+}

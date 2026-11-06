@@ -36,19 +36,26 @@ def _config_environment_names() -> set[str]:
             and function.value.id == "os"
             and function.attr == "getenv"
         ):
-            if node.args and isinstance(node.args[0], ast.Constant):
-                if isinstance(node.args[0].value, str):
-                    names.add(node.args[0].value)
+            if (
+                node.args
+                and isinstance(node.args[0], ast.Constant)
+                and isinstance(node.args[0].value, str)
+            ):
+                names.add(node.args[0].value)
             continue
 
         if isinstance(function, ast.Name) and function.id == "get_log_level":
             names.add("LOG_LEVEL")
             continue
 
-        if isinstance(function, ast.Name) and function.id in _ENV_HELPER_NAMES:
-            if node.args and isinstance(node.args[0], ast.Constant):
-                if isinstance(node.args[0].value, str):
-                    names.add(node.args[0].value)
+        if (
+            isinstance(function, ast.Name)
+            and function.id in _ENV_HELPER_NAMES
+            and node.args
+            and isinstance(node.args[0], ast.Constant)
+            and isinstance(node.args[0].value, str)
+        ):
+            names.add(node.args[0].value)
 
     return names
 

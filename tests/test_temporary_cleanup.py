@@ -1,20 +1,18 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
-
 from aiogram.types import Chat, Message, Update, User
 
 from bot.fsm.keys import (
     PROMPT_FLOW_KEY,
     PROMPT_STATUS_MESSAGE_KEY,
-    WELCOME_MESSAGE_KEY,
     UNKNOWN_COMMAND_MESSAGE_KEY,
     UNKNOWN_COMMAND_STATUS_MESSAGE_KEY,
+    WELCOME_MESSAGE_KEY,
 )
 from bot.fsm.states import PromptStates
 from bot.middlewares.temporary_messages import TemporaryMessagesCleanupMiddleware
-
 
 USER_ID = 111111111
 CHAT_ID = 111111111
@@ -49,7 +47,7 @@ def make_message(text="Обычное сообщение"):
 
     return Message(
         message_id=100,
-        date=datetime.now(timezone.utc),
+        date=datetime.now(UTC),
         chat=Chat(
             id=CHAT_ID,
             type="private",

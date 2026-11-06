@@ -1,4 +1,3 @@
-import asyncio
 import json
 import logging
 from pathlib import Path
@@ -7,9 +6,9 @@ import aiohttp
 
 from bot.config import config
 from bot.errors import (
-    DocumentUnavailableError,
-    DocumentTimeoutError,
     DocumentAPIError,
+    DocumentTimeoutError,
+    DocumentUnavailableError,
 )
 from bot.services.documents.response import validate_document_response
 from bot.services.http_limits import (
@@ -64,38 +63,40 @@ async def process_document(
             len(document_data),
         )
 
-        async with aiohttp.ClientSession(
-            timeout=timeout,
-            headers=headers,
-        ) as session:
-            async with session.post(
+        async with (
+            aiohttp.ClientSession(
+                timeout=timeout,
+                headers=headers,
+            ) as session,
+            session.post(
                 config.DOCUMENT_API_URL,
                 data=form,
-            ) as response:
-                if response.status != 200:
-                    body = await read_limited_body(response, MAX_ERROR_BODY_BYTES)
-                    detail = (body or b"").decode("utf-8", errors="replace")
+            ) as response,
+        ):
+            if response.status != 200:
+                body = await read_limited_body(response, MAX_ERROR_BODY_BYTES)
+                detail = (body or b"").decode("utf-8", errors="replace")
 
-                    raise DocumentAPIError(
-                        response.status,
-                        detail[:1000],
-                    )
+                raise DocumentAPIError(
+                    response.status,
+                    detail[:1000],
+                )
 
-                body = await read_limited_body(response, MAX_SERVICE_RESPONSE_BYTES)
+            body = await read_limited_body(response, MAX_SERVICE_RESPONSE_BYTES)
 
-                if body is None:
-                    raise DocumentAPIError(
-                        502,
-                        "Document Engine response is too large",
-                    )
+            if body is None:
+                raise DocumentAPIError(
+                    502,
+                    "Document Engine response is too large",
+                )
 
-                try:
-                    result = json.loads(body)
-                except ValueError as error:
-                    raise DocumentAPIError(
-                        502,
-                        "Document Engine returned invalid JSON",
-                    ) from error
+            try:
+                result = json.loads(body)
+            except ValueError as error:
+                raise DocumentAPIError(
+                    502,
+                    "Document Engine returned invalid JSON",
+                ) from error
 
         result = validate_document_response(result)
 
@@ -108,7 +109,7 @@ async def process_document(
 
         return result
 
-    except asyncio.TimeoutError as error:
+    except TimeoutError as error:
         raise DocumentTimeoutError("Document processing timed out") from error
 
     except aiohttp.ClientError as error:

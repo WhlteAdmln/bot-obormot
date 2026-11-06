@@ -66,11 +66,7 @@ async def fit_messages_to_context(
         image_count = client._count_images(messages)
 
         image_reserved_tokens = IMAGE_TOKEN_RESERVE * image_count
-        reserved_tokens = (
-            config.LLM_MAX_TOKENS
-            + safety_margin
-            + image_reserved_tokens
-        )
+        reserved_tokens = config.LLM_MAX_TOKENS + safety_margin + image_reserved_tokens
 
         available_tokens = context_size - reserved_tokens
 

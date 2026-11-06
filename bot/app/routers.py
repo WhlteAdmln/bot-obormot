@@ -4,10 +4,10 @@ from aiogram import Dispatcher
 
 from bot.handlers import admin, chat, commands, start
 from bot.middlewares.access import AccessMiddleware
-from bot.middlewares.throttle import ThrottleMiddleware
 from bot.middlewares.temporary_messages import (
     TemporaryMessagesCleanupMiddleware,
 )
+from bot.middlewares.throttle import ThrottleMiddleware
 
 
 def configure_dispatcher(dispatcher: Dispatcher) -> Dispatcher:

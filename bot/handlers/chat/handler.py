@@ -8,6 +8,7 @@ from aiogram.types import Message
 
 from bot.services.chat.aggregation import message_aggregator
 from bot.services.chat.errors.handler import handle_chat_error
+from bot.services.chat.formatting import format_roleplay, split_formatted_message
 from bot.services.chat.incoming_log import log_incoming_message
 from bot.services.chat.input import inspect_message, prepare_message
 from bot.services.chat.locks import get_user_lock, pending_requests
@@ -20,9 +21,8 @@ from bot.services.chat.streaming import (
     StreamingResponder,
     deliver_final_response,
 )
-from bot.services.chat.formatting import format_roleplay, split_formatted_message
-from bot.services.telegram.chat_action import keep_typing
 from bot.services.llm import llm_client
+from bot.services.telegram.chat_action import keep_typing
 
 MAX_PENDING_PER_USER = 3
 

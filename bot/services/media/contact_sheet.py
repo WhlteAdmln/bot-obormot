@@ -71,9 +71,9 @@ def build_contact_sheet(frames: list[bytes]) -> bytes:
         draw.text((left + IMAGE_PADDING, top + 10), f"FRAME {index + 1}", fill="black")
 
         image_left = left + (CELL_WIDTH - normalized.width) // 2
-        image_top = top + HEADER_HEIGHT + (
-            CELL_HEIGHT - HEADER_HEIGHT - normalized.height
-        ) // 2
+        image_top = (
+            top + HEADER_HEIGHT + (CELL_HEIGHT - HEADER_HEIGHT - normalized.height) // 2
+        )
         sheet.paste(normalized, (image_left, image_top))
         draw.rectangle(
             (left, top, left + CELL_WIDTH - 1, top + CELL_HEIGHT - 1),

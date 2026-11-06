@@ -2,8 +2,8 @@
 
 from contextlib import asynccontextmanager
 
-from aiohttp import web
 import pytest
+from aiohttp import web
 
 from bot.config import config
 from bot.services.llm import LLMClient
@@ -56,9 +56,7 @@ def make_openai_only_app():
             headers={"Content-Type": "text/event-stream"},
         )
         await response.prepare(request)
-        await response.write(
-            b'data: {"choices":[{"delta":{"content":"Hello"}}]}\n\n'
-        )
+        await response.write(b'data: {"choices":[{"delta":{"content":"Hello"}}]}\n\n')
         await response.write(
             b'data: {"choices":[{"delta":{"content":", world!"}}]}\n\n'
         )

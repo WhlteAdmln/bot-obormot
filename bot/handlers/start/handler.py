@@ -8,9 +8,8 @@ from aiogram.types import (
 )
 
 from bot.config import config
-from bot.services.database import db
 from bot.fsm.keys import WELCOME_MESSAGE_KEY
-
+from bot.services.database import db
 
 router = Router()
 

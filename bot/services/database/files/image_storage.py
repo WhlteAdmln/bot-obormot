@@ -4,7 +4,6 @@ import base64
 import re
 from pathlib import Path
 
-
 _MANAGED_NAME = re.compile(r"[0-9a-f]{32}\.jpg")
 
 

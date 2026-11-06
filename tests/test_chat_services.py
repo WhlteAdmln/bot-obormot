@@ -5,21 +5,20 @@ from types import SimpleNamespace
 import pytest
 
 from bot.errors import (
-    WhisperEmptyAudioError,
-    WhisperError,
-    WhisperAPIError,
+    DocumentAPIError,
     LLMAPIError,
     MediaError,
-    DocumentAPIError,
+    WhisperAPIError,
+    WhisperEmptyAudioError,
+    WhisperError,
 )
-from bot.services.chat.aggregation.aggregator import MessageAggregator
-from bot.services.chat.aggregation import aggregator as aggregator_module
-from bot.services.chat.errors import catalog
-from bot.services.chat.errors import handler as chat_error_handler
-from bot.services.chat import incoming_log
+from bot.services.chat import incoming_log, reporting
 from bot.services.chat import locks as chat_locks
 from bot.services.chat import pipeline as chat_pipeline
-from bot.services.chat import reporting
+from bot.services.chat.aggregation import aggregator as aggregator_module
+from bot.services.chat.aggregation.aggregator import MessageAggregator
+from bot.services.chat.errors import catalog
+from bot.services.chat.errors import handler as chat_error_handler
 from bot.services.chat.formatting import format_roleplay, split_formatted_message
 
 

@@ -12,7 +12,6 @@ from bot.services.chat.aggregation.state import _AggregationState
 from bot.services.validation import MAX_INPUT_TEXT_LENGTH
 from bot.utils.text import utf16_length
 
-
 logger = logging.getLogger("bot.services.chat.aggregation.aggregator")
 _utf16_length = utf16_length
 
@@ -184,7 +183,7 @@ class MessageAggregator:
                         timeout=remaining,
                     )
 
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     continue
 
         except asyncio.CancelledError:

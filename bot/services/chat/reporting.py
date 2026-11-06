@@ -4,7 +4,6 @@ from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import Message
 
-
 logger = logging.getLogger("bot.services.chat.reporting")
 
 

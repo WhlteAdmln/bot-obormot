@@ -6,20 +6,20 @@ from types import SimpleNamespace
 
 import pytest
 
+from bot.errors import DocumentAPIError, DocumentTooLongError
 from bot.services.chat.input import (
     MessageInfo,
     PreparedMessage,
     inspect_message,
     prepare_message,
 )
-from bot.errors import DocumentAPIError, DocumentTooLongError
 from bot.services.chat.input import audio_part as audio_module
-from bot.services.chat.input import inspection as inspection_module
-from bot.services.chat.input import user_content as content_module
 from bot.services.chat.input import document_part as documents_module
-from bot.services.chat.input import saved_text as history_module
+from bot.services.chat.input import inspection as inspection_module
 from bot.services.chat.input import media_part as media_module
 from bot.services.chat.input import prepare as pipeline_module
+from bot.services.chat.input import saved_text as history_module
+from bot.services.chat.input import user_content as content_module
 
 
 def make_message(**overrides):
@@ -50,8 +50,14 @@ def no_audio(_message):
 def test_new_chat_input_package_reexports_the_public_api():
     from bot.services.chat.input import (
         MessageInfo as ChatMessageInfo,
+    )
+    from bot.services.chat.input import (
         PreparedMessage as ChatPreparedMessage,
+    )
+    from bot.services.chat.input import (
         inspect_message as chat_inspect_message,
+    )
+    from bot.services.chat.input import (
         prepare_message as chat_prepare_message,
     )
 
@@ -132,17 +138,17 @@ def test_inspect_message_keeps_non_image_documents_as_documents():
 
 
 def test_message_info_has_content_is_true_for_each_supported_kind():
-    base = dict(
-        file_id=None,
-        media_type=None,
-        audio_file_id=None,
-        audio_filename=None,
-        document=None,
-        has_media=False,
-        has_audio=False,
-        has_document=False,
-        has_text=False,
-    )
+    base = {
+        "file_id": None,
+        "media_type": None,
+        "audio_file_id": None,
+        "audio_filename": None,
+        "document": None,
+        "has_media": False,
+        "has_audio": False,
+        "has_document": False,
+        "has_text": False,
+    }
     assert MessageInfo(**base).has_content is False
     for field in ("has_media", "has_audio", "has_document", "has_text"):
         assert MessageInfo(**(base | {field: True})).has_content is True

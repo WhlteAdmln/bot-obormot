@@ -1,7 +1,6 @@
-import os
-import logging
 import asyncio
-
+import logging
+import os
 from pathlib import Path
 
 import aiosqlite
@@ -10,30 +9,38 @@ from bot.config import config
 from bot.errors import DatabaseError
 from bot.services.database.connection import open_connection
 from bot.services.database.decorators import handle_database_errors
-from bot.services.database.migrations.admin_ids import migrate_admin_ids
-from bot.services.database.schema import create_schema
-from bot.services.database.repositories import (
-    admins as admins_repository,
-    blocked_users as blocked_users_repository,
-    history_limits as history_limits_repository,
-    media as media_repository,
-    messages as messages_repository,
-    user_settings as user_settings_repository,
-)
-from bot.services.database.usecases.exchange import add_exchange as add_exchange_usecase
-from bot.services.database.usecases.cleanup import (
-    cleanup_old_images as cleanup_old_images_usecase,
-)
-from bot.services.database.usecases.history import (
-    get_history as get_history_usecase,
-    reset_history as reset_history_usecase,
-)
 from bot.services.database.files.image_storage import (
     delete_image,
     is_managed_image,
     read_image_as_base64,
 )
-
+from bot.services.database.migrations.admin_ids import migrate_admin_ids
+from bot.services.database.repositories import (
+    admins as admins_repository,
+)
+from bot.services.database.repositories import (
+    blocked_users as blocked_users_repository,
+)
+from bot.services.database.repositories import (
+    history_limits as history_limits_repository,
+)
+from bot.services.database.repositories import (
+    messages as messages_repository,
+)
+from bot.services.database.repositories import (
+    user_settings as user_settings_repository,
+)
+from bot.services.database.schema import create_schema
+from bot.services.database.usecases.cleanup import (
+    cleanup_old_images as cleanup_old_images_usecase,
+)
+from bot.services.database.usecases.exchange import add_exchange as add_exchange_usecase
+from bot.services.database.usecases.history import (
+    get_history as get_history_usecase,
+)
+from bot.services.database.usecases.history import (
+    reset_history as reset_history_usecase,
+)
 
 logger = logging.getLogger(__name__)
 

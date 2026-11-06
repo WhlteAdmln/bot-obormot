@@ -6,6 +6,7 @@ from pathlib import Path
 from PIL import Image
 
 from bot.errors import MediaError
+from bot.services.media.animation.jpeg import image_to_bytes
 from bot.services.media.animation.limits import (
     MAX_DIMENSION,
     MAX_DURATION,
@@ -13,7 +14,6 @@ from bot.services.media.animation.limits import (
     MAX_VIDEO_PIXELS,
     PROCESS_TIMEOUT,
 )
-from bot.services.media.animation.jpeg import image_to_bytes
 
 
 def _check_container(data: bytes) -> None:
@@ -43,8 +43,7 @@ def _probe_dimensions(video_path: Path) -> tuple[int, int]:
             "csv=s=x:p=0",
             str(video_path),
         ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         timeout=PROCESS_TIMEOUT,
         check=False,
     )
@@ -89,8 +88,7 @@ def extract_video(data: bytes) -> list[bytes]:
                 "default=noprint_wrappers=1:nokey=1",
                 str(video_path),
             ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=PROCESS_TIMEOUT,
             check=False,
         )
@@ -146,8 +144,7 @@ def extract_video(data: bytes) -> list[bytes]:
                 "-y",
                 output_pattern,
             ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=PROCESS_TIMEOUT,
             check=False,
         )

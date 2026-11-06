@@ -8,7 +8,6 @@ from aiogram.types import Message
 
 from bot.fsm.keys import PROMPT_FLOW_KEY, PROMPT_STATUS_MESSAGE_KEY
 from bot.fsm.states import PromptStates
-from bot.config import config
 from bot.services.database import db
 
 logger = logging.getLogger("bot.handlers.prompt.handler")

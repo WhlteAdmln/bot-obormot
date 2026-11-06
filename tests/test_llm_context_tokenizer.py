@@ -1,6 +1,5 @@
-from collections import deque
-
 import logging
+from collections import deque
 
 import pytest
 
@@ -79,13 +78,11 @@ async def test_context_size_rejects_boolean_value(monkeypatch):
 
     # A bool is not a valid context size; if /models also omits it,
     # the user receives the actionable configuration error.
-    fake_session.responses.append(FakeResponse({"data": [{"id": config.LLM_MODEL}] }))
+    fake_session.responses.append(FakeResponse({"data": [{"id": config.LLM_MODEL}]}))
     with pytest.raises(LLMUnavailableError, match="LLM_CONTEXT_SIZE"):
         await client.get_context_size()
 
     assert client._context_size is None
-
-
 
 
 @pytest.mark.asyncio
@@ -93,9 +90,7 @@ async def test_context_size_falls_back_to_models_metadata(monkeypatch):
     fake_session = FakeSession(
         [
             FakeResponse({}, status=404, body="Not Found"),
-            FakeResponse(
-                {"data": [{"id": config.LLM_MODEL, "max_model_len": 32768}]}
-            ),
+            FakeResponse({"data": [{"id": config.LLM_MODEL, "max_model_len": 32768}]}),
         ]
     )
     client = LLMClient()

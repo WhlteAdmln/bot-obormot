@@ -6,7 +6,6 @@ from typing import Any
 
 from bot.errors import LLMUnavailableError
 
-
 _LITERALS = (
     "<s>",
     "</s>",

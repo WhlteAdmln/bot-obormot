@@ -1,6 +1,5 @@
 """Получение и кеширование размера контекстного окна модели."""
 
-import asyncio
 import logging
 from typing import Any, Protocol
 
@@ -118,7 +117,7 @@ async def get_context_size(client: ContextSizeClient) -> int:
                     response.status,
                     log_safe(detail, 200),
                 )
-    except (asyncio.TimeoutError, aiohttp.ClientError) as error:
+    except (TimeoutError, aiohttp.ClientError) as error:
         logger.debug("Optional /props endpoint unavailable: %s", type(error).__name__)
 
     # Некоторые серверы (например, отдельные сборки vLLM) добавляют max_model_len
@@ -143,7 +142,7 @@ async def get_context_size(client: ContextSizeClient) -> int:
                     "Could not detect context via /models: HTTP %s",
                     response.status,
                 )
-    except (asyncio.TimeoutError, aiohttp.ClientError) as error:
+    except (TimeoutError, aiohttp.ClientError) as error:
         logger.debug(
             "Could not query /models for context size: %s",
             type(error).__name__,

@@ -2,10 +2,10 @@
 
 from aiogram import Router
 
+from bot.handlers.fallback import handler as fallback
 from bot.handlers.history import basic as history_basic
 from bot.handlers.history import limits as history_limits
 from bot.handlers.prompt import handler as prompt
-from bot.handlers.fallback import handler as fallback
 
 router = Router()
 router.include_router(history_basic.router)

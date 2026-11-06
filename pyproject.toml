@@ -1,0 +1,30 @@
+[project]
+name = "bot-obormot"
+version = "0.1.1"
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+extend-exclude = ["data", "tmp", "models"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "ASYNC", "C4", "SIM"]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011", "SIM117"]
+
+[tool.coverage.run]
+branch = true
+source = ["bot"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+fail_under = 0
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    '\.\.\.',
+]

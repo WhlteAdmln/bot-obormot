@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import io
 import uuid
@@ -14,7 +15,6 @@ from bot.services.database.repositories import (
     messages,
     user_settings,
 )
-
 
 USER_ID = 515151
 
@@ -132,12 +132,12 @@ async def test_history_usecase_returns_image_parts_and_reset_removes_files(test_
     assert image_url.startswith("data:image/jpeg;base64,")
 
     cursor = await test_db.connection.execute("SELECT file_path FROM message_media")
-    image_path = (await cursor.fetchone())["file_path"]
-    assert Path(image_path).exists()
+    image_path = Path((await cursor.fetchone())["file_path"])
+    assert await asyncio.to_thread(image_path.exists)
 
     await test_db.reset_history(USER_ID)
     assert await test_db.get_history(USER_ID) == []
-    assert not Path(image_path).exists()
+    assert not await asyncio.to_thread(image_path.exists)
 
 
 @pytest.mark.asyncio
@@ -193,7 +193,8 @@ async def test_reset_history_does_not_delete_unmanaged_or_external_files(
     message_id = cursor.lastrowid
     for path in (managed_image, unmanaged_image, external_image):
         await test_db.connection.execute(
-            "INSERT INTO message_media(message_id, file_path, mime_type) VALUES (?, ?, 'image/jpeg')",
+            "INSERT INTO message_media(message_id, file_path, mime_type) "
+            "VALUES (?, ?, 'image/jpeg')",
             (message_id, str(path)),
         )
     await test_db.connection.commit()

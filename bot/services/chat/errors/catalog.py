@@ -4,28 +4,27 @@
 специализированные подклассы перед базовыми типами.
 """
 
-import logging
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 from bot.errors import (
-    InputTooLongError,
-    WhisperError,
-    WhisperUnavailableError,
-    WhisperTimeoutError,
-    WhisperAPIError,
-    WhisperEmptyAudioError,
-    TelegramError,
-    MediaError,
-    TelegramFileTooBigError,
-    LLMUnavailableError,
-    LLMTimeoutError,
-    LLMAPIError,
     DatabaseError,
     DocumentAPIError,
     DocumentTimeoutError,
-    DocumentUnavailableError,
     DocumentTooLongError,
+    DocumentUnavailableError,
+    InputTooLongError,
+    LLMAPIError,
+    LLMTimeoutError,
+    LLMUnavailableError,
+    MediaError,
+    TelegramError,
+    TelegramFileTooBigError,
+    WhisperAPIError,
+    WhisperEmptyAudioError,
+    WhisperError,
+    WhisperTimeoutError,
+    WhisperUnavailableError,
 )
 from bot.services.chat.errors import texts
 

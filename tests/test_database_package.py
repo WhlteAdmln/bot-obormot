@@ -8,6 +8,8 @@ from bot.services.database import (
 )
 from bot.services.database.facade import (
     Database as FacadeDatabase,
+)
+from bot.services.database.facade import (
     db as facade_db,
 )
 
@@ -43,12 +45,14 @@ def test_database_helpers_are_reexported_from_their_new_modules():
     from bot.services.database.decorators import (
         handle_database_errors as canonical_decorator,
     )
-    from bot.services.database.files.image_storage import (
-        read_image_as_base64 as canonical_image_reader,
-    )
     from bot.services.database.facade import (
         handle_database_errors as facade_decorator,
+    )
+    from bot.services.database.facade import (
         read_image_as_base64 as facade_image_reader,
+    )
+    from bot.services.database.files.image_storage import (
+        read_image_as_base64 as canonical_image_reader,
     )
 
     assert handle_database_errors is canonical_decorator is facade_decorator

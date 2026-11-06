@@ -1,10 +1,11 @@
+import asyncio
 from pathlib import Path
+
 import pytest
 import pytest_asyncio
 
 from bot.config import config
 from bot.services.database import Database
-
 
 USER_ID = 111111111
 
@@ -247,8 +248,8 @@ async def test_forget_user_removes_history_prompt_limit_and_owned_images(test_db
     )
     other_image_path = Path((await cursor.fetchone())["file_path"])
 
-    assert own_image_path.exists()
-    assert other_image_path.exists()
+    assert await asyncio.to_thread(own_image_path.exists)
+    assert await asyncio.to_thread(other_image_path.exists)
 
     await test_db.forget_user(user_id)
 
@@ -256,7 +257,7 @@ async def test_forget_user_removes_history_prompt_limit_and_owned_images(test_db
     assert await test_db.get_system_prompt(user_id) == config.DEFAULT_SYSTEM_PROMPT
     assert await test_db.get_history_limit(user_id) == config.DEFAULT_HISTORY_EXCHANGES
     assert await test_db.get_history(user_id) == []
-    assert not own_image_path.exists()
+    assert not await asyncio.to_thread(own_image_path.exists)
 
     # Команда одного пользователя не затрагивает данные другого.
     assert await test_db.get_user_system_prompt(other_user_id) == "Чужой промпт"
@@ -265,7 +266,7 @@ async def test_forget_user_removes_history_prompt_limit_and_owned_images(test_db
     assert other_history[0]["content"][0]["text"] == "Чужой вопрос"
     assert other_history[0]["content"][1]["type"] == "image_url"
     assert other_history[1]["content"] == "Чужой ответ"
-    assert other_image_path.exists()
+    assert await asyncio.to_thread(other_image_path.exists)
 
 
 @pytest.mark.asyncio

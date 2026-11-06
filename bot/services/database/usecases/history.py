@@ -3,8 +3,8 @@
 import asyncio
 import base64
 import logging
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 import aiosqlite
 
@@ -63,9 +63,7 @@ async def get_history(
                 message_image_parts = [
                     {
                         "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/jpeg;base64,{encoded_sheet}"
-                        },
+                        "image_url": {"url": f"data:image/jpeg;base64,{encoded_sheet}"},
                     }
                 ]
             except Exception:

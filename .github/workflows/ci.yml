@@ -1,0 +1,179 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+  schedule:
+    - cron: "0 5 * * 1"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint & format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-lock.txt
+            requirements-dev.txt
+
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends shellcheck
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Check Ruff
+        run: ruff check .
+
+      - name: Check formatting
+        run: ruff format --check .
+
+      - name: Check requirements lock
+        run: python scripts/check_lock.py
+
+      - name: Check installer
+        run: shellcheck --shell=sh install.sh
+
+  test:
+    name: Tests (py${{ matrix.python-version }}, ${{ matrix.deps }})
+    needs: lint
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.experimental }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+        deps: [lock]
+        experimental: [false]
+        include:
+          - python-version: "3.13"
+            deps: latest
+            experimental: true
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-lock.txt
+            requirements-dev.txt
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+
+      - name: Install pinned dependencies
+        if: matrix.deps == 'lock'
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Install latest allowed dependencies
+        if: matrix.deps == 'latest'
+        run: |
+          python -m pip install \
+            -r requirements.txt \
+            pytest \
+            pytest-asyncio \
+            pytest-cov \
+            packaging
+
+      - name: Check installed dependencies
+        run: python -m pip check
+
+      - name: Run tests with coverage
+        run: |
+          set -o pipefail
+          python -m pytest -q -rs \
+            --cov=bot \
+            --cov-branch \
+            --cov-report=term-missing:skip-covered \
+            --cov-report=xml \
+            --cov-report=html \
+            --junitxml=junit.xml | tee pytest.log
+
+          if grep -qE '^SKIPPED([[:space:]]|$)' pytest.log; then
+            echo "::error::В обычном прогоне не должно быть пропущенных тестов"
+            exit 1
+          fi
+
+      - name: Add coverage summary
+        if: matrix.deps == 'lock' && matrix.python-version == '3.12'
+        run: |
+          {
+            echo "### Coverage report (Python 3.12, locked dependencies)"
+            echo '```text'
+            python -m coverage report --skip-covered
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage reports
+        if: always() && matrix.deps == 'lock' && matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report
+          path: |
+            coverage.xml
+            htmlcov/
+            junit.xml
+          retention-days: 14
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ github.event_name != 'schedule' }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-lock.txt
+
+      - name: Install pip-audit
+        run: python -m pip install "pip-audit==2.10.1"
+
+      - name: Audit locked dependencies
+        run: pip-audit -r requirements-lock.txt
+
+  build:
+    name: Build release archive
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build ZIP and checksum
+        run: bash scripts/build_release.sh "ci-${GITHUB_SHA::7}"
+
+      - name: Upload release archive
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-archive
+          path: dist/
+          retention-days: 7

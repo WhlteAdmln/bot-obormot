@@ -1,0 +1,83 @@
+name: Publish Docker image (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Версия образа, например 0.1.1"
+        required: true
+        type: string
+      also_latest:
+        description: "Обновить также тег latest"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: ci
+    runs-on: ubuntu-latest
+    environment: dockerhub
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Validate version and image name
+        id: metadata
+        env:
+          VERSION: ${{ inputs.version }}
+          ALSO_LATEST: ${{ inputs.also_latest }}
+          IMAGE: ${{ vars.DOCKERHUB_IMAGE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$GITHUB_REF" == "refs/heads/main" ]]; then
+            echo "::error::Публикация разрешена только из main"
+            exit 1
+          fi
+
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$ ]]; then
+            echo "::error::Неверный формат версии"
+            exit 1
+          fi
+
+          if [[ ! "$IMAGE" =~ ^[a-z0-9]+([._-][a-z0-9]+)*/[a-z0-9]+([._-][a-z0-9]+)*$ ]]; then
+            echo "::error::Укажите DOCKERHUB_IMAGE в формате username/repository"
+            exit 1
+          fi
+
+          {
+            echo "tags<<EOF"
+            printf '%s:%s\n' "$IMAGE" "$VERSION"
+
+            if [[ "$ALSO_LATEST" == "true" ]]; then
+              printf '%s:latest\n' "$IMAGE"
+            fi
+
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v4.4.0
+
+      - uses: docker/setup-buildx-action@v4.4.1
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v4.6.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and publish
+        uses: docker/build-push-action@v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.metadata.outputs.tags }}

@@ -1,6 +1,6 @@
 # Telegram LLM Bot
 
-An asynchronous Telegram bot built with Python 3.11+ and aiogram 3. It provides private-chat access to a local language model through the OpenAI-compatible `llama-server` API, stores conversation history in SQLite, and can optionally process audio and documents through external services. Images, GIFs, animated stickers, and videos are handled locally.
+An asynchronous Telegram bot built with Python 3.11+ and aiogram 3. It provides private-chat access to a language model through an OpenAI-compatible API, stores conversation history in SQLite, and can optionally process audio and documents through [audiodoc](https://github.com/WhlteAdmln/audiodoc). Images, GIFs, animated stickers, and videos are handled locally.
 
 For the module map and request flow, see [`docs/architecture.md`](docs/architecture.md). The Russian documentation is available in [`README.ru.md`](README.ru.md) and [`docs/architecture.ru.md`](docs/architecture.ru.md).
 
@@ -8,8 +8,8 @@ For the module map and request flow, see [`docs/architecture.md`](docs/architect
 
 - Python 3.11 or newer.
 - A Telegram bot token from [@BotFather](https://t.me/BotFather).
-- A running `llama-server` exposing an OpenAI-compatible API.
-- Optional Whisper and Document Engine services for audio transcription and document extraction.
+- A running LLM server exposing `POST /v1/chat/completions` with streaming support.
+- Optional [audiodoc](https://github.com/WhlteAdmln/audiodoc) service for audio transcription and document text extraction. The bot's `WHISPER_*` and `DOCUMENT_*` setting names are historical; both groups connect to audiodoc.
 - `ffmpeg` and `ffprobe` available on `PATH` for video and video-sticker processing.
 
 ## Installation
@@ -83,7 +83,7 @@ For a manual installation, run commands from the project root — the directory 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-# Windows: .venv\\Scripts\\activate
+# Windows: .venv\Scripts\activate
 
 python -m pip install -r requirements-lock.txt
 cp .env.example .env
@@ -111,24 +111,23 @@ All settings are optional except `BOT_TOKEN` and `SUPERVISOR_ID`. Defaults below
 | `ALLOW_ALL_USERS` | `false` | Opens the bot to every non-blocked user when set to `true`. Keep `false` unless public access is intentional. |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL`. |
 | `DATABASE_PATH` | `data/bot.db` | SQLite database path. The image directory is created beside the database as `images/`. |
-| `LLM_BASE_URL` | `http://127.0.0.1:8080/v1` | Base URL of the OpenAI-compatible `llama-server` API. |
-| `LLM_API_KEY` | `not-needed` | Optional Bearer token for `llama-server`; no authorization header is sent for an empty value or `not-needed`. |
+| `LLM_BASE_URL` | `http://127.0.0.1:8080/v1` | Base URL of the OpenAI-compatible LLM API (the `/v1` prefix is included). |
+| `LLM_API_KEY` | `not-needed` | Optional Bearer token for the LLM server; no authorization header is sent for an empty value or `not-needed`. |
 | `LLM_MODEL` | `local-model` | Model name sent to the server. |
 | `LLM_TEMPERATURE` | `0.7` | Generation temperature; must be non-negative. |
 | `LLM_TOP_P` | `0.9` | Sampling parameter from 0 to 1. |
 | `LLM_MAX_TOKENS` | `2048` | Maximum number of generated tokens. |
 | `LLM_TIMEOUT` | `300` | LLM request timeout in seconds. |
-| `LLM_CONTEXT_SIZE` | empty | Optional context window size in tokens. Set it when the server does not expose context metadata. |
-| `LLM_TOKEN_COUNTING` | `auto` | Token counting mode: `auto`, `llamacpp`, or `estimate`. |
+| `LLM_CONTEXT_SIZE` | empty | Context window size in tokens. Set it explicitly when the server does not expose usable context metadata; the standard OpenAI API does not define a context-length field. |
+| `LLM_TOKEN_COUNTING` | `auto` | Token counting mode: `auto` probes the llama.cpp `/tokenize` extension once and falls back to an estimate; `llamacpp` requires llama.cpp tokenization endpoints; `estimate` never calls them. |
 | `LLM_MAX_CONCURRENT_GENERATIONS` | `1` | Maximum concurrent LLM generations. |
 | `MAX_HISTORY_EXCHANGES` | `1000` | Maximum history limit administrators can assign. A normal user's default limit is 30 exchanges. |
 | `MAX_STORED_EXCHANGES` | `2000` | Maximum number of full user/assistant exchanges retained per user (up to 4,000 message rows). Older rows and their managed images are pruned after a successful response. |
-| `STREAM_UPDATE_INTERVAL` | `1.0` in `.env.example` | Kept and validated as a configuration value for compatibility. The active Telegram streaming interval is currently fixed at 0.8 seconds in `bot/services/chat/streaming/settings.py`. |
-| `WHISPER_API_URL` | empty | Optional Whisper endpoint. Audio processing is unavailable when unset. |
-| `WHISPER_API_KEY` | empty | Optional Bearer token sent to Whisper. |
+| `WHISPER_API_URL` | empty | Optional audiodoc transcription endpoint. Set the full URL including `/transcribe`; audio processing is unavailable when unset. |
+| `WHISPER_API_KEY` | empty | Optional Bearer token sent to audiodoc for transcription. |
 | `WHISPER_TIMEOUT` | `180` | Whisper request timeout in seconds. |
-| `DOCUMENT_API_URL` | empty | Optional Document Engine endpoint. Document processing is unavailable when unset. |
-| `DOCUMENT_API_KEY` | empty | Optional Bearer token sent to Document Engine. |
+| `DOCUMENT_API_URL` | empty | Optional audiodoc document endpoint. Set the full URL including `/process-document`; document processing is unavailable when unset. |
+| `DOCUMENT_API_KEY` | empty | Optional Bearer token sent to audiodoc for document processing. |
 | `DOCUMENT_TIMEOUT` | `300` | Document Engine request timeout in seconds. |
 
 Some important limits are code constants rather than environment settings:
@@ -137,8 +136,21 @@ Some important limits are code constants rather than environment settings:
 - `MAX_CONTEXT_EXCHANGES = 100` — hard cap on the number of exchanges loaded for one LLM request, regardless of the user's larger saved history limit.
 - `MAX_INPUT_TEXT_LENGTH = 12,288` characters — final input text validation limit.
 - Incoming Telegram media: 20 MiB maximum per file and at most 3 simultaneous downloads.
+- `MAX_AUDIO_DURATION = 300` seconds (5 minutes) for incoming audio, defined in `bot/services/audio/validation.py`.
 
 `MAX_HISTORY_EXCHANGES`, `MAX_CONTEXT_EXCHANGES`, and `MAX_STORED_EXCHANGES` serve different purposes: user-configurable history limit, per-request context cap, and long-term storage cap, respectively.
+
+### LLM server compatibility
+
+| Server capability | Configuration and behavior |
+|---|---|
+| llama.cpp server | Full compatibility. In `auto` mode the bot detects `/tokenize` and uses exact token counts; `/props` can provide the context size. |
+| Other OpenAI-compatible servers | Use `LLM_TOKEN_COUNTING=estimate` (or `auto`, which falls back to estimation when `/tokenize` is unavailable) and set `LLM_CONTEXT_SIZE` to the model's actual context window. `/v1/models` metadata is inspected on a best-effort basis, but context metadata is not part of the standard OpenAI API. |
+| Minimum chat API | `POST /v1/chat/completions` with `stream=true`. For the `/health` command, the bot first tries `/health` and then falls back to `GET /v1/models`. |
+
+Do not set `LLM_TOKEN_COUNTING=llamacpp` for a server that does not implement the llama.cpp `/tokenize` and `/apply-template` extensions. The estimated token count is approximate; the bot adds a larger context safety margin in this mode.
+
+Supported document formats are determined by audiodoc. See the [audiodoc README](https://github.com/WhlteAdmln/audiodoc) for its current format list.
 
 ## Run
 
@@ -150,13 +162,13 @@ The startup sequence is: set the restrictive process umask, configure logging an
 
 The bot is designed for private chats. Messages from groups/supergroups/channels and events without a known sender are not passed to chat handlers; history and personal prompts are user-scoped rather than chat-scoped.
 
-## Check `llama-server`
+## Check the LLM server
 
 ```bash
 curl http://127.0.0.1:8080/v1/models
 ```
 
-Change `LLM_BASE_URL` if the server uses another address or port. If authentication is enabled on `llama-server`, set the same secret in `LLM_API_KEY`. Prefer binding the LLM server to localhost or a trusted private interface; do not expose it directly to the public internet.
+Change `LLM_BASE_URL` if the server uses another address or port. If authentication is enabled on the LLM server, set the corresponding secret in `LLM_API_KEY`. Prefer binding the LLM server to localhost or a trusted private interface; do not expose it directly to the public internet.
 
 ## Telegram commands
 
@@ -208,7 +220,7 @@ Run the regular test suite:
 python -m pytest -q
 ```
 
-Tests marked `integration` that require a running `llama-server` are run separately:
+The `integration` test that requires an external LLM server with a `/tokenize` endpoint is run separately:
 
 ```bash
 python -m pytest -m integration -q
@@ -232,7 +244,7 @@ bot/
 │   ├── chat/        # aggregation, input preparation, pipeline, streaming, errors
 │   ├── database/    # SQLite facade, repositories, use cases, image storage
 │   ├── documents/   # Document Engine client and response validation
-│   ├── llm/         # llama-server client, context fitting, tokenization, streaming
+│   ├── llm/         # LLM server client, context fitting, token counting, streaming
 │   ├── media/       # image/GIF/TGS/video inspection and processing
 │   └── telegram/    # Telegram downloads and chat actions
 └── utils/           # audit logging, secret filtering, safe log text

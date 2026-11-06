@@ -105,11 +105,12 @@ TemporaryMessagesCleanupMiddleware
 
 Для обработки видео `ffmpeg` и `ffprobe` должны быть доступны через `PATH`.
 
-### Whisper и Document Engine
+### audiodoc: аудио и документы
 
-- `bot/services/audio/client.py` отправляет аудио в Whisper; `bot/services/documents/client.py` отправляет документы в Document Engine и проверяет структуру ответа.
-- Оба сервиса необязательны и отключены, если URL не задан.
-- `WHISPER_API_KEY` и `DOCUMENT_API_KEY` добавляют необязательный Bearer-заголовок. Для удалённого сервиса используйте HTTPS: API-ключ не шифрует HTTP-трафик.
+- `bot/services/audio/client.py` отправляет аудио в [audiodoc](https://github.com/WhlteAdmln/audiodoc) по настроенному URL `/transcribe`; `bot/services/documents/client.py` отправляет документы в его эндпоинт `/process-document` и проверяет структуру ответа.
+- audiodoc — необязательный сервис. Обработка аудио и документов включается независимо: соответствующая функция отключена, если её URL не задан.
+- Имена настроек `WHISPER_*` и `DOCUMENT_*` исторические; обе группы подключаются к одному сервису audiodoc. `WHISPER_API_KEY` и `DOCUMENT_API_KEY` добавляют отдельные необязательные Bearer-заголовки. Для удалённого audiodoc используйте HTTPS: API-ключ не шифрует HTTP-трафик.
+- В настройках бота указывайте полный URL вместе с `/transcribe` или `/process-document`. Поддерживаемые форматы документов и настройки сервера описаны в [репозитории audiodoc](https://github.com/WhlteAdmln/audiodoc).
 - `bot/services/http_limits.py` читает ответы потоково чанками по 64 КиБ: успешное тело ограничено 2 МиБ, чтение тела HTTP-ошибки — 2 КиБ.
 
 ## 6. SQLite и локальные файлы
@@ -145,4 +146,4 @@ TemporaryMessagesCleanupMiddleware
 - Устаревшие compatibility-заглушки `bot.services.*` удалены при структурной очистке. Импортируйте код из настоящих пакетов (`bot.services.chat.input`, `bot.services.media`, `bot.services.chat.aggregation` и т. д.).
 - `bot/handlers/commands/__init__.py` оставлен только как агрегатор корневого роутера; исторические реэкспорты функций/FSM удалены.
 
-Обычные тесты запускаются командой `python -m pytest -q`. Тесты с маркером `integration` запускаются отдельно через `python -m pytest -m integration -q`, когда доступен совместимый `llama-server`.
+Обычные тесты запускаются командой `python -m pytest -q`. Тесты с маркером `integration` запускаются отдельно через `python -m pytest -m integration -q`, когда доступен внешний LLM-сервер с эндпоинтом `/tokenize`.

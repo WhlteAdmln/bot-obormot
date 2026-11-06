@@ -549,7 +549,7 @@ Next step — configure the bot:
   1. Edit $INSTALL_DIR/.env
   2. Set BOT_TOKEN (from @BotFather).
   3. Set SUPERVISOR_ID (your numeric Telegram ID).
-  4. Check LLM_BASE_URL and make sure llama-server is running.
+  4. Check LLM_BASE_URL and make sure your OpenAI-compatible LLM server is running.
   5. Keep ALLOW_ALL_USERS=false unless you intentionally want an open bot.
 
 Open the configuration file:

@@ -321,103 +321,235 @@ trap 'exit 143' TERM
 API_BASE="https://api.github.com/repos/$BOT_GITHUB_REPOSITORY"
 
 if [ "$CHANNEL" = "latest" ]; then
-	API_URL="$API_BASE/releases/latest"
-	log "Looking up the latest stable release."
+    API_URL="$API_BASE/releases/latest"
+    log "Looking up the latest stable release."
 else
-	API_URL="$API_BASE/releases?per_page=100"
-	log "Looking up the latest prerelease."
+    API_URL="$API_BASE/releases?per_page=100"
+    log "Looking up the latest prerelease."
 fi
 
 API_JSON="$TMP_DIR/release.json"
 
 if [ -n "$GITHUB_TOKEN" ]; then
-	curl -fLsS --retry 3 --retry-delay 2 \
-		-H 'Accept: application/vnd.github+json' \
-		-H 'X-GitHub-Api-Version: 2026-03-10' \
-		-H "Authorization: Bearer $GITHUB_TOKEN" \
-		-H 'User-Agent: bot-obormot-installer' \
-		"$API_URL" -o "$API_JSON" ||
-		die "Could not query GitHub Releases API."
+    HTTP_STATUS=$(curl -sSL --retry 3 --retry-delay 2 \
+        -H 'Accept: application/vnd.github+json' \
+        -H 'X-GitHub-Api-Version: 2026-03-10' \
+        -H "Authorization: Bearer $GITHUB_TOKEN" \
+        -H 'User-Agent: bot-obormot-installer' \
+        -o "$API_JSON" -w '%{http_code}' "$API_URL") ||
+        die "Could not connect to GitHub Releases API."
 else
-	curl -fLsS --retry 3 --retry-delay 2 \
-		-H 'Accept: application/vnd.github+json' \
-		-H 'User-Agent: bot-obormot-installer' \
-		"$API_URL" -o "$API_JSON" ||
-		die "Could not query GitHub Releases API. Check repository visibility."
+    HTTP_STATUS=$(curl -sSL --retry 3 --retry-delay 2 \
+        -H 'Accept: application/vnd.github+json' \
+        -H 'X-GitHub-Api-Version: 2026-03-10' \
+        -H 'User-Agent: bot-obormot-installer' \
+        -o "$API_JSON" -w '%{http_code}' "$API_URL") ||
+        die "Could not connect to GitHub Releases API."
 fi
 
-RELEASE_TAG=$("$PYTHON_BIN" -c '
-import json, sys
-
-channel, filename = sys.argv[1], sys.argv[2]
-
-with open(filename, encoding="utf-8") as stream:
-    data = json.load(stream)
-
-release = None
-
-if channel == "latest":
-    if isinstance(data, dict) and not data.get("draft") and not data.get("prerelease"):
-        release = data
-else:
-    if isinstance(data, list):
-        release = next(
-            (item for item in data if not item.get("draft") and item.get("prerelease")),
-            None
-        )
-
-if not release:
-    raise SystemExit("No matching release was found")
-
-print(release.get("tag_name") or "")
-' "$CHANNEL" "$API_JSON") ||
-	die "No matching $CHANNEL release was found."
-
-ARCHIVE_URL=$("$PYTHON_BIN" -c '
-import json, sys
-
-channel, filename = sys.argv[1], sys.argv[2]
-
-with open(filename, encoding="utf-8") as stream:
-    data = json.load(stream)
-
-if channel == "latest":
-    release = data
-else:
-    release = next(
-        (item for item in data if not item.get("draft") and item.get("prerelease")),
-        None
-    )
-
-print((release or {}).get("zipball_url") or "")
-' "$CHANNEL" "$API_JSON") ||
-	die "Could not read release archive URL."
-
-case "$ARCHIVE_URL" in
-https://api.github.com/* | https://codeload.github.com/*) ;;
-*) die "GitHub returned an unexpected archive URL. Refusing to download." ;;
+case "$HTTP_STATUS" in
+    200)
+        ;;
+    404)
+        if [ "$CHANNEL" = "latest" ]; then
+            die "No stable release is published yet. Use --nightly or wait for a stable release."
+        fi
+        die "GitHub Releases endpoint was not found."
+        ;;
+    403)
+        die "GitHub API rate limit or access restriction. Set GITHUB_TOKEN and try again."
+        ;;
+    *)
+        die "GitHub Releases API returned HTTP $HTTP_STATUS."
+        ;;
 esac
 
+# Select one release and extract its asset URLs.
+RELEASE_INFO="$TMP_DIR/release-info.txt"
+
+"$PYTHON_BIN" - "$CHANNEL" "$API_JSON" "$RELEASE_INFO" <<'PY' ||
+    die "Could not select a matching GitHub release."
+import json
+import re
+import sys
+
+channel, filename, output = sys.argv[1:]
+
+with open(filename, encoding="utf-8") as stream:
+    data = json.load(stream)
+
+if channel == "latest":
+    candidates = [data] if isinstance(data, dict) else []
+else:
+    candidates = data if isinstance(data, list) else []
+
+release = next(
+    (
+        item
+        for item in candidates
+        if isinstance(item, dict)
+        and not item.get("draft")
+        and (
+            not item.get("prerelease")
+            if channel == "latest"
+            else item.get("prerelease")
+        )
+    ),
+    None,
+)
+
+if release is None:
+    raise SystemExit("No matching release was found.")
+
+tag = release.get("tag_name") or ""
+if not tag or any(char in tag for char in "\r\n\t"):
+    raise SystemExit("Release has an invalid tag name.")
+
+version = tag[1:] if tag.startswith("v") else tag
+
+archive_url = ""
+checksums_url = ""
+
+# Only use our own archive when both expected assets exist.
+if re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z.+-]*", version):
+    archive_name = f"bot-obormot-{version}.zip"
+    assets = release.get("assets") or []
+
+    archive_assets = [
+        item
+        for item in assets
+        if isinstance(item, dict)
+        and item.get("name") == archive_name
+        and item.get("state") == "uploaded"
+    ]
+    checksum_assets = [
+        item
+        for item in assets
+        if isinstance(item, dict)
+        and item.get("name") == "SHA256SUMS"
+        and item.get("state") == "uploaded"
+    ]
+
+    if len(archive_assets) == 1 and len(checksum_assets) == 1:
+        archive_url = archive_assets[0].get("url") or ""
+        checksums_url = checksum_assets[0].get("url") or ""
+
+zipball_url = release.get("zipball_url") or ""
+
+with open(output, "w", encoding="utf-8") as stream:
+    for value in (tag, archive_url, checksums_url, zipball_url):
+        if "\n" in value or "\r" in value:
+            raise SystemExit("Invalid newline in release metadata.")
+        stream.write(value + "\n")
+PY
+
+RELEASE_TAG=$(sed -n '1p' "$RELEASE_INFO")
+ASSET_ARCHIVE_URL=$(sed -n '2p' "$RELEASE_INFO")
+CHECKSUMS_URL=$(sed -n '3p' "$RELEASE_INFO")
+ZIPBALL_URL=$(sed -n '4p' "$RELEASE_INFO")
+
 [ -n "$RELEASE_TAG" ] || die "Release has an empty tag name."
-[ -n "$ARCHIVE_URL" ] || die "Release does not provide a ZIP archive."
 
 log "Selected release: $RELEASE_TAG."
 
-ZIP_FILE="$TMP_DIR/release.zip"
+# Download a GitHub release asset or source archive.
+download_file() {
+    DOWNLOAD_URL=$1
+    DOWNLOAD_PATH=$2
+    DOWNLOAD_ACCEPT=$3
 
-if [ -n "$GITHUB_TOKEN" ]; then
-	curl -fLsS --retry 3 --retry-delay 2 \
-		-H "Authorization: Bearer $GITHUB_TOKEN" \
-		-H 'Accept: application/vnd.github+json' \
-		-H 'User-Agent: bot-obormot-installer' \
-		-o "$ZIP_FILE" "$ARCHIVE_URL" ||
-		die "Could not download release ZIP."
+    if [ -n "$GITHUB_TOKEN" ]; then
+        curl -fLsS --retry 3 --retry-delay 2 \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: $DOWNLOAD_ACCEPT" \
+            -H 'X-GitHub-Api-Version: 2026-03-10' \
+            -H 'User-Agent: bot-obormot-installer' \
+            -o "$DOWNLOAD_PATH" "$DOWNLOAD_URL" ||
+            die "Could not download a file from the selected GitHub release."
+    else
+        curl -fLsS --retry 3 --retry-delay 2 \
+            -H "Accept: $DOWNLOAD_ACCEPT" \
+            -H 'X-GitHub-Api-Version: 2026-03-10' \
+            -H 'User-Agent: bot-obormot-installer' \
+            -o "$DOWNLOAD_PATH" "$DOWNLOAD_URL" ||
+            die "Could not download a file from the selected GitHub release."
+    fi
+}
+
+if [ -n "$ASSET_ARCHIVE_URL" ] && [ -n "$CHECKSUMS_URL" ]; then
+    # Release assets must come from this repository's GitHub API.
+    ASSET_PREFIX="https://api.github.com/repos/${BOT_GITHUB_REPOSITORY}/releases/assets/"
+
+    case "$ASSET_ARCHIVE_URL" in
+        "${ASSET_PREFIX}"*) ;;
+        *) die "GitHub returned an unexpected release archive URL." ;;
+    esac
+
+    case "$CHECKSUMS_URL" in
+        "${ASSET_PREFIX}"*) ;;
+        *) die "GitHub returned an unexpected checksum URL." ;;
+    esac
+
+    RELEASE_VERSION=${RELEASE_TAG#v}
+    ARCHIVE_NAME="bot-obormot-${RELEASE_VERSION}.zip"
+    ZIP_FILE="$TMP_DIR/$ARCHIVE_NAME"
+    CHECKSUM_FILE="$TMP_DIR/SHA256SUMS"
+
+    log "Downloading the project's release archive."
+    download_file "$ASSET_ARCHIVE_URL" "$ZIP_FILE" "application/octet-stream"
+    download_file "$CHECKSUMS_URL" "$CHECKSUM_FILE" "application/octet-stream"
+
+    # Accept exactly one checksum entry, for the expected archive only.
+    EXPECTED_SHA=$(
+        "$PYTHON_BIN" - "$CHECKSUM_FILE" "$ARCHIVE_NAME" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+checksum_file, expected_name = sys.argv[1:]
+entries = []
+
+for line in Path(checksum_file).read_text(encoding="utf-8").splitlines():
+    if not line:
+        continue
+
+    match = re.fullmatch(r"([0-9a-fA-F]{64})[ \t]+[*]?(.+)", line)
+    if match is None:
+        raise SystemExit("Invalid entry in SHA256SUMS.")
+
+    entries.append((match.group(1).lower(), match.group(2)))
+
+if len(entries) != 1 or entries[0][1] != expected_name:
+    raise SystemExit("SHA256SUMS does not contain exactly the expected archive.")
+
+print(entries[0][0])
+PY
+    ) || die "Could not read the release checksum."
+
+    if command -v sha256sum >/dev/null 2>&1; then
+        ACTUAL_SHA=$(sha256sum "$ZIP_FILE" | awk '{print $1}')
+    elif command -v shasum >/dev/null 2>&1; then
+        ACTUAL_SHA=$(shasum -a 256 "$ZIP_FILE" | awk '{print $1}')
+    else
+        die "Cannot verify SHA-256: install sha256sum or shasum."
+    fi
+
+    [ "$EXPECTED_SHA" = "$ACTUAL_SHA" ] ||
+        die "Release archive SHA-256 verification failed. Refusing to install."
+
+    log "Release archive SHA-256 verified."
+
 else
-	curl -fLsS --retry 3 --retry-delay 2 \
-		-H 'Accept: application/vnd.github+json' \
-		-H 'User-Agent: bot-obormot-installer' \
-		-o "$ZIP_FILE" "$ARCHIVE_URL" ||
-		die "Could not download release ZIP."
+    # Older releases may only provide GitHub's automatically generated zipball.
+    case "$ZIPBALL_URL" in
+        https://api.github.com/* | https://codeload.github.com/*) ;;
+        *) die "GitHub returned an unexpected source archive URL." ;;
+    esac
+
+    warn "Release has no project ZIP with SHA256SUMS. Falling back to GitHub source archive; checksum verification is unavailable."
+
+    ZIP_FILE="$TMP_DIR/release.zip"
+    download_file "$ZIPBALL_URL" "$ZIP_FILE" "application/vnd.github+json"
 fi
 
 # Verify ZIP paths before extraction.

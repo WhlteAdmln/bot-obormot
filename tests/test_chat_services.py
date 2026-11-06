@@ -562,3 +562,15 @@ async def test_chat_pipeline_returns_response_when_history_pruning_fails(monkeyp
     monkeypatch.setattr(chat_pipeline, "llm_client", FakeLLM())
 
     assert await chat_pipeline.process_chat(77, "вход", "вход") == "ответ"
+
+
+def test_user_facing_length_errors_use_configured_input_limit():
+    from bot.services.chat.errors import texts
+    from bot.services.validation import MAX_INPUT_TEXT_LENGTH
+
+    expected_limit = str(MAX_INPUT_TEXT_LENGTH)
+    input_message = texts.input_too_long(Exception())
+    document_message = texts.document_too_long(Exception())
+
+    assert expected_limit in input_message.replace(" ", "")
+    assert expected_limit in document_message.replace(" ", "")

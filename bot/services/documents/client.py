@@ -17,9 +17,14 @@ from bot.services.http_limits import (
     MAX_SERVICE_RESPONSE_BYTES,
     read_limited_body,
 )
+from bot.services.validation import MAX_INPUT_TEXT_LENGTH
 from bot.utils.text import log_safe
 
 logger = logging.getLogger(__name__)
+
+# Reserve room for the document label, filename, and an optional Telegram caption.
+DOCUMENT_TEXT_OVERHEAD_RESERVE = 1024
+MAX_DOCUMENT_TEXT_LENGTH = MAX_INPUT_TEXT_LENGTH - DOCUMENT_TEXT_OVERHEAD_RESERVE
 
 
 async def process_document(
@@ -43,6 +48,7 @@ async def process_document(
         filename=safe_filename,
         content_type="application/octet-stream",
     )
+    form.add_field("max_characters", str(MAX_DOCUMENT_TEXT_LENGTH))
 
     timeout = aiohttp.ClientTimeout(total=config.DOCUMENT_TIMEOUT)
     headers = (

@@ -281,7 +281,7 @@ def test_build_user_content_rejects_oversized_document(monkeypatch):
     monkeypatch.setattr(content_module, "MAX_INPUT_TEXT_LENGTH", 10)
 
     with pytest.raises(
-        DocumentTooLongError, match="Document message exceeds 8000 characters"
+        DocumentTooLongError, match="Document message exceeds 10 characters"
     ):
         content_module.build_user_content(
             make_message(text=None),
@@ -504,6 +504,41 @@ async def test_prepare_document_rejects_empty_extracted_text(caplog):
 
     assert r"DOCUMENT: начинаю скачивание: empty.pdf\nERROR forged entry" in caplog.text
     assert "\nERROR forged entry" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_prepare_document_rejects_truncated_extracted_text():
+    document = SimpleNamespace(file_id="doc-id", file_name="large.pdf")
+    info = MessageInfo(
+        None,
+        None,
+        None,
+        None,
+        document,
+        False,
+        False,
+        True,
+        False,
+    )
+
+    async def download(_message, _file_id):
+        return b"document-bytes"
+
+    async def process(_data, _filename):
+        return {
+            "text": "Извлечённый фрагмент",
+            "format": "pdf",
+            "characters": 20,
+            "truncated": True,
+        }
+
+    with pytest.raises(DocumentTooLongError):
+        await documents_module.prepare_document(
+            make_message(),
+            info,
+            downloader=download,
+            document_processor=process,
+        )
 
 
 @pytest.mark.asyncio

@@ -23,6 +23,7 @@ from bot.services.audio import (
     validate_audio_duration,
 )
 from bot.services.documents import process_document
+from bot.services.documents.client import MAX_DOCUMENT_TEXT_LENGTH
 from bot.services.documents.response import validate_document_response
 from bot.services.http_limits import read_limited_body
 
@@ -290,8 +291,24 @@ async def test_transcribe_audio_preserves_api_empty_and_timeout_errors(monkeypat
 
 
 def test_validate_document_response_accepts_valid_payload_without_copying():
-    payload = {"text": "Текст", "format": "pdf", "characters": 5}
+    payload = {
+        "text": "Текст",
+        "format": "pdf",
+        "characters": 5,
+        "truncated": False,
+    }
     assert validate_document_response(payload) is payload
+
+
+def test_validate_document_response_rejects_non_boolean_truncated_flag():
+    payload = {
+        "text": "Текст",
+        "format": "pdf",
+        "characters": 5,
+        "truncated": "false",
+    }
+    with pytest.raises(DocumentAPIError, match="invalid truncated flag"):
+        validate_document_response(payload)
 
 
 @pytest.mark.parametrize(
@@ -321,7 +338,14 @@ async def test_process_document_preserves_filename_sanitization_and_response(
 
         def __init__(self):
             self.content = FakeContent(
-                json_body({"text": "Документ", "format": "pdf", "characters": 8})
+                json_body(
+                    {
+                        "text": "Документ",
+                        "format": "pdf",
+                        "characters": 8,
+                        "truncated": False,
+                    }
+                )
             )
 
         async def __aenter__(self):
@@ -357,7 +381,12 @@ async def test_process_document_preserves_filename_sanitization_and_response(
             "../../report\nERROR forged.pdf",
         )
 
-    assert result == {"text": "Документ", "format": "pdf", "characters": 8}
+    assert result == {
+        "text": "Документ",
+        "format": "pdf",
+        "characters": 8,
+        "truncated": False,
+    }
     assert r"filename=report\nERROR forged.pdf" in caplog.text
     assert "\nERROR forged.pdf" not in caplog.text
     assert calls["url"] == "http://documents.test/process"
@@ -367,6 +396,11 @@ async def test_process_document_preserves_filename_sanitization_and_response(
     multipart_filename = calls["data"]._fields[0][0]["filename"]
     assert multipart_filename == r"report\nERROR forged.pdf"
     assert "\r" not in multipart_filename and "\n" not in multipart_filename
+
+    form_fields = {
+        field[0].get("name"): field[2] for field in calls["data"]._fields
+    }
+    assert form_fields["max_characters"] == str(MAX_DOCUMENT_TEXT_LENGTH)
 
 
 @pytest.mark.asyncio

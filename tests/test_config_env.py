@@ -80,3 +80,9 @@ def test_get_optional_int_rejects_invalid_values(monkeypatch, value):
     monkeypatch.setenv("TEST_OPTIONAL_INT", value)
     with pytest.raises(ValueError, match="TEST_OPTIONAL_INT"):
         get_optional_int("TEST_OPTIONAL_INT")
+
+
+def test_stream_update_interval_is_not_an_environment_setting():
+    from bot.config.settings import Config
+
+    assert not hasattr(Config, "STREAM_UPDATE_INTERVAL")

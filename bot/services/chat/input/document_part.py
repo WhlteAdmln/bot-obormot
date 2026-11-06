@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Callable, Awaitable
 
-from bot.errors import DocumentAPIError
+from bot.errors import DocumentAPIError, DocumentTooLongError
 from bot.services.chat.input.models import MessageInfo
 from bot.utils.text import log_safe
 
@@ -55,6 +55,9 @@ async def prepare_document(
         document_data,
         document.file_name or "document",
     )
+
+    if result.get("truncated", False) is True:
+        raise DocumentTooLongError()
 
     document_text = result["text"]
     document_format = result["format"]

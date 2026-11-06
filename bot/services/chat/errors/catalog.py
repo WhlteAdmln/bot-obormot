@@ -41,7 +41,7 @@ class ChatErrorRule:
 
 
 CHAT_ERROR_RULES: tuple[ChatErrorRule, ...] = (
-    ChatErrorRule(InputTooLongError, texts.INPUT_TOO_LONG),
+    ChatErrorRule(InputTooLongError, texts.input_too_long),
     ChatErrorRule(
         TelegramFileTooBigError,
         texts.TELEGRAM_FILE_TOO_BIG,
@@ -49,7 +49,7 @@ CHAT_ERROR_RULES: tuple[ChatErrorRule, ...] = (
         "Telegram file is too big to download, user_id=%s",
         ("user_id",),
     ),
-    ChatErrorRule(DocumentTooLongError, texts.DOCUMENT_TOO_LONG),
+    ChatErrorRule(DocumentTooLongError, texts.document_too_long),
     ChatErrorRule(
         DocumentTimeoutError,
         texts.DOCUMENT_TIMEOUT,

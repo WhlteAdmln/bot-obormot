@@ -27,4 +27,11 @@ def validate_document_response(result: object) -> dict:
             "Document Engine returned invalid character count",
         )
 
+    # Older audiodoc versions may omit this field; when present, it must be boolean.
+    if "truncated" in result and not isinstance(result["truncated"], bool):
+        raise DocumentAPIError(
+            502,
+            "Document Engine returned invalid truncated flag",
+        )
+
     return result

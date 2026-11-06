@@ -1,14 +1,34 @@
 """Пользовательские сообщения для ошибок обработки чата."""
 
-INPUT_TOO_LONG = "📄 Сообщение слишком длинное. Максимальный объём — 8000 символов."
+from bot.services.validation import MAX_INPUT_TEXT_LENGTH
+
+
+def _formatted_input_limit() -> str:
+    """Return the configured character limit with a readable thousands separator."""
+    return f"{MAX_INPUT_TEXT_LENGTH:,}".replace(",", " ")
+
+
+def input_too_long(_error: Exception) -> str:
+    return (
+        "📄 Сообщение слишком длинное. Максимальный объём — "
+        f"{_formatted_input_limit()} символов."
+    )
+
+
 TELEGRAM_FILE_TOO_BIG = (
     "📦 Файл слишком большой для скачивания через Telegram. "
     "Попробуй отправить файл меньшего размера."
 )
-DOCUMENT_TOO_LONG = (
-    "📄 В документе слишком много текста. "
-    "Максимальный объём для обработки сейчас — 8000 символов."
-)
+
+
+def document_too_long(_error: Exception) -> str:
+    return (
+        "📄 В документе слишком много текста. "
+        "Максимальный объём для обработки сейчас — "
+        f"{_formatted_input_limit()} символов."
+    )
+
+
 DOCUMENT_TIMEOUT = (
     "⏳ Обработка документа заняла слишком много времени. Попробуй ещё раз позже."
 )

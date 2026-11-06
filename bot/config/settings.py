@@ -76,15 +76,6 @@ class Config:
     # Максимальное число хранимых полных обменов на пользователя.
     MAX_STORED_EXCHANGES = get_int("MAX_STORED_EXCHANGES", "2000")
 
-    STREAM_UPDATE_INTERVAL = get_float(
-        "STREAM_UPDATE_INTERVAL",
-        "1.0",
-        minimum=0.0,
-    )
-
-    if STREAM_UPDATE_INTERVAL == 0:
-        raise ValueError("STREAM_UPDATE_INTERVAL должен быть больше нуля")
-
     DATABASE_PATH = os.getenv("DATABASE_PATH", "data/bot.db").strip()
 
     if not DATABASE_PATH:

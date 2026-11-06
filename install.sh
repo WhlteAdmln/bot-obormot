@@ -106,13 +106,11 @@ elif [ -e "$INSTALL_DIR" ]; then
 	die "Installation directory already exists: $INSTALL_DIR. Use --upgrade to update it or choose another path."
 fi
 
-
-
 # Do not replace application files while the systemd service is running.
 if [ "$UPGRADE" -eq 1 ] && command -v systemctl >/dev/null 2>&1; then
-    if systemctl --user is-active --quiet "$SERVICE_NAME"; then
-        die "The bot service is running. Stop it before upgrading: systemctl --user stop $SERVICE_NAME"
-    fi
+	if systemctl --user is-active --quiet "$SERVICE_NAME"; then
+		die "The bot service is running. Stop it before upgrading: systemctl --user stop $SERVICE_NAME"
+	fi
 fi
 
 # Ignore old documentation placeholders.
@@ -306,8 +304,6 @@ log "Using $PYTHON_BIN (Python $PYTHON_VERSION)."
 if ! have ffmpeg || ! have ffprobe; then
 	warn "ffmpeg/ffprobe are not available. Video processing will not work."
 fi
-
-
 
 TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/bot-obormot-install.XXXXXX") ||
 	die "Could not create temporary directory."
@@ -676,6 +672,12 @@ else
 fi
 
 if [ "$UPGRADE" -eq 1 ]; then
+	# Recheck immediately before replacing application files.
+	if [ "$UPGRADE" -eq 1 ] && command -v systemctl >/dev/null 2>&1; then
+		if systemctl --user is-active --quiet "$SERVICE_NAME"; then
+			die "The bot service started during upgrade preparation. Stop it and retry."
+		fi
+	fi
 	# Replace packaged application code and prompts, removing obsolete files.
 	rm -rf "$INSTALL_DIR/bot" "$INSTALL_DIR/prompts" ||
 		die "Could not remove the previous application files."

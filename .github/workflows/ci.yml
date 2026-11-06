@@ -178,7 +178,7 @@ jobs:
           path: dist/
           retention-days: 7
 
-    docker-build:
+  docker-build:
     name: Docker image build (amd64 + arm64)
     needs: lint
     runs-on: ubuntu-latest

@@ -6,11 +6,11 @@ import logging
 from typing import TYPE_CHECKING
 
 from bot.services.chat.input.audio_part import prepare_audio
-from bot.services.chat.input.user_content import build_user_content
 from bot.services.chat.input.document_part import prepare_document
-from bot.services.chat.input.saved_text import build_saved_user_text
 from bot.services.chat.input.media_part import prepare_media
 from bot.services.chat.input.models import MessageInfo, PreparedMessage
+from bot.services.chat.input.saved_text import build_saved_user_text
+from bot.services.chat.input.user_content import build_user_content
 
 if TYPE_CHECKING:
     from aiogram.types import Message

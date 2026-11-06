@@ -1,7 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
 
-
 _user_locks: dict[int, tuple[asyncio.Lock, int]] = {}
 
 

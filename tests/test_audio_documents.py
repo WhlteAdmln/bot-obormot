@@ -1,4 +1,3 @@
-import asyncio
 import json
 import logging
 from types import SimpleNamespace
@@ -283,7 +282,7 @@ async def test_transcribe_audio_preserves_api_empty_and_timeout_errors(monkeypat
         await transcribe_audio(b"audio")
 
     def timeout_session(**kwargs):
-        raise asyncio.TimeoutError
+        raise TimeoutError
 
     monkeypatch.setattr(aiohttp, "ClientSession", timeout_session)
     with pytest.raises(WhisperTimeoutError):
@@ -397,9 +396,7 @@ async def test_process_document_preserves_filename_sanitization_and_response(
     assert multipart_filename == r"report\nERROR forged.pdf"
     assert "\r" not in multipart_filename and "\n" not in multipart_filename
 
-    form_fields = {
-        field[0].get("name"): field[2] for field in calls["data"]._fields
-    }
+    form_fields = {field[0].get("name"): field[2] for field in calls["data"]._fields}
     assert form_fields["max_characters"] == str(MAX_DOCUMENT_TEXT_LENGTH)
 
 
@@ -531,7 +528,7 @@ async def test_process_document_maps_timeout_and_connection_errors(monkeypatch):
     monkeypatch.setattr(config, "DOCUMENT_API_URL", "http://documents.test")
 
     def timeout_session(**kwargs):
-        raise asyncio.TimeoutError
+        raise TimeoutError
 
     monkeypatch.setattr(aiohttp, "ClientSession", timeout_session)
     from bot.errors import DocumentTimeoutError

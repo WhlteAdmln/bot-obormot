@@ -4,11 +4,10 @@ import logging
 
 from aiogram.types import Message
 
-from bot.services.chat.errors.catalog import CHAT_ERROR_RULES, ChatErrorRule
 from bot.services.chat.errors import texts
+from bot.services.chat.errors.catalog import CHAT_ERROR_RULES, ChatErrorRule
 from bot.services.chat.reporting import report_error
 from bot.utils.text import log_safe
-
 
 logger = logging.getLogger("bot.services.chat.errors.handler")
 

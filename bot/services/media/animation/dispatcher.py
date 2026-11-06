@@ -4,7 +4,6 @@ from bot.services.media.animation.gif import extract_gif
 from bot.services.media.animation.tgs import extract_tgs
 from bot.services.media.animation.video import extract_video
 
-
 FrameExtractor = Callable[[bytes], list[bytes]]
 
 

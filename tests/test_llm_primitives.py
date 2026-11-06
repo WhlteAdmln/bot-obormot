@@ -4,8 +4,7 @@ import pytest
 
 from bot.config import config
 from bot.errors import LLMUnavailableError
-from bot.services.llm import LLMClient, llm_client
-from bot.services.llm import endpoints, messages, session
+from bot.services.llm import LLMClient, endpoints, llm_client, messages, session
 
 
 def test_llm_package_preserves_public_imports():

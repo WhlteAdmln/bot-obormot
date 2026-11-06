@@ -7,8 +7,8 @@ import os
 import struct
 import threading
 import time
-from pathlib import Path
 import warnings
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -320,6 +320,7 @@ def test_check_image_size_rejects_invalid_and_oversized_dimensions():
 
 def test_configure_pillow_limits_sets_global_decompression_limit(monkeypatch):
     import warnings
+
     from PIL import Image
 
     from bot.services.media.limits import MAX_IMAGE_PIXELS

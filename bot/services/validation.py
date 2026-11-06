@@ -1,6 +1,5 @@
 from bot.errors import InputTooLongError
 
-
 MAX_INPUT_TEXT_LENGTH = 12288
 
 

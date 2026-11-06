@@ -10,7 +10,6 @@ from bot.services.database import db
 from bot.services.llm import llm_client
 from bot.utils.audit import audit
 
-
 router = Router()
 logger = logging.getLogger("bot.handlers.admin")
 
@@ -280,7 +279,8 @@ async def cmd_ban(message: Message, command: CommandObject):
 
     if target_id == config.SUPERVISOR_ID or target_id in await db.get_admin_ids():
         await message.answer(
-            "⛔ Этого пользователя заблокировать нельзя. Сначала сними права администратора."
+            "⛔ Этого пользователя заблокировать нельзя. "
+            "Сначала сними права администратора."
         )
         return
 

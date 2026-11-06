@@ -6,7 +6,6 @@
 
 import os
 
-
 _TEST_ENV = {
     "BOT_TOKEN": "123456789:TEST_TOKEN_NOT_VALID",
     "SUPERVISOR_ID": "999999999",
@@ -39,7 +38,7 @@ for _name, _value in _TEST_ENV.items():
     if not os.environ.get(_name, "").strip():
         os.environ[_name] = _value
 
-import pytest_asyncio
+import pytest_asyncio  # noqa: E402
 
 
 @pytest_asyncio.fixture

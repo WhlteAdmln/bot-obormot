@@ -1,14 +1,12 @@
-import pytest
-import pytest_asyncio
-
 from types import SimpleNamespace
 
+import pytest
+import pytest_asyncio
 from aiogram.enums import ChatType
 
 from bot.config import config
 from bot.middlewares import access as access_module
 from bot.services.database import Database
-
 
 SUPERVISOR_ID = 999999999
 ADMIN_ID = 111111111

@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import base64
-from typing import TYPE_CHECKING, Callable, Awaitable
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING
 
 from bot.services.chat.input.models import MessageInfo
 

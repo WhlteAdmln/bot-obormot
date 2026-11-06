@@ -1,13 +1,14 @@
 import asyncio
 import logging
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 import aiohttp
 
 from bot.config import config
-from bot.services.llm.fitting import fit_messages_to_context
 from bot.services.llm.context_size import get_context_size as fetch_context_size
 from bot.services.llm.endpoints import server_url
+from bot.services.llm.fitting import fit_messages_to_context
 from bot.services.llm.messages import (
     count_images,
     normalize_content,
@@ -18,7 +19,11 @@ from bot.services.llm.session import get_session
 from bot.services.llm.streaming import stream_unlimited
 from bot.services.llm.tokenizer import (
     count_text_tokens as tokenize_text,
+)
+from bot.services.llm.tokenizer import (
     count_tokens as tokenize_messages,
+)
+from bot.services.llm.tokenizer import (
     get_token_counting_mode as resolve_token_counting_mode,
 )
 
@@ -135,7 +140,7 @@ class LLMClient:
                             data = None
                         if isinstance(data, dict) and data.get("status") == "ok":
                             return True, "Доступен"
-            except (asyncio.TimeoutError, aiohttp.ClientError):
+            except (TimeoutError, aiohttp.ClientError):
                 logger.debug("Optional LLM /health endpoint unavailable", exc_info=True)
 
             # /v1/models — стандартный OpenAI endpoint; HTTP 200 означает,
@@ -148,7 +153,7 @@ class LLMClient:
                     return True, "Доступен"
                 return False, f"HTTP {response.status}: LLM API недоступен"
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return False, "Тайм-аут при обращении к LLM-серверу"
 
         except aiohttp.ClientError:

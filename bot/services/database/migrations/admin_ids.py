@@ -4,7 +4,6 @@ import logging
 
 import aiosqlite
 
-
 logger = logging.getLogger("bot.services.database.facade")
 MIGRATION_NAME = "migrate_admin_ids_to_sqlite"
 

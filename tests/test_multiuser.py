@@ -4,9 +4,8 @@ import pytest
 import pytest_asyncio
 
 from bot.config import config
-from bot.services.database import Database
 from bot.errors import DatabaseError
-
+from bot.services.database import Database
 
 USER_A = 111111111
 USER_B = 222222222

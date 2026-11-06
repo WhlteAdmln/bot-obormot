@@ -1,5 +1,3 @@
-from types import SimpleNamespace
-
 import pytest
 
 from bot.services.access import user_has_access

@@ -8,8 +8,9 @@ from bot.handlers.chat.handler import (
     STREAM_TOKEN_THRESHOLD,
     STREAM_UPDATE_INTERVAL,
     format_roleplay,
-    handle_message,
+    get_user_lock,
     handle_chat_error,
+    handle_message,
     inspect_message,
     keep_typing,
     llm_client,
@@ -21,7 +22,6 @@ from bot.handlers.chat.handler import (
     router,
     safe_edit,
     split_formatted_message,
-    get_user_lock,
 )
 
 __all__ = [

@@ -42,6 +42,7 @@ def test_config_loads_env_from_project_root_only(monkeypatch):
     import importlib
 
     import dotenv
+
     import bot.config as config_module
     from bot.config.paths import PROJECT_ROOT
 

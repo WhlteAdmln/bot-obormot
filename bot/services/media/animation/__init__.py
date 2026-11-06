@@ -4,6 +4,9 @@ import logging
 
 from bot.errors import MediaError
 from bot.services.media.animation import concurrency as _concurrency
+from bot.services.media.animation.dispatcher import dispatch_extraction
+from bot.services.media.animation.gif import extract_gif
+from bot.services.media.animation.jpeg import image_to_bytes
 from bot.services.media.animation.limits import (
     MAX_CONCURRENT_ANIMATIONS,
     MAX_DIMENSION,
@@ -11,9 +14,6 @@ from bot.services.media.animation.limits import (
     MAX_FRAMES,
     PROCESS_TIMEOUT,
 )
-from bot.services.media.animation.dispatcher import dispatch_extraction
-from bot.services.media.animation.jpeg import image_to_bytes
-from bot.services.media.animation.gif import extract_gif
 from bot.services.media.animation.sampling import sample_frame_indices
 from bot.services.media.animation.tgs import extract_tgs
 from bot.services.media.animation.video import extract_video

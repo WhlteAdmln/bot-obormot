@@ -28,10 +28,10 @@ def get_int(name: str, default: str, minimum: int = 1) -> int:
 
     try:
         result = int(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as err:
         raise ValueError(
             f"Настройка {name} должна быть целым числом. Получено: {value!r}"
-        )
+        ) from err
 
     if result < minimum:
         raise ValueError(
@@ -50,10 +50,10 @@ def get_optional_int(name: str, minimum: int = 1) -> int | None:
 
     try:
         result = int(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as err:
         raise ValueError(
             f"Настройка {name} должна быть целым числом. Получено: {value!r}"
-        )
+        ) from err
 
     if result < minimum:
         raise ValueError(
@@ -73,8 +73,10 @@ def get_float(
 
     try:
         result = float(value)
-    except (TypeError, ValueError):
-        raise ValueError(f"Настройка {name} должна быть числом. Получено: {value!r}")
+    except (TypeError, ValueError) as err:
+        raise ValueError(
+            f"Настройка {name} должна быть числом. Получено: {value!r}"
+        ) from err
 
     if not math.isfinite(result):
         raise ValueError(
@@ -134,8 +136,10 @@ def parse_ids(name: str) -> set[int]:
 
         try:
             user_id = int(item)
-        except ValueError:
-            raise ValueError(f"Настройка {name} содержит некорректный ID: {item!r}")
+        except ValueError as err:
+            raise ValueError(
+                f"Настройка {name} содержит некорректный ID: {item!r}"
+            ) from err
 
         if user_id <= 0:
             raise ValueError(

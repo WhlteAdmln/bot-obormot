@@ -1,4 +1,3 @@
-import asyncio
 import logging
 
 import aiohttp
@@ -22,7 +21,7 @@ class AsyncLines:
         try:
             return next(self.lines)
         except StopIteration:
-            raise StopAsyncIteration
+            raise StopAsyncIteration from None
 
 
 class FakeResponse:
@@ -137,7 +136,7 @@ async def test_stream_unlimited_converts_timeout(monkeypatch):
     client = LLMClient()
 
     async def get_session():
-        raise asyncio.TimeoutError
+        raise TimeoutError
 
     monkeypatch.setattr(client, "_get_session", get_session)
 

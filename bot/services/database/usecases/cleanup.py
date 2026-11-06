@@ -9,8 +9,10 @@ import aiosqlite
 
 from bot.services.database.files.image_storage import (
     delete_image,
-    is_managed_image as is_managed_image_path,
     list_image_files,
+)
+from bot.services.database.files.image_storage import (
+    is_managed_image as is_managed_image_path,
 )
 from bot.services.database.repositories import media as media_repository
 
@@ -41,11 +43,16 @@ async def cleanup_old_images(
     # Удаляем только записи о медиа; строки сообщений остаются в истории.
     await media_repository.delete_old_media_records(connection, retention_days)
 
-    referenced_paths = {
-        Path(file_path).resolve()
-        for file_path in await media_repository.fetch_referenced_media_paths(connection)
-    }
-    resolved_images_dir = images_dir.resolve()
+    referenced_file_paths = await media_repository.fetch_referenced_media_paths(
+        connection
+    )
+    referenced_paths = set()
+
+    for file_path in referenced_file_paths:
+        resolved_path = await asyncio.to_thread(Path(file_path).resolve)
+        referenced_paths.add(resolved_path)
+
+    resolved_images_dir = await asyncio.to_thread(images_dir.resolve)
 
     def is_managed_image(path: Path) -> bool:
         """Проверяет, что файл создан нашим хранилищем изображений."""

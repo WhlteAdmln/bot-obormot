@@ -364,12 +364,12 @@ def test_bootstrap_main_calls_components_in_order(monkeypatch):
 
 
 def test_main_module_is_a_thin_compatible_entrypoint():
+    import bot.main as main_module
     from bot.app.background.image_cleanup import (
         IMAGE_CLEANUP_INTERVAL,
         periodic_image_cleanup,
     )
     from bot.app.bootstrap import main
-    import bot.main as main_module
 
     assert main_module.main is main
     assert main_module.periodic_image_cleanup is periodic_image_cleanup

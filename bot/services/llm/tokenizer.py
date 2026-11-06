@@ -61,14 +61,14 @@ async def get_token_counting_mode(client: TokenizerClient) -> str:
                     client._token_counting_mode = "llamacpp"
                 else:
                     client._token_counting_mode = "estimate"
-        except (asyncio.TimeoutError, aiohttp.ClientError, ValueError, TypeError):
+        except (TimeoutError, aiohttp.ClientError, ValueError, TypeError):
             client._token_counting_mode = "estimate"
 
         if client._token_counting_mode == "estimate":
             logger.warning(
-            "LLM server does not expose the llama.cpp tokenizer; "
-            "using approximate token counting"
-        )
+                "LLM server does not expose the llama.cpp tokenizer; "
+                "using approximate token counting"
+            )
         else:
             logger.info("Using llama.cpp tokenizer")
 
@@ -187,7 +187,7 @@ async def count_tokens(
 
     try:
         return await _count_tokens_llamacpp(client, messages)
-    except asyncio.TimeoutError as error:
+    except TimeoutError as error:
         raise LLMTimeoutError("Timeout while counting prompt tokens") from error
     except aiohttp.ClientError as error:
         raise LLMUnavailableError("Could not count prompt tokens") from error
@@ -227,7 +227,7 @@ async def count_text_tokens(client: TokenizerClient, text: str) -> int:
         if not isinstance(tokens, list):
             raise LLMUnavailableError("LLM server returned an invalid token list")
         return len(tokens)
-    except asyncio.TimeoutError as error:
+    except TimeoutError as error:
         raise LLMTimeoutError("Timeout while counting text tokens") from error
     except aiohttp.ClientError as error:
         raise LLMUnavailableError("Could not count text tokens") from error

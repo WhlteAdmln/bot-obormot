@@ -1,6 +1,6 @@
+import logging
 from collections import deque
 from copy import deepcopy
-import logging
 
 import pytest
 

@@ -5,8 +5,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
 from bot.config import config
-from bot.services.database import db
 from bot.handlers.prompt.handler import send_prompt_status
+from bot.services.database import db
 from bot.utils.audit import audit
 
 router = Router()

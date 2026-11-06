@@ -1,9 +1,9 @@
 """Потоковая генерация через OpenAI-compatible API."""
 
-import asyncio
 import json
 import logging
-from typing import Any, AsyncIterator, Protocol
+from collections.abc import AsyncIterator
+from typing import Any, Protocol
 
 import aiohttp
 
@@ -84,7 +84,7 @@ async def stream_unlimited(
                 if isinstance(content, str) and content:
                     yield content
 
-    except asyncio.TimeoutError as error:
+    except TimeoutError as error:
         raise LLMTimeoutError("LLM generation timed out") from error
 
     except aiohttp.ClientError as error:

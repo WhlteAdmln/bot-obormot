@@ -1,0 +1,117 @@
+name: Release (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Версия без v, например 0.1.1"
+        required: true
+        type: string
+      prerelease:
+        description: "Пометить релиз как prerelease для --nightly"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Validate release version
+        env:
+          VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "::error::Релиз разрешён только из main"
+            exit 1
+          fi
+
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$ ]]; then
+            echo "::error::Неверный формат версии"
+            exit 1
+          fi
+
+          python - "$VERSION" <<'PY'
+          import re
+          import sys
+          import tomllib
+          from pathlib import Path
+
+          version = sys.argv[1]
+
+          with Path("pyproject.toml").open("rb") as file:
+              project = tomllib.load(file)
+
+          configured_version = project["project"]["version"]
+          if configured_version != version:
+              raise SystemExit(
+                  f"Версия {version} не совпадает с pyproject.toml "
+                  f"({configured_version})"
+              )
+
+          changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
+          pattern = re.compile(
+              rf"^## \[{re.escape(version)}\](?:\s|$)",
+              re.MULTILINE,
+          )
+
+          if not pattern.search(changelog):
+              raise SystemExit(
+                  f"В CHANGELOG.md отсутствует запись для {version}"
+              )
+          PY
+
+          if git show-ref --tags --verify --quiet "refs/tags/v${VERSION}"; then
+            echo "::error::Тег v${VERSION} уже существует"
+            exit 1
+          fi
+
+      - name: Build release archive
+        env:
+          VERSION: ${{ inputs.version }}
+        run: bash scripts/build_release.sh "$VERSION"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          args=(
+            --target "$GITHUB_SHA"
+            --title "v${VERSION}"
+            --generate-notes
+          )
+
+          if [[ "$PRERELEASE" == "true" ]]; then
+            args+=(--prerelease)
+          fi
+
+          gh release create "v${VERSION}" \
+            "dist/bot-obormot-${VERSION}.zip" \
+            dist/SHA256SUMS \
+            "${args[@]}"

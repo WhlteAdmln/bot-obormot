@@ -88,4 +88,4 @@ async def stream_unlimited(
         raise LLMTimeoutError("LLM generation timed out") from error
 
     except aiohttp.ClientError as error:
-        raise LLMUnavailableError("Could not connect to llama.cpp") from error
+        raise LLMUnavailableError("Could not connect to LLM server") from error

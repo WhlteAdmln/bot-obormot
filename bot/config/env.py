@@ -41,6 +41,28 @@ def get_int(name: str, default: str, minimum: int = 1) -> int:
     return result
 
 
+def get_optional_int(name: str, minimum: int = 1) -> int | None:
+    """Читает необязательное целое число; пустое значение означает None."""
+    value = os.getenv(name)
+
+    if value is None or not value.strip():
+        return None
+
+    try:
+        result = int(value)
+    except (TypeError, ValueError):
+        raise ValueError(
+            f"Настройка {name} должна быть целым числом. Получено: {value!r}"
+        )
+
+    if result < minimum:
+        raise ValueError(
+            f"Настройка {name} должна быть не меньше {minimum}. Получено: {result}"
+        )
+
+    return result
+
+
 def get_float(
     name: str,
     default: str,

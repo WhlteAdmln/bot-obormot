@@ -19,6 +19,9 @@ class FakeFittingClient:
     async def get_context_size(self):
         return self.context_size
 
+    async def get_token_counting_mode(self):
+        return "llamacpp"
+
     def _normalize_messages(self, messages):
         return messages
 
@@ -221,3 +224,18 @@ async def test_context_fit_log_distinguishes_window_from_available_budget(
     assert f"input_budget={expected_budget}" in caplog.text
     assert "context_window=32000" in caplog.text
     assert f"images={image_count}" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_estimate_mode_uses_larger_safety_margin(monkeypatch):
+    from bot.config import config
+
+    client = FakeFittingClient(context_size=10_000, token_counts=[6_500])
+    monkeypatch.setattr(config, "LLM_MAX_TOKENS", 2_048)
+
+    async def estimate_mode():
+        return "estimate"
+
+    client.get_token_counting_mode = estimate_mode
+    with pytest.raises(InputTooLongError):
+        await fit_messages_to_context(client, "system", [], "question")

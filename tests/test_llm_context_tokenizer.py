@@ -44,6 +44,9 @@ class FakeSession:
 
 
 def attach_session(monkeypatch, client, fake_session, base_url="http://llm.test"):
+    # These fake endpoint tests exercise explicit llama.cpp mode.
+    monkeypatch.setattr(config, "LLM_TOKEN_COUNTING", "llamacpp")
+
     async def get_session():
         return fake_session
 
@@ -63,9 +66,9 @@ async def test_context_size_reads_nested_setting_and_caches_result(monkeypatch):
     cached_result = await client.get_context_size()
 
     assert result == cached_result == 8192
-    assert fake_session.get_calls == [
-        ("http://llm.test/props", {"params": {"model": config.LLM_MODEL}})
-    ]
+    assert len(fake_session.get_calls) == 1
+    assert fake_session.get_calls[0][0] == "http://llm.test/props"
+    assert fake_session.get_calls[0][1]["params"] == {"model": config.LLM_MODEL}
 
 
 @pytest.mark.asyncio
@@ -74,10 +77,48 @@ async def test_context_size_rejects_boolean_value(monkeypatch):
     client = LLMClient()
     attach_session(monkeypatch, client, fake_session)
 
-    with pytest.raises(LLMUnavailableError, match="invalid n_ctx"):
+    # A bool is not a valid context size; if /models also omits it,
+    # the user receives the actionable configuration error.
+    fake_session.responses.append(FakeResponse({"data": [{"id": config.LLM_MODEL}] }))
+    with pytest.raises(LLMUnavailableError, match="LLM_CONTEXT_SIZE"):
         await client.get_context_size()
 
     assert client._context_size is None
+
+
+
+
+@pytest.mark.asyncio
+async def test_context_size_falls_back_to_models_metadata(monkeypatch):
+    fake_session = FakeSession(
+        [
+            FakeResponse({}, status=404, body="Not Found"),
+            FakeResponse(
+                {"data": [{"id": config.LLM_MODEL, "max_model_len": 32768}]}
+            ),
+        ]
+    )
+    client = LLMClient()
+    attach_session(monkeypatch, client, fake_session)
+    monkeypatch.setattr(config, "LLM_CONTEXT_SIZE", None)
+    monkeypatch.setattr(config, "LLM_BASE_URL", "http://llm.test/v1")
+
+    assert await client.get_context_size() == 32768
+    assert [call[0] for call in fake_session.get_calls] == [
+        "http://llm.test/props",
+        "http://llm.test/v1/models",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_configured_context_size_skips_server_requests(monkeypatch):
+    client = LLMClient()
+    fake_session = FakeSession([])
+    attach_session(monkeypatch, client, fake_session)
+    monkeypatch.setattr(config, "LLM_CONTEXT_SIZE", 16384)
+
+    assert await client.get_context_size() == 16384
+    assert fake_session.get_calls == []
 
 
 @pytest.mark.asyncio
@@ -192,15 +233,19 @@ async def test_count_text_tokens_rejects_invalid_token_list(monkeypatch):
 @pytest.mark.asyncio
 async def test_context_size_logs_sanitized_error_detail(monkeypatch, caplog):
     private_detail = "user prompt\nsecond line"
-    fake_session = FakeSession([FakeResponse({}, status=503, body=private_detail)])
+    fake_session = FakeSession(
+        [
+            FakeResponse({}, status=503, body=private_detail),
+            FakeResponse({}, status=503, body=private_detail),
+        ]
+    )
     client = LLMClient()
     attach_session(monkeypatch, client, fake_session)
 
-    with caplog.at_level(logging.ERROR, logger="bot.services.llm.context_size"):
-        with pytest.raises(LLMAPIError) as error:
+    with caplog.at_level(logging.DEBUG, logger="bot.services.llm.context_size"):
+        with pytest.raises(LLMUnavailableError, match="LLM_CONTEXT_SIZE"):
             await client.get_context_size()
 
-    assert error.value.detail == private_detail
     assert r"user prompt\nsecond line" in caplog.text
     assert "user prompt\nsecond line" not in caplog.text
 
@@ -224,11 +269,11 @@ async def test_count_text_tokens_logs_sanitized_error_detail(monkeypatch, caplog
 @pytest.mark.asyncio
 async def test_health_check_does_not_return_raw_unexpected_server_payload(monkeypatch):
     payload = {"status": "error", "details": "private prompt content"}
-    fake_session = FakeSession([FakeResponse(payload)])
+    fake_session = FakeSession([FakeResponse(payload), FakeResponse({"data": []})])
     client = LLMClient()
     attach_session(monkeypatch, client, fake_session)
 
     result = await client.health_check()
 
-    assert result == (False, "Неожиданный ответ сервера")
+    assert result == (True, "Доступен")
     assert "private prompt content" not in result[1]

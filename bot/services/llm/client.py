@@ -19,6 +19,7 @@ from bot.services.llm.streaming import stream_unlimited
 from bot.services.llm.tokenizer import (
     count_text_tokens as tokenize_text,
     count_tokens as tokenize_messages,
+    get_token_counting_mode as resolve_token_counting_mode,
 )
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,8 @@ class LLMClient:
         self.session: aiohttp.ClientSession | None = None
         self.semaphore = asyncio.Semaphore(config.LLM_MAX_CONCURRENT_GENERATIONS)
         self._context_size: int | None = None
+        self._token_counting_mode: str | None = None
+        self._token_counting_lock = asyncio.Lock()
 
     async def start(self) -> None:
         """Инициализирует HTTP-сессию."""
@@ -66,16 +69,20 @@ class LLMClient:
     def _count_images(messages: list[dict[str, Any]]) -> int:
         return count_images(messages)
 
+    async def get_token_counting_mode(self) -> str:
+        """Возвращает выбранный режим подсчёта токенов."""
+        return await resolve_token_counting_mode(self)
+
     async def count_tokens(
         self,
         messages: list[dict[str, Any]],
     ) -> int:
-        """Считает токены через apply-template и tokenize."""
+        """Считает токены через llama.cpp или консервативную оценку."""
 
         return await tokenize_messages(self, messages)
 
     async def count_text_tokens(self, text: str) -> int:
-        """Считает количество токенов обычного текста через llama.cpp."""
+        """Считает количество токенов обычного текста."""
 
         return await tokenize_text(self, text)
 
@@ -112,25 +119,34 @@ class LLMClient:
             yield chunk
 
     async def health_check(self) -> tuple[bool, str]:
-        """Проверяет доступность llama.cpp."""
-
+        """Проверяет LLM-сервер через /health или стандартный /models."""
         try:
             session = await self._get_session()
 
+            try:
+                async with session.get(
+                    f"{self._server_url()}/health",
+                    timeout=aiohttp.ClientTimeout(total=5),
+                ) as response:
+                    if response.status == 200:
+                        try:
+                            data = await response.json()
+                        except (aiohttp.ClientError, ValueError, TypeError):
+                            data = None
+                        if isinstance(data, dict) and data.get("status") == "ok":
+                            return True, "Доступен"
+            except (asyncio.TimeoutError, aiohttp.ClientError):
+                logger.debug("Optional LLM /health endpoint unavailable", exc_info=True)
+
+            # /v1/models — стандартный OpenAI endpoint; HTTP 200 означает,
+            # что API доступен, даже если сервер не реализует /health.
             async with session.get(
-                f"{self._server_url()}/health",
+                f"{config.LLM_BASE_URL}/models",
                 timeout=aiohttp.ClientTimeout(total=5),
             ) as response:
-                if response.status != 200:
-                    detail = await response.text()
-                    return False, f"HTTP {response.status}: {detail[:150]}"
-
-                data = await response.json()
-
-                if data.get("status") == "ok":
+                if response.status == 200:
                     return True, "Доступен"
-
-                return False, "Неожиданный ответ сервера"
+                return False, f"HTTP {response.status}: LLM API недоступен"
 
         except asyncio.TimeoutError:
             return False, "Тайм-аут при обращении к LLM-серверу"

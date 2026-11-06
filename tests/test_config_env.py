@@ -1,6 +1,6 @@
 import pytest
 
-from bot.config.env import get_bool
+from bot.config.env import get_bool, get_optional_int
 
 
 @pytest.mark.parametrize(
@@ -58,3 +58,25 @@ def test_config_loads_env_from_project_root_only(monkeypatch):
     assert loaded_paths == [PROJECT_ROOT / ".env"]
     # Keep the reloaded package free of the test spy after monkeypatch teardown.
     config_module.load_dotenv = original_load_dotenv
+
+
+@pytest.mark.parametrize("value", [None, "", "   "])
+def test_get_optional_int_returns_none_for_empty_value(monkeypatch, value):
+    if value is None:
+        monkeypatch.delenv("TEST_OPTIONAL_INT", raising=False)
+    else:
+        monkeypatch.setenv("TEST_OPTIONAL_INT", value)
+
+    assert get_optional_int("TEST_OPTIONAL_INT") is None
+
+
+def test_get_optional_int_parses_positive_integer(monkeypatch):
+    monkeypatch.setenv("TEST_OPTIONAL_INT", "32768")
+    assert get_optional_int("TEST_OPTIONAL_INT") == 32768
+
+
+@pytest.mark.parametrize("value", ["zero", "0", "-1"])
+def test_get_optional_int_rejects_invalid_values(monkeypatch, value):
+    monkeypatch.setenv("TEST_OPTIONAL_INT", value)
+    with pytest.raises(ValueError, match="TEST_OPTIONAL_INT"):
+        get_optional_int("TEST_OPTIONAL_INT")

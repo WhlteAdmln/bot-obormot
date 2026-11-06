@@ -1,11 +1,16 @@
 """Подбор истории сообщений под доступное контекстное окно LLM."""
 
 import logging
+import math
 from typing import Any, Protocol
 
 from bot.config import config
 from bot.errors import InputTooLongError, LLMUnavailableError
-from bot.services.llm.constants import CONTEXT_SAFETY_MARGIN, IMAGE_TOKEN_RESERVE
+from bot.services.llm.constants import (
+    CONTEXT_SAFETY_MARGIN,
+    ESTIMATE_CONTEXT_SAFETY_FACTOR,
+    IMAGE_TOKEN_RESERVE,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +30,8 @@ class FittingClient(Protocol):
 
     async def count_tokens(self, messages: list[dict[str, Any]]) -> int: ...
 
+    async def get_token_counting_mode(self) -> str: ...
+
 
 async def fit_messages_to_context(
     client: FittingClient,
@@ -35,6 +42,10 @@ async def fit_messages_to_context(
     """Подбирает максимально возможную историю под контекст модели."""
 
     context_size = await client.get_context_size()
+    token_counting_mode = await client.get_token_counting_mode()
+    safety_margin = CONTEXT_SAFETY_MARGIN
+    if token_counting_mode == "estimate":
+        safety_margin += math.ceil(context_size * ESTIMATE_CONTEXT_SAFETY_FACTOR)
 
     history = list(history)
 
@@ -57,7 +68,7 @@ async def fit_messages_to_context(
         image_reserved_tokens = IMAGE_TOKEN_RESERVE * image_count
         reserved_tokens = (
             config.LLM_MAX_TOKENS
-            + CONTEXT_SAFETY_MARGIN
+            + safety_margin
             + image_reserved_tokens
         )
 
@@ -79,7 +90,7 @@ async def fit_messages_to_context(
                 available_tokens,
                 context_size,
                 config.LLM_MAX_TOKENS,
-                CONTEXT_SAFETY_MARGIN,
+                safety_margin,
                 image_count,
                 image_reserved_tokens,
                 len(messages) - 2,

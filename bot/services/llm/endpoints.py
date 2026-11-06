@@ -1,4 +1,4 @@
-"""Построение URL-адресов локального llama.cpp сервера."""
+"""Построение URL-адресов специальных endpoint-ов LLM-сервера."""
 
 from bot.config import config
 

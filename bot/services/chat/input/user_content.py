@@ -53,7 +53,9 @@ def build_user_content(
             user_content = f"{message.caption}\n\n{user_content}"
 
         if len(user_content) > MAX_INPUT_TEXT_LENGTH:
-            raise DocumentTooLongError("Document message exceeds 8000 characters")
+            raise DocumentTooLongError(
+                f"Document message exceeds {MAX_INPUT_TEXT_LENGTH} characters"
+            )
 
     else:
         user_content = text_override if text_override is not None else message.text

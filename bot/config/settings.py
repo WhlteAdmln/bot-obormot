@@ -1,6 +1,13 @@
 import os
 
-from bot.config.env import get_bool, get_float, get_int, get_log_level, parse_ids
+from bot.config.env import (
+    get_bool,
+    get_float,
+    get_int,
+    get_log_level,
+    get_optional_int,
+    parse_ids,
+)
 from bot.config.prompts import load_default_system_prompt
 
 
@@ -44,6 +51,16 @@ class Config:
     LLM_MAX_TOKENS = get_int("LLM_MAX_TOKENS", "2048")
     LLM_TIMEOUT = get_int("LLM_TIMEOUT", "300")
 
+    # Необязательный размер контекста. Если пусто, пробуем определить его у сервера.
+    LLM_CONTEXT_SIZE = get_optional_int("LLM_CONTEXT_SIZE")
+
+    # auto выбирает llama.cpp при доступной токенизации, иначе использует оценку.
+    LLM_TOKEN_COUNTING = os.getenv("LLM_TOKEN_COUNTING", "auto").strip().lower()
+    if LLM_TOKEN_COUNTING not in {"auto", "llamacpp", "estimate"}:
+        raise ValueError(
+            "Настройка LLM_TOKEN_COUNTING должна быть auto, llamacpp или estimate"
+        )
+
     LLM_MAX_CONCURRENT_GENERATIONS = get_int(
         "LLM_MAX_CONCURRENT_GENERATIONS",
         "1",
@@ -58,15 +75,6 @@ class Config:
 
     # Максимальное число хранимых полных обменов на пользователя.
     MAX_STORED_EXCHANGES = get_int("MAX_STORED_EXCHANGES", "2000")
-
-    STREAM_UPDATE_INTERVAL = get_float(
-        "STREAM_UPDATE_INTERVAL",
-        "1.0",
-        minimum=0.0,
-    )
-
-    if STREAM_UPDATE_INTERVAL == 0:
-        raise ValueError("STREAM_UPDATE_INTERVAL должен быть больше нуля")
 
     DATABASE_PATH = os.getenv("DATABASE_PATH", "data/bot.db").strip()
 

@@ -118,6 +118,8 @@ All settings are optional except `BOT_TOKEN` and `SUPERVISOR_ID`. Defaults below
 | `LLM_TOP_P` | `0.9` | Sampling parameter from 0 to 1. |
 | `LLM_MAX_TOKENS` | `2048` | Maximum number of generated tokens. |
 | `LLM_TIMEOUT` | `300` | LLM request timeout in seconds. |
+| `LLM_CONTEXT_SIZE` | empty | Optional context window size in tokens. Set it when the server does not expose context metadata. |
+| `LLM_TOKEN_COUNTING` | `auto` | Token counting mode: `auto`, `llamacpp`, or `estimate`. |
 | `LLM_MAX_CONCURRENT_GENERATIONS` | `1` | Maximum concurrent LLM generations. |
 | `MAX_HISTORY_EXCHANGES` | `1000` | Maximum history limit administrators can assign. A normal user's default limit is 30 exchanges. |
 | `MAX_STORED_EXCHANGES` | `2000` | Maximum number of full user/assistant exchanges retained per user (up to 4,000 message rows). Older rows and their managed images are pruned after a successful response. |

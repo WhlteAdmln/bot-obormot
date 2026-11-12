@@ -23,6 +23,7 @@ junit.xml
 # Runtime data
 tmp/
 models/
+data/
 *.log
 
 # Build artifacts

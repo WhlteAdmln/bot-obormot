@@ -8,6 +8,7 @@ pytest-cov==7.1.0
 # Static analysis and dependency auditing
 ruff==0.17.4
 pip-audit==2.10.1
+shellcheck-py==0.11.0.1
 
 # Used by scripts/check_lock.py
 packaging==26.3

@@ -3,6 +3,71 @@ name = "bot-obormot"
 version = "0.1.1"
 requires-python = ">=3.11"
 
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unreachable = true
+enable_error_code = ["ignore-without-code", "redundant-expr"]
+
+# DEBT: remove module overrides as strict typing errors are fixed.
+[[tool.mypy.overrides]]
+module = [
+    "bot.app.lifecycle",
+    "bot.handlers.admin.handler",
+    "bot.handlers.chat",
+    "bot.handlers.chat.handler",
+    "bot.handlers.fallback.handler",
+    "bot.handlers.history.basic",
+    "bot.handlers.history.limits",
+    "bot.handlers.prompt.handler",
+    "bot.handlers.start.handler",
+    "bot.middlewares.access",
+    "bot.middlewares.temporary_messages.middleware",
+    "bot.middlewares.throttle",
+    "bot.services.access.service",
+    "bot.services.audio.message",
+    "bot.services.audio.validation",
+    "bot.services.chat.aggregation.aggregator",
+    "bot.services.chat.errors.handler",
+    "bot.services.chat.formatting.splitter",
+    "bot.services.chat.incoming_log",
+    "bot.services.chat.input",
+    "bot.services.chat.input.audio_part",
+    "bot.services.chat.input.document_part",
+    "bot.services.chat.input.inspection",
+    "bot.services.chat.input.media_part",
+    "bot.services.chat.input.prepare",
+    "bot.services.chat.input.saved_text",
+    "bot.services.chat.input.user_content",
+    "bot.services.chat.locks",
+    "bot.services.chat.reporting",
+    "bot.services.chat.streaming.responder",
+    "bot.services.database",
+    "bot.services.database.decorators",
+    "bot.services.database.facade",
+    "bot.services.database.repositories.media",
+    "bot.services.database.repositories.messages",
+    "bot.services.database.usecases.cleanup",
+    "bot.services.database.usecases.history",
+    "bot.services.documents.client",
+    "bot.services.documents.response",
+    "bot.services.llm.client",
+    "bot.services.llm.messages",
+    "bot.services.llm.session",
+    "bot.services.llm.streaming",
+    "bot.services.llm.tokenizer",
+    "bot.services.media.animation.tgs",
+    "bot.services.media.content",
+    "bot.services.media.detection",
+    "bot.services.media.images",
+    "bot.services.media.pipeline",
+    "bot.services.telegram.chat_action",
+    "bot.services.telegram.downloader",
+    "bot.services.validation",
+    "bot.utils.text",
+]
+ignore_errors = true
+
 [tool.ruff]
 line-length = 88
 target-version = "py311"

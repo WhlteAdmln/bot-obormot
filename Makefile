@@ -44,7 +44,7 @@ fix:
 	$(PYTHON) -m ruff format .
 
 types:
-	@echo "not enabled yet"
+	$(PYTHON) -m mypy bot
 
 test:
 	$(PYTHON) -m pytest -q -rs \

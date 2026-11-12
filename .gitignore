@@ -1,50 +1,29 @@
-venv/
-.venv/
-env/
-ENV/
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-.env
-.venv
-*.sqlite3
-*.db
-*.log
-htmlcov/
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-junit.xml
-*.cover
-.hypothesis/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.ipynb_checkpoints
-.idea/
-.vscode/
-*.swp
-*.swo
 .DS_Store
-Thumbs.db
+step.patch
 
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Python environments and caches
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+
+# Test and coverage reports
+.coverage*
+coverage.xml
+htmlcov/
 junit.xml
+
+# Runtime data
+tmp/
+models/
+*.log
+
+# Build artifacts
+dist/

@@ -10,5 +10,8 @@ ruff==0.17.4
 pip-audit==2.10.1
 shellcheck-py==0.11.0.1
 
+# Git hooks and repository validation
+pre-commit==4.7.0
+
 # Used by scripts/check_lock.py
 packaging==26.3

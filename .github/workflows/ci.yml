@@ -121,7 +121,7 @@ jobs:
 
       - name: Upload coverage reports
         if: always() && matrix.deps == 'lock' && matrix.python-version == '3.12'
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-report
           path: |
@@ -166,7 +166,7 @@ jobs:
         run: bash scripts/build_release.sh "ci-${GITHUB_SHA::7}"
 
       - name: Upload release archive
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-archive
           path: dist/

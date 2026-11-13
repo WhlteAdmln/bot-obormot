@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 import asyncio
 
 import aiosqlite
@@ -16,7 +19,8 @@ class DummyDatabase:
 async def test_database_error_decorator_translates_sqlite_errors():
     @handle_database_errors
     async def operation(self):
-        raise aiosqlite.OperationalError("database is locked")
+        msg = "database is locked"
+        raise aiosqlite.OperationalError(msg)
 
     database = DummyDatabase()
 

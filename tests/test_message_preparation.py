@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 from __future__ import annotations
 
 import base64
@@ -254,7 +257,7 @@ def test_build_user_content_validates_plain_text(monkeypatch):
     monkeypatch.setattr(
         content_module,
         "validate_input_text",
-        lambda value: validated.append(value),
+        validated.append,
     )
 
     result = content_module.build_user_content(
@@ -496,17 +499,19 @@ async def test_prepare_document_rejects_empty_extracted_text(caplog):
         assert actual_filename == filename
         return {"text": "  ", "format": "pdf", "characters": 0}
 
-    with caplog.at_level(logging.INFO, logger=documents_module.logger.name):
-        with pytest.raises(
+    with (
+        caplog.at_level(logging.INFO, logger=documents_module.logger.name),
+        pytest.raises(
             DocumentAPIError,
             match="Document contains no extractable text",
-        ):
-            await documents_module.prepare_document(
-                make_message(),
-                info,
-                downloader=download,
-                document_processor=process,
-            )
+        ),
+    ):
+        await documents_module.prepare_document(
+            make_message(),
+            info,
+            downloader=download,
+            document_processor=process,
+        )
 
     assert r"DOCUMENT: начинаю скачивание: empty.pdf\nERROR forged entry" in caplog.text
     assert "\nERROR forged entry" not in caplog.text

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Загрузка файлов через Telegram Bot API."""
 
 import asyncio
@@ -26,14 +29,14 @@ class _LimitedBytesIO(io.BytesIO):
 
     def write(self, data: bytes) -> int:
         if len(data) > self._limit - self.tell():
-            raise MediaError("Файл слишком большой (максимум 20 МБ).")
+            msg = "Файл слишком большой (максимум 20 МБ)."
+            raise MediaError(msg)
 
         return super().write(data)
 
 
 async def download_telegram_file(message: Message, file_id: str) -> bytes:
     """Скачивает файл из Telegram с ограничением размера 20 МБ."""
-
     try:
         telegram_file = await message.bot.get_file(file_id)
         file_size = telegram_file.file_size
@@ -43,10 +46,12 @@ async def download_telegram_file(message: Message, file_id: str) -> bytes:
             or isinstance(file_size, bool)
             or file_size <= 0
         ):
-            raise MediaError("Не удалось определить размер файла.")
+            msg = "Не удалось определить размер файла."
+            raise MediaError(msg)
 
         if file_size > MAX_MEDIA_SIZE:
-            raise MediaError("Файл слишком большой (максимум 20 МБ).")
+            msg = "Файл слишком большой (максимум 20 МБ)."
+            raise MediaError(msg)
 
         async with _download_slots:
             buffer = _LimitedBytesIO(MAX_MEDIA_SIZE)
@@ -58,18 +63,20 @@ async def download_telegram_file(message: Message, file_id: str) -> bytes:
 
     except TelegramBadRequest as error:
         if "file is too big" in str(error).lower():
-            raise TelegramFileTooBigError(
-                "Telegram cannot download this file because it is too large"
-            ) from error
+            msg = "Telegram cannot download this file because it is too large"
+            raise TelegramFileTooBigError(msg) from error
 
         logger.exception("Telegram rejected file download")
-        raise TelegramError("Could not download file from Telegram") from error
+        msg = "Could not download file from Telegram"
+        raise TelegramError(msg) from error
 
     except TelegramAPIError as error:
         logger.exception("Failed to download file from Telegram")
-        raise TelegramError("Could not download file from Telegram") from error
+        msg = "Could not download file from Telegram"
+        raise TelegramError(msg) from error
 
     if len(data) > MAX_MEDIA_SIZE:
-        raise MediaError("Файл слишком большой (максимум 20 МБ).")
+        msg = "Файл слишком большой (максимум 20 МБ)."
+        raise MediaError(msg)
 
     return data

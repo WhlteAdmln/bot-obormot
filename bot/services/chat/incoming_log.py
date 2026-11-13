@@ -1,3 +1,8 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Logging of incoming Telegram messages."""
+
 import logging
 
 from aiogram.types import Message
@@ -7,9 +12,8 @@ from bot.utils.text import log_safe
 logger = logging.getLogger("bot.services.chat.incoming_log")
 
 
-def log_incoming_message(message: Message):
+def log_incoming_message(message: Message) -> None:
     """Записывает информацию о входящем сообщении."""
-
     logger.info(
         "INCOMING MESSAGE: type=%s, animation=%s, video=%s, "
         "document=%s, sticker=%s, photo=%s",

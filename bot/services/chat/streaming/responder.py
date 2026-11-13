@@ -1,9 +1,14 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Состояние и обновление промежуточного Telegram-ответа."""
 
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
+
+from aiogram.types import Message
 
 from bot.services.chat.formatting import format_roleplay, split_formatted_message
 from bot.services.chat.streaming.settings import (
@@ -29,7 +34,7 @@ class StreamingResponder:
 
     def __init__(
         self,
-        message: Any,
+        message: Message,
         user_id: int,
         count_text_tokens: TokenCounter,
         safe_edit: SafeEdit,
@@ -40,6 +45,7 @@ class StreamingResponder:
         update_interval: float = STREAM_UPDATE_INTERVAL,
         max_message_length: int = MAX_MESSAGE_LENGTH,
     ) -> None:
+        """Stores the dependencies and the initial streaming state."""
         self.message = message
         self.user_id = user_id
         self.count_text_tokens = count_text_tokens
@@ -50,11 +56,11 @@ class StreamingResponder:
         self.update_interval = update_interval
         self.max_message_length = max_message_length
 
-        self.status = None
+        self.status: Message | None = None
         self.streaming_failed = False
         self.last_update = 0.0
         self.next_token_check_chars = 300
-        self.last_displayed_text = None
+        self.last_displayed_text: str | None = None
 
     async def on_update(self, current_text: str) -> None:
         """Обновляет промежуточный ответ, если выполнены исходные пороги."""

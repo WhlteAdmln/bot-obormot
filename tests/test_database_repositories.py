@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 import asyncio
 import base64
 import io
@@ -96,12 +99,12 @@ async def test_media_repository_removes_only_old_media_references(test_db):
         INSERT INTO message_media(message_id, file_path, mime_type)
         VALUES (?, ?, 'image/jpeg')
         """,
-        (message_id, "/tmp/old-image.jpg"),
+        (message_id, "/data/images/old-image.jpg"),
     )
     await test_db.connection.commit()
 
     old_rows = await media.fetch_old_media_rows(test_db.connection, 30)
-    assert [row["file_path"] for row in old_rows] == ["/tmp/old-image.jpg"]
+    assert [row["file_path"] for row in old_rows] == ["/data/images/old-image.jpg"]
 
     await media.delete_old_media_records(test_db.connection, 30)
     assert await media.fetch_referenced_media_paths(test_db.connection) == set()

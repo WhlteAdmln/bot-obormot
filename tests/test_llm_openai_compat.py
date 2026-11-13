@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Проверки интеграции с LLM-серверами без расширений llama.cpp."""
 
 from contextlib import asynccontextmanager
@@ -44,7 +47,7 @@ def make_openai_only_app():
 
     async def unsupported(request):
         requests.append((request.method, request.path))
-        raise web.HTTPNotFound()
+        raise web.HTTPNotFound
 
     async def chat_completions(request):
         requests.append(("POST", "/v1/chat/completions"))

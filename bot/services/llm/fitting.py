@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Подбор истории сообщений под доступное контекстное окно LLM."""
 
 import logging
@@ -14,11 +17,15 @@ from bot.services.llm.constants import (
 
 logger = logging.getLogger(__name__)
 
+# The system prompt and the current user message are always kept.
+_PINNED_MESSAGES = 2
+
 
 class FittingClient(Protocol):
     """Минимальный интерфейс клиента, необходимый для fitting истории."""
 
-    async def get_context_size(self) -> int: ...
+    async def get_context_size(self) -> int:
+        """Returns the context window size of the model."""
 
     def _normalize_messages(
         self,
@@ -28,23 +35,24 @@ class FittingClient(Protocol):
     @staticmethod
     def _count_images(messages: list[dict[str, Any]]) -> int: ...
 
-    async def count_tokens(self, messages: list[dict[str, Any]]) -> int: ...
+    async def count_tokens(self, messages: list[dict[str, Any]]) -> int:
+        """Counts the prompt tokens of the messages."""
 
-    async def get_token_counting_mode(self) -> str: ...
+    async def get_token_counting_mode(self) -> str:
+        """Returns the selected token counting mode."""
 
 
 async def fit_messages_to_context(
     client: FittingClient,
     system_prompt: str,
     history: list[dict[str, Any]],
-    user_message: Any,
+    user_message: object,
 ) -> list[dict[str, Any]]:
     """Подбирает максимально возможную историю под контекст модели."""
-
     context_size = await client.get_context_size()
-    token_counting_mode = await client.get_token_counting_mode()
+    counting_mode = await client.get_token_counting_mode()
     safety_margin = CONTEXT_SAFETY_MARGIN
-    if token_counting_mode == "estimate":
+    if counting_mode == "estimate":
         safety_margin += math.ceil(context_size * ESTIMATE_CONTEXT_SAFETY_FACTOR)
 
     history = list(history)
@@ -71,7 +79,8 @@ async def fit_messages_to_context(
         available_tokens = context_size - reserved_tokens
 
         if available_tokens <= 0:
-            raise InputTooLongError("Недостаточно места в контексте для запроса.")
+            msg = "Недостаточно места в контексте для запроса."
+            raise InputTooLongError(msg)
 
         token_count = await client.count_tokens(messages)
 
@@ -89,24 +98,26 @@ async def fit_messages_to_context(
                 safety_margin,
                 image_count,
                 image_reserved_tokens,
-                len(messages) - 2,
+                len(messages) - _PINNED_MESSAGES,
             )
             return messages
 
         # В списке остаются только system и текущий user:
         # даже они не помещаются в доступный контекст.
-        if len(messages) <= 2:
-            raise InputTooLongError("Сообщение слишком большое для контекста модели.")
+        if len(messages) <= _PINNED_MESSAGES:
+            msg = "Сообщение слишком большое для контекста модели."
+            raise InputTooLongError(msg)
 
         # История должна быть организована парами user/assistant.
         if messages[1].get("role") != "user":
-            raise LLMUnavailableError("Invalid history: expected a user message")
+            msg = "Invalid history: expected a user message"
+            raise LLMUnavailableError(msg)
 
         # Удаляем старейшее пользовательское сообщение.
         messages.pop(1)
 
         # Удаляем следующий за ним ответ ассистента, если он есть.
-        if len(messages) > 2 and messages[1].get("role") == "assistant":
+        if len(messages) > _PINNED_MESSAGES and messages[1].get("role") == "assistant":
             messages.pop(1)
 
         logger.debug("Context overflow: removed oldest history exchange")

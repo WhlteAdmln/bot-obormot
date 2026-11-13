@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Общая конфигурация тестовой среды.
 
 Переменные задаются до импорта bot.*: конфигурация приложения читается

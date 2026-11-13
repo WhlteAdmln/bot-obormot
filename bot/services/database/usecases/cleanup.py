@@ -1,8 +1,12 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Сценарий очистки старых и осиротевших изображений."""
 
 import asyncio
 import logging
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import aiosqlite
@@ -23,16 +27,18 @@ async def cleanup_old_images(
     retention_days: int,
     orphan_grace_hours: int,
     logger: logging.Logger,
-    delete_image_file=delete_image,
+    delete_image_file: Callable[[Path], None] = delete_image,
 ) -> dict[str, int]:
     """Удаляет старые изображения и файлы без ссылок в БД.
 
     Текстовые сообщения сохраняются, а файлы вне images_dir не затрагиваются.
     """
     if retention_days < 1:
-        raise ValueError("retention_days должен быть не меньше 1.")
+        msg = "retention_days должен быть не меньше 1."
+        raise ValueError(msg)
     if orphan_grace_hours < 1:
-        raise ValueError("orphan_grace_hours должен быть не меньше 1.")
+        msg = "orphan_grace_hours должен быть не меньше 1."
+        raise ValueError(msg)
 
     old_rows = await media_repository.fetch_old_media_rows(
         connection,

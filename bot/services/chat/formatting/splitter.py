@@ -1,3 +1,8 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Splitting of Telegram HTML messages that exceed the length limit."""
+
 import html
 import re
 
@@ -10,19 +15,20 @@ def split_formatted_message(
     text: str,
     max_length: int = 3900,
 ) -> list[str]:
-    """
+    """Splits Telegram HTML into parts without breaking tags or entities.
+
     Разбивает Telegram HTML на части, не разрывая HTML-теги
     и символьные сущности.
 
     Открытые теги закрываются в конце части и повторно
     открываются в начале следующей.
     """
-
     if not text:
         return []
 
     if max_length < 1:
-        raise ValueError("max_length должен быть больше нуля.")
+        msg = "max_length должен быть больше нуля."
+        raise ValueError(msg)
 
     token_pattern = re.compile(
         r"<(/?)(b|i|blockquote)>"
@@ -33,7 +39,7 @@ def split_formatted_message(
 
     chunks = []
     current = []
-    open_tags = []
+    open_tags: list[str] = []
     visible_length = 0
 
     def close_tags() -> str:

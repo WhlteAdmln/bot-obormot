@@ -1,9 +1,13 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Conversion of roleplay markup into Telegram HTML."""
+
 import html
 
 
 def _render_segment(text: str) -> str:
-    """
-    Преобразует ролевую разметку в безопасный Telegram HTML.
+    """Преобразует ролевую разметку в безопасный Telegram HTML.
 
     *текст*   -> курсив
     **текст** -> жирный
@@ -11,7 +15,6 @@ def _render_segment(text: str) -> str:
 
     Незакрытые маркеры остаются обычным текстом.
     """
-
     markers = {
         "**": "b",
         "*": "i",
@@ -66,10 +69,7 @@ def _render_segment(text: str) -> str:
 
 
 def format_roleplay(text: str) -> str:
-    """
-    Преобразует ответ персонажа в Telegram HTML.
-    """
-
+    """Преобразует ответ персонажа в Telegram HTML."""
     if not text:
         return ""
 

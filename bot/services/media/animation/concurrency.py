@@ -1,3 +1,8 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Concurrency limit for animation decoding."""
+
 import asyncio
 from collections.abc import Callable
 
@@ -13,7 +18,6 @@ async def extract_with_limit(
     semaphore: asyncio.Semaphore | None = None,
 ) -> list[bytes]:
     """Ограничивает число одновременно выполняемых обработок анимаций."""
-
     active_semaphore = semaphore or _animation_semaphore
 
     async with active_semaphore:

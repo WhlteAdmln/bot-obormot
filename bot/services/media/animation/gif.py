@@ -1,3 +1,8 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Frame extraction from GIF animations."""
+
 import io
 
 from PIL import Image
@@ -11,7 +16,6 @@ from bot.services.media.safety import check_image_size
 
 def extract_gif(data: bytes) -> list[bytes]:
     """Извлекает равномерно распределённые кадры GIF через Pillow."""
-
     try:
         with Image.open(io.BytesIO(data)) as animation:
             # Размер логического холста известен до декодирования кадров.
@@ -20,10 +24,12 @@ def extract_gif(data: bytes) -> list[bytes]:
             total = getattr(animation, "n_frames", 1)
 
             if total <= 0:
-                raise ValueError("GIF does not contain frames")
+                msg = "GIF does not contain frames"
+                raise ValueError(msg)
 
             if total > MAX_GIF_FRAMES:
-                raise MediaError("В GIF слишком много кадров.")
+                msg = "В GIF слишком много кадров."
+                raise MediaError(msg)
 
             indices = sample_frame_indices(total)
             frames = []
@@ -36,4 +42,5 @@ def extract_gif(data: bytes) -> list[bytes]:
             return frames
 
     except (Image.DecompressionBombError, Image.DecompressionBombWarning) as error:
-        raise MediaError("Изображение слишком большое по размеру.") from error
+        msg = "Изображение слишком большое по размеру."
+        raise MediaError(msg) from error

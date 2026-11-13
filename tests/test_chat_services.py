@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 import asyncio
 import logging
 from types import SimpleNamespace
@@ -155,10 +158,9 @@ async def test_user_lock_serializes_same_user_and_releases_registry():
 
 @pytest.mark.asyncio
 async def test_user_locks_allow_different_users_to_run_concurrently():
-    async with chat_locks.get_user_lock(301):
-        async with chat_locks.get_user_lock(302):
-            assert 301 in chat_locks._user_locks
-            assert 302 in chat_locks._user_locks
+    async with chat_locks.get_user_lock(301), chat_locks.get_user_lock(302):
+        assert 301 in chat_locks._user_locks
+        assert 302 in chat_locks._user_locks
     assert 301 not in chat_locks._user_locks
     assert 302 not in chat_locks._user_locks
 
@@ -308,7 +310,8 @@ async def test_chat_pipeline_does_not_persist_empty_response(monkeypatch):
             return []
 
         async def add_exchange(self, *args, **kwargs):
-            raise AssertionError("empty response must not be persisted")
+            msg = "empty response must not be persisted"
+            raise AssertionError(msg)
 
     class FakeLLM:
         async def fit_messages_to_context(self, **kwargs):
@@ -369,8 +372,10 @@ async def test_chat_error_handler_uses_specific_subclass_rule(monkeypatch):
         (
             message,
             status,
-            "🎤 Не удалось распознать речь. "
-            "Попробуй записать голосовое сообщение ещё раз.",
+            (
+                "🎤 Не удалось распознать речь. "
+                "Попробуй записать голосовое сообщение ещё раз."
+            ),
         )
     ]
     assert catalog.CHAT_ERROR_RULES.index(
@@ -458,7 +463,8 @@ async def test_reporting_answers_when_no_status_and_logs_send_failure(
 ):
     class FakeMessage:
         async def answer(self, text):
-            raise RuntimeError("telegram unavailable")
+            msg = "telegram unavailable"
+            raise RuntimeError(msg)
 
     with caplog.at_level(logging.ERROR, logger=reporting.logger.name):
         await reporting.report_error(FakeMessage(), None, "ошибка")
@@ -548,7 +554,8 @@ async def test_chat_pipeline_returns_response_when_history_pruning_fails(monkeyp
             return None
 
         async def prune_history(self, user_id):
-            raise RuntimeError("test prune failure")
+            msg = "test prune failure"
+            raise RuntimeError(msg)
 
     class FakeLLM:
         async def fit_messages_to_context(self, **kwargs):

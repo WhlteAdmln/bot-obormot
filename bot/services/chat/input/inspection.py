@@ -1,32 +1,33 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Определение типов и наличия содержимого Telegram-сообщения."""
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import TYPE_CHECKING
 
+from bot.services.audio import get_audio_info
 from bot.services.chat.input.models import MessageInfo
+from bot.services.media import get_media_info
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from aiogram.types import Message
 
 
 def inspect_message(
     message: Message,
     *,
-    media_info_getter: Callable | None = None,
-    audio_info_getter: Callable | None = None,
+    media_info_getter: Callable[[Message], tuple[str | None, str | None]] | None = None,
+    audio_info_getter: Callable[[Message], tuple[str | None, str | None]] | None = None,
 ) -> MessageInfo:
     """Определяет типы содержимого входящего сообщения."""
-
     if media_info_getter is None:
-        from bot.services.media import get_media_info
-
         media_info_getter = get_media_info
 
     if audio_info_getter is None:
-        from bot.services.audio import get_audio_info
-
         audio_info_getter = get_audio_info
 
     file_id, media_type = media_info_getter(message)

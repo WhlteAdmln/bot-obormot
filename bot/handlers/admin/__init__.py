@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Admin handlers."""
 
 from bot.handlers.admin.handler import (
@@ -15,15 +18,15 @@ from bot.handlers.admin.handler import (
 )
 
 __all__ = [
-    "router",
-    "is_supervisor",
-    "check_telegram",
     "check_database",
-    "cmd_health",
+    "check_telegram",
     "cmd_admin",
-    "cmd_admins",
     "cmd_admin_add",
     "cmd_admin_remove",
+    "cmd_admins",
     "cmd_ban",
+    "cmd_health",
     "cmd_unban",
+    "is_supervisor",
+    "router",
 ]

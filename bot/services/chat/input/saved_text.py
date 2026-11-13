@@ -1,13 +1,16 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Формирование текстового представления сообщения для истории."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from bot.services.chat.input.models import MessageInfo
-
 if TYPE_CHECKING:
     from aiogram.types import Message
+
+    from bot.services.chat.input.models import MessageInfo
 
 
 def build_saved_user_text(
@@ -19,7 +22,6 @@ def build_saved_user_text(
     document_format: str | None,
 ) -> str | None:
     """Формирует прежнее текстовое описание сообщения для БД."""
-
     if info.has_audio:
         saved_user_text = f"[Голосовое сообщение]: {transcribed_text}"
 

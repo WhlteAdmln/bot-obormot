@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Публичные исключения сервисов бота."""
 
 from bot.errors.base import (
@@ -31,24 +34,24 @@ from bot.errors.whisper import (
 
 __all__ = [
     "BotServiceError",
-    "ValidationError",
-    "InputTooLongError",
-    "LLMError",
-    "LLMUnavailableError",
-    "LLMTimeoutError",
-    "LLMAPIError",
-    "WhisperError",
-    "WhisperEmptyAudioError",
-    "WhisperUnavailableError",
-    "WhisperTimeoutError",
-    "WhisperAPIError",
     "DatabaseError",
+    "DocumentAPIError",
+    "DocumentError",
+    "DocumentTimeoutError",
+    "DocumentTooLongError",
+    "DocumentUnavailableError",
+    "InputTooLongError",
+    "LLMAPIError",
+    "LLMError",
+    "LLMTimeoutError",
+    "LLMUnavailableError",
     "MediaError",
     "TelegramError",
     "TelegramFileTooBigError",
-    "DocumentError",
-    "DocumentUnavailableError",
-    "DocumentTimeoutError",
-    "DocumentAPIError",
-    "DocumentTooLongError",
+    "ValidationError",
+    "WhisperAPIError",
+    "WhisperEmptyAudioError",
+    "WhisperError",
+    "WhisperTimeoutError",
+    "WhisperUnavailableError",
 ]

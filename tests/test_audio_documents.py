@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 import json
 import logging
 from types import SimpleNamespace
@@ -162,7 +165,8 @@ async def test_transcribe_audio_posts_multipart_and_strips_result(monkeypatch, c
     assert isinstance(calls["data"], aiohttp.FormData)
     multipart_filename = calls["data"]._fields[0][0]["filename"]
     assert multipart_filename == r"voice\nERROR forged.ogg"
-    assert "\r" not in multipart_filename and "\n" not in multipart_filename
+    assert "\r" not in multipart_filename
+    assert "\n" not in multipart_filename
 
 
 @pytest.mark.asyncio
@@ -394,7 +398,8 @@ async def test_process_document_preserves_filename_sanitization_and_response(
     assert isinstance(calls["data"], aiohttp.FormData)
     multipart_filename = calls["data"]._fields[0][0]["filename"]
     assert multipart_filename == r"report\nERROR forged.pdf"
-    assert "\r" not in multipart_filename and "\n" not in multipart_filename
+    assert "\r" not in multipart_filename
+    assert "\n" not in multipart_filename
 
     form_fields = {field[0].get("name"): field[2] for field in calls["data"]._fields}
     assert form_fields["max_characters"] == str(MAX_DOCUMENT_TEXT_LENGTH)
@@ -537,7 +542,8 @@ async def test_process_document_maps_timeout_and_connection_errors(monkeypatch):
         await process_document(b"data", "file.pdf")
 
     def failed_session(**kwargs):
-        raise aiohttp.ClientConnectionError("connection refused")
+        msg = "connection refused"
+        raise aiohttp.ClientConnectionError(msg)
 
     monkeypatch.setattr(aiohttp, "ClientSession", failed_session)
     with pytest.raises(DocumentUnavailableError, match="connection error"):

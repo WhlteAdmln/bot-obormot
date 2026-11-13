@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 from bot.fsm.keys import PROMPT_FLOW_KEY, WELCOME_MESSAGE_KEY
 from bot.fsm.states import PromptStates
 from bot.handlers import admin, chat, commands, fallback, history, prompt, start

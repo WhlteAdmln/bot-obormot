@@ -1,6 +1,10 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Получение и кеширование размера контекстного окна модели."""
 
 import logging
+from http import HTTPStatus
 from typing import Any, Protocol
 
 import aiohttp
@@ -31,7 +35,7 @@ class ContextSizeClient(Protocol):
     def _server_url(self) -> str: ...
 
 
-async def _read_json(response: Any) -> dict[str, Any] | None:
+async def _read_json(response: aiohttp.ClientResponse) -> dict[str, Any] | None:
     try:
         data = await response.json()
     except (aiohttp.ClientError, ValueError, TypeError):
@@ -39,7 +43,7 @@ async def _read_json(response: Any) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
-def _positive_int(value: Any) -> int | None:
+def _positive_int(value: object) -> int | None:
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         return None
     return value
@@ -100,7 +104,7 @@ async def get_context_size(client: ContextSizeClient) -> int:
             params={"model": config.LLM_MODEL},
             timeout=aiohttp.ClientTimeout(total=min(5, config.LLM_TIMEOUT)),
         ) as response:
-            if response.status == 200:
+            if response.status == HTTPStatus.OK:
                 data = await _read_json(response)
                 context_size = _extract_context_size(data or {})
                 if context_size is not None:
@@ -127,7 +131,7 @@ async def get_context_size(client: ContextSizeClient) -> int:
             f"{config.LLM_BASE_URL}/models",
             timeout=aiohttp.ClientTimeout(total=min(5, config.LLM_TIMEOUT)),
         ) as response:
-            if response.status == 200:
+            if response.status == HTTPStatus.OK:
                 data = await _read_json(response)
                 context_size = _models_payload_context(data or {})
                 if context_size is not None:
@@ -148,6 +152,5 @@ async def get_context_size(client: ContextSizeClient) -> int:
             type(error).__name__,
         )
 
-    raise LLMUnavailableError(
-        "Не удалось определить размер контекста. Задайте LLM_CONTEXT_SIZE в .env"
-    )
+    msg = "Не удалось определить размер контекста. Задайте LLM_CONTEXT_SIZE в .env"
+    raise LLMUnavailableError(msg)

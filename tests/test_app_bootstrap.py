@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Tests for application composition and resource lifecycle."""
 
 import asyncio
@@ -22,9 +25,7 @@ def router_dependencies(monkeypatch):
         def __init__(self):
             self.middleware_calls = []
             self.routers = []
-            self.message = SimpleNamespace(
-                middleware=lambda middleware: self.middleware_calls.append(middleware)
-            )
+            self.message = SimpleNamespace(middleware=self.middleware_calls.append)
 
         def include_router(self, router):
             self.routers.append(router)
@@ -90,22 +91,22 @@ def test_dispatcher_registers_middlewares_and_routers_once_in_original_order(
     router_dependencies,
 ):
     (
-        FakeDispatcher,
-        FakeThrottleMiddleware,
-        FakeAccessMiddleware,
-        FakeCleanupMiddleware,
+        fake_dispatcher,
+        fake_throttle_middleware,
+        fake_access_middleware,
+        fake_cleanup_middleware,
         router_refs,
         routers_module,
     ) = router_dependencies
 
-    dispatcher = FakeDispatcher()
+    dispatcher = fake_dispatcher()
     configured = routers_module.configure_dispatcher(dispatcher)
 
     assert configured is dispatcher
     assert len(dispatcher.middleware_calls) == 3
-    assert isinstance(dispatcher.middleware_calls[0], FakeThrottleMiddleware)
-    assert isinstance(dispatcher.middleware_calls[1], FakeAccessMiddleware)
-    assert isinstance(dispatcher.middleware_calls[2], FakeCleanupMiddleware)
+    assert isinstance(dispatcher.middleware_calls[0], fake_throttle_middleware)
+    assert isinstance(dispatcher.middleware_calls[1], fake_access_middleware)
+    assert isinstance(dispatcher.middleware_calls[2], fake_cleanup_middleware)
     assert len(dispatcher.routers) == 4
     assert dispatcher.routers == [
         router_refs["start"],
@@ -228,9 +229,9 @@ def _async_call(calls, value):
 def test_lifecycle_preserves_startup_polling_and_shutdown_order(
     lifecycle_dependencies,
 ):
-    FakeBot, FakeDispatcher, calls, lifecycle = lifecycle_dependencies
+    fake_bot, fake_dispatcher, calls, lifecycle = lifecycle_dependencies
 
-    asyncio.run(lifecycle.run_application(FakeBot(), FakeDispatcher()))
+    asyncio.run(lifecycle.run_application(fake_bot(), fake_dispatcher()))
 
     assert calls == [
         "db.connect",
@@ -247,16 +248,17 @@ def test_lifecycle_preserves_startup_polling_and_shutdown_order(
 def test_lifecycle_closes_remaining_resources_when_startup_fails(
     lifecycle_dependencies,
 ):
-    FakeBot, FakeDispatcher, calls, lifecycle = lifecycle_dependencies
+    fake_bot, fake_dispatcher, calls, lifecycle = lifecycle_dependencies
 
     async def fail_connect():
         calls.append("db.connect")
-        raise RuntimeError("database unavailable")
+        msg = "database unavailable"
+        raise RuntimeError(msg)
 
     lifecycle.db.connect = fail_connect
 
     with pytest.raises(RuntimeError, match="database unavailable"):
-        asyncio.run(lifecycle.run_application(FakeBot(), FakeDispatcher()))
+        asyncio.run(lifecycle.run_application(fake_bot(), fake_dispatcher()))
 
     assert calls == [
         "db.connect",
@@ -269,15 +271,16 @@ def test_lifecycle_closes_remaining_resources_when_startup_fails(
 def test_lifecycle_continues_closing_after_one_cleanup_error(
     lifecycle_dependencies,
 ):
-    FakeBot, FakeDispatcher, calls, lifecycle = lifecycle_dependencies
+    fake_bot, fake_dispatcher, calls, lifecycle = lifecycle_dependencies
 
     async def fail_llm_close():
         calls.append("llm.close")
-        raise RuntimeError("LLM close failed")
+        msg = "LLM close failed"
+        raise RuntimeError(msg)
 
     lifecycle.llm_client.close = fail_llm_close
 
-    asyncio.run(lifecycle.run_application(FakeBot(), FakeDispatcher()))
+    asyncio.run(lifecycle.run_application(fake_bot(), fake_dispatcher()))
 
     assert calls[-3:] == ["llm.close", "db.close", "telegram.close"]
 

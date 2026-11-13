@@ -1,3 +1,10 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Handler of the /start command."""
+
+import logging
+
 from aiogram import Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -12,10 +19,12 @@ from bot.fsm.keys import WELCOME_MESSAGE_KEY
 from bot.services.database import db
 
 router = Router()
+logger = logging.getLogger("bot.handlers.start")
 
 
 @router.message(Command("start"))
-async def cmd_start(message: Message, state: FSMContext):
+async def cmd_start(message: Message, state: FSMContext) -> None:
+    """Registers the command menu for the user and sends the welcome message."""
     user_id = message.from_user.id
 
     # Supervisor всегда имеет доступ к административным функциям.
@@ -28,6 +37,7 @@ async def cmd_start(message: Message, state: FSMContext):
             is_admin = user_id in admin_ids
 
         except Exception:
+            logger.exception("Could not load administrators for the /start menu")
             is_admin = False
 
     # Формируем индивидуальное меню команд Telegram.

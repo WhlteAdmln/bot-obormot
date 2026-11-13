@@ -1,3 +1,8 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Frame extraction from WEBM and MP4 videos through ffmpeg."""
+
 import math
 import subprocess
 import tempfile
@@ -15,15 +20,19 @@ from bot.services.media.animation.limits import (
     PROCESS_TIMEOUT,
 )
 
+# Minimum number of header bytes needed to see the MP4 "ftyp" marker.
+_MIN_MP4_HEAD_LENGTH = 8
+
 
 def _check_container(data: bytes) -> None:
     """Отклоняет данные, которые не похожи на контейнер WEBM или MP4."""
     head = data[:12]
     is_webm = head[:4] == b"\x1a\x45\xdf\xa3"
-    is_mp4 = len(head) >= 8 and head[4:8] == b"ftyp"
+    is_mp4 = len(head) >= _MIN_MP4_HEAD_LENGTH and head[4:8] == b"ftyp"
 
     if not (is_webm or is_mp4):
-        raise MediaError("Неподдерживаемый формат видео.")
+        msg = "Неподдерживаемый формат видео."
+        raise MediaError(msg)
 
 
 def _probe_dimensions(video_path: Path) -> tuple[int, int]:
@@ -49,7 +58,8 @@ def _probe_dimensions(video_path: Path) -> tuple[int, int]:
     )
 
     if result.returncode != 0:
-        raise RuntimeError(f"ffprobe error: {result.stderr.decode(errors='replace')}")
+        msg = f"ffprobe error: {result.stderr.decode(errors='replace')}"
+        raise RuntimeError(msg)
 
     lines = result.stdout.decode(errors="replace").strip().splitlines()
 
@@ -57,10 +67,12 @@ def _probe_dimensions(video_path: Path) -> tuple[int, int]:
         width_text, height_text = lines[0].split("x", 1)
         width, height = int(width_text), int(height_text)
     except (IndexError, ValueError) as error:
-        raise ValueError("Cannot determine video dimensions") from error
+        msg = "Cannot determine video dimensions"
+        raise ValueError(msg) from error
 
     if width <= 0 or height <= 0:
-        raise ValueError("Invalid video dimensions")
+        msg = "Invalid video dimensions"
+        raise ValueError(msg)
 
     return width, height
 
@@ -94,24 +106,26 @@ def extract_video(data: bytes) -> list[bytes]:
         )
 
         if probe.returncode != 0:
-            raise RuntimeError(
-                f"ffprobe error: {probe.stderr.decode(errors='replace')}"
-            )
+            msg = f"ffprobe error: {probe.stderr.decode(errors='replace')}"
+            raise RuntimeError(msg)
 
         duration_text = probe.stdout.decode().strip()
 
         if not duration_text or duration_text == "N/A":
-            raise ValueError("Cannot determine video duration")
+            msg = "Cannot determine video duration"
+            raise ValueError(msg)
 
         duration = float(duration_text)
 
         if not math.isfinite(duration) or duration <= 0:
-            raise ValueError("Invalid video duration")
+            msg = "Invalid video duration"
+            raise ValueError(msg)
 
         width, height = _probe_dimensions(video_path)
 
         if width * height > MAX_VIDEO_PIXELS:
-            raise MediaError("Разрешение исходного видео слишком большое.")
+            msg = "Разрешение исходного видео слишком большое."
+            raise MediaError(msg)
 
         duration = min(duration, MAX_DURATION)
         fps = MAX_FRAMES / duration
@@ -150,14 +164,14 @@ def extract_video(data: bytes) -> list[bytes]:
         )
 
         if result.returncode != 0:
-            raise RuntimeError(
-                f"ffmpeg error: {result.stderr.decode(errors='replace')}"
-            )
+            msg = f"ffmpeg error: {result.stderr.decode(errors='replace')}"
+            raise RuntimeError(msg)
 
         files = sorted(Path(temp_dir).glob("frame_*.png"))
 
         if not files:
-            raise ValueError("No frames extracted from video")
+            msg = "No frames extracted from video"
+            raise ValueError(msg)
 
         frames = []
 

@@ -1,8 +1,12 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Потоковая генерация через OpenAI-compatible API."""
 
 import json
 import logging
 from collections.abc import AsyncIterator
+from http import HTTPStatus
 from typing import Any, Protocol
 
 import aiohttp
@@ -30,7 +34,6 @@ async def stream_unlimited(
     messages: list[dict[str, Any]],
 ) -> AsyncIterator[str]:
     """Получает потоковые фрагменты ответа без управления semaphore."""
-
     url = f"{config.LLM_BASE_URL.rstrip('/')}/chat/completions"
     normalized_messages = client._normalize_messages(messages)
 
@@ -47,7 +50,7 @@ async def stream_unlimited(
         session = await client._get_session()
 
         async with session.post(url, json=payload) as response:
-            if response.status != 200:
+            if response.status != HTTPStatus.OK:
                 detail = await response.text()
                 logger.error(
                     "chat/completions failed: HTTP %s: %s",
@@ -56,8 +59,8 @@ async def stream_unlimited(
                 )
                 raise LLMAPIError(response.status, detail)
 
-            async for line in response.content:
-                line = line.decode("utf-8").strip()
+            async for raw_line in response.content:
+                line = raw_line.decode("utf-8").strip()
 
                 if not line or not line.startswith("data:"):
                     continue
@@ -85,7 +88,9 @@ async def stream_unlimited(
                     yield content
 
     except TimeoutError as error:
-        raise LLMTimeoutError("LLM generation timed out") from error
+        msg = "LLM generation timed out"
+        raise LLMTimeoutError(msg) from error
 
     except aiohttp.ClientError as error:
-        raise LLMUnavailableError("Could not connect to LLM server") from error
+        msg = "Could not connect to LLM server"
+        raise LLMUnavailableError(msg) from error

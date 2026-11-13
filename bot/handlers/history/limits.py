@@ -1,3 +1,8 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""History limit commands for users and administrators."""
+
 from aiogram import Router
 from aiogram.filters import Command
 from aiogram.filters.command import CommandObject
@@ -11,6 +16,9 @@ from bot.utils.audit import audit
 
 router = Router()
 
+# Number of arguments in "/history_limit ID LIMIT".
+_ARGS_WITH_TARGET_USER = 2
+
 
 async def is_history_admin(user_id: int) -> bool:
     """Проверяет права Supervisor или администратора."""
@@ -20,12 +28,115 @@ async def is_history_admin(user_id: int) -> bool:
     return user_id in await db.get_admin_ids()
 
 
+async def _set_own_limit(
+    message: Message,
+    state: FSMContext,
+    raw_limit: str,
+    *,
+    is_admin: bool,
+) -> None:
+    """Sets the history limit of the sender."""
+    user_id = message.from_user.id
+
+    try:
+        exchange_limit = int(raw_limit)
+    except ValueError:
+        await send_prompt_status(
+            message,
+            state,
+            "⚠️ Укажи целое число.\nПример: /history_limit 20",
+        )
+        return
+
+    maximum = (
+        config.MAX_HISTORY_EXCHANGES if is_admin else config.DEFAULT_HISTORY_EXCHANGES
+    )
+
+    if not 1 <= exchange_limit <= maximum:
+        await send_prompt_status(
+            message,
+            state,
+            f"⚠️ Допустимый лимит: от 1 до {maximum}.",
+        )
+        return
+
+    await db.set_history_limit(user_id, exchange_limit)
+
+    await send_prompt_status(
+        message,
+        state,
+        f"✅ Твой лимит истории установлен: {exchange_limit} полных обменов.",
+    )
+
+
+async def _set_user_limit(
+    message: Message,
+    state: FSMContext,
+    args: list[str],
+    *,
+    is_admin: bool,
+) -> None:
+    """Sets the history limit of another user (administrators only)."""
+    user_id = message.from_user.id
+
+    if not is_admin:
+        await send_prompt_status(
+            message,
+            state,
+            "⛔ Назначать лимиты другим пользователям могут только администраторы.",
+        )
+        return
+
+    try:
+        target_user_id = int(args[0])
+        exchange_limit = int(args[1])
+    except ValueError:
+        await send_prompt_status(
+            message,
+            state,
+            "⚠️ Укажи корректный ID пользователя и целое число лимита.",
+        )
+        return
+
+    if target_user_id <= 0:
+        await send_prompt_status(
+            message,
+            state,
+            "⚠️ ID пользователя должен быть положительным.",
+        )
+        return
+
+    if not 1 <= exchange_limit <= config.MAX_HISTORY_EXCHANGES:
+        await send_prompt_status(
+            message,
+            state,
+            f"⚠️ Допустимый лимит: от 1 до {config.MAX_HISTORY_EXCHANGES}.",
+        )
+        return
+
+    await db.set_history_limit(target_user_id, exchange_limit)
+    audit(
+        "history_limit_set",
+        user_id,
+        target_user_id,
+        str(exchange_limit),
+    )
+
+    await send_prompt_status(
+        message,
+        state,
+        f"✅ Для пользователя {target_user_id} установлен лимит "
+        f"{exchange_limit} полных обменов.",
+    )
+
+
 @router.message(Command("history_limit"))
 async def cmd_history_limit(
     message: Message,
     state: FSMContext,
     command: CommandObject,
-):
+) -> None:
+    """Shows usage or sets the history limit of the sender or of another user."""
     user_id = message.from_user.id
     args = (command.args or "").split()
 
@@ -46,90 +157,12 @@ async def cmd_history_limit(
 
     # Один аргумент — установить лимит самому себе.
     if len(args) == 1:
-        try:
-            exchange_limit = int(args[0])
-        except ValueError:
-            await send_prompt_status(
-                message,
-                state,
-                "⚠️ Укажи целое число.\nПример: /history_limit 20",
-            )
-            return
-
-        maximum = (
-            config.MAX_HISTORY_EXCHANGES
-            if is_admin
-            else config.DEFAULT_HISTORY_EXCHANGES
-        )
-
-        if not 1 <= exchange_limit <= maximum:
-            await send_prompt_status(
-                message,
-                state,
-                f"⚠️ Допустимый лимит: от 1 до {maximum}.",
-            )
-            return
-
-        await db.set_history_limit(user_id, exchange_limit)
-
-        await send_prompt_status(
-            message,
-            state,
-            f"✅ Твой лимит истории установлен: {exchange_limit} полных обменов.",
-        )
+        await _set_own_limit(message, state, args[0], is_admin=is_admin)
         return
 
     # Два аргумента — назначение лимита другому пользователю.
-    if len(args) == 2:
-        if not is_admin:
-            await send_prompt_status(
-                message,
-                state,
-                "⛔ Назначать лимиты другим пользователям могут только администраторы.",
-            )
-            return
-
-        try:
-            target_user_id = int(args[0])
-            exchange_limit = int(args[1])
-        except ValueError:
-            await send_prompt_status(
-                message,
-                state,
-                "⚠️ Укажи корректный ID пользователя и целое число лимита.",
-            )
-            return
-
-        if target_user_id <= 0:
-            await send_prompt_status(
-                message,
-                state,
-                "⚠️ ID пользователя должен быть положительным.",
-            )
-            return
-
-        if not 1 <= exchange_limit <= config.MAX_HISTORY_EXCHANGES:
-            await send_prompt_status(
-                message,
-                state,
-                f"⚠️ Допустимый лимит: от 1 до {config.MAX_HISTORY_EXCHANGES}.",
-            )
-            return
-
-        await db.set_history_limit(target_user_id, exchange_limit)
-        audit(
-            "history_limit_set",
-            user_id,
-            target_user_id,
-            str(exchange_limit),
-        )
-
-        await send_prompt_status(
-            message,
-            state,
-            f"✅ Для пользователя {target_user_id} установлен лимит "
-            f"{exchange_limit} полных обменов.",
-        )
+    if len(args) == _ARGS_WITH_TARGET_USER:
+        await _set_user_limit(message, state, args, is_admin=is_admin)
         return
 
     await send_prompt_status(

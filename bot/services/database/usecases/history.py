@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Сценарии чтения и сброса истории диалога."""
 
 import asyncio
@@ -5,6 +8,7 @@ import base64
 import logging
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import aiosqlite
 
@@ -16,6 +20,15 @@ ImageReader = Callable[[Path, str], str]
 ImageDeleter = Callable[[Path], None]
 
 
+def _decode_data_url(data_url: str) -> bytes:
+    """Decodes the base64 payload of an image data URL."""
+    _header, separator, encoded = data_url.partition(",")
+    if not separator:
+        msg = "Invalid image data URL in history"
+        raise ValueError(msg)
+    return base64.b64decode(encoded, validate=True)
+
+
 async def get_history(
     connection: aiosqlite.Connection,
     user_id: int,
@@ -23,7 +36,7 @@ async def get_history(
     max_images: int,
     read_image_as_base64: ImageReader,
     logger: logging.Logger,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Собирает обмены для LLM; max_images ограничивает медиа-сообщения."""
     max_images = max(0, max_images)
     exchange_limit = -1 if limit is None else max(0, limit)
@@ -34,13 +47,13 @@ async def get_history(
         max_images,
     )
 
-    history = []
-    current_id = None
-    current_role = None
-    current_content = None
-    image_parts = []
+    history: list[dict[str, Any]] = []
+    current_id: int | None = None
+    current_role: str | None = None
+    current_content: str | None = None
+    image_parts: list[dict[str, Any]] = []
 
-    def save_current_message():
+    def save_current_message() -> None:
         if current_id is None:
             return
 
@@ -50,13 +63,10 @@ async def get_history(
             # При чтении истории сводим такие кадры в один монтаж, чтобы не
             # раздувать число image_url и не терять связь между кадрами.
             try:
-                frame_data = []
-                for part in message_image_parts:
-                    data_url = part["image_url"]["url"]
-                    _header, separator, encoded = data_url.partition(",")
-                    if not separator:
-                        raise ValueError("Invalid image data URL in history")
-                    frame_data.append(base64.b64decode(encoded, validate=True))
+                frame_data = [
+                    _decode_data_url(part["image_url"]["url"])
+                    for part in message_image_parts
+                ]
 
                 contact_sheet = build_contact_sheet(frame_data)
                 encoded_sheet = base64.b64encode(contact_sheet).decode("ascii")
@@ -72,6 +82,7 @@ async def get_history(
                     current_id,
                 )
 
+        content: str | list[dict[str, Any]] | None
         if message_image_parts:
             content = [
                 {

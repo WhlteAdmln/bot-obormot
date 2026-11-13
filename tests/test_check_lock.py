@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 from pathlib import Path
 
 from scripts.check_lock import check_lock

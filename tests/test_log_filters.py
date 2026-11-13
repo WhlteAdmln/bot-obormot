@@ -1,23 +1,26 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 import logging
 
 from bot.utils.log_filters import SecretsFilter
 
 
 def test_token_is_redacted_from_log_message():
-    token = "123456789:ABCdefGHIjklMNOpqrSTUvwxYZ0123456789"
-    log_filter = SecretsFilter([token])
+    bot_key = "123456789:ABCdefGHIjklMNOpqrSTUvwxYZ0123456789"
+    log_filter = SecretsFilter([bot_key])
     record = logging.LogRecord(
         "t",
         logging.ERROR,
         "f",
         1,
-        f"url=https://api.telegram.org/file/bot{token}/x",
+        f"url=https://api.telegram.org/file/bot{bot_key}/x",
         (),
         None,
     )
 
     assert log_filter.filter(record) is True
-    assert token not in record.getMessage()
+    assert bot_key not in record.getMessage()
     assert "[REDACTED]" in record.getMessage()
 
 
@@ -39,14 +42,17 @@ def test_configured_secrets_are_redacted_from_formatted_arguments():
     assert "[REDACTED]" in record.getMessage()
 
 
+def _fail_download(bot_key: str) -> None:
+    msg = f"download failed: https://api.telegram.org/bot{bot_key}/getFile"
+    raise RuntimeError(msg)
+
+
 def test_token_is_redacted_from_exception_traceback():
-    token = "123456789:ABCdefGHIjklMNOpqrSTUvwxYZ0123456789"
-    secrets_filter = SecretsFilter([token])
+    bot_key = "123456789:ABCdefGHIjklMNOpqrSTUvwxYZ0123456789"
+    secrets_filter = SecretsFilter([bot_key])
 
     try:
-        raise RuntimeError(
-            f"download failed: https://api.telegram.org/bot{token}/getFile"
-        )
+        _fail_download(bot_key)
     except RuntimeError:
         record = logging.LogRecord(
             "t",
@@ -61,7 +67,7 @@ def test_token_is_redacted_from_exception_traceback():
     secrets_filter.filter(record)
 
     assert record.exc_text is not None
-    assert token not in record.exc_text
+    assert bot_key not in record.exc_text
     assert "[REDACTED]" in record.exc_text
 
 

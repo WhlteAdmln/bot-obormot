@@ -1,3 +1,8 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Exceptions raised while talking to the LLM server."""
+
 from bot.errors.base import BotServiceError
 
 
@@ -16,7 +21,8 @@ class LLMTimeoutError(LLMError):
 class LLMAPIError(LLMError):
     """LLM вернула ошибку API."""
 
-    def __init__(self, status: int, detail: str = ""):
+    def __init__(self, status: int, detail: str = "") -> None:
+        """Stores the HTTP status and the error detail from the response."""
         self.status = status
         self.detail = detail
         super().__init__(f"LLM API HTTP {status}: {detail}")

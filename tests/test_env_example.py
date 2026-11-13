@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Keep the shipped .env.example in sync with Config's environment inputs."""
 
 import ast

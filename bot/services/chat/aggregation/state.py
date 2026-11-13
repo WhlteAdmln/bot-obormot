@@ -1,3 +1,8 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Mutable state of one message aggregation."""
+
 from __future__ import annotations
 
 import asyncio

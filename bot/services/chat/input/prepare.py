@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Координация подготовки текста, медиа, аудио и документов."""
 
 from __future__ import annotations
@@ -24,7 +27,6 @@ async def prepare_message(
     text_override: str | None = None,
 ) -> PreparedMessage:
     """Скачивает и обрабатывает входящие данные."""
-
     image_urls = None
     image_bytes = None
     transcribed_text = None

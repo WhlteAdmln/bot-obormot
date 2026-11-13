@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 import logging
 
 import aiohttp
@@ -121,9 +124,11 @@ async def test_stream_unlimited_raises_api_error_with_response_details(
 
     monkeypatch.setattr(client, "_get_session", get_session)
 
-    with caplog.at_level(logging.ERROR, logger="bot.services.llm.streaming"):
-        with pytest.raises(LLMAPIError) as error:
-            await collect(stream_unlimited(client, []))
+    with (
+        caplog.at_level(logging.ERROR, logger="bot.services.llm.streaming"),
+        pytest.raises(LLMAPIError) as error,
+    ):
+        await collect(stream_unlimited(client, []))
 
     assert error.value.status == 503
     assert error.value.detail == private_detail
@@ -149,7 +154,8 @@ async def test_stream_unlimited_converts_aiohttp_client_error(monkeypatch):
     client = LLMClient()
 
     async def get_session():
-        raise aiohttp.ClientConnectionError("connection refused")
+        msg = "connection refused"
+        raise aiohttp.ClientConnectionError(msg)
 
     monkeypatch.setattr(client, "_get_session", get_session)
 

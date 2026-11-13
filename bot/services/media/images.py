@@ -1,3 +1,8 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Preparation of still images for the multimodal LLM request."""
+
 import base64
 import io
 
@@ -9,17 +14,17 @@ from bot.services.media.limits import MAX_IMAGE_DIMENSION, MAX_IMAGE_PIXELS
 
 def prepare_image(image_data: bytes) -> str:
     """Преобразует изображение в JPEG Base64."""
-
-    with Image.open(io.BytesIO(image_data)) as image:
-        width, height = image.size
+    with Image.open(io.BytesIO(image_data)) as source:
+        width, height = source.size
 
         if width * height > MAX_IMAGE_PIXELS:
-            raise MediaError(
+            msg = (
                 "Изображение имеет слишком большое разрешение "
                 "(максимум 40 миллионов пикселей)."
             )
+            raise MediaError(msg)
 
-        image = ImageOps.exif_transpose(image)
+        image = ImageOps.exif_transpose(source)
         image.thumbnail((MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION))
 
         if image.mode in ("RGBA", "LA") or "transparency" in image.info:

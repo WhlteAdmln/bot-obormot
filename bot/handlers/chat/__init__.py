@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Роутер обработки входящих сообщений чата.
 
 Публичные имена старого модуля bot.handlers.chat сохранены для совместимости.

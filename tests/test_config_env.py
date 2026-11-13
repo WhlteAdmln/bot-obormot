@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 import pytest
 
 from bot.config.env import get_bool, get_optional_int
@@ -51,7 +54,7 @@ def test_config_loads_env_from_project_root_only(monkeypatch):
     monkeypatch.setattr(
         dotenv,
         "load_dotenv",
-        lambda dotenv_path: loaded_paths.append(dotenv_path),
+        loaded_paths.append,
     )
 
     importlib.reload(config_module)

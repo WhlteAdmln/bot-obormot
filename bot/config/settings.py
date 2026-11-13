@@ -1,3 +1,8 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Application settings read from the environment."""
+
 import os
 
 from bot.config.env import (
@@ -12,6 +17,8 @@ from bot.config.prompts import load_default_system_prompt
 
 
 class Config:
+    """Application settings, read from the environment once at import time."""
+
     BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 
     LOG_LEVEL = get_log_level()
@@ -57,9 +64,8 @@ class Config:
     # auto выбирает llama.cpp при доступной токенизации, иначе использует оценку.
     LLM_TOKEN_COUNTING = os.getenv("LLM_TOKEN_COUNTING", "auto").strip().lower()
     if LLM_TOKEN_COUNTING not in {"auto", "llamacpp", "estimate"}:
-        raise ValueError(
-            "Настройка LLM_TOKEN_COUNTING должна быть auto, llamacpp или estimate"
-        )
+        msg = "Настройка LLM_TOKEN_COUNTING должна быть auto, llamacpp или estimate"
+        raise ValueError(msg)
 
     LLM_MAX_CONCURRENT_GENERATIONS = get_int(
         "LLM_MAX_CONCURRENT_GENERATIONS",
@@ -79,7 +85,8 @@ class Config:
     DATABASE_PATH = os.getenv("DATABASE_PATH", "data/bot.db").strip()
 
     if not DATABASE_PATH:
-        raise ValueError("DATABASE_PATH не может быть пустым")
+        msg = "DATABASE_PATH не может быть пустым"
+        raise ValueError(msg)
 
     DEFAULT_SYSTEM_PROMPT = load_default_system_prompt()
 

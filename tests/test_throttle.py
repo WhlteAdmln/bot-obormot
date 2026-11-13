@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Tests for per-user message throttling."""
 
 from types import SimpleNamespace

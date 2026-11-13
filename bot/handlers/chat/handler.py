@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Telegram handler входящих сообщений чата."""
 
 import asyncio
@@ -31,7 +34,8 @@ logger = logging.getLogger("bot.handlers.chat")
 
 
 @router.message()
-async def handle_message(message: Message):
+async def handle_message(message: Message) -> None:
+    """Processes an incoming chat message and streams the LLM reply."""
     log_incoming_message(message)
 
     info = inspect_message(message)
@@ -112,7 +116,7 @@ async def handle_message(message: Message):
             await responder.cancel()
             raise
 
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001 - logged by handle_chat_error
             await handle_chat_error(
                 message=message,
                 status=responder.status,
@@ -135,7 +139,19 @@ __all__ = [
     "MAX_PENDING_PER_USER",
     "STREAM_TOKEN_THRESHOLD",
     "STREAM_UPDATE_INTERVAL",
+    "format_roleplay",
+    "get_user_lock",
+    "handle_chat_error",
     "handle_message",
+    "inspect_message",
+    "keep_typing",
+    "llm_client",
+    "log_incoming_message",
     "logger",
+    "message_aggregator",
+    "prepare_message",
+    "process_chat",
     "router",
+    "safe_edit",
+    "split_formatted_message",
 ]

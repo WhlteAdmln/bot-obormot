@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Characterization tests for the package-based chat handler.
 
 The handler dependencies are stubbed so these tests focus on ordering,
@@ -273,7 +276,8 @@ async def test_handler_routes_processing_error_to_central_error_handler(chat_han
     message = Message()
 
     async def process(_kwargs):
-        raise RuntimeError("pipeline failed")
+        msg = "pipeline failed"
+        raise RuntimeError(msg)
 
     chat_handler._test_pipeline.process = process
 
@@ -292,7 +296,8 @@ async def test_handler_preserves_final_answer_after_stream_edit_failure(chat_han
     message = Message()
 
     async def broken_edit(_status, _text):
-        raise RuntimeError("telegram edit failed")
+        msg = "telegram edit failed"
+        raise RuntimeError(msg)
 
     handler_module = importlib.import_module("bot.handlers.chat.handler")
     handler_module.safe_edit = broken_edit
@@ -321,7 +326,8 @@ async def test_handler_routes_llm_connection_loss_with_existing_status(chat_hand
 
     async def process(kwargs):
         await kwargs["on_update"]("S" * 300)
-        raise ConnectionError("llama-server stopped")
+        msg = "llama-server stopped"
+        raise ConnectionError(msg)
 
     chat_handler._test_pipeline.process = process
 

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Сценарий атомарного сохранения обмена сообщениями и изображений."""
 
 import asyncio
@@ -97,9 +100,11 @@ async def add_exchange(
 
         if isinstance(error, aiosqlite.Error):
             logger.exception("Could not save message exchange")
-            raise DatabaseError("Could not save message exchange") from error
+            msg = "Could not save message exchange"
+            raise DatabaseError(msg) from error
 
         if isinstance(error, OSError):
-            raise MediaError("Could not save or remove media file") from error
+            msg = "Could not save or remove media file"
+            raise MediaError(msg) from error
 
         raise

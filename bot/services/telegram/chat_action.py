@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Вспомогательные действия Telegram во время обработки запроса."""
 
 import asyncio
@@ -8,7 +11,6 @@ from aiogram.utils.chat_action import ChatActionSender
 
 async def keep_typing(message: Message) -> None:
     """Поддерживает статус «печатает...» во время обработки сообщения."""
-
     async with ChatActionSender.typing(
         bot=message.bot,
         chat_id=message.chat.id,

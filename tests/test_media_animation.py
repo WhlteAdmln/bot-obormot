@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 import asyncio
 import base64
 import gzip
@@ -265,7 +268,8 @@ async def test_process_media_wraps_unexpected_pipeline_errors(monkeypatch):
         return b"GIF89a" + b"broken-animation"
 
     async def fake_extract(data, media_type):
-        raise ValueError("decoder failed")
+        msg = "decoder failed"
+        raise ValueError(msg)
 
     monkeypatch.setattr(media, "download_telegram_file", fake_download)
     monkeypatch.setattr(media, "extract_animation_frames", fake_extract)
@@ -476,7 +480,8 @@ def test_extract_video_rejects_resolution_before_running_ffmpeg(monkeypatch):
             return SimpleNamespace(returncode=0, stdout=b"1.0\n", stderr=b"")
         if command[0] == "ffprobe":
             return SimpleNamespace(returncode=0, stdout=b"3840x2161\n", stderr=b"")
-        raise AssertionError("ffmpeg must not run for oversized input")
+        msg = "ffmpeg must not run for oversized input"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(video.subprocess, "run", fake_run)
 

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 import logging
 from collections import deque
 
@@ -208,7 +211,8 @@ async def test_count_text_tokens_empty_text_skips_http(monkeypatch):
     client = LLMClient()
 
     async def unexpected_session():
-        raise AssertionError("HTTP session must not be requested for empty text")
+        msg = "HTTP session must not be requested for empty text"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(client, "_get_session", unexpected_session)
 
@@ -237,9 +241,11 @@ async def test_context_size_logs_sanitized_error_detail(monkeypatch, caplog):
     client = LLMClient()
     attach_session(monkeypatch, client, fake_session)
 
-    with caplog.at_level(logging.DEBUG, logger="bot.services.llm.context_size"):
-        with pytest.raises(LLMUnavailableError, match="LLM_CONTEXT_SIZE"):
-            await client.get_context_size()
+    with (
+        caplog.at_level(logging.DEBUG, logger="bot.services.llm.context_size"),
+        pytest.raises(LLMUnavailableError, match="LLM_CONTEXT_SIZE"),
+    ):
+        await client.get_context_size()
 
     assert r"user prompt\nsecond line" in caplog.text
     assert "user prompt\nsecond line" not in caplog.text
@@ -252,9 +258,11 @@ async def test_count_text_tokens_logs_sanitized_error_detail(monkeypatch, caplog
     client = LLMClient()
     attach_session(monkeypatch, client, fake_session)
 
-    with caplog.at_level(logging.ERROR, logger="bot.services.llm.tokenizer"):
-        with pytest.raises(LLMAPIError) as error:
-            await client.count_text_tokens("private request")
+    with (
+        caplog.at_level(logging.ERROR, logger="bot.services.llm.tokenizer"),
+        pytest.raises(LLMAPIError) as error,
+    ):
+        await client.count_text_tokens("private request")
 
     assert error.value.detail == private_detail
     assert r"user prompt\nsecond line" in caplog.text

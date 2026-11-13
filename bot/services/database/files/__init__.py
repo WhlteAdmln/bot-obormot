@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Файловое хранилище медиа, связанных с историей сообщений."""
 
 from bot.services.database.files.image_storage import (

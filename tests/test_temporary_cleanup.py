@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 

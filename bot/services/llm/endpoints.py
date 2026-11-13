@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Построение URL-адресов специальных endpoint-ов LLM-сервера."""
 
 from bot.config import config

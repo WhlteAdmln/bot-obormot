@@ -1,8 +1,13 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Финальная доставка полного ответа Telegram-пользователю."""
 
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
+
+from aiogram.types import Message
 
 from bot.services.chat.formatting import format_roleplay, split_formatted_message
 from bot.services.chat.streaming.settings import MAX_MESSAGE_LENGTH
@@ -15,9 +20,9 @@ SafeEdit = Callable[[Any, str], Awaitable[None]]
 
 
 async def deliver_final_response(
-    message: Any,
+    message: Message,
     response: str,
-    status: Any | None,
+    status: Message | None,
     safe_edit: SafeEdit,
     *,
     formatter: Formatter = format_roleplay,

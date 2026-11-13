@@ -1,6 +1,12 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""HTTP client for an OpenAI-compatible LLM server."""
+
 import asyncio
 import logging
 from collections.abc import AsyncIterator
+from http import HTTPStatus
 from typing import Any
 
 import aiohttp
@@ -31,7 +37,10 @@ logger = logging.getLogger(__name__)
 
 
 class LLMClient:
+    """Client that keeps one HTTP session and limits concurrent generations."""
+
     def __init__(self) -> None:
+        """Creates the client without opening a session."""
         self.session: aiohttp.ClientSession | None = None
         self.semaphore = asyncio.Semaphore(config.LLM_MAX_CONCURRENT_GENERATIONS)
         self._context_size: int | None = None
@@ -50,7 +59,7 @@ class LLMClient:
         return server_url()
 
     @staticmethod
-    def _normalize_content(content: Any) -> str | list:
+    def _normalize_content(content: object) -> str | list[Any]:
         return normalize_content(content)
 
     def _normalize_messages(
@@ -61,7 +70,6 @@ class LLMClient:
 
     async def get_context_size(self) -> int:
         """Получает размер контекста активной модели."""
-
         return await fetch_context_size(self)
 
     @staticmethod
@@ -83,22 +91,19 @@ class LLMClient:
         messages: list[dict[str, Any]],
     ) -> int:
         """Считает токены через llama.cpp или консервативную оценку."""
-
         return await tokenize_messages(self, messages)
 
     async def count_text_tokens(self, text: str) -> int:
         """Считает количество токенов обычного текста."""
-
         return await tokenize_text(self, text)
 
     async def fit_messages_to_context(
         self,
         system_prompt: str,
         history: list[dict[str, Any]],
-        user_message: Any,
+        user_message: object,
     ) -> list[dict[str, Any]]:
         """Подбирает максимально возможную историю под контекст модели."""
-
         return await fit_messages_to_context(
             self,
             system_prompt,
@@ -110,6 +115,7 @@ class LLMClient:
         self,
         messages: list[dict[str, Any]],
     ) -> AsyncIterator[str]:
+        """Streams the reply tokens while holding a generation slot."""
         async with self.semaphore:
             async for token in self._stream_unlimited(messages):
                 yield token
@@ -119,7 +125,6 @@ class LLMClient:
         messages: list[dict[str, Any]],
     ) -> AsyncIterator[str]:
         """Делегирует потоковую генерацию отдельному модулю."""
-
         async for chunk in stream_unlimited(self, messages):
             yield chunk
 
@@ -133,7 +138,7 @@ class LLMClient:
                     f"{self._server_url()}/health",
                     timeout=aiohttp.ClientTimeout(total=5),
                 ) as response:
-                    if response.status == 200:
+                    if response.status == HTTPStatus.OK:
                         try:
                             data = await response.json()
                         except (aiohttp.ClientError, ValueError, TypeError):
@@ -149,7 +154,7 @@ class LLMClient:
                 f"{config.LLM_BASE_URL}/models",
                 timeout=aiohttp.ClientTimeout(total=5),
             ) as response:
-                if response.status == 200:
+                if response.status == HTTPStatus.OK:
                     return True, "Доступен"
                 return False, f"HTTP {response.status}: LLM API недоступен"
 
@@ -165,7 +170,6 @@ class LLMClient:
 
     async def close(self) -> None:
         """Закрывает HTTP-сессию."""
-
         if self.session and not self.session.closed:
             await self.session.close()
 

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Router aggregator for history, prompt, limits, and fallback commands."""
 
 from aiogram import Router

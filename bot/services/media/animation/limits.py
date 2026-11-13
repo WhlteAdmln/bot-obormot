@@ -1,3 +1,8 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Limits applied to animation and video processing."""
+
 MAX_FRAMES = 6
 MAX_DIMENSION = 768
 MAX_DURATION = 30

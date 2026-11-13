@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 import asyncio
 from pathlib import Path
 
@@ -49,10 +52,10 @@ async def test_set_and_delete_history_limit(test_db):
 
 @pytest.mark.asyncio
 async def test_history_limit_rejects_invalid_values(test_db):
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Недопустимый лимит истории"):
         await test_db.set_history_limit(USER_ID, 0)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Недопустимый лимит истории"):
         await test_db.set_history_limit(
             USER_ID,
             config.MAX_HISTORY_EXCHANGES + 1,
@@ -200,8 +203,10 @@ async def test_prune_history_keeps_latest_exchanges_and_removes_old_images(
         (other_user_id,),
     )
     assert (await cursor.fetchone())["total"] == 10
-    assert old_image_path is not None and not old_image_path.exists()
-    assert latest_image_path is not None and latest_image_path.exists()
+    assert old_image_path is not None
+    assert not old_image_path.exists()
+    assert latest_image_path is not None
+    assert latest_image_path.exists()
     assert external_image_path.read_bytes() == b"must not be deleted"
 
     cursor = await test_db.connection.execute(

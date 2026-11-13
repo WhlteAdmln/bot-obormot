@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 import asyncio
 import logging
 from types import SimpleNamespace
@@ -149,7 +152,8 @@ async def test_responder_count_failure_does_not_disable_future_streaming(caplog)
         nonlocal attempts
         attempts += 1
         if attempts == 1:
-            raise RuntimeError("tokenizer down")
+            msg = "tokenizer down"
+            raise RuntimeError(msg)
         return 151
 
     responder = _responder(message, count=count)
@@ -168,7 +172,8 @@ async def test_responder_count_failure_does_not_disable_future_streaming(caplog)
 async def test_responder_disables_streaming_after_initial_send_failure(caplog):
     class BrokenMessage:
         async def answer(self, *_args, **_kwargs):
-            raise RuntimeError("telegram down")
+            msg = "telegram down"
+            raise RuntimeError(msg)
 
     responder = _responder(BrokenMessage())
     with caplog.at_level(logging.WARNING, logger="bot.handlers.chat"):
@@ -183,7 +188,8 @@ async def test_responder_disables_streaming_after_initial_send_failure(caplog):
 @pytest.mark.asyncio
 async def test_responder_disables_streaming_after_edit_failure(caplog):
     async def broken_edit(_status, _text):
-        raise RuntimeError("edit failed")
+        msg = "edit failed"
+        raise RuntimeError(msg)
 
     responder = _responder(safe_edit=broken_edit)
     await responder.on_update("x" * 300)
@@ -269,7 +275,8 @@ async def test_delivery_falls_back_to_all_chunks_when_status_edit_fails(caplog):
     message = FakeMessage()
 
     async def broken_edit(_status, _text):
-        raise RuntimeError("edit failed")
+        msg = "edit failed"
+        raise RuntimeError(msg)
 
     with caplog.at_level(logging.WARNING, logger="bot.handlers.chat"):
         await deliver_final_response(

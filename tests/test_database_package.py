@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 from bot.config import config
 from bot.services.database import (
     MAX_HISTORY_IMAGES,

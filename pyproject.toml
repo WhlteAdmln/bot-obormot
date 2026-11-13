@@ -49,7 +49,6 @@ ignore = [
     "TD002",
     "TD003",
     "FIX002",
-    "FBT",
 ]
 
 [tool.ruff.lint.pydocstyle]
@@ -64,7 +63,12 @@ max-statements = 40
 max-branches = 12
 
 [tool.ruff.lint.per-file-ignores]
-# DEBT: remove each rule as its violations are fixed in tests.
+# DEBT: remove each rule as its violations are fixed.
+"bot/config/env.py" = ["FBT001", "FBT002"]
+"bot/config/settings.py" = ["FBT003"]
+"tests/test_access.py" = ["FBT002"]
+"tests/test_config_env.py" = ["FBT003"]
+"tests/test_message_preparation.py" = ["FBT003"]
 "tests/*" = [
     "ANN001",
     "ANN002",

@@ -458,15 +458,29 @@ def test_probe_dimensions_uses_local_file_protocol_and_parses_dimensions(
     calls = []
 
     def fake_run(command, **kwargs):
-        calls.append(command)
+        calls.append((command, kwargs))
         return SimpleNamespace(returncode=0, stdout=b"1920x1080\n", stderr=b"")
 
+    monkeypatch.setattr(video.shutil, "which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr(video.subprocess, "run", fake_run)
 
-    assert video._probe_dimensions(tmp_path / "sample.webm") == (1920, 1080)
-    assert calls[0][0] == "ffprobe"
-    assert calls[0][calls[0].index("-protocol_whitelist") + 1] == "file"
-    assert calls[0][calls[0].index("-select_streams") + 1] == "v:0"
+    assert video._probe_dimensions(tmp_path) == (1920, 1080)
+    command, kwargs = calls[0]
+    assert command[0] == "/usr/bin/env"
+    assert command[1] == "ffprobe"
+    assert command[command.index("-protocol_whitelist") + 1] == "file"
+    assert command[command.index("-select_streams") + 1] == "v:0"
+    assert kwargs["cwd"] == tmp_path
+    assert kwargs["env"]["PATH"].split(os.pathsep)[0] == "/usr/bin"
+
+
+def test_command_environment_rejects_missing_executable(monkeypatch):
+    from bot.services.media.animation import video
+
+    monkeypatch.setattr(video.shutil, "which", lambda name: None)
+
+    with pytest.raises(FileNotFoundError, match="ffprobe"):
+        video._command_environment("ffprobe")
 
 
 def test_extract_video_rejects_resolution_before_running_ffmpeg(monkeypatch):
@@ -476,48 +490,54 @@ def test_extract_video_rejects_resolution_before_running_ffmpeg(monkeypatch):
 
     def fake_run(command, **kwargs):
         calls.append(command)
-        if command[0] == "ffprobe" and "format=duration" in command:
+        if command[1] == "ffprobe" and "format=duration" in command:
             return SimpleNamespace(returncode=0, stdout=b"1.0\n", stderr=b"")
-        if command[0] == "ffprobe":
+        if command[1] == "ffprobe":
             return SimpleNamespace(returncode=0, stdout=b"3840x2161\n", stderr=b"")
         msg = "ffmpeg must not run for oversized input"
         raise AssertionError(msg)
 
+    monkeypatch.setattr(video.shutil, "which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr(video.subprocess, "run", fake_run)
 
     with pytest.raises(MediaError, match="Разрешение исходного видео"):
         video.extract_video(b"\x1a\x45\xdf\xa3" + b"fake-webm")
 
     assert len(calls) == 2
-    assert all(call[0] == "ffprobe" for call in calls)
+    assert all(call[0] == "/usr/bin/env" and call[1] == "ffprobe" for call in calls)
 
 
 def test_extract_video_passes_resource_and_protocol_limits(monkeypatch):
     from bot.services.media.animation import video
 
     calls = []
+    filter_scripts = []
 
     def fake_run(command, **kwargs):
-        calls.append(command)
-        if command[0] == "ffprobe" and "format=duration" in command:
+        calls.append((command, kwargs))
+        if command[1] == "ffprobe" and "format=duration" in command:
             return SimpleNamespace(returncode=0, stdout=b"1.0\n", stderr=b"")
-        if command[0] == "ffprobe":
+        if command[1] == "ffprobe":
             return SimpleNamespace(returncode=0, stdout=b"32x24\n", stderr=b"")
 
-        assert command[0] == "ffmpeg"
-        output_pattern = Path(command[-1])
+        assert command[0] == "/usr/bin/env"
+        assert command[1] == "ffmpeg"
+        working_directory = Path(kwargs["cwd"])
+        filter_path = working_directory / command[command.index("-filter_script:v") + 1]
+        filter_scripts.append(filter_path.read_text(encoding="utf-8"))
         Image.new("RGB", (16, 12), (20, 40, 60)).save(
-            output_pattern.parent / "frame_01.png", format="PNG"
+            working_directory / "frame_01.png", format="PNG"
         )
         return SimpleNamespace(returncode=0, stdout=b"", stderr=b"")
 
+    monkeypatch.setattr(video.shutil, "which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr(video.subprocess, "run", fake_run)
 
     frames = video.extract_video(b"\x1a\x45\xdf\xa3" + b"fake-webm")
 
     assert len(frames) == 1
-    ffprobes = [call for call in calls if call[0] == "ffprobe"]
-    ffmpeg = next(call for call in calls if call[0] == "ffmpeg")
+    ffprobes = [call for call, _kwargs in calls if call[1] == "ffprobe"]
+    ffmpeg = next(call for call, _kwargs in calls if call[1] == "ffmpeg")
     assert len(ffprobes) == 2
     for command in ffprobes:
         assert command[command.index("-protocol_whitelist") + 1] == "file"
@@ -525,6 +545,13 @@ def test_extract_video_passes_resource_and_protocol_limits(monkeypatch):
     assert ffmpeg[ffmpeg.index("-protocol_whitelist") + 1] == "file"
     assert ffmpeg[ffmpeg.index("-max_alloc") + 1] == "1073741824"
     assert ffmpeg[ffmpeg.index("-threads") + 1] == "1"
+    assert ffmpeg[ffmpeg.index("-filter_script:v") + 1] == "video_filter.txt"
+    filter_script = filter_scripts[0]
+    assert "fps=" in filter_script
+    assert f"scale={video.MAX_DIMENSION}:{video.MAX_DIMENSION}:" in filter_script
+    assert "force_original_aspect_ratio=decrease" in filter_script
+    assert f"trim=duration={video.MAX_DURATION}" in filter_script
+    assert f"trim=end_frame={video.MAX_FRAMES}" in filter_script
 
 
 # Content sniffing checks: the user-provided filename/MIME type is not trusted.

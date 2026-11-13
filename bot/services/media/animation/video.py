@@ -4,6 +4,8 @@
 """Frame extraction from WEBM and MP4 videos through ffmpeg."""
 
 import math
+import os
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -24,6 +26,19 @@ from bot.services.media.animation.limits import (
 _MIN_MP4_HEAD_LENGTH = 8
 
 
+def _command_environment(name: str) -> dict[str, str]:
+    """Return an environment that resolves the requested executable."""
+    executable = shutil.which(name)
+    if executable is None:
+        msg = f"Required executable not found: {name}"
+        raise FileNotFoundError(msg)
+
+    executable_directory = str(Path(executable).absolute().parent)
+    environment = os.environ.copy()
+    environment["PATH"] = os.pathsep.join((executable_directory, os.defpath))
+    return environment
+
+
 def _check_container(data: bytes) -> None:
     """Отклоняет данные, которые не похожи на контейнер WEBM или MP4."""
     head = data[:12]
@@ -35,10 +50,11 @@ def _check_container(data: bytes) -> None:
         raise MediaError(msg)
 
 
-def _probe_dimensions(video_path: Path) -> tuple[int, int]:
+def _probe_dimensions(working_directory: Path) -> tuple[int, int]:
     """Определяет размер первого видеопотока без разрешения сетевых протоколов."""
     result = subprocess.run(
         [
+            "/usr/bin/env",
             "ffprobe",
             "-v",
             "error",
@@ -50,11 +66,13 @@ def _probe_dimensions(video_path: Path) -> tuple[int, int]:
             "stream=width,height",
             "-of",
             "csv=s=x:p=0",
-            str(video_path),
+            "animation.webm",
         ],
         capture_output=True,
         timeout=PROCESS_TIMEOUT,
         check=False,
+        cwd=working_directory,
+        env=_command_environment("ffprobe"),
     )
 
     if result.returncode != 0:
@@ -82,13 +100,14 @@ def extract_video(data: bytes) -> list[bytes]:
     _check_container(data)
 
     with tempfile.TemporaryDirectory() as temp_dir:
-        video_path = Path(temp_dir) / "animation.webm"
-        output_pattern = str(Path(temp_dir) / "frame_%02d.png")
+        working_directory = Path(temp_dir)
+        video_path = working_directory / "animation.webm"
 
         video_path.write_bytes(data)
 
         probe = subprocess.run(
             [
+                "/usr/bin/env",
                 "ffprobe",
                 "-v",
                 "error",
@@ -98,11 +117,13 @@ def extract_video(data: bytes) -> list[bytes]:
                 "format=duration",
                 "-of",
                 "default=noprint_wrappers=1:nokey=1",
-                str(video_path),
+                "animation.webm",
             ],
             capture_output=True,
             timeout=PROCESS_TIMEOUT,
             check=False,
+            cwd=working_directory,
+            env=_command_environment("ffprobe"),
         )
 
         if probe.returncode != 0:
@@ -121,7 +142,7 @@ def extract_video(data: bytes) -> list[bytes]:
             msg = "Invalid video duration"
             raise ValueError(msg)
 
-        width, height = _probe_dimensions(video_path)
+        width, height = _probe_dimensions(working_directory)
 
         if width * height > MAX_VIDEO_PIXELS:
             msg = "Разрешение исходного видео слишком большое."
@@ -129,9 +150,19 @@ def extract_video(data: bytes) -> list[bytes]:
 
         duration = min(duration, MAX_DURATION)
         fps = MAX_FRAMES / duration
+        filter_path = working_directory / "video_filter.txt"
+        filter_path.write_text(
+            f"fps={fps},"
+            f"scale={MAX_DIMENSION}:{MAX_DIMENSION}:"
+            "force_original_aspect_ratio=decrease,"
+            f"trim=duration={MAX_DURATION},"
+            f"trim=end_frame={MAX_FRAMES}",
+            encoding="utf-8",
+        )
 
         result = subprocess.run(
             [
+                "/usr/bin/env",
                 "ffmpeg",
                 "-hide_banner",
                 "-loglevel",
@@ -144,30 +175,24 @@ def extract_video(data: bytes) -> list[bytes]:
                 "-threads",
                 "1",
                 "-i",
-                str(video_path),
-                "-t",
-                str(MAX_DURATION),
-                "-vf",
-                (
-                    f"fps={fps},"
-                    f"scale={MAX_DIMENSION}:{MAX_DIMENSION}:"
-                    "force_original_aspect_ratio=decrease"
-                ),
-                "-frames:v",
-                str(MAX_FRAMES),
+                "animation.webm",
+                "-filter_script:v",
+                "video_filter.txt",
                 "-y",
-                output_pattern,
+                "frame_%02d.png",
             ],
             capture_output=True,
             timeout=PROCESS_TIMEOUT,
             check=False,
+            cwd=working_directory,
+            env=_command_environment("ffmpeg"),
         )
 
         if result.returncode != 0:
             msg = f"ffmpeg error: {result.stderr.decode(errors='replace')}"
             raise RuntimeError(msg)
 
-        files = sorted(Path(temp_dir).glob("frame_*.png"))
+        files = sorted(working_directory.glob("frame_*.png"))
 
         if not files:
             msg = "No frames extracted from video"

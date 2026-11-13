@@ -20,6 +20,7 @@ async def add_exchange(
     images_dir: Path,
     user_id: int,
     user_text: str,
+    *,
     assistant_text: str,
     media: list[bytes] | None,
     logger: logging.Logger,

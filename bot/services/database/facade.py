@@ -136,9 +136,9 @@ class Database:
             self.images_dir,
             user_id,
             user_text,
-            assistant_text,
-            media,
-            logger,
+            assistant_text=assistant_text,
+            media=media,
+            logger=logger,
         )
 
     @handle_database_errors

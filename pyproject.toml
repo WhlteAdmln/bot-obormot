@@ -67,7 +67,7 @@ max-branches = 12
 "tests/*" = ["S101", "PLR2004", "ANN", "D", "SLF001", "ARG"]
 
 # DEBT: remove
-"bot/services/chat/formatting/splitter.py" = ["C901", "PLR0912", "PLR0915"]
+"bot/services/chat/formatting/splitter.py" = ["C901", "PLR0915"]
 "bot/services/chat/input/user_content.py" = ["PLR0913"]
 "bot/services/chat/streaming/delivery.py" = ["PLR0913"]
 "bot/services/chat/streaming/responder.py" = ["C901", "PLR0913"]

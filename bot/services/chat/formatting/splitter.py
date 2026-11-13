@@ -64,40 +64,35 @@ def split_formatted_message(
 
         start_next_chunk()
 
-    for match in token_pattern.finditer(text):
-        token = match.group(0)
+    def append_tag(token: str, match: re.Match[str]) -> None:
+        current.append(token)
 
-        # HTML-тег.
-        if token.startswith("<"):
-            closing = match.group(1)
-            tag = match.group(2)
+        closing = match.group(1)
+        tag = match.group(2)
 
-            current.append(token)
+        if closing:
+            if tag in open_tags:
+                # Remove the matching open tag.
+                index = len(open_tags) - 1 - open_tags[::-1].index(tag)
+                open_tags.pop(index)
+        else:
+            open_tags.append(tag)
 
-            if closing:
-                if tag in open_tags:
-                    # Удаляем соответствующий открытый тег.
-                    index = len(open_tags) - 1 - open_tags[::-1].index(tag)
-                    open_tags.pop(index)
-            else:
-                open_tags.append(tag)
+    def append_entity(token: str) -> None:
+        nonlocal visible_length
 
-            continue
+        decoded = html.unescape(token)
+        token_length = _utf16_length(decoded)
 
-        # HTML-сущность, например &amp; или &#128512;.
-        if token.startswith("&") and token.endswith(";"):
-            decoded = html.unescape(token)
-            token_length = _utf16_length(decoded)
+        if visible_length + token_length > max_length:
+            flush()
 
-            if visible_length + token_length > max_length:
-                flush()
+        current.append(token)
+        visible_length += token_length
 
-            current.append(token)
-            visible_length += token_length
-            continue
+    def append_text(token: str) -> None:
+        nonlocal visible_length
 
-        # Обычный текст. Разбиваем по Unicode-символам,
-        # не разрывая emoji и другие многобайтовые символы.
         for char in token:
             char_length = _utf16_length(char)
 
@@ -106,6 +101,23 @@ def split_formatted_message(
 
             current.append(char)
             visible_length += char_length
+
+    for match in token_pattern.finditer(text):
+        token = match.group(0)
+
+        # HTML-тег.
+        if token.startswith("<"):
+            append_tag(token, match)
+            continue
+
+        # HTML-сущность, например &amp; или &#128512;.
+        if token.startswith("&") and token.endswith(";"):
+            append_entity(token)
+            continue
+
+        # Обычный текст. Разбиваем по Unicode-символам,
+        # не разрывая emoji и другие многобайтовые символы.
+        append_text(token)
 
     if current:
         chunk = "".join(current) + close_tags()

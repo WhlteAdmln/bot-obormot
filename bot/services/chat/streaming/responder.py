@@ -91,39 +91,45 @@ class StreamingResponder:
             if token_count <= self.token_threshold:
                 return
 
-            # Порог превышен — создаём первое сообщение.
-            try:
-                formatted_text = self.formatter(current_text)
-                chunks = self.splitter(
-                    formatted_text,
-                    max_length=self.max_message_length,
-                )
-
-                if not chunks:
-                    return
-
-                self.status = await self.message.answer(
-                    chunks[0],
-                    parse_mode="HTML",
-                )
-
-                self.last_displayed_text = chunks[0]
-                self.last_update = asyncio.get_running_loop().time()
-
-            except Exception:
-                self.streaming_failed = True
-                logger.warning(
-                    "Could not start streaming display for user_id=%s",
-                    self.user_id,
-                    exc_info=True,
-                )
-
+            await self._start_streaming_display(current_text)
             return
 
         # После создания сообщения обновляем его не чаще исходного интервала.
         if now - self.last_update < self.update_interval:
             return
 
+        await self._update_streaming_display(current_text)
+
+    async def _start_streaming_display(self, current_text: str) -> None:
+        """Creates the initial streaming message."""
+        try:
+            formatted_text = self.formatter(current_text)
+            chunks = self.splitter(
+                formatted_text,
+                max_length=self.max_message_length,
+            )
+
+            if not chunks:
+                return
+
+            self.status = await self.message.answer(
+                chunks[0],
+                parse_mode="HTML",
+            )
+
+            self.last_displayed_text = chunks[0]
+            self.last_update = asyncio.get_running_loop().time()
+
+        except Exception:
+            self.streaming_failed = True
+            logger.warning(
+                "Could not start streaming display for user_id=%s",
+                self.user_id,
+                exc_info=True,
+            )
+
+    async def _update_streaming_display(self, current_text: str) -> None:
+        """Updates the existing streaming message."""
         try:
             formatted_text = self.formatter(current_text)
             chunks = self.splitter(

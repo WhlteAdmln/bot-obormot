@@ -137,8 +137,6 @@ async def test_prune_history_keeps_latest_exchanges_and_removes_old_images(
     monkeypatch,
     tmp_path,
 ):
-    from pathlib import Path
-
     monkeypatch.setattr(config, "MAX_STORED_EXCHANGES", 2)
     old_image_path = None
     latest_image_path = None

@@ -7,6 +7,7 @@ from copy import deepcopy
 
 import pytest
 
+from bot.config import config
 from bot.errors import InputTooLongError, LLMUnavailableError
 from bot.services.llm import LLMClient
 from bot.services.llm import client as client_module
@@ -231,8 +232,6 @@ async def test_context_fit_log_distinguishes_window_from_available_budget(
 
 @pytest.mark.asyncio
 async def test_estimate_mode_uses_larger_safety_margin(monkeypatch):
-    from bot.config import config
-
     client = FakeFittingClient(context_size=10_000, token_counts=[6_500])
     monkeypatch.setattr(config, "LLM_MAX_TOKENS", 2_048)
 

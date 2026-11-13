@@ -20,9 +20,10 @@ from bot.services.chat import locks as chat_locks
 from bot.services.chat import pipeline as chat_pipeline
 from bot.services.chat.aggregation import aggregator as aggregator_module
 from bot.services.chat.aggregation.aggregator import MessageAggregator
-from bot.services.chat.errors import catalog
+from bot.services.chat.errors import catalog, texts
 from bot.services.chat.errors import handler as chat_error_handler
 from bot.services.chat.formatting import format_roleplay, split_formatted_message
+from bot.services.validation import MAX_INPUT_TEXT_LENGTH
 
 
 def _message(text: str | None, user_id: int | None = 1):
@@ -571,9 +572,6 @@ async def test_chat_pipeline_returns_response_when_history_pruning_fails(monkeyp
 
 
 def test_user_facing_length_errors_use_configured_input_limit():
-    from bot.services.chat.errors import texts
-    from bot.services.validation import MAX_INPUT_TEXT_LENGTH
-
     expected_limit = str(MAX_INPUT_TEXT_LENGTH)
     input_message = texts.input_too_long(Exception())
     document_message = texts.document_too_long(Exception())

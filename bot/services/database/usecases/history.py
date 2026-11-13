@@ -29,6 +29,69 @@ def _decode_data_url(data_url: str) -> bytes:
     return base64.b64decode(encoded, validate=True)
 
 
+def _build_history_message_content(
+    message_id: int,
+    current_content: str | None,
+    image_parts: list[dict[str, Any]],
+    logger: logging.Logger,
+) -> str | list[dict[str, Any]] | None:
+    message_image_parts = list(image_parts)
+    if len(message_image_parts) > 1:
+        # Older versions stored each animation frame as a separate file.
+        # Combine frames into one contact sheet when reading history.
+        try:
+            frame_data = [
+                _decode_data_url(part["image_url"]["url"])
+                for part in message_image_parts
+            ]
+            contact_sheet = build_contact_sheet(frame_data)
+            encoded_sheet = base64.b64encode(contact_sheet).decode("ascii")
+            message_image_parts = [
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{encoded_sheet}"},
+                }
+            ]
+        except Exception:
+            logger.exception(
+                "Could not combine historical animation frames: message_id=%s",
+                message_id,
+            )
+
+    if message_image_parts:
+        return [
+            {
+                "type": "text",
+                "text": current_content,
+            },
+            *message_image_parts,
+        ]
+    return current_content
+
+
+def _append_history_message(
+    history: list[dict[str, Any]],
+    message_id: int | None,
+    role: str | None,
+    content: str | None,
+    image_parts: list[dict[str, Any]],
+    logger: logging.Logger,
+) -> None:
+    if message_id is None:
+        return
+    history.append(
+        {
+            "role": role,
+            "content": _build_history_message_content(
+                message_id,
+                content,
+                image_parts,
+                logger,
+            ),
+        }
+    )
+
+
 async def get_history(
     connection: aiosqlite.Connection,
     user_id: int,
@@ -53,59 +116,18 @@ async def get_history(
     current_content: str | None = None
     image_parts: list[dict[str, Any]] = []
 
-    def save_current_message() -> None:
-        if current_id is None:
-            return
-
-        message_image_parts = list(image_parts)
-        if len(message_image_parts) > 1:
-            # Старые версии сохраняли каждый кадр анимации отдельным файлом.
-            # При чтении истории сводим такие кадры в один монтаж, чтобы не
-            # раздувать число image_url и не терять связь между кадрами.
-            try:
-                frame_data = [
-                    _decode_data_url(part["image_url"]["url"])
-                    for part in message_image_parts
-                ]
-
-                contact_sheet = build_contact_sheet(frame_data)
-                encoded_sheet = base64.b64encode(contact_sheet).decode("ascii")
-                message_image_parts = [
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{encoded_sheet}"},
-                    }
-                ]
-            except Exception:
-                logger.exception(
-                    "Could not combine historical animation frames: message_id=%s",
-                    current_id,
-                )
-
-        content: str | list[dict[str, Any]] | None
-        if message_image_parts:
-            content = [
-                {
-                    "type": "text",
-                    "text": current_content,
-                },
-                *message_image_parts,
-            ]
-        else:
-            content = current_content
-
-        history.append(
-            {
-                "role": current_role,
-                "content": content,
-            }
-        )
-
     for row in rows:
         message_id = row["id"]
 
         if message_id != current_id:
-            save_current_message()
+            _append_history_message(
+                history,
+                current_id,
+                current_role,
+                current_content,
+                image_parts,
+                logger,
+            )
             current_id = message_id
             current_role = row["role"]
             current_content = row["content"]
@@ -137,7 +159,14 @@ async def get_history(
         except OSError:
             logger.exception("Could not read history image: %s", image_path)
 
-    save_current_message()
+    _append_history_message(
+        history,
+        current_id,
+        current_role,
+        current_content,
+        image_parts,
+        logger,
+    )
     return history
 
 

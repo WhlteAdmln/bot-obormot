@@ -25,11 +25,11 @@ class FakeFittingClient:
     async def get_token_counting_mode(self):
         return "llamacpp"
 
-    def _normalize_messages(self, messages):
+    def normalize_messages(self, messages):
         return messages
 
     @staticmethod
-    def _count_images(messages):
+    def count_images(messages):
         count = 0
         for message in messages:
             content = message.get("content")
@@ -137,8 +137,8 @@ async def test_fitting_recalculates_image_reserve_after_removing_old_exchange():
         "recent answer",
         "current question",
     ]
-    assert client._count_images(client.count_calls[0]) == 1
-    assert client._count_images(client.count_calls[1]) == 0
+    assert client.count_images(client.count_calls[0]) == 1
+    assert client.count_images(client.count_calls[1]) == 0
 
 
 @pytest.mark.asyncio

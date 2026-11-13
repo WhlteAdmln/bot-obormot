@@ -21,12 +21,16 @@ logger = logging.getLogger(__name__)
 class StreamingClient(Protocol):
     """Минимальный интерфейс клиента для потоковой генерации."""
 
-    async def _get_session(self) -> aiohttp.ClientSession: ...
+    async def get_session(self) -> aiohttp.ClientSession:
+        """Return the shared HTTP session."""
+        ...
 
-    def _normalize_messages(
+    def normalize_messages(
         self,
         messages: list[dict[str, Any]],
-    ) -> list[dict[str, Any]]: ...
+    ) -> list[dict[str, Any]]:
+        """Normalize messages for the LLM API."""
+        ...
 
 
 async def stream_unlimited(
@@ -35,7 +39,7 @@ async def stream_unlimited(
 ) -> AsyncIterator[str]:
     """Получает потоковые фрагменты ответа без управления semaphore."""
     url = f"{config.LLM_BASE_URL.rstrip('/')}/chat/completions"
-    normalized_messages = client._normalize_messages(messages)
+    normalized_messages = client.normalize_messages(messages)
 
     payload = {
         "model": config.LLM_MODEL,
@@ -47,7 +51,7 @@ async def stream_unlimited(
     }
 
     try:
-        session = await client._get_session()
+        session = await client.get_session()
 
         async with session.post(url, json=payload) as response:
             if response.status != HTTPStatus.OK:

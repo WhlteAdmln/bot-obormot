@@ -5,6 +5,7 @@
 
 import json
 import re
+from collections.abc import Sequence
 from typing import Any
 
 from bot.errors import LLMUnavailableError
@@ -80,9 +81,9 @@ def normalize_content(content: object) -> str | list[Any]:
     return str(content)
 
 
-def normalize_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def normalize_messages(messages: Sequence[object]) -> list[dict[str, Any]]:
     """Проверяет структуру сообщений перед отправкой в API."""
-    normalized = []
+    normalized: list[dict[str, Any]] = []
 
     for index, message in enumerate(messages):
         if not isinstance(message, dict):

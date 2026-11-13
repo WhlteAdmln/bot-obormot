@@ -3,7 +3,6 @@
 
 """Подсчёт токенов: llama.cpp или консервативная оценка."""
 
-import asyncio
 import logging
 import math
 from http import HTTPStatus
@@ -24,71 +23,67 @@ _MODE_ESTIMATE = "estimate"
 
 
 class TokenizerClient(Protocol):
-    """Минимальный интерфейс LLMClient для токенизации."""
+    """Minimal client interface for tokenization."""
 
-    _token_counting_mode: str | None
-    _token_counting_lock: asyncio.Lock
+    async def get_session(self) -> aiohttp.ClientSession:
+        """Return the shared HTTP session."""
+        ...
 
-    async def _get_session(self) -> aiohttp.ClientSession: ...
+    def get_server_url(self) -> str:
+        """Return the configured LLM server URL."""
+        ...
 
-    def _server_url(self) -> str: ...
-
-    def _normalize_messages(
+    def normalize_messages(
         self,
         messages: list[dict[str, Any]],
-    ) -> list[dict[str, Any]]: ...
+    ) -> list[dict[str, Any]]:
+        """Normalize messages for the LLM API."""
+        ...
 
     @staticmethod
-    def _prepare_messages_for_count(
+    def prepare_messages_for_count(
         messages: list[dict[str, Any]],
-    ) -> list[dict[str, Any]]: ...
+    ) -> list[dict[str, Any]]:
+        """Prepare messages for server-side token counting."""
+        ...
+
+    async def get_token_counting_mode(self) -> str:
+        """Return the selected token counting backend."""
+        ...
 
 
 async def get_token_counting_mode(client: TokenizerClient) -> str:
-    """Выбирает backend токенизации один раз на экземпляр клиента."""
-    configured_mode = config.LLM_TOKEN_COUNTING
-    if configured_mode != "auto":
-        return configured_mode
-
-    cached_mode = client._token_counting_mode
-    if cached_mode is not None:
-        return cached_mode
-
-    async with client._token_counting_lock:
-        if client._token_counting_mode is not None:
-            return client._token_counting_mode
-
-        try:
-            session = await client._get_session()
-            async with session.post(
-                f"{client._server_url()}/tokenize",
-                json={
-                    "model": config.LLM_MODEL,
-                    "content": _PROBE_TEXT,
-                    "add_special": False,
-                    "parse_special": True,
-                },
-                timeout=aiohttp.ClientTimeout(total=min(5, config.LLM_TIMEOUT)),
-            ) as response:
-                data = (
-                    await response.json() if response.status == HTTPStatus.OK else None
-                )
-                if isinstance(data, dict) and isinstance(data.get("tokens"), list):
-                    client._token_counting_mode = _MODE_LLAMACPP
-                else:
-                    client._token_counting_mode = _MODE_ESTIMATE
-        except (TimeoutError, aiohttp.ClientError, ValueError, TypeError):
-            client._token_counting_mode = _MODE_ESTIMATE
-
-        if client._token_counting_mode == _MODE_ESTIMATE:
-            logger.warning(
-                "LLM server does not expose the llama.cpp tokenizer; "
-                "using approximate token counting"
+    """Detects the available token counting backend."""
+    try:
+        session = await client.get_session()
+        async with session.post(
+            f"{client.get_server_url()}/tokenize",
+            json={
+                "model": config.LLM_MODEL,
+                "content": _PROBE_TEXT,
+                "add_special": False,
+                "parse_special": True,
+            },
+            timeout=aiohttp.ClientTimeout(total=min(5, config.LLM_TIMEOUT)),
+        ) as response:
+            data = await response.json() if response.status == HTTPStatus.OK else None
+            mode = (
+                _MODE_LLAMACPP
+                if isinstance(data, dict) and isinstance(data.get("tokens"), list)
+                else _MODE_ESTIMATE
             )
-        else:
-            logger.info("Using llama.cpp tokenizer")
+    except (TimeoutError, aiohttp.ClientError, ValueError, TypeError):
+        mode = _MODE_ESTIMATE
 
-        return client._token_counting_mode
+    if mode == _MODE_ESTIMATE:
+        logger.warning(
+            "LLM server does not expose the llama.cpp tokenizer; "
+            "using approximate token counting"
+        )
+    else:
+        logger.info("Using llama.cpp tokenizer")
+
+    return mode
 
 
 def _text_from_content(content: object) -> str:
@@ -128,10 +123,10 @@ async def _count_tokens_llamacpp(
     client: TokenizerClient,
     messages: list[dict[str, Any]],
 ) -> int:
-    session = await client._get_session()
-    base_url = client._server_url()
-    normalized_messages = client._normalize_messages(messages)
-    prepared_messages = client._prepare_messages_for_count(normalized_messages)
+    session = await client.get_session()
+    base_url = client.get_server_url()
+    normalized_messages = client.normalize_messages(messages)
+    prepared_messages = client.prepare_messages_for_count(normalized_messages)
 
     for index, message in enumerate(prepared_messages):
         content = message.get("content")
@@ -199,9 +194,9 @@ async def count_tokens(
     messages: list[dict[str, Any]],
 ) -> int:
     """Считает токены сообщений выбранным backend-ом."""
-    mode = await get_token_counting_mode(client)
+    mode = await client.get_token_counting_mode()
     if mode == "estimate":
-        normalized_messages = client._normalize_messages(messages)
+        normalized_messages = client.normalize_messages(messages)
         return estimate_message_tokens(normalized_messages)
 
     try:
@@ -219,14 +214,14 @@ async def count_text_tokens(client: TokenizerClient, text: str) -> int:
     if not text:
         return 0
 
-    mode = await get_token_counting_mode(client)
+    mode = await client.get_token_counting_mode()
     if mode == "estimate":
         return estimate_text_tokens(text)
 
     try:
-        session = await client._get_session()
+        session = await client.get_session()
         async with session.post(
-            f"{client._server_url()}/tokenize",
+            f"{client.get_server_url()}/tokenize",
             json={
                 "model": config.LLM_MODEL,
                 "content": text,

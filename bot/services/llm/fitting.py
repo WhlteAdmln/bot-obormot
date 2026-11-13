@@ -27,13 +27,17 @@ class FittingClient(Protocol):
     async def get_context_size(self) -> int:
         """Returns the context window size of the model."""
 
-    def _normalize_messages(
+    def normalize_messages(
         self,
         messages: list[dict[str, Any]],
-    ) -> list[dict[str, Any]]: ...
+    ) -> list[dict[str, Any]]:
+        """Normalize messages for the LLM API."""
+        ...
 
     @staticmethod
-    def _count_images(messages: list[dict[str, Any]]) -> int: ...
+    def count_images(messages: list[dict[str, Any]]) -> int:
+        """Count image parts in normalized messages."""
+        ...
 
     async def count_tokens(self, messages: list[dict[str, Any]]) -> int:
         """Counts the prompt tokens of the messages."""
@@ -67,11 +71,11 @@ async def fit_messages_to_context(
         {"role": "user", "content": user_message},
     ]
 
-    messages = client._normalize_messages(messages)
+    messages = client.normalize_messages(messages)
 
     while True:
         # Число изображений меняется при удалении старых обменов.
-        image_count = client._count_images(messages)
+        image_count = client.count_images(messages)
 
         image_reserved_tokens = IMAGE_TOKEN_RESERVE * image_count
         reserved_tokens = config.LLM_MAX_TOKENS + safety_margin + image_reserved_tokens

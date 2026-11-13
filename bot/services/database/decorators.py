@@ -7,7 +7,7 @@ import asyncio
 import logging
 from collections.abc import Callable, Coroutine
 from functools import wraps
-from typing import Any, Concatenate, ParamSpec, Protocol, TypeVar
+from typing import Any, Concatenate, ParamSpec, Protocol, TypeVar, cast
 
 import aiosqlite
 
@@ -65,4 +65,7 @@ def handle_database_errors(
                 await _rollback_quietly(getattr(self, "connection", None))
                 raise
 
-    return wrapper
+    return cast(
+        "Callable[Concatenate[_S, _P], Coroutine[Any, Any, _R]]",
+        wrapper,
+    )

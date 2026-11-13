@@ -50,7 +50,6 @@ async def prepare_message(
         transcribed_text=transcribed_text,
         image_urls=image_urls,
         document_text=document_text,
-        document_format=document_format,
     )
 
     saved_user_text = build_saved_user_text(

@@ -71,7 +71,7 @@ max-branches = 12
 
 # DEBT: remove
 "bot/services/chat/formatting/splitter.py" = ["C901", "PLR0912", "PLR0915"]
-"bot/services/chat/input/user_content.py" = ["ARG001", "PLR0913"]
+"bot/services/chat/input/user_content.py" = ["PLR0913"]
 "bot/services/chat/streaming/delivery.py" = ["PLR0913"]
 "bot/services/chat/streaming/responder.py" = ["C901", "PLR0911", "PLR0913"]
 "bot/services/database/usecases/cleanup.py" = ["C901", "PLR0915"]

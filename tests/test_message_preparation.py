@@ -176,7 +176,6 @@ def test_build_user_content_keeps_audio_caption_format():
         transcribed_text="Распознанный текст",
         image_urls=None,
         document_text=None,
-        document_format=None,
     )
 
     assert content == "Контекст\n\n[Распознанная речь]: Распознанный текст"
@@ -202,7 +201,6 @@ def test_build_user_content_keeps_document_prefix_and_caption():
         transcribed_text=None,
         image_urls=None,
         document_text="Содержимое отчёта",
-        document_format="pdf",
     )
 
     assert content == (
@@ -231,7 +229,6 @@ def test_build_user_content_sanitizes_document_filename():
         transcribed_text=None,
         image_urls=None,
         document_text="Содержимое отчёта",
-        document_format="pdf",
     )
 
     assert content == (
@@ -267,7 +264,6 @@ def test_build_user_content_validates_plain_text(monkeypatch):
         transcribed_text=None,
         image_urls=None,
         document_text=None,
-        document_format=None,
     )
 
     assert result == "Переопределённый текст"
@@ -299,7 +295,6 @@ def test_build_user_content_rejects_oversized_document(monkeypatch):
             transcribed_text=None,
             image_urls=None,
             document_text="Слишком длинный текст",
-            document_format="pdf",
         )
 
 
@@ -585,6 +580,7 @@ async def test_prepare_message_preserves_processing_order_and_result(monkeypatch
         assert kwargs["transcribed_text"] == "Распознано"
         assert kwargs["image_urls"] == ["data:image/jpeg;base64,AA=="]
         assert kwargs["document_text"] == "Текст документа"
+        assert "document_format" not in kwargs
         return "Содержимое для LLM"
 
     def build_history(_message, _info, **kwargs):

@@ -26,7 +26,6 @@ def build_user_content(
     transcribed_text: str | None,
     image_urls: list[str] | None,
     document_text: str | None,
-    document_format: str | None,
 ) -> str | list[dict[str, Any]] | None:
     """Формирует текстовое или мультимодальное содержимое для LLM."""
     if info.has_audio:

@@ -10,7 +10,10 @@ from bot.errors import MediaError
 from bot.services import media
 from bot.services.telegram import keep_typing
 from bot.services.telegram.constants import MAX_CONCURRENT_DOWNLOADS
-from bot.services.telegram.downloader import download_telegram_file
+from bot.services.telegram.downloader import (
+    _LimitedBytesIO,
+    download_telegram_file,
+)
 
 
 class FakeBot:
@@ -32,6 +35,17 @@ class FakeBot:
 
 def make_message(bot):
     return SimpleNamespace(bot=bot)
+
+
+@pytest.mark.parametrize(
+    "data",
+    [b"abc", bytearray(b"abc"), memoryview(b"abc")],
+)
+def test_limited_bytes_io_accepts_buffer_protocol(data):
+    buffer = _LimitedBytesIO(limit=3)
+
+    assert buffer.write(data) == 3
+    assert buffer.getvalue() == b"abc"
 
 
 @pytest.mark.asyncio

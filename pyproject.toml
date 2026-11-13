@@ -27,7 +27,6 @@ module = [
     "bot.services.chat.input.saved_text",
     "bot.services.chat.input.user_content",
     "bot.services.database.facade",
-    "bot.services.media.animation.tgs",
     "bot.services.telegram.chat_action",
     "bot.services.telegram.downloader",
 ]

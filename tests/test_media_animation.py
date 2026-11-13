@@ -22,9 +22,14 @@ from bot.errors import MediaError
 from bot.services import media
 from bot.services.media import animation
 from bot.services.media import pipeline as media_pipeline
-from bot.services.media.animation import tgs
+from bot.services.media.animation import tgs, video
 from bot.services.media.animation.gif import extract_gif
+from bot.services.media.animation.limits import MAX_FRAMES
 from bot.services.media.animation.sampling import sample_frame_indices
+from bot.services.media.contact_sheet import build_contact_sheet
+from bot.services.media.limits import MAX_IMAGE_PIXELS
+from bot.services.media.safety import check_image_size, configure_pillow_limits
+from bot.services.media.sniff import sniff_media_type, verify_declared_type
 
 
 def make_message(**values):
@@ -90,8 +95,6 @@ def test_get_media_info_classifies_video_documents_by_mime_type():
 
 
 def test_build_contact_sheet_combines_frames_into_one_jpeg():
-    from bot.services.media.contact_sheet import build_contact_sheet
-
     frames = []
     for color in ((255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)):
         output = io.BytesIO()
@@ -106,16 +109,11 @@ def test_build_contact_sheet_combines_frames_into_one_jpeg():
 
 
 def test_build_contact_sheet_returns_single_frame_unchanged():
-    from bot.services.media.contact_sheet import build_contact_sheet
-
     frame = b"one-frame"
     assert build_contact_sheet([frame]) == frame
 
 
 def test_build_contact_sheet_rejects_empty_or_excessive_frames():
-    from bot.services.media.animation.limits import MAX_FRAMES
-    from bot.services.media.contact_sheet import build_contact_sheet
-
     with pytest.raises(ValueError, match="without frames"):
         build_contact_sheet([])
     with pytest.raises(ValueError, match="at most"):
@@ -171,7 +169,9 @@ def test_animation_dispatcher_routes_formats_and_preserves_patch_points(monkeypa
         animation, "_extract_tgs", lambda data: calls.append(("tgs", data)) or [b"t"]
     )
     monkeypatch.setattr(
-        animation, "_extract_webm", lambda data: calls.append(("video", data)) or [b"v"]
+        animation,
+        "_extract_webm",
+        lambda data: calls.append(("video", data)) or [b"v"],
     )
 
     assert animation._extract_frames(b"1", "gif") == [b"g"]
@@ -242,8 +242,6 @@ async def test_animation_dispatch_errors_are_wrapped_as_media_error():
 
 
 def test_extract_gif_returns_at_most_six_jpeg_frames():
-    from bot.services.media.animation.gif import extract_gif
-
     frames = [Image.new("RGB", (16, 12), (index * 20, 80, 160)) for index in range(9)]
     source = io.BytesIO()
     frames[0].save(
@@ -313,10 +311,6 @@ def test_gif_frame_count_limit_is_enforced(monkeypatch):
 
 
 def test_check_image_size_rejects_invalid_and_oversized_dimensions():
-    from types import SimpleNamespace
-
-    from bot.services.media.safety import check_image_size
-
     with pytest.raises(MediaError):
         check_image_size(SimpleNamespace(size=(0, 10)), 100)
     with pytest.raises(MediaError):
@@ -325,13 +319,6 @@ def test_check_image_size_rejects_invalid_and_oversized_dimensions():
 
 
 def test_configure_pillow_limits_sets_global_decompression_limit(monkeypatch):
-    import warnings
-
-    from PIL import Image
-
-    from bot.services.media.limits import MAX_IMAGE_PIXELS
-    from bot.services.media.safety import configure_pillow_limits
-
     # Не оставляем глобальный warning filter изменённым для других тестов.
     monkeypatch.setattr(warnings, "filters", warnings.filters.copy())
     monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", None)
@@ -378,18 +365,14 @@ def test_validate_tgs_accepts_bounded_gzip_json():
 
 
 def test_validate_tgs_rejects_gzip_decompression_bomb():
-    from bot.services.media.animation.tgs import MAX_TGS_JSON
-
-    data = gzip.compress(b"0" * (MAX_TGS_JSON + 1))
+    data = gzip.compress(b"0" * (tgs.MAX_TGS_JSON + 1))
 
     with pytest.raises(MediaError, match="после распаковки"):
         tgs.validate_tgs(data)
 
 
 def test_validate_tgs_rejects_compressed_data_over_limit():
-    from bot.services.media.animation.tgs import MAX_TGS_COMPRESSED
-
-    data = os.urandom(MAX_TGS_COMPRESSED + 1)
+    data = os.urandom(tgs.MAX_TGS_COMPRESSED + 1)
 
     with pytest.raises(MediaError, match="Стикер слишком большой"):
         tgs.validate_tgs(data)
@@ -469,25 +452,19 @@ def test_extract_tgs_imports_rlottie_for_valid_animation(monkeypatch):
 
 
 def test_video_container_sniffer_accepts_webm_and_mp4():
-    from bot.services.media.animation.video import _check_container
-
-    _check_container(b"\x1a\x45\xdf\xa3" + b"webm-data")
-    _check_container(b"\x00\x00\x00\x18ftypmp42" + b"mp4-data")
+    video._check_container(b"\x1a\x45\xdf\xa3" + b"webm-data")
+    video._check_container(b"\x00\x00\x00\x18ftypmp42" + b"mp4-data")
 
 
 def test_video_container_sniffer_rejects_playlist_and_unknown_data():
-    from bot.services.media.animation.video import _check_container
-
     for data in (b"#EXTM3U\nhttps://example.invalid/video", b"", b"not-a-video"):
         with pytest.raises(MediaError, match="формат видео"):
-            _check_container(data)
+            video._check_container(data)
 
 
 def test_probe_dimensions_uses_local_file_protocol_and_parses_dimensions(
     monkeypatch, tmp_path
 ):
-    from bot.services.media.animation import video
-
     calls = []
 
     def fake_run(command, **kwargs):
@@ -508,8 +485,6 @@ def test_probe_dimensions_uses_local_file_protocol_and_parses_dimensions(
 
 
 def test_command_environment_rejects_missing_executable(monkeypatch):
-    from bot.services.media.animation import video
-
     monkeypatch.setattr(video.shutil, "which", lambda name: None)
 
     with pytest.raises(FileNotFoundError, match="ffprobe"):
@@ -517,8 +492,6 @@ def test_command_environment_rejects_missing_executable(monkeypatch):
 
 
 def test_extract_video_rejects_resolution_before_running_ffmpeg(monkeypatch):
-    from bot.services.media.animation import video
-
     calls = []
 
     def fake_run(command, **kwargs):
@@ -541,8 +514,6 @@ def test_extract_video_rejects_resolution_before_running_ffmpeg(monkeypatch):
 
 
 def test_extract_video_passes_resource_and_protocol_limits(monkeypatch):
-    from bot.services.media.animation import video
-
     calls = []
     filter_scripts = []
 
@@ -605,14 +576,10 @@ def test_extract_video_passes_resource_and_protocol_limits(monkeypatch):
     ],
 )
 def test_sniff_media_type_recognizes_supported_signatures(data, expected):
-    from bot.services.media.sniff import sniff_media_type
-
     assert sniff_media_type(data) == expected
 
 
 def test_sniff_media_type_rejects_unknown_or_short_mp4_data():
-    from bot.services.media.sniff import sniff_media_type
-
     assert sniff_media_type(b"not-a-media-file") is None
     assert sniff_media_type(b"\x00\x00\x00\x08ftyp") is None
 
@@ -632,14 +599,10 @@ def test_sniff_media_type_rejects_unknown_or_short_mp4_data():
     ],
 )
 def test_verify_declared_type_accepts_matching_types_and_video_family(data, declared):
-    from bot.services.media.sniff import verify_declared_type
-
     assert verify_declared_type(data, declared) is None
 
 
 def test_verify_declared_type_rejects_mismatched_types():
-    from bot.services.media.sniff import verify_declared_type
-
     with pytest.raises(MediaError, match="не совпадает"):
         verify_declared_type(b"GIF89a" + b"payload", "mp4")
 

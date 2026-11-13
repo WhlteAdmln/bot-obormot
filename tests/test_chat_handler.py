@@ -141,10 +141,10 @@ def chat_handler(monkeypatch):
     # Ensure a fresh package import binds the test doubles above.
     sys.modules.pop("bot.handlers.chat.handler", None)
     sys.modules.pop("bot.handlers.chat", None)
-    import bot.handlers
+    handlers_module = importlib.import_module("bot.handlers")
 
-    if hasattr(bot.handlers, "chat"):
-        delattr(bot.handlers, "chat")
+    if hasattr(handlers_module, "chat"):
+        delattr(handlers_module, "chat")
 
     package = importlib.import_module("bot.handlers.chat")
     package._test_calls = calls
@@ -160,8 +160,8 @@ def chat_handler(monkeypatch):
 
     sys.modules.pop("bot.handlers.chat.handler", None)
     sys.modules.pop("bot.handlers.chat", None)
-    if hasattr(bot.handlers, "chat"):
-        delattr(bot.handlers, "chat")
+    if hasattr(handlers_module, "chat"):
+        delattr(handlers_module, "chat")
 
 
 class Message:
@@ -226,7 +226,9 @@ async def test_handler_streams_long_response_and_finalizes_status(chat_handler):
 
 
 @pytest.mark.asyncio
-async def test_handler_cancellation_updates_status_and_cleans_typing_task(chat_handler):
+async def test_handler_cancellation_updates_status_and_cleans_typing_task(
+    chat_handler,
+):
     message = Message()
 
     async def process(kwargs):
@@ -257,7 +259,9 @@ async def test_handler_returns_early_for_aggregated_continuation(chat_handler):
 
 
 @pytest.mark.asyncio
-async def test_handler_rejects_user_when_pending_request_limit_is_reached(chat_handler):
+async def test_handler_rejects_user_when_pending_request_limit_is_reached(
+    chat_handler,
+):
     message = Message()
     handler_module = importlib.import_module("bot.handlers.chat.handler")
     handler_module.pending_requests = lambda user_id: 3

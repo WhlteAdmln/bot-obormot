@@ -1,6 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
+import importlib
 import logging
 
 from bot.utils.log_filters import SecretsFilter
@@ -72,7 +73,7 @@ def test_token_is_redacted_from_exception_traceback():
 
 
 def test_logging_setup_attaches_filter_to_root_handlers(monkeypatch):
-    from bot.app import logging_setup
+    logging_setup = importlib.import_module("bot.app.logging_setup")
 
     handler = logging.StreamHandler()
     root_logger = logging.getLogger()

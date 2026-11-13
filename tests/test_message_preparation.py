@@ -4,12 +4,14 @@
 from __future__ import annotations
 
 import base64
+import inspect
 import logging
 from types import SimpleNamespace
 
 import pytest
 
 from bot.errors import DocumentAPIError, DocumentTooLongError
+from bot.services.chat import input as chat_input
 from bot.services.chat.input import (
     MessageInfo,
     PreparedMessage,
@@ -51,28 +53,13 @@ def no_audio(_message):
 
 
 def test_new_chat_input_package_reexports_the_public_api():
-    from bot.services.chat.input import (
-        MessageInfo as ChatMessageInfo,
-    )
-    from bot.services.chat.input import (
-        PreparedMessage as ChatPreparedMessage,
-    )
-    from bot.services.chat.input import (
-        inspect_message as chat_inspect_message,
-    )
-    from bot.services.chat.input import (
-        prepare_message as chat_prepare_message,
-    )
-
-    assert ChatMessageInfo is MessageInfo
-    assert ChatPreparedMessage is PreparedMessage
-    assert chat_inspect_message.__name__ == "inspect_message"
-    assert chat_prepare_message.__name__ == "prepare_message"
+    assert chat_input.MessageInfo is MessageInfo
+    assert chat_input.PreparedMessage is PreparedMessage
+    assert chat_input.inspect_message.__name__ == "inspect_message"
+    assert chat_input.prepare_message.__name__ == "prepare_message"
 
 
 def test_public_api_keeps_original_function_signatures():
-    import inspect
-
     assert list(inspect.signature(inspect_message).parameters) == ["message"]
     assert list(inspect.signature(prepare_message).parameters) == [
         "message",

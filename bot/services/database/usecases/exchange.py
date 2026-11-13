@@ -25,6 +25,77 @@ class ExchangeContext:
     logger: logging.Logger
 
 
+async def _persist_exchange(
+    context: ExchangeContext,
+    user_id: int,
+    user_text: str,
+    assistant_text: str,
+    saved_files: list[Path],
+) -> None:
+    """Persists the messages and media in one transaction."""
+    async with context.lock:
+        transaction_started = False
+        try:
+            await context.connection.execute("BEGIN IMMEDIATE")
+            transaction_started = True
+
+            cursor = await context.connection.execute(
+                """
+                INSERT INTO messages(user_id, role, content)
+                VALUES (?, 'user', ?)
+                """,
+                (user_id, user_text),
+            )
+            user_message_id = cursor.lastrowid
+
+            for image_path in saved_files:
+                await context.connection.execute(
+                    """
+                    INSERT INTO message_media(
+                        message_id,
+                        file_path,
+                        mime_type
+                    )
+                    VALUES (?, ?, 'image/jpeg')
+                    """,
+                    (user_message_id, str(image_path)),
+                )
+
+            await context.connection.execute(
+                """
+                INSERT INTO messages(user_id, role, content)
+                VALUES (?, 'assistant', ?)
+                """,
+                (user_id, assistant_text),
+            )
+
+            await context.connection.commit()
+            transaction_started = False
+
+        except Exception:
+            if transaction_started:
+                try:
+                    await context.connection.rollback()
+                except aiosqlite.Error:
+                    context.logger.exception("Database rollback failed")
+            raise
+
+
+async def _remove_saved_files(
+    context: ExchangeContext,
+    saved_files: list[Path],
+) -> None:
+    """Removes saved images after a failed exchange."""
+    for image_path in saved_files:
+        try:
+            await asyncio.to_thread(delete_image, image_path)
+        except OSError:
+            context.logger.exception(
+                "Could not remove image after failed exchange: %s",
+                image_path,
+            )
+
+
 async def add_exchange(
     context: ExchangeContext,
     user_id: int,
@@ -41,71 +112,24 @@ async def add_exchange(
     saved_files: list[Path] = []
 
     try:
-        # Сохраняем изображения, не блокируя event loop.
+        # Save images without blocking the event loop.
         for image_data in media or []:
             filename = f"{uuid.uuid4().hex}.jpg"
             image_path = context.images_dir / filename
             saved_files.append(image_path)
             await asyncio.to_thread(save_image, image_path, image_data)
 
-        # Защищаем всю транзакцию и использование общего соединения.
-        async with context.lock:
-            transaction_started = False
-            try:
-                await context.connection.execute("BEGIN IMMEDIATE")
-                transaction_started = True
-
-                cursor = await context.connection.execute(
-                    """
-                    INSERT INTO messages(user_id, role, content)
-                    VALUES (?, 'user', ?)
-                    """,
-                    (user_id, user_text),
-                )
-                user_message_id = cursor.lastrowid
-
-                for image_path in saved_files:
-                    await context.connection.execute(
-                        """
-                        INSERT INTO message_media(
-                            message_id,
-                            file_path,
-                            mime_type
-                        )
-                        VALUES (?, ?, 'image/jpeg')
-                        """,
-                        (user_message_id, str(image_path)),
-                    )
-
-                await context.connection.execute(
-                    """
-                    INSERT INTO messages(user_id, role, content)
-                    VALUES (?, 'assistant', ?)
-                    """,
-                    (user_id, assistant_text),
-                )
-
-                await context.connection.commit()
-                transaction_started = False
-
-            except Exception:
-                if transaction_started:
-                    try:
-                        await context.connection.rollback()
-                    except aiosqlite.Error:
-                        context.logger.exception("Database rollback failed")
-                raise
+        await _persist_exchange(
+            context,
+            user_id,
+            user_text,
+            assistant_text,
+            saved_files,
+        )
 
     except Exception as error:
-        # Компенсируем неудачную запись удалением уже сохранённых файлов.
-        for image_path in saved_files:
-            try:
-                await asyncio.to_thread(delete_image, image_path)
-            except OSError:
-                context.logger.exception(
-                    "Could not remove image after failed exchange: %s",
-                    image_path,
-                )
+        # Compensate for a failed write by deleting saved files.
+        await _remove_saved_files(context, saved_files)
 
         if isinstance(error, aiosqlite.Error):
             context.logger.exception("Could not save message exchange")

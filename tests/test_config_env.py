@@ -1,6 +1,8 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
+import importlib
+
 import pytest
 
 from bot.config.env import get_bool, get_optional_int
@@ -42,12 +44,9 @@ def test_get_bool_rejects_invalid_value(monkeypatch):
 
 
 def test_config_loads_env_from_project_root_only(monkeypatch):
-    import importlib
-
-    import dotenv
-
-    import bot.config as config_module
-    from bot.config.paths import PROJECT_ROOT
+    dotenv = importlib.import_module("dotenv")
+    config_module = importlib.import_module("bot.config")
+    project_root = importlib.import_module("bot.config.paths").PROJECT_ROOT
 
     loaded_paths = []
     original_load_dotenv = dotenv.load_dotenv
@@ -59,7 +58,7 @@ def test_config_loads_env_from_project_root_only(monkeypatch):
 
     importlib.reload(config_module)
 
-    assert loaded_paths == [PROJECT_ROOT / ".env"]
+    assert loaded_paths == [project_root / ".env"]
     # Keep the reloaded package free of the test spy after monkeypatch teardown.
     config_module.load_dotenv = original_load_dotenv
 
@@ -87,6 +86,6 @@ def test_get_optional_int_rejects_invalid_values(monkeypatch, value):
 
 
 def test_stream_update_interval_is_not_an_environment_setting():
-    from bot.config.settings import Config
+    config_class = importlib.import_module("bot.config.settings").Config
 
-    assert not hasattr(Config, "STREAM_UPDATE_INTERVAL")
+    assert not hasattr(config_class, "STREAM_UPDATE_INTERVAL")

@@ -5,6 +5,7 @@
 
 import asyncio
 import importlib
+import logging
 import sys
 import types
 from types import SimpleNamespace
@@ -367,16 +368,13 @@ def test_bootstrap_main_calls_components_in_order(monkeypatch):
 
 
 def test_main_module_is_a_thin_compatible_entrypoint():
-    import bot.main as main_module
-    from bot.app.background.image_cleanup import (
-        IMAGE_CLEANUP_INTERVAL,
-        periodic_image_cleanup,
-    )
-    from bot.app.bootstrap import main
+    main_module = importlib.import_module("bot.main")
+    image_cleanup = importlib.import_module("bot.app.background.image_cleanup")
+    bootstrap = importlib.import_module("bot.app.bootstrap")
 
-    assert main_module.main is main
-    assert main_module.periodic_image_cleanup is periodic_image_cleanup
-    assert main_module.IMAGE_CLEANUP_INTERVAL == IMAGE_CLEANUP_INTERVAL
+    assert main_module.main is bootstrap.main
+    assert main_module.periodic_image_cleanup is image_cleanup.periodic_image_cleanup
+    assert main_module.IMAGE_CLEANUP_INTERVAL == image_cleanup.IMAGE_CLEANUP_INTERVAL
 
 
 @pytest.mark.parametrize(
@@ -400,10 +398,8 @@ def test_main_module_is_a_thin_compatible_entrypoint():
 def test_log_access_mode_reports_configured_mode(
     monkeypatch, caplog, allow_all, allowed_users, expected_message, expected_level
 ):
-    import logging
-
-    from bot.app import bootstrap
-    from bot.config import config
+    bootstrap = importlib.import_module("bot.app.bootstrap")
+    config = importlib.import_module("bot.config").config
 
     monkeypatch.setattr(config, "ALLOW_ALL_USERS", allow_all)
     monkeypatch.setattr(config, "ALLOWED_USERS", allowed_users)

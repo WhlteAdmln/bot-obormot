@@ -7,6 +7,7 @@
 непосредственно во время импорта модулей.
 """
 
+import importlib
 import os
 
 _TEST_ENV = {
@@ -52,8 +53,8 @@ async def test_db(tmp_path, monkeypatch):
     тестовым модулям, а не только test_database.py.
     """
     # Импорты выполняются после настройки тестовых переменных выше.
-    from bot.config import config
-    from bot.services.database import Database
+    config = importlib.import_module("bot.config").config
+    database_class = importlib.import_module("bot.services.database").Database
 
     monkeypatch.setattr(
         config,
@@ -64,7 +65,7 @@ async def test_db(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "ADMIN_IDS", set())
     monkeypatch.setattr(config, "DEFAULT_SYSTEM_PROMPT", "Тестовый промпт")
 
-    database = Database()
+    database = database_class()
     await database.connect()
 
     try:

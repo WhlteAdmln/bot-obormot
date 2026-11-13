@@ -1,6 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
+import importlib
 import json
 import logging
 from types import SimpleNamespace
@@ -207,7 +208,7 @@ async def test_transcribe_audio_sends_bearer_api_key(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_transcribe_audio_rejects_oversized_response(monkeypatch):
-    import bot.services.audio.client as audio_client
+    audio_client = importlib.import_module("bot.services.audio.client")
 
     monkeypatch.setattr(config, "WHISPER_API_URL", "http://whisper.test")
     monkeypatch.setattr(audio_client, "MAX_SERVICE_RESPONSE_BYTES", 10)
@@ -445,7 +446,7 @@ async def test_process_document_sends_bearer_api_key(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_process_document_rejects_oversized_response(monkeypatch):
-    import bot.services.documents.client as documents_client
+    documents_client = importlib.import_module("bot.services.documents.client")
 
     monkeypatch.setattr(config, "DOCUMENT_API_URL", "http://documents.test")
     monkeypatch.setattr(documents_client, "MAX_SERVICE_RESPONSE_BYTES", 10)
@@ -536,9 +537,9 @@ async def test_process_document_maps_timeout_and_connection_errors(monkeypatch):
         raise TimeoutError
 
     monkeypatch.setattr(aiohttp, "ClientSession", timeout_session)
-    from bot.errors import DocumentTimeoutError
+    document_timeout_error = importlib.import_module("bot.errors").DocumentTimeoutError
 
-    with pytest.raises(DocumentTimeoutError, match="timed out"):
+    with pytest.raises(document_timeout_error, match="timed out"):
         await process_document(b"data", "file.pdf")
 
     def failed_session(**kwargs):

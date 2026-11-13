@@ -6,6 +6,7 @@
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from typing import TypeVar
 
 from aiogram.types import Message
@@ -27,6 +28,19 @@ Downloader = Callable[[Message, str], Awaitable[bytes]]
 AnimationExtractor = Callable[[bytes, str], Awaitable[list[bytes]]]
 ImagePreparer = Callable[[bytes], str]
 ContactSheetBuilder = Callable[[list[bytes]], bytes]
+
+
+@dataclass(frozen=True)
+class MediaPipelineOptions:
+    """Dependencies for media downloading and image preparation."""
+
+    downloader: Downloader = download_telegram_file
+    animation_extractor: AnimationExtractor = extract_animation_frames
+    image_preparer: ImagePreparer = prepare_image
+    contact_sheet_builder: ContactSheetBuilder = build_contact_sheet
+
+
+_DEFAULT_MEDIA_PIPELINE_OPTIONS: MediaPipelineOptions = MediaPipelineOptions()
 
 
 async def _run_limited(func: Callable[..., _T], *args: object) -> _T:
@@ -56,26 +70,23 @@ async def process_media(
     media_type: str,
     file_id: str,
     *,
-    downloader: Downloader = download_telegram_file,
-    animation_extractor: AnimationExtractor = extract_animation_frames,
-    image_preparer: ImagePreparer = prepare_image,
-    contact_sheet_builder: ContactSheetBuilder = build_contact_sheet,
+    options: MediaPipelineOptions = _DEFAULT_MEDIA_PIPELINE_OPTIONS,
 ) -> list[str]:
     """Скачивает и преобразует медиа в изображения для LLM."""
-    data = await downloader(message, file_id)
+    data = await options.downloader(message, file_id)
     verify_declared_type(data, media_type)
 
     try:
         if media_type == "image":
-            return [await _run_limited(image_preparer, data)]
+            return [await _run_limited(options.image_preparer, data)]
 
-        frames = await animation_extractor(data, media_type)
+        frames = await options.animation_extractor(data, media_type)
         _ensure_frames(frames)
 
         # Передаём Vision-модели один монтаж с нумерованными кадрами,
         # а не несколько независимых image_url-частей.
-        contact_sheet = await _run_limited(contact_sheet_builder, frames)
-        prepared_image = await _run_limited(image_preparer, contact_sheet)
+        contact_sheet = await _run_limited(options.contact_sheet_builder, frames)
+        prepared_image = await _run_limited(options.image_preparer, contact_sheet)
 
     except MediaError:
         raise

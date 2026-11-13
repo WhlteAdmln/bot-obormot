@@ -6,6 +6,7 @@
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from typing import Any
 
 from aiogram.types import Message
@@ -25,6 +26,22 @@ Formatter = Callable[[str], str]
 Splitter = Callable[..., list[str]]
 
 
+@dataclass(frozen=True)
+class StreamingResponderOptions:
+    """Configuration for streaming display thresholds and formatting."""
+
+    formatter: Formatter = format_roleplay
+    splitter: Splitter = split_formatted_message
+    token_threshold: int = STREAM_TOKEN_THRESHOLD
+    update_interval: float = STREAM_UPDATE_INTERVAL
+    max_message_length: int = MAX_MESSAGE_LENGTH
+
+
+_DEFAULT_STREAMING_RESPONDER_OPTIONS: StreamingResponderOptions = (
+    StreamingResponderOptions()
+)
+
+
 class StreamingResponder:
     """Управляет промежуточным сообщением во время генерации LLM.
 
@@ -39,22 +56,18 @@ class StreamingResponder:
         count_text_tokens: TokenCounter,
         safe_edit: SafeEdit,
         *,
-        formatter: Formatter = format_roleplay,
-        splitter: Splitter = split_formatted_message,
-        token_threshold: int = STREAM_TOKEN_THRESHOLD,
-        update_interval: float = STREAM_UPDATE_INTERVAL,
-        max_message_length: int = MAX_MESSAGE_LENGTH,
+        options: StreamingResponderOptions = _DEFAULT_STREAMING_RESPONDER_OPTIONS,
     ) -> None:
         """Stores the dependencies and the initial streaming state."""
         self.message = message
         self.user_id = user_id
         self.count_text_tokens = count_text_tokens
         self.safe_edit = safe_edit
-        self.formatter = formatter
-        self.splitter = splitter
-        self.token_threshold = token_threshold
-        self.update_interval = update_interval
-        self.max_message_length = max_message_length
+        self.formatter = options.formatter
+        self.splitter = options.splitter
+        self.token_threshold = options.token_threshold
+        self.update_interval = options.update_interval
+        self.max_message_length = options.max_message_length
 
         self.status: Message | None = None
         self.streaming_failed = False
@@ -182,4 +195,4 @@ class StreamingResponder:
             )
 
 
-__all__ = ["StreamingResponder"]
+__all__ = ["StreamingResponder", "StreamingResponderOptions"]

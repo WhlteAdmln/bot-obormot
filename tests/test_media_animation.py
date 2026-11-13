@@ -220,10 +220,12 @@ async def test_process_media_uses_canonical_media_dependencies(monkeypatch):
         message,
         "gif",
         "file-id",
-        downloader=media.download_telegram_file,
-        animation_extractor=media.extract_animation_frames,
-        image_preparer=media.prepare_image,
-        contact_sheet_builder=fake_contact_sheet,
+        options=media_pipeline.MediaPipelineOptions(
+            downloader=media.download_telegram_file,
+            animation_extractor=media.extract_animation_frames,
+            image_preparer=media.prepare_image,
+            contact_sheet_builder=fake_contact_sheet,
+        ),
     )
 
     assert result == ["encoded:combined-frames"]
@@ -629,9 +631,11 @@ async def test_process_media_rejects_declared_type_mismatch_before_decoder():
             make_message(),
             "gif",
             "file-id",
-            downloader=fake_download,
-            animation_extractor=fake_extract,
-            image_preparer=lambda data: "unused",
+            options=media_pipeline.MediaPipelineOptions(
+                downloader=fake_download,
+                animation_extractor=fake_extract,
+                image_preparer=lambda data: "unused",
+            ),
         )
 
     assert calls == []

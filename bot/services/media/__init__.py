@@ -30,9 +30,11 @@ async def process_media(
         message,
         media_type,
         file_id,
-        downloader=download_telegram_file,
-        animation_extractor=extract_animation_frames,
-        image_preparer=prepare_image,
+        options=_pipeline.MediaPipelineOptions(
+            downloader=download_telegram_file,
+            animation_extractor=extract_animation_frames,
+            image_preparer=prepare_image,
+        ),
     )
 
 

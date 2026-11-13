@@ -5,6 +5,7 @@
 
 import logging
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from typing import Any
 
 from aiogram.types import Message
@@ -19,22 +20,32 @@ Splitter = Callable[..., list[str]]
 SafeEdit = Callable[[Any, str], Awaitable[None]]
 
 
+@dataclass(frozen=True)
+class DeliveryOptions:
+    """Configuration for final response formatting and delivery."""
+
+    formatter: Formatter = format_roleplay
+    splitter: Splitter = split_formatted_message
+    max_message_length: int = MAX_MESSAGE_LENGTH
+    user_id: int | None = None
+
+
+_DEFAULT_DELIVERY_OPTIONS: DeliveryOptions = DeliveryOptions()
+
+
 async def deliver_final_response(
     message: Message,
     response: str,
     status: Message | None,
     safe_edit: SafeEdit,
     *,
-    formatter: Formatter = format_roleplay,
-    splitter: Splitter = split_formatted_message,
-    max_message_length: int = MAX_MESSAGE_LENGTH,
-    user_id: int | None = None,
+    options: DeliveryOptions = _DEFAULT_DELIVERY_OPTIONS,
 ) -> None:
     """Форматирует и доставляет итоговый ответ с прежним fallback-поведением."""
-    formatted_response = formatter(response)
-    response_chunks = splitter(
+    formatted_response = options.formatter(response)
+    response_chunks = options.splitter(
         formatted_response,
-        max_length=max_message_length,
+        max_length=options.max_message_length,
     )
 
     if not response_chunks:
@@ -67,7 +78,7 @@ async def deliver_final_response(
         logger.warning(
             "Could not finalize streaming response for user_id=%s. "
             "Sending complete response again.",
-            user_id,
+            options.user_id,
             exc_info=True,
         )
 
@@ -79,4 +90,4 @@ async def deliver_final_response(
             )
 
 
-__all__ = ["deliver_final_response"]
+__all__ = ["DeliveryOptions", "deliver_final_response"]

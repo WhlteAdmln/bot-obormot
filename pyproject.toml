@@ -68,13 +68,10 @@ max-branches = 12
 
 # DEBT: remove
 "bot/services/chat/formatting/splitter.py" = ["C901"]
-"bot/services/chat/input/user_content.py" = ["PLR0913"]
-"bot/services/chat/streaming/delivery.py" = ["PLR0913"]
-"bot/services/chat/streaming/responder.py" = ["C901", "PLR0913"]
+"bot/services/chat/streaming/responder.py" = ["C901"]
 "bot/services/database/usecases/cleanup.py" = ["C901"]
-"bot/services/database/usecases/exchange.py" = ["C901", "PLR0913"]
+"bot/services/database/usecases/exchange.py" = ["C901"]
 "bot/services/database/usecases/history.py" = ["C901"]
-"bot/services/media/pipeline.py" = ["PLR0913"]
 "tests/test_chat_handler.py" = ["C901"]
 
 [tool.coverage.run]

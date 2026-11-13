@@ -34,10 +34,10 @@ from bot.services.database.repositories import (
     user_settings as user_settings_repository,
 )
 from bot.services.database.schema import create_schema
+from bot.services.database.usecases import exchange as exchange_usecase
 from bot.services.database.usecases.cleanup import (
     cleanup_old_images as cleanup_old_images_usecase,
 )
-from bot.services.database.usecases.exchange import add_exchange as add_exchange_usecase
 from bot.services.database.usecases.history import (
     get_history as get_history_usecase,
 )
@@ -130,15 +130,17 @@ class Database:
         media: list[bytes] | None = None,
     ) -> None:
         """Атомарно сохраняет обмен сообщениями и изображения."""
-        await add_exchange_usecase(
-            self.connection,
-            self._lock,
-            self.images_dir,
+        await exchange_usecase.add_exchange(
+            exchange_usecase.ExchangeContext(
+                connection=self.connection,
+                lock=self._lock,
+                images_dir=self.images_dir,
+                logger=logger,
+            ),
             user_id,
             user_text,
             assistant_text=assistant_text,
             media=media,
-            logger=logger,
         )
 
     @handle_database_errors

@@ -24,6 +24,8 @@ from bot.services.chat.streaming import (
     StreamingResponder,
     deliver_final_response,
 )
+from bot.services.chat.streaming.delivery import DeliveryOptions
+from bot.services.chat.streaming.responder import StreamingResponderOptions
 from bot.services.llm import llm_client
 from bot.services.telegram.chat_action import keep_typing
 
@@ -74,8 +76,10 @@ async def handle_message(message: Message) -> None:
             user_id=user_id,
             count_text_tokens=llm_client.count_text_tokens,
             safe_edit=safe_edit,
-            formatter=format_roleplay,
-            splitter=split_formatted_message,
+            options=StreamingResponderOptions(
+                formatter=format_roleplay,
+                splitter=split_formatted_message,
+            ),
         )
         typing_task = asyncio.create_task(keep_typing(message))
 
@@ -102,10 +106,12 @@ async def handle_message(message: Message) -> None:
                 response=response,
                 status=responder.status,
                 safe_edit=safe_edit,
-                formatter=format_roleplay,
-                splitter=split_formatted_message,
-                max_message_length=MAX_MESSAGE_LENGTH,
-                user_id=user_id,
+                options=DeliveryOptions(
+                    formatter=format_roleplay,
+                    splitter=split_formatted_message,
+                    max_message_length=MAX_MESSAGE_LENGTH,
+                    user_id=user_id,
+                ),
             )
 
         except asyncio.CancelledError:

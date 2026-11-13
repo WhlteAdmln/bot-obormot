@@ -7,8 +7,14 @@ from types import SimpleNamespace
 
 import pytest
 
-from bot.services.chat.streaming.delivery import deliver_final_response
-from bot.services.chat.streaming.responder import StreamingResponder
+from bot.services.chat.streaming.delivery import (
+    DeliveryOptions,
+    deliver_final_response,
+)
+from bot.services.chat.streaming.responder import (
+    StreamingResponder,
+    StreamingResponderOptions,
+)
 from bot.services.chat.streaming.settings import (
     MAX_MESSAGE_LENGTH,
     STREAM_TOKEN_THRESHOLD,
@@ -50,11 +56,13 @@ def _responder(
         user_id=42,
         count_text_tokens=count or default_count,
         safe_edit=safe_edit or default_edit,
-        formatter=lambda text: text,
-        splitter=_split,
-        token_threshold=token_threshold,
-        update_interval=update_interval,
-        max_message_length=3900,
+        options=StreamingResponderOptions(
+            formatter=lambda text: text,
+            splitter=_split,
+            token_threshold=token_threshold,
+            update_interval=update_interval,
+            max_message_length=3900,
+        ),
     )
 
 
@@ -231,9 +239,11 @@ async def test_delivery_sends_all_chunks_without_streaming_status():
         response="abcdefgh",
         status=None,
         safe_edit=lambda *_args: None,
-        formatter=lambda text: text,
-        splitter=_split,
-        max_message_length=3,
+        options=DeliveryOptions(
+            formatter=lambda text: text,
+            splitter=_split,
+            max_message_length=3,
+        ),
     )
 
     assert message.answers == [
@@ -257,10 +267,12 @@ async def test_delivery_edits_first_chunk_and_sends_remaining_chunks():
         response="abcdefgh",
         status=status,
         safe_edit=safe_edit,
-        formatter=lambda text: text,
-        splitter=_split,
-        max_message_length=3,
-        user_id=42,
+        options=DeliveryOptions(
+            formatter=lambda text: text,
+            splitter=_split,
+            max_message_length=3,
+            user_id=42,
+        ),
     )
 
     assert edits == [(status, "abc")]
@@ -284,10 +296,12 @@ async def test_delivery_falls_back_to_all_chunks_when_status_edit_fails(caplog):
             response="abcdef",
             status=object(),
             safe_edit=broken_edit,
-            formatter=lambda text: text,
-            splitter=_split,
-            max_message_length=3,
-            user_id=42,
+            options=DeliveryOptions(
+                formatter=lambda text: text,
+                splitter=_split,
+                max_message_length=3,
+                user_id=42,
+            ),
         )
 
     assert message.answers == [
@@ -306,8 +320,9 @@ async def test_delivery_does_nothing_for_empty_formatted_response():
         response="anything",
         status=None,
         safe_edit=lambda *_args: None,
-        formatter=lambda _text: "",
-        splitter=_split,
+        options=DeliveryOptions(
+            formatter=lambda _text: "",
+        ),
     )
 
     assert message.answers == []
@@ -323,8 +338,10 @@ async def test_delivery_splits_response_longer_than_telegram_message_limit():
         response=response,
         status=None,
         safe_edit=lambda *_args: None,
-        formatter=lambda text: text,
-        splitter=_split,
+        options=DeliveryOptions(
+            formatter=lambda text: text,
+            splitter=_split,
+        ),
     )
 
     assert [len(text) for text, _kwargs in message.answers] == [3900, 1]

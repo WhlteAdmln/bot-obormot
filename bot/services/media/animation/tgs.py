@@ -3,6 +3,7 @@
 
 """Безопасная проверка и извлечение кадров Telegram TGS."""
 
+import importlib
 import json
 import tempfile
 import zlib
@@ -74,13 +75,13 @@ def extract_tgs(data: bytes) -> list[bytes]:
 
     # rlottie — нативный декодер. Импортируем его только после проверки,
     # чтобы некорректные и чрезмерно большие данные до него не доходили.
-    from rlottie_python import LottieAnimation
+    lottie_animation_class = importlib.import_module("rlottie_python").LottieAnimation
 
     with tempfile.TemporaryDirectory() as temp_dir:
         path = Path(temp_dir) / "sticker.tgs"
         path.write_bytes(data)
 
-        with LottieAnimation.from_tgs(str(path)) as animation:
+        with lottie_animation_class.from_tgs(str(path)) as animation:
             total = animation.lottie_animation_get_totalframe()
 
             if total <= 0:

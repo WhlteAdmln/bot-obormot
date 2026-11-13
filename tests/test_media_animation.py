@@ -11,6 +11,7 @@ import struct
 import threading
 import time
 import warnings
+from contextlib import AbstractContextManager, nullcontext
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -21,6 +22,7 @@ from bot.errors import MediaError
 from bot.services import media
 from bot.services.media import animation
 from bot.services.media import pipeline as media_pipeline
+from bot.services.media.animation import tgs
 from bot.services.media.animation.gif import extract_gif
 from bot.services.media.animation.sampling import sample_frame_indices
 
@@ -370,42 +372,38 @@ async def test_run_limited_caps_concurrent_image_jobs(monkeypatch):
 
 # TGS security checks: validate compressed data before it reaches rlottie.
 def test_validate_tgs_accepts_bounded_gzip_json():
-    from bot.services.media.animation.tgs import validate_tgs
-
     data = gzip.compress(json.dumps({"w": 512, "h": 512}).encode("utf-8"))
 
-    validate_tgs(data)
+    tgs.validate_tgs(data)
 
 
 def test_validate_tgs_rejects_gzip_decompression_bomb():
-    from bot.services.media.animation.tgs import MAX_TGS_JSON, validate_tgs
+    from bot.services.media.animation.tgs import MAX_TGS_JSON
 
     data = gzip.compress(b"0" * (MAX_TGS_JSON + 1))
 
     with pytest.raises(MediaError, match="после распаковки"):
-        validate_tgs(data)
+        tgs.validate_tgs(data)
 
 
 def test_validate_tgs_rejects_compressed_data_over_limit():
-    from bot.services.media.animation.tgs import MAX_TGS_COMPRESSED, validate_tgs
+    from bot.services.media.animation.tgs import MAX_TGS_COMPRESSED
 
     data = os.urandom(MAX_TGS_COMPRESSED + 1)
 
     with pytest.raises(MediaError, match="Стикер слишком большой"):
-        validate_tgs(data)
+        tgs.validate_tgs(data)
 
 
 def test_validate_tgs_rejects_invalid_gzip_and_trailing_data():
-    from bot.services.media.animation.tgs import validate_tgs
-
     with pytest.raises(MediaError, match="Некорректный файл"):
-        validate_tgs(b"not-a-gzip-file")
+        tgs.validate_tgs(b"not-a-gzip-file")
 
     valid = gzip.compress(json.dumps({"w": 512, "h": 512}).encode("utf-8"))
     with pytest.raises(MediaError, match="Некорректный файл"):
-        validate_tgs(valid + b"trailing-data")
+        tgs.validate_tgs(valid + b"trailing-data")
     with pytest.raises(MediaError, match="Некорректный файл"):
-        validate_tgs(valid[:-3])
+        tgs.validate_tgs(valid[:-3])
 
 
 @pytest.mark.parametrize(
@@ -420,19 +418,54 @@ def test_validate_tgs_rejects_invalid_gzip_and_trailing_data():
     ],
 )
 def test_validate_tgs_rejects_invalid_canvas(document):
-    from bot.services.media.animation.tgs import validate_tgs
-
     data = gzip.compress(json.dumps(document).encode("utf-8"))
 
     with pytest.raises(MediaError, match="размер анимации"):
-        validate_tgs(data)
+        tgs.validate_tgs(data)
 
 
-def test_extract_tgs_validates_before_importing_rlottie():
-    from bot.services.media.animation.tgs import extract_tgs
+def test_extract_tgs_validates_before_importing_rlottie(monkeypatch):
+    imported_modules: list[str] = []
+    monkeypatch.setattr(tgs.importlib, "import_module", imported_modules.append)
 
     with pytest.raises(MediaError, match="Некорректный файл"):
-        extract_tgs(b"not-a-gzip-file")
+        tgs.extract_tgs(b"not-a-gzip-file")
+
+    assert imported_modules == []
+
+
+def test_extract_tgs_imports_rlottie_for_valid_animation(monkeypatch):
+    def get_total_frames() -> int:
+        return 1
+
+    def render_frame(frame_num: int) -> Image.Image:
+        return Image.new("RGB", (1, 1))
+
+    fake_animation = SimpleNamespace(
+        lottie_animation_get_totalframe=get_total_frames,
+        render_pillow_frame=render_frame,
+    )
+
+    def fake_from_tgs(_path: str) -> AbstractContextManager[SimpleNamespace]:
+        return nullcontext(fake_animation)
+
+    imports: list[str] = []
+
+    def fake_import_module(name: str) -> SimpleNamespace:
+        imports.append(name)
+        return SimpleNamespace(
+            LottieAnimation=SimpleNamespace(from_tgs=fake_from_tgs),
+        )
+
+    monkeypatch.setattr(tgs.importlib, "import_module", fake_import_module)
+    data = gzip.compress(json.dumps({"w": 512, "h": 512}).encode("utf-8"))
+
+    frames = tgs.extract_tgs(data)
+
+    assert imports == ["rlottie_python"]
+    assert len(frames) == 1
+    with Image.open(io.BytesIO(frames[0])) as image:
+        assert image.format == "JPEG"
 
 
 def test_video_container_sniffer_accepts_webm_and_mp4():

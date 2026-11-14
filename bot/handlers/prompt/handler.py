@@ -4,6 +4,7 @@
 """Handlers for viewing, changing and resetting the personal system prompt."""
 
 import logging
+from typing import TYPE_CHECKING, Any, cast
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramAPIError
@@ -14,6 +15,9 @@ from aiogram.types import Message
 from bot.fsm.keys import PROMPT_FLOW_KEY, PROMPT_STATUS_MESSAGE_KEY
 from bot.fsm.states import PromptStates
 from bot.services.database import db
+
+if TYPE_CHECKING:
+    from aiogram import Bot
 
 logger = logging.getLogger("bot.handlers.prompt.handler")
 router = Router()
@@ -54,9 +58,11 @@ async def delete_prompt_messages(
 
     await state.clear()
 
+    bot = cast("Bot", message.bot)
+
     for message_id in sorted(message_ids, reverse=True):
         try:
-            await message.bot.delete_message(
+            await bot.delete_message(
                 chat_id=message.chat.id,
                 message_id=message_id,
             )
@@ -77,13 +83,17 @@ async def send_prompt_status(
     """Отправляет временное уведомление и запоминает его ID."""
     response = await message.answer(text)
 
-    await state.update_data(**{PROMPT_STATUS_MESSAGE_KEY: response.message_id})
+    data: dict[str, Any] = {PROMPT_STATUS_MESSAGE_KEY: response.message_id}
+    await state.update_data(**data)
 
 
 async def show_prompt(message: Message, state: FSMContext) -> None:
     """Показывает текущий системный промпт."""
     await state.clear()
     await track_message(state, message)
+
+    if message.from_user is None:
+        return
 
     user_id = message.from_user.id
     user_prompt = await db.get_user_system_prompt(user_id)
@@ -132,6 +142,9 @@ async def cmd_prompt_set(message: Message, state: FSMContext) -> None:
 )
 async def save_prompt(message: Message, state: FSMContext) -> None:
     """Validates and saves the personal system prompt sent by the user."""
+    if message.text is None or message.from_user is None:
+        return
+
     prompt = message.text.strip()
 
     if not prompt:
@@ -170,6 +183,9 @@ async def save_prompt(message: Message, state: FSMContext) -> None:
 
 async def reset_prompt(message: Message, state: FSMContext) -> None:
     """Сбрасывает персональный промпт и очищает технические сообщения."""
+    if message.from_user is None:
+        return
+
     user_id = message.from_user.id
     user_prompt = await db.get_user_system_prompt(user_id)
 

@@ -18,6 +18,9 @@ router = Router()
 @router.message(Command("history_clear"))
 async def cmd_history_clear(message: Message, state: FSMContext) -> None:
     """Clears the dialog history of the user."""
+    if message.from_user is None:
+        return
+
     await db.reset_history(message.from_user.id)
 
     await send_prompt_status(
@@ -30,6 +33,9 @@ async def cmd_history_clear(message: Message, state: FSMContext) -> None:
 @router.message(Command("forget_me"))
 async def cmd_forget_me(message: Message, state: FSMContext) -> None:
     """Полностью удаляет сохранённые данные пользователя."""
+    if message.from_user is None:
+        return
+
     await db.forget_user(message.from_user.id)
 
     await send_prompt_status(
@@ -41,6 +47,9 @@ async def cmd_forget_me(message: Message, state: FSMContext) -> None:
 
 async def show_history_limit(message: Message, state: FSMContext) -> None:
     """Показывает текущий лимит истории временным сообщением."""
+    if message.from_user is None:
+        return
+
     user_id = message.from_user.id
     current_limit = await db.get_history_limit(user_id)
 

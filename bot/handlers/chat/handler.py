@@ -45,9 +45,12 @@ async def handle_message(message: Message) -> None:
     if not info.has_content:
         return
 
+    if message.from_user is None:
+        return
+
     user_id = message.from_user.id
 
-    aggregated_text = None
+    aggregated_text: str | None = None
 
     # Объединяем только обычные текстовые сообщения.
     # Медиа, аудио и документы остаются без изменений.

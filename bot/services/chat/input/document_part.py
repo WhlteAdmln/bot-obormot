@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from bot.errors import DocumentAPIError, DocumentTooLongError
 from bot.services.documents import process_document
@@ -16,7 +16,7 @@ from bot.utils.text import log_safe
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
-    from aiogram.types import Message
+    from aiogram.types import Document, Message
 
     from bot.services.chat.input.models import MessageInfo
 
@@ -37,7 +37,8 @@ async def prepare_document(
     if document_processor is None:
         document_processor = process_document
 
-    document = info.document
+    # has_document is only set when the message carries a document.
+    document = cast("Document", info.document)
 
     logger.info(
         "DOCUMENT: начинаю скачивание: %s",

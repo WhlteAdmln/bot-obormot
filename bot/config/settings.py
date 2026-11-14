@@ -32,7 +32,7 @@ class Config:
     ALLOWED_USERS = parse_ids("ALLOWED_USERS")
 
     # Если True, бот открыт всем. По умолчанию доступ закрыт.
-    ALLOW_ALL_USERS = get_bool("ALLOW_ALL_USERS", False)
+    ALLOW_ALL_USERS = get_bool("ALLOW_ALL_USERS", default=False)
 
     LLM_BASE_URL = os.getenv(
         "LLM_BASE_URL",

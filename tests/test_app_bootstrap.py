@@ -8,12 +8,13 @@ import importlib
 import logging
 import sys
 import types
+from collections.abc import Iterator
 from types import SimpleNamespace
 
 import pytest
 
 
-def _module(name: str, **attributes):
+def _module(name: str, **attributes: object) -> types.ModuleType:
     result = types.ModuleType(name)
     for key, value in attributes.items():
         setattr(result, key, value)
@@ -21,14 +22,18 @@ def _module(name: str, **attributes):
 
 
 @pytest.fixture
-def router_dependencies(monkeypatch):
+def router_dependencies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Iterator[tuple[object, ...]]:
+    """Router dependencies."""
+
     class FakeDispatcher:
-        def __init__(self):
+        def __init__(self) -> None:
             self.middleware_calls = []
             self.routers = []
             self.message = SimpleNamespace(middleware=self.middleware_calls.append)
 
-        def include_router(self, router):
+        def include_router(self, router: object) -> None:
             self.routers.append(router)
 
     class FakeAccessMiddleware:
@@ -89,8 +94,9 @@ def router_dependencies(monkeypatch):
 
 
 def test_dispatcher_registers_middlewares_and_routers_once_in_original_order(
-    router_dependencies,
-):
+    router_dependencies: tuple[object, ...],
+) -> None:
+    """Dispatcher registers middlewares and routers once in original order."""
     (
         fake_dispatcher,
         fake_throttle_middleware,
@@ -118,16 +124,17 @@ def test_dispatcher_registers_middlewares_and_routers_once_in_original_order(
 
 
 def test_periodic_cleanup_uses_existing_policy_and_propagates_cancellation(
-    monkeypatch,
-):
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Periodic cleanup uses existing policy and propagates cancellation."""
     calls = []
 
     class FakeDatabase:
-        async def cleanup_old_images(self, **kwargs):
+        async def cleanup_old_images(self, **kwargs: object) -> dict[str, object]:
             calls.append(kwargs)
             return {"old_images": 1, "orphan_images": 2, "failed": 0}
 
-    async def stop_after_first_iteration(_delay):
+    async def stop_after_first_iteration(_delay: object) -> None:
         raise asyncio.CancelledError
 
     monkeypatch.setitem(
@@ -149,18 +156,21 @@ def test_periodic_cleanup_uses_existing_policy_and_propagates_cancellation(
 
 
 @pytest.fixture
-def lifecycle_dependencies(monkeypatch):
+def lifecycle_dependencies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Iterator[tuple[object, ...]]:
+    """Lifecycle dependencies."""
     calls = []
 
     class FakeBot:
-        def __init__(self):
-            async def close_session():
+        def __init__(self) -> None:
+            async def close_session() -> None:
                 calls.append("telegram.close")
 
             self.session = SimpleNamespace(close=close_session)
 
     class FakeDispatcher:
-        async def start_polling(self, bot, **kwargs):
+        async def start_polling(self, bot: object, **kwargs: object) -> None:
             assert isinstance(bot, FakeBot)
             assert kwargs == {"close_bot_session": False}
             calls.append("polling")
@@ -168,20 +178,20 @@ def lifecycle_dependencies(monkeypatch):
             await asyncio.sleep(0)
 
     class FakeDatabase:
-        async def connect(self):
+        async def connect(self) -> None:
             calls.append("db.connect")
 
-        async def close(self):
+        async def close(self) -> None:
             calls.append("db.close")
 
     class FakeLLM:
-        async def start(self):
+        async def start(self) -> None:
             calls.append("llm.start")
 
-        async def close(self):
+        async def close(self) -> None:
             calls.append("llm.close")
 
-    async def fake_periodic_cleanup():
+    async def fake_periodic_cleanup() -> None:
         calls.append("cleanup.start")
         try:
             await asyncio.Future()
@@ -223,13 +233,14 @@ def lifecycle_dependencies(monkeypatch):
     sys.modules.pop("bot.app.lifecycle", None)
 
 
-def _async_call(calls, value):
+def _async_call(calls: object, value: object) -> None:
     calls.append(value)
 
 
 def test_lifecycle_preserves_startup_polling_and_shutdown_order(
-    lifecycle_dependencies,
-):
+    lifecycle_dependencies: tuple[object, ...],
+) -> None:
+    """Lifecycle preserves startup polling and shutdown order."""
     fake_bot, fake_dispatcher, calls, lifecycle = lifecycle_dependencies
 
     asyncio.run(lifecycle.run_application(fake_bot(), fake_dispatcher()))
@@ -247,11 +258,12 @@ def test_lifecycle_preserves_startup_polling_and_shutdown_order(
 
 
 def test_lifecycle_closes_remaining_resources_when_startup_fails(
-    lifecycle_dependencies,
-):
+    lifecycle_dependencies: tuple[object, ...],
+) -> None:
+    """Lifecycle closes remaining resources when startup fails."""
     fake_bot, fake_dispatcher, calls, lifecycle = lifecycle_dependencies
 
-    async def fail_connect():
+    async def fail_connect() -> None:
         calls.append("db.connect")
         msg = "database unavailable"
         raise RuntimeError(msg)
@@ -270,11 +282,12 @@ def test_lifecycle_closes_remaining_resources_when_startup_fails(
 
 
 def test_lifecycle_continues_closing_after_one_cleanup_error(
-    lifecycle_dependencies,
-):
+    lifecycle_dependencies: tuple[object, ...],
+) -> None:
+    """Lifecycle continues closing after one cleanup error."""
     fake_bot, fake_dispatcher, calls, lifecycle = lifecycle_dependencies
 
-    async def fail_llm_close():
+    async def fail_llm_close() -> None:
         calls.append("llm.close")
         msg = "LLM close failed"
         raise RuntimeError(msg)
@@ -286,7 +299,10 @@ def test_lifecycle_continues_closing_after_one_cleanup_error(
     assert calls[-3:] == ["llm.close", "db.close", "telegram.close"]
 
 
-def test_bootstrap_main_calls_components_in_order(monkeypatch):
+def test_bootstrap_main_calls_components_in_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Bootstrap main calls components in order."""
     calls = []
     bot_instance = object()
     dispatcher_instance = object()
@@ -297,7 +313,7 @@ def test_bootstrap_main_calls_components_in_order(monkeypatch):
         _module("aiogram", Bot=object, Dispatcher=object),
     )
 
-    async def run_application(bot, dispatcher):
+    async def run_application(bot: object, dispatcher: object) -> None:
         assert bot is bot_instance
         assert dispatcher is dispatcher_instance
         calls.append("run")
@@ -367,7 +383,8 @@ def test_bootstrap_main_calls_components_in_order(monkeypatch):
     ]
 
 
-def test_main_module_is_a_thin_compatible_entrypoint():
+def test_main_module_is_a_thin_compatible_entrypoint() -> None:
+    """Main module is a thin compatible entrypoint."""
     main_module = importlib.import_module("bot.main")
     image_cleanup = importlib.import_module("bot.app.background.image_cleanup")
     bootstrap = importlib.import_module("bot.app.bootstrap")
@@ -396,8 +413,14 @@ def test_main_module_is_a_thin_compatible_entrypoint():
     ],
 )
 def test_log_access_mode_reports_configured_mode(
-    monkeypatch, caplog, allow_all, allowed_users, expected_message, expected_level
-):
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    allow_all: object,
+    allowed_users: object,
+    expected_message: str,
+    expected_level: str,
+) -> None:
+    """Log access mode reports configured mode."""
     bootstrap = importlib.import_module("bot.app.bootstrap")
     config = importlib.import_module("bot.config").config
 
@@ -414,11 +437,12 @@ def test_log_access_mode_reports_configured_mode(
 
 
 @pytest.fixture
-def bootstrap_module(monkeypatch):
+def bootstrap_module(monkeypatch: pytest.MonkeyPatch) -> Iterator[tuple[object, ...]]:
+    """Bootstrap module."""
     created_tokens = []
 
     class FakeBot:
-        def __init__(self, token):
+        def __init__(self, token: str) -> None:
             self.token = token
             created_tokens.append(token)
 
@@ -468,7 +492,10 @@ def bootstrap_module(monkeypatch):
         "123456789:" + "A" * 29,
     ],
 )
-def test_create_bot_rejects_invalid_token(bootstrap_module, monkeypatch, token):
+def test_create_bot_rejects_invalid_token(
+    bootstrap_module: tuple[object, ...], monkeypatch: pytest.MonkeyPatch, token: str
+) -> None:
+    """Create bot rejects invalid token."""
     bootstrap, created_tokens = bootstrap_module
     monkeypatch.setattr(bootstrap.config, "BOT_TOKEN", token)
 
@@ -478,7 +505,10 @@ def test_create_bot_rejects_invalid_token(bootstrap_module, monkeypatch, token):
     assert created_tokens == []
 
 
-def test_create_bot_accepts_token_with_expected_format(bootstrap_module, monkeypatch):
+def test_create_bot_accepts_token_with_expected_format(
+    bootstrap_module: tuple[object, ...], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Create bot accepts token with expected format."""
     bootstrap, created_tokens = bootstrap_module
     token = "123456789:" + "A_b-9" * 7
     monkeypatch.setattr(bootstrap.config, "BOT_TOKEN", token)

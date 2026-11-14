@@ -9,27 +9,6 @@ strict = true
 warn_unreachable = true
 enable_error_code = ["ignore-without-code", "redundant-expr"]
 
-# DEBT: remove module overrides as strict typing errors are fixed.
-[[tool.mypy.overrides]]
-module = [
-    "bot.handlers.admin.handler",
-    "bot.handlers.chat.handler",
-    "bot.handlers.fallback.handler",
-    "bot.handlers.history.basic",
-    "bot.handlers.history.limits",
-    "bot.handlers.prompt.handler",
-    "bot.handlers.start.handler",
-    "bot.middlewares.temporary_messages.middleware",
-    "bot.services.chat.input.audio_part",
-    "bot.services.chat.input.document_part",
-    "bot.services.chat.input.media_part",
-    "bot.services.chat.input.prepare",
-    "bot.services.chat.input.saved_text",
-    "bot.services.chat.input.user_content",
-    "bot.services.database.facade",
-]
-ignore_errors = true
-
 [tool.ruff]
 line-length = 88
 target-version = "py311"
@@ -63,34 +42,11 @@ max-statements = 40
 max-branches = 12
 
 [tool.ruff.lint.per-file-ignores]
-# DEBT: remove each rule as its violations are fixed.
-"bot/config/env.py" = ["FBT001", "FBT002"]
-"bot/config/settings.py" = ["FBT003"]
-"tests/test_access.py" = ["FBT002"]
-"tests/test_config_env.py" = ["FBT003"]
-"tests/test_message_preparation.py" = ["FBT003"]
+# Rules that stay off for the test suite on purpose:
+# S101 - pytest tests are written with plain asserts;
+# PLR2004 - assertions compare against literal expected values;
+# SLF001 - white-box tests read private members of the code under test.
 "tests/*" = [
-    "ANN001",
-    "ANN002",
-    "ANN003",
-    "ANN201",
-    "ANN202",
-    "ANN204",
-    "ANN205",
-    "ANN401",
-    "ARG001",
-    "ARG002",
-    "ARG005",
-    "D100",
-    "D101",
-    "D102",
-    "D103",
-    "D104",
-    "D105",
-    "D107",
-    "D202",
-    "D403",
-    "D415",
     "PLR2004",
     "S101",
     "SLF001",

@@ -8,7 +8,7 @@ import os
 import warnings
 
 
-def get_bool(name: str, default: bool = False) -> bool:
+def get_bool(name: str, *, default: bool = False) -> bool:
     """Читает логическую переменную окружения (true/false, 1/0, yes/no, on/off)."""
     value = os.getenv(name)
 

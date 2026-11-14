@@ -12,10 +12,9 @@ import asyncio
 import importlib
 import sys
 import types
-from collections.abc import Generator
+from collections.abc import AsyncIterator, Generator
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
-from typing import Any
 
 import pytest
 
@@ -67,7 +66,7 @@ def _create_chat_handler_state() -> SimpleNamespace:
 
 def _install_aiogram_stubs(monkeypatch: pytest.MonkeyPatch) -> types.ModuleType:
     class Router:
-        def message(self, *_args: Any, **_kwargs: Any) -> Any:
+        def message(self, *_args: object, **_kwargs: object) -> object:
             return lambda function: function
 
     aiogram = _install_module(monkeypatch, "aiogram", Router=Router)
@@ -124,7 +123,7 @@ def _install_lock_stub(
     lock_entered: asyncio.Event,
 ) -> None:
     @asynccontextmanager
-    async def user_lock(_user_id: int) -> Any:
+    async def user_lock(_user_id: int) -> AsyncIterator[None]:
         calls.append("lock-enter")
         lock_entered.set()
         try:
@@ -164,7 +163,7 @@ def _install_processing_stubs(
     monkeypatch: pytest.MonkeyPatch,
     state: SimpleNamespace,
 ) -> None:
-    async def process_chat(**kwargs: Any) -> Any:
+    async def process_chat(**kwargs: object) -> object:
         state.calls.append("process")
         process = state.pipeline.process
         return await process(kwargs)
@@ -189,7 +188,7 @@ def _install_reporting_stubs(
     async def safe_edit(message: object, text: str) -> None:
         state.safe_edits.append((message, text))
 
-    async def handle_error(**kwargs: Any) -> None:
+    async def handle_error(**kwargs: object) -> None:
         state.error_calls.append(kwargs)
 
     _install_module(
@@ -258,6 +257,7 @@ def _cleanup_chat_handler_package(handlers_module: types.ModuleType) -> None:
 def chat_handler(
     monkeypatch: pytest.MonkeyPatch,
 ) -> Generator[types.ModuleType, None, None]:
+    """Chat handler."""
     state = _create_chat_handler_state()
     state.aiogram = _install_aiogram_stubs(monkeypatch)
     _install_chat_service_stubs(monkeypatch, state)
@@ -270,21 +270,28 @@ def chat_handler(
 
 
 class Message:
-    def __init__(self, text="text", user_id=7):
+    """Message."""
+
+    def __init__(self, text: str = "text", user_id: int = 7) -> None:
+        """Initializes the test double."""
         self.text = text
         self.from_user = SimpleNamespace(id=user_id)
         self.answers = []
 
-    async def answer(self, text, **kwargs):
+    async def answer(self, text: str, **kwargs: object) -> SimpleNamespace:
+        """Answer."""
         self.answers.append((text, kwargs))
         return SimpleNamespace(text=text)
 
 
 @pytest.mark.asyncio
-async def test_handler_preserves_order_for_short_non_streamed_response(chat_handler):
+async def test_handler_preserves_order_for_short_non_streamed_response(
+    chat_handler: object,
+) -> None:
+    """Handler preserves order for short non streamed response."""
     message = Message()
 
-    async def process(kwargs):
+    async def process(kwargs: object) -> str:
         assert kwargs["user_id"] == 7
         assert kwargs["user_content"] == "prepared user content"
         return "короткий ответ"
@@ -310,10 +317,13 @@ async def test_handler_preserves_order_for_short_non_streamed_response(chat_hand
 
 
 @pytest.mark.asyncio
-async def test_handler_streams_long_response_and_finalizes_status(chat_handler):
+async def test_handler_streams_long_response_and_finalizes_status(
+    chat_handler: object,
+) -> None:
+    """Handler streams long response and finalizes status."""
     message = Message()
 
-    async def process(kwargs):
+    async def process(kwargs: object) -> str:
         await kwargs["on_update"]("A" * 300)
         await asyncio.sleep(0.81)
         await kwargs["on_update"]("B" * 300)
@@ -332,11 +342,12 @@ async def test_handler_streams_long_response_and_finalizes_status(chat_handler):
 
 @pytest.mark.asyncio
 async def test_handler_cancellation_updates_status_and_cleans_typing_task(
-    chat_handler,
-):
+    chat_handler: object,
+) -> None:
+    """Handler cancellation updates status and cleans typing task."""
     message = Message()
 
-    async def process(kwargs):
+    async def process(kwargs: object) -> None:
         await kwargs["on_update"]("X" * 300)
         raise asyncio.CancelledError
 
@@ -352,7 +363,10 @@ async def test_handler_cancellation_updates_status_and_cleans_typing_task(
 
 
 @pytest.mark.asyncio
-async def test_handler_returns_early_for_aggregated_continuation(chat_handler):
+async def test_handler_returns_early_for_aggregated_continuation(
+    chat_handler: object,
+) -> None:
+    """Handler returns early for aggregated continuation."""
     message = Message()
     chat_handler._test_aggregator.result = None
 
@@ -365,11 +379,12 @@ async def test_handler_returns_early_for_aggregated_continuation(chat_handler):
 
 @pytest.mark.asyncio
 async def test_handler_rejects_user_when_pending_request_limit_is_reached(
-    chat_handler,
-):
+    chat_handler: object,
+) -> None:
+    """Handler rejects user when pending request limit is reached."""
     message = Message()
     handler_module = importlib.import_module("bot.handlers.chat.handler")
-    handler_module.pending_requests = lambda user_id: 3
+    handler_module.pending_requests = lambda _user_id: 3
 
     await chat_handler.handle_message(message)
 
@@ -381,10 +396,13 @@ async def test_handler_rejects_user_when_pending_request_limit_is_reached(
 
 
 @pytest.mark.asyncio
-async def test_handler_routes_processing_error_to_central_error_handler(chat_handler):
+async def test_handler_routes_processing_error_to_central_error_handler(
+    chat_handler: object,
+) -> None:
+    """Handler routes processing error to central error handler."""
     message = Message()
 
-    async def process(_kwargs):
+    async def process(_kwargs: object) -> None:
         msg = "pipeline failed"
         raise RuntimeError(msg)
 
@@ -401,17 +419,20 @@ async def test_handler_routes_processing_error_to_central_error_handler(chat_han
 
 
 @pytest.mark.asyncio
-async def test_handler_preserves_final_answer_after_stream_edit_failure(chat_handler):
+async def test_handler_preserves_final_answer_after_stream_edit_failure(
+    chat_handler: object,
+) -> None:
+    """Handler preserves final answer after stream edit failure."""
     message = Message()
 
-    async def broken_edit(_status, _text):
+    async def broken_edit(_status: object, _text: str) -> None:
         msg = "telegram edit failed"
         raise RuntimeError(msg)
 
     handler_module = importlib.import_module("bot.handlers.chat.handler")
     handler_module.safe_edit = broken_edit
 
-    async def process(kwargs):
+    async def process(kwargs: object) -> str:
         await kwargs["on_update"]("A" * 300)
         await asyncio.sleep(0.81)
         await kwargs["on_update"]("B" * 300)
@@ -430,10 +451,13 @@ async def test_handler_preserves_final_answer_after_stream_edit_failure(chat_han
 
 
 @pytest.mark.asyncio
-async def test_handler_routes_llm_connection_loss_with_existing_status(chat_handler):
+async def test_handler_routes_llm_connection_loss_with_existing_status(
+    chat_handler: object,
+) -> None:
+    """Handler routes llm connection loss with existing status."""
     message = Message()
 
-    async def process(kwargs):
+    async def process(kwargs: object) -> None:
         await kwargs["on_update"]("S" * 300)
         msg = "llama-server stopped"
         raise ConnectionError(msg)

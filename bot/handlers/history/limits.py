@@ -36,6 +36,9 @@ async def _set_own_limit(
     is_admin: bool,
 ) -> None:
     """Sets the history limit of the sender."""
+    if message.from_user is None:
+        return
+
     user_id = message.from_user.id
 
     try:
@@ -77,6 +80,9 @@ async def _set_user_limit(
     is_admin: bool,
 ) -> None:
     """Sets the history limit of another user (administrators only)."""
+    if message.from_user is None:
+        return
+
     user_id = message.from_user.id
 
     if not is_admin:
@@ -137,6 +143,9 @@ async def cmd_history_limit(
     command: CommandObject,
 ) -> None:
     """Shows usage or sets the history limit of the sender or of another user."""
+    if message.from_user is None:
+        return
+
     user_id = message.from_user.id
     args = (command.args or "").split()
 

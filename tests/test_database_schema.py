@@ -1,6 +1,8 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
+"""Tests for database schema."""
+
 import aiosqlite
 import pytest
 
@@ -10,7 +12,8 @@ from bot.services.database.schema import create_schema
 
 
 @pytest.mark.asyncio
-async def test_create_schema_is_idempotent():
+async def test_create_schema_is_idempotent() -> None:
+    """Create schema is idempotent."""
     connection = await aiosqlite.connect(":memory:")
 
     try:
@@ -36,7 +39,8 @@ async def test_create_schema_is_idempotent():
 
 
 @pytest.mark.asyncio
-async def test_admin_ids_migration_runs_once_and_excludes_supervisor():
+async def test_admin_ids_migration_runs_once_and_excludes_supervisor() -> None:
+    """Admin ids migration runs once and excludes supervisor."""
     connection = await aiosqlite.connect(":memory:")
 
     try:
@@ -71,7 +75,8 @@ async def test_admin_ids_migration_runs_once_and_excludes_supervisor():
 
 
 @pytest.mark.asyncio
-async def test_open_connection_applies_existing_sqlite_pragmas():
+async def test_open_connection_applies_existing_sqlite_pragmas() -> None:
+    """Open connection applies existing sqlite pragmas."""
     connection = await open_connection(":memory:")
 
     try:

@@ -79,7 +79,8 @@ def _env_example_names() -> tuple[set[str], list[str]]:
     return names, duplicates
 
 
-def test_env_example_matches_config_environment_variables():
+def test_env_example_matches_config_environment_variables() -> None:
+    """Env example matches config environment variables."""
     config_names = _config_environment_names()
     example_names, duplicates = _env_example_names()
 

@@ -3,7 +3,13 @@
 
 """Модели данных для подготовки входящего сообщения."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from aiogram.types import Document
 
 
 @dataclass
@@ -14,7 +20,7 @@ class MessageInfo:
     media_type: str | None
     audio_file_id: str | None
     audio_filename: str | None
-    document: object | None
+    document: Document | None
     has_media: bool
     has_audio: bool
     has_document: bool

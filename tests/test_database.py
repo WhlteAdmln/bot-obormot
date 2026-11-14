@@ -1,7 +1,10 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
+"""Tests for database."""
+
 import asyncio
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
@@ -14,7 +17,10 @@ USER_ID = 111111111
 
 
 @pytest_asyncio.fixture
-async def test_db(tmp_path, monkeypatch):
+async def test_db(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> AsyncIterator[Database]:
+    """Db."""
     monkeypatch.setattr(
         config,
         "DATABASE_PATH",
@@ -35,12 +41,14 @@ async def test_db(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_history_limit_defaults_to_default_value(test_db):
+async def test_history_limit_defaults_to_default_value(test_db: Database) -> None:
+    """History limit defaults to default value."""
     assert await test_db.get_history_limit(USER_ID) == config.DEFAULT_HISTORY_EXCHANGES
 
 
 @pytest.mark.asyncio
-async def test_set_and_delete_history_limit(test_db):
+async def test_set_and_delete_history_limit(test_db: Database) -> None:
+    """Set and delete history limit."""
     await test_db.set_history_limit(USER_ID, 20)
 
     assert await test_db.get_history_limit(USER_ID) == 20
@@ -51,7 +59,8 @@ async def test_set_and_delete_history_limit(test_db):
 
 
 @pytest.mark.asyncio
-async def test_history_limit_rejects_invalid_values(test_db):
+async def test_history_limit_rejects_invalid_values(test_db: Database) -> None:
+    """History limit rejects invalid values."""
     with pytest.raises(ValueError, match="Недопустимый лимит истории"):
         await test_db.set_history_limit(USER_ID, 0)
 
@@ -63,7 +72,8 @@ async def test_history_limit_rejects_invalid_values(test_db):
 
 
 @pytest.mark.asyncio
-async def test_history_limit_counts_complete_exchanges(test_db):
+async def test_history_limit_counts_complete_exchanges(test_db: Database) -> None:
+    """History limit counts complete exchanges."""
     for number in range(5):
         await test_db.add_exchange(
             USER_ID,
@@ -84,7 +94,8 @@ async def test_history_limit_counts_complete_exchanges(test_db):
 
 
 @pytest.mark.asyncio
-async def test_history_limit_zero_returns_empty_history(test_db):
+async def test_history_limit_zero_returns_empty_history(test_db: Database) -> None:
+    """History limit zero returns empty history."""
     await test_db.add_exchange(
         USER_ID,
         "Вопрос",
@@ -95,7 +106,8 @@ async def test_history_limit_zero_returns_empty_history(test_db):
 
 
 @pytest.mark.asyncio
-async def test_history_ignores_incomplete_messages(test_db):
+async def test_history_ignores_incomplete_messages(test_db: Database) -> None:
+    """History ignores incomplete messages."""
     await test_db.add_exchange(
         USER_ID,
         "Вопрос 1",
@@ -119,7 +131,8 @@ async def test_history_ignores_incomplete_messages(test_db):
 
 
 @pytest.mark.asyncio
-async def test_history_limit_isolated_between_users(test_db):
+async def test_history_limit_isolated_between_users(test_db: Database) -> None:
+    """History limit isolated between users."""
     await test_db.set_history_limit(USER_ID, 10)
     await test_db.set_history_limit(USER_ID + 1, 5)
 
@@ -133,10 +146,11 @@ async def test_history_limit_isolated_between_users(test_db):
 
 @pytest.mark.asyncio
 async def test_prune_history_keeps_latest_exchanges_and_removes_old_images(
-    test_db,
-    monkeypatch,
-    tmp_path,
-):
+    test_db: Database,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Prune history keeps latest exchanges and removes old images."""
     monkeypatch.setattr(config, "MAX_STORED_EXCHANGES", 2)
     old_image_path = None
     latest_image_path = None
@@ -216,7 +230,10 @@ async def test_prune_history_keeps_latest_exchanges_and_removes_old_images(
 
 
 @pytest.mark.asyncio
-async def test_forget_user_removes_history_prompt_limit_and_owned_images(test_db):
+async def test_forget_user_removes_history_prompt_limit_and_owned_images(
+    test_db: Database,
+) -> None:
+    """Forget user removes history prompt limit and owned images."""
     user_id = USER_ID + 20
     other_user_id = USER_ID + 21
 
@@ -273,7 +290,10 @@ async def test_forget_user_removes_history_prompt_limit_and_owned_images(test_db
 
 
 @pytest.mark.asyncio
-async def test_blocked_users_repository_and_supervisor_protection(test_db, monkeypatch):
+async def test_blocked_users_repository_and_supervisor_protection(
+    test_db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Blocked users repository and supervisor protection."""
     user_id = USER_ID + 100
     supervisor_id = 999999999
     monkeypatch.setattr(config, "SUPERVISOR_ID", supervisor_id)

@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from bot.services.audio import transcribe_audio, validate_audio_duration
 from bot.services.telegram.downloader import download_telegram_file
@@ -45,7 +45,7 @@ async def prepare_audio(
 
     audio_data = await downloader(
         message,
-        info.audio_file_id,
+        cast("str", info.audio_file_id),
     )
 
     logger.info(
@@ -57,7 +57,7 @@ async def prepare_audio(
 
     transcribed_text = await transcriber(
         audio_data,
-        info.audio_filename,
+        cast("str", info.audio_filename),
     )
 
     logger.info("AUDIO: распознано символов: %d", len(transcribed_text))

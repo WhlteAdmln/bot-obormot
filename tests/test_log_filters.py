@@ -1,13 +1,18 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
+"""Tests for log filters."""
+
 import importlib
 import logging
+
+import pytest
 
 from bot.utils.log_filters import SecretsFilter
 
 
-def test_token_is_redacted_from_log_message():
+def test_token_is_redacted_from_log_message() -> None:
+    """Token is redacted from log message."""
     bot_key = "123456789:ABCdefGHIjklMNOpqrSTUvwxYZ0123456789"
     log_filter = SecretsFilter([bot_key])
     record = logging.LogRecord(
@@ -25,7 +30,8 @@ def test_token_is_redacted_from_log_message():
     assert "[REDACTED]" in record.getMessage()
 
 
-def test_configured_secrets_are_redacted_from_formatted_arguments():
+def test_configured_secrets_are_redacted_from_formatted_arguments() -> None:
+    """Configured secrets are redacted from formatted arguments."""
     secrets_filter = SecretsFilter(["llm-secret-value", "", "short"])
     record = logging.LogRecord(
         "t",
@@ -48,7 +54,8 @@ def _fail_download(bot_key: str) -> None:
     raise RuntimeError(msg)
 
 
-def test_token_is_redacted_from_exception_traceback():
+def test_token_is_redacted_from_exception_traceback() -> None:
+    """Token is redacted from exception traceback."""
     bot_key = "123456789:ABCdefGHIjklMNOpqrSTUvwxYZ0123456789"
     secrets_filter = SecretsFilter([bot_key])
 
@@ -72,13 +79,16 @@ def test_token_is_redacted_from_exception_traceback():
     assert "[REDACTED]" in record.exc_text
 
 
-def test_logging_setup_attaches_filter_to_root_handlers(monkeypatch):
+def test_logging_setup_attaches_filter_to_root_handlers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Logging setup attaches filter to root handlers."""
     logging_setup = importlib.import_module("bot.app.logging_setup")
 
     handler = logging.StreamHandler()
     root_logger = logging.getLogger()
     monkeypatch.setattr(root_logger, "handlers", [handler])
-    monkeypatch.setattr(logging, "basicConfig", lambda **kwargs: None)
+    monkeypatch.setattr(logging, "basicConfig", lambda **_kwargs: None)
 
     logging_setup.configure_logging()
 

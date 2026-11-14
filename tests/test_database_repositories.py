@@ -1,6 +1,8 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
+"""Tests for database repositories."""
+
 import asyncio
 import base64
 import io
@@ -11,6 +13,7 @@ import pytest
 from PIL import Image
 
 from bot.config import config
+from bot.services.database import Database
 from bot.services.database.repositories import (
     admins,
     history_limits,
@@ -23,7 +26,10 @@ USER_ID = 515151
 
 
 @pytest.mark.asyncio
-async def test_messages_repository_adds_and_fetches_complete_exchanges(test_db):
+async def test_messages_repository_adds_and_fetches_complete_exchanges(
+    test_db: Database,
+) -> None:
+    """Messages repository adds and fetches complete exchanges."""
     await messages.add_message(test_db.connection, USER_ID, "user", "Вопрос")
     await messages.add_message(test_db.connection, USER_ID, "assistant", "Ответ")
     await messages.add_message(test_db.connection, USER_ID, "user", "Без ответа")
@@ -42,7 +48,8 @@ async def test_messages_repository_adds_and_fetches_complete_exchanges(test_db):
 
 
 @pytest.mark.asyncio
-async def test_user_settings_repository_crud(test_db):
+async def test_user_settings_repository_crud(test_db: Database) -> None:
+    """User settings repository crud."""
     assert await user_settings.get_system_prompt(test_db.connection, USER_ID) is None
 
     await user_settings.set_system_prompt(
@@ -60,7 +67,8 @@ async def test_user_settings_repository_crud(test_db):
 
 
 @pytest.mark.asyncio
-async def test_history_limits_repository_crud(test_db):
+async def test_history_limits_repository_crud(test_db: Database) -> None:
+    """History limits repository crud."""
     assert await history_limits.get_history_limit(test_db.connection, USER_ID) is None
 
     await history_limits.set_history_limit(test_db.connection, USER_ID, 17)
@@ -71,7 +79,10 @@ async def test_history_limits_repository_crud(test_db):
 
 
 @pytest.mark.asyncio
-async def test_admins_repository_is_idempotent_and_facade_excludes_supervisor(test_db):
+async def test_admins_repository_is_idempotent_and_facade_excludes_supervisor(
+    test_db: Database,
+) -> None:
+    """Admins repository is idempotent and facade excludes supervisor."""
     assert await admins.add_admin(test_db.connection, USER_ID) is True
     assert await admins.add_admin(test_db.connection, USER_ID) is False
     assert await test_db.get_admin_ids() == {USER_ID}
@@ -85,7 +96,10 @@ async def test_admins_repository_is_idempotent_and_facade_excludes_supervisor(te
 
 
 @pytest.mark.asyncio
-async def test_media_repository_removes_only_old_media_references(test_db):
+async def test_media_repository_removes_only_old_media_references(
+    test_db: Database,
+) -> None:
+    """Media repository removes only old media references."""
     cursor = await test_db.connection.execute(
         """
         INSERT INTO messages(user_id, role, content, created_at)
@@ -117,7 +131,10 @@ async def test_media_repository_removes_only_old_media_references(test_db):
 
 
 @pytest.mark.asyncio
-async def test_history_usecase_returns_image_parts_and_reset_removes_files(test_db):
+async def test_history_usecase_returns_image_parts_and_reset_removes_files(
+    test_db: Database,
+) -> None:
+    """History usecase returns image parts and reset removes files."""
     await test_db.add_exchange(
         USER_ID,
         "Посмотри на изображение",
@@ -144,7 +161,10 @@ async def test_history_usecase_returns_image_parts_and_reset_removes_files(test_
 
 
 @pytest.mark.asyncio
-async def test_history_combines_all_legacy_animation_frames_into_one_image(test_db):
+async def test_history_combines_all_legacy_animation_frames_into_one_image(
+    test_db: Database,
+) -> None:
+    """History combines all legacy animation frames into one image."""
     frames = []
     for index in range(6):
         output = io.BytesIO()
@@ -181,8 +201,9 @@ async def test_history_combines_all_legacy_animation_frames_into_one_image(test_
 
 @pytest.mark.asyncio
 async def test_reset_history_does_not_delete_unmanaged_or_external_files(
-    test_db, tmp_path
-):
+    test_db: Database, tmp_path: Path
+) -> None:
+    """Reset history does not delete unmanaged or external files."""
     managed_image = test_db.images_dir / f"{uuid.uuid4().hex}.jpg"
     unmanaged_image = test_db.images_dir / "notes.txt"
     external_image = tmp_path / f"{uuid.uuid4().hex}.jpg"
@@ -211,14 +232,20 @@ async def test_reset_history_does_not_delete_unmanaged_or_external_files(
 
 
 @pytest.mark.asyncio
-async def test_facade_system_prompt_methods_preserve_default_behavior(test_db):
+async def test_facade_system_prompt_methods_preserve_default_behavior(
+    test_db: Database,
+) -> None:
+    """Facade system prompt methods preserve default behavior."""
     assert await test_db.get_system_prompt(USER_ID) == config.DEFAULT_SYSTEM_PROMPT
     await test_db.set_system_prompt(USER_ID, "Новый промпт")
     assert await test_db.get_user_system_prompt(USER_ID) == "Новый промпт"
 
 
 @pytest.mark.asyncio
-async def test_cleanup_usecase_deletes_old_image_but_keeps_message(test_db):
+async def test_cleanup_usecase_deletes_old_image_but_keeps_message(
+    test_db: Database,
+) -> None:
+    """Cleanup usecase deletes old image but keeps message."""
     image_path = test_db.images_dir / f"{uuid.uuid4().hex}.jpg"
     image_path.write_bytes(b"old-image")
 

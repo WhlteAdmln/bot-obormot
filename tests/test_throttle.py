@@ -11,7 +11,8 @@ from bot.middlewares import throttle as throttle_module
 
 
 @pytest.mark.asyncio
-async def test_throttle_allows_limit_and_drops_next_event():
+async def test_throttle_allows_limit_and_drops_next_event() -> None:
+    """Throttle allows limit and drops next event."""
     ticks = iter((1.0, 2.0, 3.0, 4.0))
     middleware = throttle_module.ThrottleMiddleware(
         max_events=3,
@@ -20,7 +21,7 @@ async def test_throttle_allows_limit_and_drops_next_event():
     )
     calls = []
 
-    async def handler(event, data):
+    async def handler(event: object, _data: object) -> str:
         calls.append(event)
         return "handled"
 
@@ -32,7 +33,8 @@ async def test_throttle_allows_limit_and_drops_next_event():
 
 
 @pytest.mark.asyncio
-async def test_throttle_expires_events_after_window():
+async def test_throttle_expires_events_after_window() -> None:
+    """Throttle expires events after window."""
     ticks = iter((1.0, 12.0))
     middleware = throttle_module.ThrottleMiddleware(
         max_events=1,
@@ -41,7 +43,7 @@ async def test_throttle_expires_events_after_window():
     )
     calls = []
 
-    async def handler(event, data):
+    async def handler(event: object, _data: object) -> str:
         calls.append(event)
         return "handled"
 
@@ -53,11 +55,12 @@ async def test_throttle_expires_events_after_window():
 
 
 @pytest.mark.asyncio
-async def test_throttle_drops_events_without_sender():
+async def test_throttle_drops_events_without_sender() -> None:
+    """Throttle drops events without sender."""
     middleware = throttle_module.ThrottleMiddleware()
     calls = []
 
-    async def handler(event, data):
+    async def handler(event: object, _data: object) -> None:
         calls.append(event)
 
     assert await middleware(handler, "event", {"event_from_user": None}) is None
@@ -65,13 +68,14 @@ async def test_throttle_drops_events_without_sender():
 
 
 @pytest.mark.asyncio
-async def test_throttle_keeps_tracking_registry_bounded():
+async def test_throttle_keeps_tracking_registry_bounded() -> None:
+    """Throttle keeps tracking registry bounded."""
     middleware = throttle_module.ThrottleMiddleware(
         max_events=1,
         max_tracked_users=2,
     )
 
-    async def handler(event, data):
+    async def handler(event: object, _data: object) -> object:
         return event
 
     for user_id in (1, 2, 3):
@@ -86,7 +90,8 @@ async def test_throttle_keeps_tracking_registry_bounded():
     assert list(middleware._events) == [2, 3]
 
 
-def test_throttle_rejects_invalid_limits():
+def test_throttle_rejects_invalid_limits() -> None:
+    """Throttle rejects invalid limits."""
     with pytest.raises(ValueError, match="max_events"):
         throttle_module.ThrottleMiddleware(max_events=0)
 

@@ -1,8 +1,11 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
+"""Tests for llm context tokenizer."""
+
 import logging
 from collections import deque
+from typing import Self
 
 import pytest
 
@@ -12,44 +15,64 @@ from bot.services.llm import LLMClient
 
 
 class FakeResponse:
-    def __init__(self, payload, status=200, body=""):
+    """Fake response."""
+
+    def __init__(self, payload: object, status: int = 200, body: str = "") -> None:
+        """Initializes the test double."""
         self.payload = payload
         self.status = status
         self.body = body
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> Self:
+        """Enters the async context."""
         return self
 
-    async def __aexit__(self, exc_type, exc, traceback):
+    async def __aexit__(
+        self, _exc_type: object, _exc: object, _traceback: object
+    ) -> bool:
+        """Leaves the async context."""
         return False
 
-    async def json(self):
+    async def json(self) -> object:
+        """Json."""
         return self.payload
 
-    async def text(self):
+    async def text(self) -> str:
+        """Text."""
         return self.body
 
 
 class FakeSession:
-    def __init__(self, responses):
+    """Fake session."""
+
+    def __init__(self, responses: object) -> None:
+        """Initializes the test double."""
         self.responses = deque(responses)
         self.get_calls = []
         self.post_calls = []
 
-    def get(self, url, **kwargs):
+    def get(self, url: str, **kwargs: object) -> "FakeResponse":
+        """Get."""
         self.get_calls.append((url, kwargs))
         return self.responses.popleft()
 
-    def post(self, url, **kwargs):
+    def post(self, url: str, **kwargs: object) -> "FakeResponse":
+        """Post."""
         self.post_calls.append((url, kwargs))
         return self.responses.popleft()
 
 
-def attach_session(monkeypatch, client, fake_session, base_url="http://llm.test"):
+def attach_session(
+    monkeypatch: pytest.MonkeyPatch,
+    client: object,
+    fake_session: object,
+    base_url: str = "http://llm.test",
+) -> None:
+    """Attach session."""
     # These fake endpoint tests exercise explicit llama.cpp mode.
     monkeypatch.setattr(config, "LLM_TOKEN_COUNTING", "llamacpp")
 
-    async def get_session():
+    async def get_session() -> "FakeSession":
         return fake_session
 
     monkeypatch.setattr(client, "_get_session", get_session)
@@ -57,7 +80,10 @@ def attach_session(monkeypatch, client, fake_session, base_url="http://llm.test"
 
 
 @pytest.mark.asyncio
-async def test_context_size_reads_nested_setting_and_caches_result(monkeypatch):
+async def test_context_size_reads_nested_setting_and_caches_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Context size reads nested setting and caches result."""
     fake_session = FakeSession(
         [FakeResponse({"default_generation_settings": {"n_ctx": 8192}})]
     )
@@ -74,7 +100,10 @@ async def test_context_size_reads_nested_setting_and_caches_result(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_context_size_rejects_boolean_value(monkeypatch):
+async def test_context_size_rejects_boolean_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Context size rejects boolean value."""
     fake_session = FakeSession([FakeResponse({"n_ctx": True})])
     client = LLMClient()
     attach_session(monkeypatch, client, fake_session)
@@ -89,7 +118,10 @@ async def test_context_size_rejects_boolean_value(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_context_size_falls_back_to_models_metadata(monkeypatch):
+async def test_context_size_falls_back_to_models_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Context size falls back to models metadata."""
     fake_session = FakeSession(
         [
             FakeResponse({}, status=404, body="Not Found"),
@@ -109,7 +141,10 @@ async def test_context_size_falls_back_to_models_metadata(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_configured_context_size_skips_server_requests(monkeypatch):
+async def test_configured_context_size_skips_server_requests(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Configured context size skips server requests."""
     client = LLMClient()
     fake_session = FakeSession([])
     attach_session(monkeypatch, client, fake_session)
@@ -120,7 +155,10 @@ async def test_configured_context_size_skips_server_requests(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_count_tokens_applies_template_then_tokenizes(monkeypatch):
+async def test_count_tokens_applies_template_then_tokenizes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Count tokens applies template then tokenizes."""
     fake_session = FakeSession(
         [
             FakeResponse({"prompt": "rendered prompt"}),
@@ -166,14 +204,17 @@ async def test_count_tokens_applies_template_then_tokenizes(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_count_tokens_rejects_invalid_normalized_content(monkeypatch):
+async def test_count_tokens_rejects_invalid_normalized_content(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Count tokens rejects invalid normalized content."""
     fake_session = FakeSession([])
     client = LLMClient()
     attach_session(monkeypatch, client, fake_session)
     monkeypatch.setattr(
         client,
         "_normalize_messages",
-        lambda messages: [{"role": "user", "content": 123}],
+        lambda _messages: [{"role": "user", "content": 123}],
     )
 
     with pytest.raises(LLMUnavailableError, match="Invalid message content"):
@@ -183,7 +224,10 @@ async def test_count_tokens_rejects_invalid_normalized_content(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_count_text_tokens_sends_expected_payload(monkeypatch):
+async def test_count_text_tokens_sends_expected_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Count text tokens sends expected payload."""
     fake_session = FakeSession([FakeResponse({"tokens": [1, 2, 3]})])
     client = LLMClient()
     attach_session(monkeypatch, client, fake_session)
@@ -207,10 +251,13 @@ async def test_count_text_tokens_sends_expected_payload(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_count_text_tokens_empty_text_skips_http(monkeypatch):
+async def test_count_text_tokens_empty_text_skips_http(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Count text tokens empty text skips http."""
     client = LLMClient()
 
-    async def unexpected_session():
+    async def unexpected_session() -> None:
         msg = "HTTP session must not be requested for empty text"
         raise AssertionError(msg)
 
@@ -220,7 +267,10 @@ async def test_count_text_tokens_empty_text_skips_http(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_count_text_tokens_rejects_invalid_token_list(monkeypatch):
+async def test_count_text_tokens_rejects_invalid_token_list(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Count text tokens rejects invalid token list."""
     fake_session = FakeSession([FakeResponse({"tokens": "not-a-list"})])
     client = LLMClient()
     attach_session(monkeypatch, client, fake_session)
@@ -230,7 +280,10 @@ async def test_count_text_tokens_rejects_invalid_token_list(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_context_size_logs_sanitized_error_detail(monkeypatch, caplog):
+async def test_context_size_logs_sanitized_error_detail(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Context size logs sanitized error detail."""
     private_detail = "user prompt\nsecond line"
     fake_session = FakeSession(
         [
@@ -252,7 +305,10 @@ async def test_context_size_logs_sanitized_error_detail(monkeypatch, caplog):
 
 
 @pytest.mark.asyncio
-async def test_count_text_tokens_logs_sanitized_error_detail(monkeypatch, caplog):
+async def test_count_text_tokens_logs_sanitized_error_detail(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Count text tokens logs sanitized error detail."""
     private_detail = "user prompt\nsecond line"
     fake_session = FakeSession([FakeResponse({}, status=503, body=private_detail)])
     client = LLMClient()
@@ -270,7 +326,10 @@ async def test_count_text_tokens_logs_sanitized_error_detail(monkeypatch, caplog
 
 
 @pytest.mark.asyncio
-async def test_health_check_does_not_return_raw_unexpected_server_payload(monkeypatch):
+async def test_health_check_does_not_return_raw_unexpected_server_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Health check does not return raw unexpected server payload."""
     payload = {"status": "error", "details": "private prompt content"}
     fake_session = FakeSession([FakeResponse(payload), FakeResponse({"data": []})])
     client = LLMClient()

@@ -9,6 +9,14 @@
 
 import importlib
 import os
+from collections.abc import AsyncIterator
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+import pytest
+
+if TYPE_CHECKING:
+    from bot.services.database import Database
 
 _TEST_ENV = {
     "BOT_TOKEN": "123456789:TEST_TOKEN_NOT_VALID",
@@ -46,7 +54,9 @@ import pytest_asyncio  # noqa: E402
 
 
 @pytest_asyncio.fixture
-async def test_db(tmp_path, monkeypatch):
+async def test_db(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> AsyncIterator["Database"]:
     """Создаёт изолированную SQLite-базу для тестов репозиториев.
 
     Фикстура расположена в conftest.py, чтобы быть доступной всем

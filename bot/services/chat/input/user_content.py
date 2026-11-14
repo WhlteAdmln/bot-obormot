@@ -6,14 +6,14 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from bot.errors import DocumentTooLongError
 from bot.services.media import get_user_content
 from bot.services.validation import MAX_INPUT_TEXT_LENGTH, validate_input_text
 
 if TYPE_CHECKING:
-    from aiogram.types import Message
+    from aiogram.types import Document, Message
 
     from bot.services.chat.input.models import MessageInfo
 
@@ -28,6 +28,8 @@ def build_user_content(
     document_text: str | None,
 ) -> str | list[dict[str, Any]] | None:
     """Формирует текстовое или мультимодальное содержимое для LLM."""
+    user_content: str | list[dict[str, Any]] | None
+
     if info.has_audio:
         user_content = transcribed_text
 
@@ -44,7 +46,8 @@ def build_user_content(
         )
 
     elif info.has_document:
-        document = info.document
+        # has_document is only set when the message carries a document.
+        document = cast("Document", info.document)
         raw_name = document.file_name or "document"
         safe_name = re.sub(r"[\r\n\[\]]+", " ", raw_name)[:100]
 

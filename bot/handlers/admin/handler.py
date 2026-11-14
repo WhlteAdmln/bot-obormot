@@ -5,6 +5,7 @@
 
 import asyncio
 import logging
+from typing import TYPE_CHECKING, cast
 
 from aiogram import Router
 from aiogram.filters import Command, CommandObject
@@ -14,6 +15,9 @@ from bot.config import config
 from bot.services.database import db
 from bot.services.llm import llm_client
 from bot.utils.audit import audit
+
+if TYPE_CHECKING:
+    from aiogram import Bot
 
 router = Router()
 logger = logging.getLogger("bot.handlers.admin")
@@ -35,7 +39,8 @@ def _audit_denied(message: Message) -> None:
 async def check_telegram(message: Message) -> tuple[bool, str]:
     """Проверяет доступность Telegram Bot API."""
     try:
-        await message.bot.get_me()
+        bot = cast("Bot", message.bot)
+        await bot.get_me()
 
     except Exception:
         logger.exception("Telegram health check failed")
@@ -160,7 +165,7 @@ async def cmd_admin_add(
     command: CommandObject,
 ) -> None:
     """Adds an administrator by Telegram ID (supervisor only)."""
-    if not is_supervisor(message):
+    if not is_supervisor(message) or message.from_user is None:
         _audit_denied(message)
         await message.answer("⛔ Доступ запрещён.")
         return
@@ -209,7 +214,7 @@ async def cmd_admin_remove(
     command: CommandObject,
 ) -> None:
     """Removes an administrator by Telegram ID (supervisor only)."""
-    if not is_supervisor(message):
+    if not is_supervisor(message) or message.from_user is None:
         _audit_denied(message)
         await message.answer("⛔ Доступ запрещён.")
         return

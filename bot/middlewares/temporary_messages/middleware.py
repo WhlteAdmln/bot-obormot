@@ -4,7 +4,7 @@
 """Middleware that removes temporary service messages of the bot."""
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from aiogram import BaseMiddleware
 from aiogram.exceptions import TelegramAPIError
@@ -21,6 +21,7 @@ from bot.fsm.states import PromptStates
 from bot.middlewares.aliases import MiddlewareData, NextHandler
 
 if TYPE_CHECKING:
+    from aiogram import Bot
     from aiogram.fsm.context import FSMContext
 
 logger = logging.getLogger("bot.middlewares.temporary_messages.middleware")
@@ -57,7 +58,7 @@ class TemporaryMessagesCleanupMiddleware(BaseMiddleware):
 
         # Во время ввода нового промпта сохраняем сообщения процесса.
         # В остальных случаях очищаем результат /prompt и сообщения настройки.
-        prompt_flow_ids = []
+        prompt_flow_ids: list[int] = []
         if not waiting_for_prompt:
             prompt_flow_ids = state_data.get(PROMPT_FLOW_KEY, [])
 
@@ -122,7 +123,8 @@ class TemporaryMessagesCleanupMiddleware(BaseMiddleware):
         description: str,
     ) -> None:
         try:
-            await event.bot.delete_message(
+            bot = cast("Bot", event.bot)
+            await bot.delete_message(
                 chat_id=event.chat.id,
                 message_id=message_id,
             )

@@ -1,12 +1,15 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
+"""Tests for check lock."""
+
 from pathlib import Path
 
 from scripts.check_lock import check_lock
 
 
-def test_check_lock_accepts_satisfied_constraints(tmp_path: Path):
+def test_check_lock_accepts_satisfied_constraints(tmp_path: Path) -> None:
+    """Check lock accepts satisfied constraints."""
     requirements = tmp_path / "requirements.txt"
     lock = tmp_path / "requirements-lock.txt"
     requirements.write_text("Example_Package[extra]>=1.2,<2.0\nother~=3.1\n")
@@ -15,7 +18,8 @@ def test_check_lock_accepts_satisfied_constraints(tmp_path: Path):
     assert check_lock(requirements, lock) == []
 
 
-def test_check_lock_reports_missing_direct_dependency(tmp_path: Path):
+def test_check_lock_reports_missing_direct_dependency(tmp_path: Path) -> None:
+    """Check lock reports missing direct dependency."""
     requirements = tmp_path / "requirements.txt"
     lock = tmp_path / "requirements-lock.txt"
     requirements.write_text("missing-package>=1\n")
@@ -24,7 +28,8 @@ def test_check_lock_reports_missing_direct_dependency(tmp_path: Path):
     assert check_lock(requirements, lock) == ["Missing from lock file: missing-package"]
 
 
-def test_check_lock_reports_out_of_range_version(tmp_path: Path):
+def test_check_lock_reports_out_of_range_version(tmp_path: Path) -> None:
+    """Check lock reports out of range version."""
     requirements = tmp_path / "requirements.txt"
     lock = tmp_path / "requirements-lock.txt"
     requirements.write_text("example-package>=2,<3\n")

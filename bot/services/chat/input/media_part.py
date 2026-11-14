@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import base64
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from bot.services.media import process_media
 
@@ -30,8 +30,8 @@ async def prepare_media(
 
     image_urls = await media_processor(
         message,
-        info.media_type,
-        info.file_id,
+        cast("str", info.media_type),
+        cast("str", info.file_id),
     )
 
     image_bytes = [base64.b64decode(url.split(",", 1)[1]) for url in image_urls]

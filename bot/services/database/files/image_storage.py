@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Низкоуровневые операции с файлами изображений истории."""
 
 import base64

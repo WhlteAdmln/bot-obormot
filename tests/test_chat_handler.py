@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Characterization tests for the package-based chat handler.
 
 The handler dependencies are stubbed so these tests focus on ordering,
@@ -9,46 +12,76 @@ import asyncio
 import importlib
 import sys
 import types
+from collections.abc import AsyncIterator, Generator
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 
 import pytest
 
 
-@pytest.fixture
-def chat_handler(monkeypatch):
-    def module(name, **attributes):
-        result = types.ModuleType(name)
-        for key, value in attributes.items():
-            setattr(result, key, value)
-        monkeypatch.setitem(sys.modules, name, result)
-        return result
+def _install_module(
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    **attributes: object,
+) -> types.ModuleType:
+    result = types.ModuleType(name)
+    for key, value in attributes.items():
+        setattr(result, key, value)
+    monkeypatch.setitem(sys.modules, name, result)
+    return result
 
+
+class _TestAggregator:
+    def __init__(self, calls: list[object]) -> None:
+        self.calls = calls
+        self.result: str | None = "входящий текст"
+
+    async def collect(self, _message: object) -> str | None:
+        self.calls.append("aggregate")
+        return self.result
+
+
+class _TestLLM:
+    def __init__(self, calls: list[object]) -> None:
+        self.calls = calls
+
+    async def count_text_tokens(self, _text: str) -> int:
+        self.calls.append("count-tokens")
+        return 151
+
+
+def _create_chat_handler_state() -> SimpleNamespace:
+    calls: list[object] = []
+    return SimpleNamespace(
+        calls=calls,
+        typing_started=asyncio.Event(),
+        typing_stopped=asyncio.Event(),
+        lock_entered=asyncio.Event(),
+        safe_edits=[],
+        error_calls=[],
+        pipeline=SimpleNamespace(),
+        aggregator=_TestAggregator(calls),
+    )
+
+
+def _install_aiogram_stubs(monkeypatch: pytest.MonkeyPatch) -> types.ModuleType:
     class Router:
-        def message(self, *_args, **_kwargs):
+        def message(self, *_args: object, **_kwargs: object) -> object:
             return lambda function: function
 
-    aiogram = module("aiogram", Router=Router)
-    module("aiogram.types", Message=object)
+    aiogram = _install_module(monkeypatch, "aiogram", Router=Router)
+    _install_module(monkeypatch, "aiogram.types", Message=object)
+    return aiogram
 
-    calls = []
-    typing_started = asyncio.Event()
-    typing_stopped = asyncio.Event()
-    lock_entered = asyncio.Event()
 
-    class Aggregator:
-        result = "входящий текст"
-
-        async def collect(self, _message):
-            calls.append("aggregate")
-            return self.result
-
-    aggregator = Aggregator()
-
-    def log_incoming(_message):
+def _install_input_stubs(
+    monkeypatch: pytest.MonkeyPatch,
+    calls: list[object],
+) -> None:
+    def log_incoming(_message: object) -> None:
         calls.append("log")
 
-    def inspect(_message):
+    def inspect(_message: object) -> SimpleNamespace:
         calls.append("inspect")
         return SimpleNamespace(
             has_content=True,
@@ -58,7 +91,11 @@ def chat_handler(monkeypatch):
             has_document=False,
         )
 
-    async def prepare(_message, _info, text_override=None):
+    async def prepare(
+        _message: object,
+        _info: object,
+        text_override: str | None = None,
+    ) -> SimpleNamespace:
         calls.append(("prepare", text_override))
         await asyncio.sleep(0)
         return SimpleNamespace(
@@ -67,8 +104,26 @@ def chat_handler(monkeypatch):
             image_bytes=None,
         )
 
+    _install_module(
+        monkeypatch,
+        "bot.services.chat.incoming_log",
+        log_incoming_message=log_incoming,
+    )
+    _install_module(
+        monkeypatch,
+        "bot.services.chat.input",
+        inspect_message=inspect,
+        prepare_message=prepare,
+    )
+
+
+def _install_lock_stub(
+    monkeypatch: pytest.MonkeyPatch,
+    calls: list[object],
+    lock_entered: asyncio.Event,
+) -> None:
     @asynccontextmanager
-    async def user_lock(_user_id):
+    async def user_lock(_user_id: int) -> AsyncIterator[None]:
         calls.append("lock-enter")
         lock_entered.set()
         try:
@@ -76,7 +131,20 @@ def chat_handler(monkeypatch):
         finally:
             calls.append("lock-exit")
 
-    async def keep_typing(_message):
+    _install_module(
+        monkeypatch,
+        "bot.services.chat.locks",
+        get_user_lock=user_lock,
+        pending_requests=lambda _user_id: 0,
+    )
+
+
+def _install_typing_stub(
+    monkeypatch: pytest.MonkeyPatch,
+    typing_started: asyncio.Event,
+    typing_stopped: asyncio.Event,
+) -> None:
+    async def keep_typing(_message: object) -> None:
         typing_started.set()
         try:
             await asyncio.Future()
@@ -84,99 +152,146 @@ def chat_handler(monkeypatch):
             typing_stopped.set()
             raise
 
-    safe_edits = []
+    _install_module(
+        monkeypatch,
+        "bot.services.telegram.chat_action",
+        keep_typing=keep_typing,
+    )
 
-    async def safe_edit(message, text):
-        safe_edits.append((message, text))
 
-    error_calls = []
-
-    async def handle_error(**kwargs):
-        error_calls.append(kwargs)
-
-    pipeline = SimpleNamespace()
-
-    async def process_chat(**kwargs):
-        calls.append("process")
-        process = pipeline.process
+def _install_processing_stubs(
+    monkeypatch: pytest.MonkeyPatch,
+    state: SimpleNamespace,
+) -> None:
+    async def process_chat(**kwargs: object) -> object:
+        state.calls.append("process")
+        process = state.pipeline.process
         return await process(kwargs)
 
-    pipeline.process = lambda _kwargs: None
-
-    class FakeLLM:
-        async def count_text_tokens(self, _text):
-            calls.append("count-tokens")
-            return 151
-
-    module(
-        "bot.services.chat.aggregation",
-        message_aggregator=aggregator,
+    state.pipeline.process = lambda _kwargs: None
+    _install_module(
+        monkeypatch,
+        "bot.services.chat.pipeline",
+        process_chat=process_chat,
     )
-    module(
+    _install_module(
+        monkeypatch,
+        "bot.services.llm",
+        llm_client=_TestLLM(state.calls),
+    )
+
+
+def _install_reporting_stubs(
+    monkeypatch: pytest.MonkeyPatch,
+    state: SimpleNamespace,
+) -> None:
+    async def safe_edit(message: object, text: str) -> None:
+        state.safe_edits.append((message, text))
+
+    async def handle_error(**kwargs: object) -> None:
+        state.error_calls.append(kwargs)
+
+    _install_module(
+        monkeypatch,
         "bot.services.chat.errors.handler",
         handle_chat_error=handle_error,
     )
-    module(
-        "bot.services.chat.incoming_log",
-        log_incoming_message=log_incoming,
+    _install_module(
+        monkeypatch,
+        "bot.services.chat.reporting",
+        safe_edit=safe_edit,
     )
-    module(
-        "bot.services.chat.input",
-        inspect_message=inspect,
-        prepare_message=prepare,
-    )
-    module(
-        "bot.services.chat.locks",
-        get_user_lock=user_lock,
-        pending_requests=lambda _user_id: 0,
-    )
-    module("bot.services.chat.pipeline", process_chat=process_chat)
-    module("bot.services.chat.reporting", safe_edit=safe_edit)
-    module("bot.services.telegram.chat_action", keep_typing=keep_typing)
-    module("bot.services.llm", llm_client=FakeLLM())
 
-    # Ensure a fresh package import binds the test doubles above.
+
+def _install_chat_service_stubs(
+    monkeypatch: pytest.MonkeyPatch,
+    state: SimpleNamespace,
+) -> None:
+    _install_module(
+        monkeypatch,
+        "bot.services.chat.aggregation",
+        message_aggregator=state.aggregator,
+    )
+    _install_input_stubs(monkeypatch, state.calls)
+    _install_lock_stub(monkeypatch, state.calls, state.lock_entered)
+    _install_typing_stub(
+        monkeypatch,
+        state.typing_started,
+        state.typing_stopped,
+    )
+    _install_processing_stubs(monkeypatch, state)
+    _install_reporting_stubs(monkeypatch, state)
+
+
+def _load_chat_handler_package(
+    state: SimpleNamespace,
+) -> tuple[types.ModuleType, types.ModuleType]:
     sys.modules.pop("bot.handlers.chat.handler", None)
     sys.modules.pop("bot.handlers.chat", None)
-    import bot.handlers
+    handlers_module = importlib.import_module("bot.handlers")
 
-    if hasattr(bot.handlers, "chat"):
-        delattr(bot.handlers, "chat")
+    if hasattr(handlers_module, "chat"):
+        delattr(handlers_module, "chat")
 
     package = importlib.import_module("bot.handlers.chat")
-    package._test_calls = calls
-    package._test_typing_started = typing_started
-    package._test_typing_stopped = typing_stopped
-    package._test_lock_entered = lock_entered
-    package._test_safe_edits = safe_edits
-    package._test_error_calls = error_calls
-    package._test_pipeline = pipeline
-    package._test_aggregator = aggregator
-    package._test_aiogram = aiogram
-    yield package
+    package._test_calls = state.calls
+    package._test_typing_started = state.typing_started
+    package._test_typing_stopped = state.typing_stopped
+    package._test_lock_entered = state.lock_entered
+    package._test_safe_edits = state.safe_edits
+    package._test_error_calls = state.error_calls
+    package._test_pipeline = state.pipeline
+    package._test_aggregator = state.aggregator
+    package._test_aiogram = state.aiogram
+    return package, handlers_module
 
+
+def _cleanup_chat_handler_package(handlers_module: types.ModuleType) -> None:
     sys.modules.pop("bot.handlers.chat.handler", None)
     sys.modules.pop("bot.handlers.chat", None)
-    if hasattr(bot.handlers, "chat"):
-        delattr(bot.handlers, "chat")
+    if hasattr(handlers_module, "chat"):
+        delattr(handlers_module, "chat")
+
+
+@pytest.fixture
+def chat_handler(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Generator[types.ModuleType, None, None]:
+    """Chat handler."""
+    state = _create_chat_handler_state()
+    state.aiogram = _install_aiogram_stubs(monkeypatch)
+    _install_chat_service_stubs(monkeypatch, state)
+    package, handlers_module = _load_chat_handler_package(state)
+
+    try:
+        yield package
+    finally:
+        _cleanup_chat_handler_package(handlers_module)
 
 
 class Message:
-    def __init__(self, text="text", user_id=7):
+    """Message."""
+
+    def __init__(self, text: str = "text", user_id: int = 7) -> None:
+        """Initializes the test double."""
         self.text = text
         self.from_user = SimpleNamespace(id=user_id)
         self.answers = []
 
-    async def answer(self, text, **kwargs):
+    async def answer(self, text: str, **kwargs: object) -> SimpleNamespace:
+        """Answer."""
         self.answers.append((text, kwargs))
         return SimpleNamespace(text=text)
 
 
 @pytest.mark.asyncio
-async def test_handler_preserves_order_for_short_non_streamed_response(chat_handler):
+async def test_handler_preserves_order_for_short_non_streamed_response(
+    chat_handler: object,
+) -> None:
+    """Handler preserves order for short non streamed response."""
     message = Message()
 
-    async def process(kwargs):
+    async def process(kwargs: object) -> str:
         assert kwargs["user_id"] == 7
         assert kwargs["user_content"] == "prepared user content"
         return "короткий ответ"
@@ -202,10 +317,13 @@ async def test_handler_preserves_order_for_short_non_streamed_response(chat_hand
 
 
 @pytest.mark.asyncio
-async def test_handler_streams_long_response_and_finalizes_status(chat_handler):
+async def test_handler_streams_long_response_and_finalizes_status(
+    chat_handler: object,
+) -> None:
+    """Handler streams long response and finalizes status."""
     message = Message()
 
-    async def process(kwargs):
+    async def process(kwargs: object) -> str:
         await kwargs["on_update"]("A" * 300)
         await asyncio.sleep(0.81)
         await kwargs["on_update"]("B" * 300)
@@ -223,10 +341,13 @@ async def test_handler_streams_long_response_and_finalizes_status(chat_handler):
 
 
 @pytest.mark.asyncio
-async def test_handler_cancellation_updates_status_and_cleans_typing_task(chat_handler):
+async def test_handler_cancellation_updates_status_and_cleans_typing_task(
+    chat_handler: object,
+) -> None:
+    """Handler cancellation updates status and cleans typing task."""
     message = Message()
 
-    async def process(kwargs):
+    async def process(kwargs: object) -> None:
         await kwargs["on_update"]("X" * 300)
         raise asyncio.CancelledError
 
@@ -242,7 +363,10 @@ async def test_handler_cancellation_updates_status_and_cleans_typing_task(chat_h
 
 
 @pytest.mark.asyncio
-async def test_handler_returns_early_for_aggregated_continuation(chat_handler):
+async def test_handler_returns_early_for_aggregated_continuation(
+    chat_handler: object,
+) -> None:
+    """Handler returns early for aggregated continuation."""
     message = Message()
     chat_handler._test_aggregator.result = None
 
@@ -254,10 +378,13 @@ async def test_handler_returns_early_for_aggregated_continuation(chat_handler):
 
 
 @pytest.mark.asyncio
-async def test_handler_rejects_user_when_pending_request_limit_is_reached(chat_handler):
+async def test_handler_rejects_user_when_pending_request_limit_is_reached(
+    chat_handler: object,
+) -> None:
+    """Handler rejects user when pending request limit is reached."""
     message = Message()
     handler_module = importlib.import_module("bot.handlers.chat.handler")
-    handler_module.pending_requests = lambda user_id: 3
+    handler_module.pending_requests = lambda _user_id: 3
 
     await chat_handler.handle_message(message)
 
@@ -269,11 +396,15 @@ async def test_handler_rejects_user_when_pending_request_limit_is_reached(chat_h
 
 
 @pytest.mark.asyncio
-async def test_handler_routes_processing_error_to_central_error_handler(chat_handler):
+async def test_handler_routes_processing_error_to_central_error_handler(
+    chat_handler: object,
+) -> None:
+    """Handler routes processing error to central error handler."""
     message = Message()
 
-    async def process(_kwargs):
-        raise RuntimeError("pipeline failed")
+    async def process(_kwargs: object) -> None:
+        msg = "pipeline failed"
+        raise RuntimeError(msg)
 
     chat_handler._test_pipeline.process = process
 
@@ -288,16 +419,20 @@ async def test_handler_routes_processing_error_to_central_error_handler(chat_han
 
 
 @pytest.mark.asyncio
-async def test_handler_preserves_final_answer_after_stream_edit_failure(chat_handler):
+async def test_handler_preserves_final_answer_after_stream_edit_failure(
+    chat_handler: object,
+) -> None:
+    """Handler preserves final answer after stream edit failure."""
     message = Message()
 
-    async def broken_edit(_status, _text):
-        raise RuntimeError("telegram edit failed")
+    async def broken_edit(_status: object, _text: str) -> None:
+        msg = "telegram edit failed"
+        raise RuntimeError(msg)
 
     handler_module = importlib.import_module("bot.handlers.chat.handler")
     handler_module.safe_edit = broken_edit
 
-    async def process(kwargs):
+    async def process(kwargs: object) -> str:
         await kwargs["on_update"]("A" * 300)
         await asyncio.sleep(0.81)
         await kwargs["on_update"]("B" * 300)
@@ -316,12 +451,16 @@ async def test_handler_preserves_final_answer_after_stream_edit_failure(chat_han
 
 
 @pytest.mark.asyncio
-async def test_handler_routes_llm_connection_loss_with_existing_status(chat_handler):
+async def test_handler_routes_llm_connection_loss_with_existing_status(
+    chat_handler: object,
+) -> None:
+    """Handler routes llm connection loss with existing status."""
     message = Message()
 
-    async def process(kwargs):
+    async def process(kwargs: object) -> None:
         await kwargs["on_update"]("S" * 300)
-        raise ConnectionError("llama-server stopped")
+        msg = "llama-server stopped"
+        raise ConnectionError(msg)
 
     chat_handler._test_pipeline.process = process
 

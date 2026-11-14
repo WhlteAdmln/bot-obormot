@@ -1,4 +1,11 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Tests for llm streaming."""
+
 import logging
+from collections.abc import AsyncIterator
+from typing import Self
 
 import aiohttp
 import pytest
@@ -11,13 +18,18 @@ from bot.services.llm.streaming import stream_unlimited
 
 
 class AsyncLines:
-    def __init__(self, lines):
+    """Async lines."""
+
+    def __init__(self, lines: object) -> None:
+        """Initializes the test double."""
         self.lines = iter(lines)
 
-    def __aiter__(self):
+    def __aiter__(self) -> "AsyncLines":
+        """Returns the async iterator."""
         return self
 
-    async def __anext__(self):
+    async def __anext__(self) -> str:
+        """Returns the next item."""
         try:
             return next(self.lines)
         except StopIteration:
@@ -25,39 +37,53 @@ class AsyncLines:
 
 
 class FakeResponse:
-    def __init__(self, lines=(), status=200, body=""):
+    """Fake response."""
+
+    def __init__(self, lines: object = (), status: int = 200, body: str = "") -> None:
+        """Initializes the test double."""
         self.content = AsyncLines(lines)
         self.status = status
         self.body = body
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> Self:
+        """Enters the async context."""
         return self
 
-    async def __aexit__(self, exc_type, exc, traceback):
+    async def __aexit__(
+        self, _exc_type: object, _exc: object, _traceback: object
+    ) -> bool:
+        """Leaves the async context."""
         return False
 
-    async def text(self):
+    async def text(self) -> str:
+        """Text."""
         return self.body
 
 
 class FakeSession:
-    def __init__(self, response):
+    """Fake session."""
+
+    def __init__(self, response: object) -> None:
+        """Initializes the test double."""
         self.response = response
         self.calls = []
 
-    def post(self, url, **kwargs):
+    def post(self, url: str, **kwargs: object) -> "FakeResponse":
+        """Post."""
         self.calls.append((url, kwargs))
         return self.response
 
 
-async def collect(stream):
+async def collect(stream: object) -> list[object]:
+    """Collect."""
     return [chunk async for chunk in stream]
 
 
 @pytest.mark.asyncio
 async def test_stream_unlimited_yields_content_and_ignores_non_content_chunks(
-    monkeypatch,
-):
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Stream unlimited yields content and ignores non content chunks."""
     response = FakeResponse(
         [
             b"event: message\n",
@@ -73,12 +99,12 @@ async def test_stream_unlimited_yields_content_and_ignores_non_content_chunks(
     session = FakeSession(response)
     client = LLMClient()
 
-    async def get_session():
+    async def get_session() -> "FakeSession":
         return session
 
     normalized = []
 
-    def normalize(messages):
+    def normalize(messages: object) -> list[object]:
         normalized.append(messages)
         return [{"role": "user", "content": "normalized"}]
 
@@ -110,20 +136,23 @@ async def test_stream_unlimited_yields_content_and_ignores_non_content_chunks(
 
 @pytest.mark.asyncio
 async def test_stream_unlimited_raises_api_error_with_response_details(
-    monkeypatch, caplog
-):
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Stream unlimited raises api error with response details."""
     private_detail = "prompt fragment\nsecond line"
     session = FakeSession(FakeResponse(status=503, body=private_detail))
     client = LLMClient()
 
-    async def get_session():
+    async def get_session() -> "FakeSession":
         return session
 
     monkeypatch.setattr(client, "_get_session", get_session)
 
-    with caplog.at_level(logging.ERROR, logger="bot.services.llm.streaming"):
-        with pytest.raises(LLMAPIError) as error:
-            await collect(stream_unlimited(client, []))
+    with (
+        caplog.at_level(logging.ERROR, logger="bot.services.llm.streaming"),
+        pytest.raises(LLMAPIError) as error,
+    ):
+        await collect(stream_unlimited(client, []))
 
     assert error.value.status == 503
     assert error.value.detail == private_detail
@@ -132,10 +161,13 @@ async def test_stream_unlimited_raises_api_error_with_response_details(
 
 
 @pytest.mark.asyncio
-async def test_stream_unlimited_converts_timeout(monkeypatch):
+async def test_stream_unlimited_converts_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Stream unlimited converts timeout."""
     client = LLMClient()
 
-    async def get_session():
+    async def get_session() -> None:
         raise TimeoutError
 
     monkeypatch.setattr(client, "_get_session", get_session)
@@ -145,11 +177,15 @@ async def test_stream_unlimited_converts_timeout(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_stream_unlimited_converts_aiohttp_client_error(monkeypatch):
+async def test_stream_unlimited_converts_aiohttp_client_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Stream unlimited converts aiohttp client error."""
     client = LLMClient()
 
-    async def get_session():
-        raise aiohttp.ClientConnectionError("connection refused")
+    async def get_session() -> None:
+        msg = "connection refused"
+        raise aiohttp.ClientConnectionError(msg)
 
     monkeypatch.setattr(client, "_get_session", get_session)
 
@@ -158,12 +194,17 @@ async def test_stream_unlimited_converts_aiohttp_client_error(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_llm_client_unlimited_stream_delegates(monkeypatch):
+async def test_llm_client_unlimited_stream_delegates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Llm client unlimited stream delegates."""
     client = LLMClient()
     messages = [{"role": "user", "content": "hello"}]
     calls = []
 
-    async def fake_stream(client_arg, messages_arg):
+    async def fake_stream(
+        client_arg: object, messages_arg: object
+    ) -> AsyncIterator[str]:
         calls.append((client_arg, messages_arg))
         yield "hello"
         yield " world"
@@ -175,12 +216,17 @@ async def test_llm_client_unlimited_stream_delegates(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_public_stream_keeps_semaphore_wrapping_unlimited_stream(monkeypatch):
+async def test_public_stream_keeps_semaphore_wrapping_unlimited_stream(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Public stream keeps semaphore wrapping unlimited stream."""
     client = LLMClient()
     messages = [{"role": "user", "content": "hello"}]
     calls = []
 
-    async def fake_stream(self, received_messages):
+    async def fake_stream(
+        self: object, received_messages: object
+    ) -> AsyncIterator[str]:
         calls.append((self, received_messages))
         yield "token"
 

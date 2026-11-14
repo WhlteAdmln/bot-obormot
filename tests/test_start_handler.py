@@ -1,3 +1,8 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Tests for start handler."""
+
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -9,7 +14,10 @@ from bot.services.database import db
 
 
 @pytest.mark.asyncio
-async def test_start_help_and_command_menu_include_forget_me(monkeypatch):
+async def test_start_help_and_command_menu_include_forget_me(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Start help and command menu include forget me."""
     monkeypatch.setattr(config, "SUPERVISOR_ID", 999999999)
     monkeypatch.setattr(db, "get_admin_ids", AsyncMock(return_value=set()))
 
@@ -33,7 +41,10 @@ async def test_start_help_and_command_menu_include_forget_me(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_start_adds_ban_commands_for_admins(monkeypatch):
+async def test_start_adds_ban_commands_for_admins(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Start adds ban commands for admins."""
     monkeypatch.setattr(config, "SUPERVISOR_ID", 999999999)
     admin_id = 111111111
     monkeypatch.setattr(db, "get_admin_ids", AsyncMock(return_value={admin_id}))

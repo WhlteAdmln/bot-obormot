@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Telegram handler входящих сообщений чата."""
 
 import asyncio
@@ -21,6 +24,8 @@ from bot.services.chat.streaming import (
     StreamingResponder,
     deliver_final_response,
 )
+from bot.services.chat.streaming.delivery import DeliveryOptions
+from bot.services.chat.streaming.responder import StreamingResponderOptions
 from bot.services.llm import llm_client
 from bot.services.telegram.chat_action import keep_typing
 
@@ -31,7 +36,8 @@ logger = logging.getLogger("bot.handlers.chat")
 
 
 @router.message()
-async def handle_message(message: Message):
+async def handle_message(message: Message) -> None:
+    """Processes an incoming chat message and streams the LLM reply."""
     log_incoming_message(message)
 
     info = inspect_message(message)
@@ -39,9 +45,12 @@ async def handle_message(message: Message):
     if not info.has_content:
         return
 
+    if message.from_user is None:
+        return
+
     user_id = message.from_user.id
 
-    aggregated_text = None
+    aggregated_text: str | None = None
 
     # Объединяем только обычные текстовые сообщения.
     # Медиа, аудио и документы остаются без изменений.
@@ -70,8 +79,10 @@ async def handle_message(message: Message):
             user_id=user_id,
             count_text_tokens=llm_client.count_text_tokens,
             safe_edit=safe_edit,
-            formatter=format_roleplay,
-            splitter=split_formatted_message,
+            options=StreamingResponderOptions(
+                formatter=format_roleplay,
+                splitter=split_formatted_message,
+            ),
         )
         typing_task = asyncio.create_task(keep_typing(message))
 
@@ -98,10 +109,12 @@ async def handle_message(message: Message):
                 response=response,
                 status=responder.status,
                 safe_edit=safe_edit,
-                formatter=format_roleplay,
-                splitter=split_formatted_message,
-                max_message_length=MAX_MESSAGE_LENGTH,
-                user_id=user_id,
+                options=DeliveryOptions(
+                    formatter=format_roleplay,
+                    splitter=split_formatted_message,
+                    max_message_length=MAX_MESSAGE_LENGTH,
+                    user_id=user_id,
+                ),
             )
 
         except asyncio.CancelledError:
@@ -112,7 +125,7 @@ async def handle_message(message: Message):
             await responder.cancel()
             raise
 
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001 - logged by handle_chat_error
             await handle_chat_error(
                 message=message,
                 status=responder.status,
@@ -135,7 +148,19 @@ __all__ = [
     "MAX_PENDING_PER_USER",
     "STREAM_TOKEN_THRESHOLD",
     "STREAM_UPDATE_INTERVAL",
+    "format_roleplay",
+    "get_user_lock",
+    "handle_chat_error",
     "handle_message",
+    "inspect_message",
+    "keep_typing",
+    "llm_client",
+    "log_incoming_message",
     "logger",
+    "message_aggregator",
+    "prepare_message",
+    "process_chat",
     "router",
+    "safe_edit",
+    "split_formatted_message",
 ]

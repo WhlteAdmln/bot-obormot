@@ -1,4 +1,11 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Tests for multiuser."""
+
 import asyncio
+from collections.abc import AsyncIterator
+from pathlib import Path
 
 import pytest
 import pytest_asyncio
@@ -15,9 +22,10 @@ SUPERVISOR_ID = 999999999
 
 
 @pytest_asyncio.fixture
-async def test_db(tmp_path, monkeypatch):
+async def test_db(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> AsyncIterator[Database]:
     """Создаёт отдельную временную базу для тестов."""
-
     database_path = tmp_path / "test_database.db"
 
     monkeypatch.setattr(
@@ -54,9 +62,8 @@ async def test_db(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_multiuser_isolation(test_db):
+async def test_multiuser_isolation(test_db: Database) -> None:
     """Проверяет изоляцию истории и промптов пользователей."""
-
     db = test_db
 
     # Создаём отдельные истории.
@@ -121,9 +128,8 @@ async def test_multiuser_isolation(test_db):
 
 
 @pytest.mark.asyncio
-async def test_admin_management(test_db):
+async def test_admin_management(test_db: Database) -> None:
     """Проверяет управление администраторами."""
-
     db = test_db
 
     # Сначала администраторов нет.
@@ -156,12 +162,11 @@ async def test_admin_management(test_db):
 
 
 @pytest.mark.asyncio
-async def test_concurrent_users(test_db):
+async def test_concurrent_users(test_db: Database) -> None:
     """Проверяет параллельную запись нескольких пользователей."""
-
     db = test_db
 
-    async def write_messages(user_id: int):
+    async def write_messages(user_id: int) -> None:
         for number in range(10):
             await db.add_exchange(
                 user_id,
@@ -187,9 +192,8 @@ async def test_concurrent_users(test_db):
 
 
 @pytest.mark.asyncio
-async def test_failed_exchange_rollback(test_db):
+async def test_failed_exchange_rollback(test_db: Database) -> None:
     """Проверяет откат неудачного обмена и удаление изображения."""
-
     db = test_db
 
     image_data = b"fake-image-data"

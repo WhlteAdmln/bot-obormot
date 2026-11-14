@@ -1,15 +1,22 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Подготовка аудио и получение распознанного текста."""
 
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
-from bot.services.chat.input.models import MessageInfo
+from bot.services.audio import transcribe_audio, validate_audio_duration
+from bot.services.telegram.downloader import download_telegram_file
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
     from aiogram.types import Message
+
+    from bot.services.chat.input.models import MessageInfo
 
 logger = logging.getLogger("bot.services.chat.input.audio_part")
 
@@ -18,25 +25,18 @@ async def prepare_audio(
     message: Message,
     info: MessageInfo,
     *,
-    duration_validator: Callable | None = None,
-    downloader: Callable | None = None,
+    duration_validator: Callable[..., object] | None = None,
+    downloader: Callable[..., Awaitable[bytes]] | None = None,
     transcriber: Callable[..., Awaitable[str]] | None = None,
 ) -> str:
     """Скачивает аудио и возвращает результат распознавания Whisper."""
-
     if duration_validator is None:
-        from bot.services.audio import validate_audio_duration
-
         duration_validator = validate_audio_duration
 
     if downloader is None:
-        from bot.services.telegram.downloader import download_telegram_file
-
         downloader = download_telegram_file
 
     if transcriber is None:
-        from bot.services.audio import transcribe_audio
-
         transcriber = transcribe_audio
 
     duration_validator(message)
@@ -45,7 +45,7 @@ async def prepare_audio(
 
     audio_data = await downloader(
         message,
-        info.audio_file_id,
+        cast("str", info.audio_file_id),
     )
 
     logger.info(
@@ -57,7 +57,7 @@ async def prepare_audio(
 
     transcribed_text = await transcriber(
         audio_data,
-        info.audio_filename,
+        cast("str", info.audio_filename),
     )
 
     logger.info("AUDIO: распознано символов: %d", len(transcribed_text))

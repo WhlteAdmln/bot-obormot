@@ -1,5 +1,11 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Administrator commands: health check, admin management and user bans."""
+
 import asyncio
 import logging
+from typing import TYPE_CHECKING, cast
 
 from aiogram import Router
 from aiogram.filters import Command, CommandObject
@@ -10,11 +16,15 @@ from bot.services.database import db
 from bot.services.llm import llm_client
 from bot.utils.audit import audit
 
+if TYPE_CHECKING:
+    from aiogram import Bot
+
 router = Router()
 logger = logging.getLogger("bot.handlers.admin")
 
 
 def is_supervisor(message: Message) -> bool:
+    """Returns True when the message was sent by the configured supervisor."""
     return (
         message.from_user is not None and message.from_user.id == config.SUPERVISOR_ID
     )
@@ -28,32 +38,32 @@ def _audit_denied(message: Message) -> None:
 
 async def check_telegram(message: Message) -> tuple[bool, str]:
     """Проверяет доступность Telegram Bot API."""
-
     try:
-        await message.bot.get_me()
-        return True, "Доступен"
+        bot = cast("Bot", message.bot)
+        await bot.get_me()
 
     except Exception:
         logger.exception("Telegram health check failed")
         return False, "Недоступен"
 
+    return True, "Доступен"
+
 
 async def check_database() -> tuple[bool, str]:
     """Проверяет доступность SQLite."""
-
     try:
         await db.health_check()
-        return True, "Подключена"
 
     except Exception:
         logger.exception("Database health check failed")
         return False, "Ошибка подключения"
 
+    return True, "Подключена"
+
 
 @router.message(Command("health"))
-async def cmd_health(message: Message):
+async def cmd_health(message: Message) -> None:
     """Показывает состояние основных компонентов бота."""
-
     if not message.from_user:
         return
 
@@ -107,7 +117,8 @@ async def cmd_health(message: Message):
 
 
 @router.message(Command("admin"))
-async def cmd_admin(message: Message):
+async def cmd_admin(message: Message) -> None:
+    """Shows the admin panel summary to the supervisor."""
     if not is_supervisor(message):
         _audit_denied(message)
         await message.answer("⛔ Доступ запрещён.")
@@ -128,7 +139,8 @@ async def cmd_admin(message: Message):
 
 
 @router.message(Command("admins"))
-async def cmd_admins(message: Message):
+async def cmd_admins(message: Message) -> None:
+    """Lists the supervisor and regular administrators."""
     if not is_supervisor(message):
         _audit_denied(message)
         await message.answer("⛔ Доступ запрещён.")
@@ -151,8 +163,9 @@ async def cmd_admins(message: Message):
 async def cmd_admin_add(
     message: Message,
     command: CommandObject,
-):
-    if not is_supervisor(message):
+) -> None:
+    """Adds an administrator by Telegram ID (supervisor only)."""
+    if not is_supervisor(message) or message.from_user is None:
         _audit_denied(message)
         await message.answer("⛔ Доступ запрещён.")
         return
@@ -199,8 +212,9 @@ async def cmd_admin_add(
 async def cmd_admin_remove(
     message: Message,
     command: CommandObject,
-):
-    if not is_supervisor(message):
+) -> None:
+    """Removes an administrator by Telegram ID (supervisor only)."""
+    if not is_supervisor(message) or message.from_user is None:
         _audit_denied(message)
         await message.answer("⛔ Доступ запрещён.")
         return
@@ -261,7 +275,7 @@ def _parse_target_id(command: CommandObject) -> int | None:
 
 
 @router.message(Command("ban"))
-async def cmd_ban(message: Message, command: CommandObject):
+async def cmd_ban(message: Message, command: CommandObject) -> None:
     """Блокирует пользователя до отдельной команды /unban."""
     if message.from_user is None:
         return
@@ -294,7 +308,7 @@ async def cmd_ban(message: Message, command: CommandObject):
 
 
 @router.message(Command("unban"))
-async def cmd_unban(message: Message, command: CommandObject):
+async def cmd_unban(message: Message, command: CommandObject) -> None:
     """Снимает блокировку с пользователя."""
     if message.from_user is None:
         return

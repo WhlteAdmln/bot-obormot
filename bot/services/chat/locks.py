@@ -1,13 +1,18 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Per-user locks that serialize chat requests."""
+
 import asyncio
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 _user_locks: dict[int, tuple[asyncio.Lock, int]] = {}
 
 
 @asynccontextmanager
-async def get_user_lock(user_id: int):
+async def get_user_lock(user_id: int) -> AsyncIterator[None]:
     """Блокирует обработку сообщений пользователя и очищает неиспользуемый lock."""
-
     entry = _user_locks.get(user_id)
 
     if entry is None:

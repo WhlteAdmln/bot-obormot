@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Stable FSM storage keys shared by handlers and middleware."""
 
 PROMPT_FLOW_KEY = "prompt_flow_message_ids"

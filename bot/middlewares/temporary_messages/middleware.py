@@ -1,8 +1,13 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Middleware that removes temporary service messages of the bot."""
+
 import logging
+from typing import TYPE_CHECKING, Any, cast
 
 from aiogram import BaseMiddleware
 from aiogram.exceptions import TelegramAPIError
-from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, TelegramObject
 
 from bot.fsm.keys import (
@@ -13,6 +18,11 @@ from bot.fsm.keys import (
     WELCOME_MESSAGE_KEY,
 )
 from bot.fsm.states import PromptStates
+from bot.middlewares.aliases import MiddlewareData, NextHandler
+
+if TYPE_CHECKING:
+    from aiogram import Bot
+    from aiogram.fsm.context import FSMContext
 
 logger = logging.getLogger("bot.middlewares.temporary_messages.middleware")
 
@@ -20,7 +30,13 @@ logger = logging.getLogger("bot.middlewares.temporary_messages.middleware")
 class TemporaryMessagesCleanupMiddleware(BaseMiddleware):
     """Удаляет временные технические сообщения при следующем сообщении пользователя."""
 
-    async def __call__(self, handler, event: TelegramObject, data: dict):
+    async def __call__(
+        self,
+        handler: NextHandler,
+        event: TelegramObject,
+        data: MiddlewareData,
+    ) -> object:
+        """Deletes pending temporary messages before the next handler runs."""
         if not isinstance(event, Message):
             return await handler(event, data)
 
@@ -42,12 +58,12 @@ class TemporaryMessagesCleanupMiddleware(BaseMiddleware):
 
         # Во время ввода нового промпта сохраняем сообщения процесса.
         # В остальных случаях очищаем результат /prompt и сообщения настройки.
-        prompt_flow_ids = []
+        prompt_flow_ids: list[int] = []
         if not waiting_for_prompt:
             prompt_flow_ids = state_data.get(PROMPT_FLOW_KEY, [])
 
         # Сначала удаляем ID из FSM, чтобы не пытаться удалить их повторно.
-        updates = {
+        updates: dict[str, Any] = {
             PROMPT_STATUS_MESSAGE_KEY: None,
             WELCOME_MESSAGE_KEY: None,
             UNKNOWN_COMMAND_MESSAGE_KEY: None,
@@ -105,9 +121,10 @@ class TemporaryMessagesCleanupMiddleware(BaseMiddleware):
         event: Message,
         message_id: int,
         description: str,
-    ):
+    ) -> None:
         try:
-            await event.bot.delete_message(
+            bot = cast("Bot", event.bot)
+            await bot.delete_message(
                 chat_id=event.chat.id,
                 message_id=message_id,
             )

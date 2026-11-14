@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Перенос обычных администраторов из конфигурации в SQLite."""
 
 import logging
@@ -14,7 +17,6 @@ async def migrate_admin_ids(
     supervisor_id: int,
 ) -> None:
     """Однократно переносит ADMIN_IDS, исключая Supervisor."""
-
     cursor = await connection.execute(
         """
         SELECT name

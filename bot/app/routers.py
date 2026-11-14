@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Единственное место регистрации middleware и корневых роутеров."""
 
 from aiogram import Dispatcher

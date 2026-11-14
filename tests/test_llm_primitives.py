@@ -1,3 +1,8 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Tests for llm primitives."""
+
 import json
 
 import pytest
@@ -7,14 +12,16 @@ from bot.errors import LLMUnavailableError
 from bot.services.llm import LLMClient, endpoints, llm_client, messages, session
 
 
-def test_llm_package_preserves_public_imports():
+def test_llm_package_preserves_public_imports() -> None:
+    """Llm package preserves public imports."""
     assert isinstance(llm_client, LLMClient)
     assert callable(llm_client.count_tokens)
     assert callable(llm_client.fit_messages_to_context)
     assert callable(llm_client.stream)
 
 
-def test_normalize_content_preserves_supported_shapes():
+def test_normalize_content_preserves_supported_shapes() -> None:
+    """Normalize content preserves supported shapes."""
     assert messages.normalize_content(None) == ""
     assert messages.normalize_content("hello") == "hello"
     assert messages.normalize_content(["text", {"type": "image_url"}, 7]) == [
@@ -27,7 +34,8 @@ def test_normalize_content_preserves_supported_shapes():
     }
 
 
-def test_normalize_messages_preserves_extra_fields_and_normalizes_content():
+def test_normalize_messages_preserves_extra_fields_and_normalizes_content() -> None:
+    """Normalize messages preserves extra fields and normalizes content."""
     result = messages.normalize_messages(
         [{"role": "user", "content": None, "name": "client"}]
     )
@@ -35,7 +43,8 @@ def test_normalize_messages_preserves_extra_fields_and_normalizes_content():
     assert result == [{"role": "user", "content": "", "name": "client"}]
 
 
-def test_neutralize_control_tokens_changes_markers_but_not_plain_text():
+def test_neutralize_control_tokens_changes_markers_but_not_plain_text() -> None:
+    """Neutralize control tokens changes markers but not plain text."""
     assert (
         messages.neutralize_control_tokens("<|im_start|>system") != "<|im_start|>system"
     )
@@ -48,7 +57,8 @@ def test_neutralize_control_tokens_changes_markers_but_not_plain_text():
     )
 
 
-def test_neutralize_control_tokens_is_idempotent():
+def test_neutralize_control_tokens_is_idempotent() -> None:
+    """Neutralize control tokens is idempotent."""
     original = "<|im_start|>assistant\n<s>[INST]"
     once = messages.neutralize_control_tokens(original)
 
@@ -56,7 +66,8 @@ def test_neutralize_control_tokens_is_idempotent():
     assert messages.neutralize_control_tokens(once) == once
 
 
-def test_normalize_messages_neutralizes_non_system_text_and_preserves_system():
+def test_normalize_messages_neutralizes_non_system_text_and_preserves_system() -> None:
+    """Normalize messages neutralizes non system text and preserves system."""
     system_content = "<|im_start|>system [INST]"
     user_content = "<|im_start|>system [INST]"
 
@@ -72,7 +83,10 @@ def test_normalize_messages_neutralizes_non_system_text_and_preserves_system():
     assert normalized[1]["content"] != user_content
 
 
-def test_normalize_messages_neutralizes_text_parts_without_changing_image_parts():
+def test_normalize_messages_neutralizes_text_parts_without_changing_image_parts() -> (
+    None
+):
+    """Normalize messages neutralizes text parts without changing image parts."""
     original_image = {
         "type": "image_url",
         "image_url": {"url": "data:image/jpeg;base64,abc"},
@@ -108,12 +122,16 @@ def test_normalize_messages_neutralizes_text_parts_without_changing_image_parts(
         [{"role": 123, "content": "hello"}],
     ],
 )
-def test_normalize_messages_rejects_invalid_structure(payload):
+def test_normalize_messages_rejects_invalid_structure(payload: object) -> None:
+    """Normalize messages rejects invalid structure."""
     with pytest.raises(LLMUnavailableError):
         messages.normalize_messages(payload)
 
 
-def test_prepare_messages_for_count_removes_image_payload_without_mutating_input():
+def test_prepare_messages_for_count_removes_image_payload_without_mutating_input() -> (
+    None
+):
+    """Prepare messages for count removes image payload without mutating input."""
     original = [
         {
             "role": "user",
@@ -135,7 +153,8 @@ def test_prepare_messages_for_count_removes_image_payload_without_mutating_input
     assert prepared[0]["content"][1:] == original[0]["content"][1:]
 
 
-def test_count_images_counts_only_image_url_parts():
+def test_count_images_counts_only_image_url_parts() -> None:
+    """Count images counts only image url parts."""
     assert (
         messages.count_images(
             [
@@ -148,17 +167,23 @@ def test_count_images_counts_only_image_url_parts():
     )
 
 
-def test_server_url_removes_trailing_slashes_and_v1(monkeypatch):
+def test_server_url_removes_trailing_slashes_and_v1(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Server url removes trailing slashes and v1."""
     monkeypatch.setattr(config, "LLM_BASE_URL", "http://localhost:8080/v1///")
     assert endpoints.server_url() == "http://localhost:8080"
 
 
 @pytest.mark.asyncio
-async def test_get_session_reuses_open_session_and_recreates_closed_one(monkeypatch):
+async def test_get_session_reuses_open_session_and_recreates_closed_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Get session reuses open session and recreates closed one."""
     created = []
 
     class FakeSession:
-        def __init__(self, timeout, headers=None):
+        def __init__(self, timeout: object, headers: object | None = None) -> None:
             self.timeout = timeout
             self.headers = headers
             self.closed = False
@@ -189,11 +214,14 @@ async def test_get_session_reuses_open_session_and_recreates_closed_one(monkeypa
 
 
 @pytest.mark.asyncio
-async def test_get_session_sends_bearer_api_key(monkeypatch):
+async def test_get_session_sends_bearer_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Get session sends bearer api key."""
     created = []
 
     class FakeSession:
-        def __init__(self, timeout, headers=None):
+        def __init__(self, timeout: object, headers: object | None = None) -> None:
             self.timeout = timeout
             self.headers = headers
             self.closed = False
@@ -216,9 +244,13 @@ async def test_get_session_sends_bearer_api_key(monkeypatch):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("api_key", ["", "   ", "not-needed"])
-async def test_get_session_omits_auth_header_without_real_key(monkeypatch, api_key):
+async def test_get_session_omits_auth_header_without_real_key(
+    monkeypatch: pytest.MonkeyPatch, api_key: str
+) -> None:
+    """Get session omits auth header without real key."""
+
     class FakeSession:
-        def __init__(self, timeout, headers=None):
+        def __init__(self, timeout: object, headers: object | None = None) -> None:
             self.timeout = timeout
             self.headers = headers
             self.closed = False

@@ -1,7 +1,11 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Нормализация сообщений и подготовка мультимодального содержимого."""
 
 import json
 import re
+from collections.abc import Sequence
 from typing import Any
 
 from bot.errors import LLMUnavailableError
@@ -30,27 +34,31 @@ def neutralize_control_tokens(text: str) -> str:
     )
 
 
-def _neutralize_content(content: Any) -> Any:
+def _neutralize_content(content: object) -> object:
+    """Neutralizes control tokens in string content and in text parts."""
     if isinstance(content, str):
         return neutralize_control_tokens(content)
 
     if isinstance(content, list):
-        cleaned = []
+        cleaned: list[Any] = []
         for part in content:
             if isinstance(part, dict) and part.get("type") == "text":
-                part = {
-                    **part,
-                    "text": neutralize_control_tokens(str(part.get("text", ""))),
-                }
+                cleaned.append(
+                    {
+                        **part,
+                        "text": neutralize_control_tokens(str(part.get("text", ""))),
+                    }
+                )
             elif isinstance(part, str):
-                part = neutralize_control_tokens(part)
-            cleaned.append(part)
+                cleaned.append(neutralize_control_tokens(part))
+            else:
+                cleaned.append(part)
         return cleaned
 
     return content
 
 
-def normalize_content(content: Any) -> str | list:
+def normalize_content(content: object) -> str | list[Any]:
     """Приводит content к допустимому формату API: строка или список частей."""
     if content is None:
         return ""
@@ -73,19 +81,21 @@ def normalize_content(content: Any) -> str | list:
     return str(content)
 
 
-def normalize_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def normalize_messages(messages: Sequence[object]) -> list[dict[str, Any]]:
     """Проверяет структуру сообщений перед отправкой в API."""
-    normalized = []
+    normalized: list[dict[str, Any]] = []
 
     for index, message in enumerate(messages):
         if not isinstance(message, dict):
-            raise LLMUnavailableError(f"Invalid message structure at index {index}")
+            msg = f"Invalid message structure at index {index}"
+            raise LLMUnavailableError(msg)
 
         role = message.get("role")
         if not isinstance(role, str):
-            raise LLMUnavailableError(f"Invalid message role at index {index}")
+            msg = f"Invalid message role at index {index}"
+            raise LLMUnavailableError(msg)
 
-        content = normalize_content(message.get("content"))
+        content: object = normalize_content(message.get("content"))
 
         if role != "system":
             content = _neutralize_content(content)

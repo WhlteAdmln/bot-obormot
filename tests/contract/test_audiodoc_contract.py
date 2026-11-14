@@ -1,7 +1,12 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Compatibility checks against the shared audiodoc response examples."""
 
 import json
+from collections.abc import AsyncIterator
 from pathlib import Path
+from typing import Self
 
 import aiohttp
 import pytest
@@ -16,30 +21,42 @@ CONTRACT = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
 
 
 class FakeContent:
-    def __init__(self, body: bytes):
+    """Fake content."""
+
+    def __init__(self, body: bytes) -> None:
+        """Initializes the test double."""
         self.body = body
 
-    async def iter_chunked(self, size):
+    async def iter_chunked(self, size: object) -> AsyncIterator[bytes]:
+        """Iter chunked."""
         for offset in range(0, len(self.body), size):
             yield self.body[offset : offset + size]
 
 
 class FakeResponse:
+    """Fake response."""
+
     status = 200
     content_length = None
 
-    def __init__(self, payload):
+    def __init__(self, payload: object) -> None:
+        """Initializes the test double."""
         self.content = FakeContent(json.dumps(payload).encode("utf-8"))
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> Self:
+        """Enters the async context."""
         return self
 
-    async def __aexit__(self, *args):
+    async def __aexit__(self, *_args: object) -> bool:
+        """Leaves the async context."""
         return False
 
 
 @pytest.mark.asyncio
-async def test_bot_transcription_client_accepts_shared_audiodoc_example(monkeypatch):
+async def test_bot_transcription_client_accepts_shared_audiodoc_example(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Bot transcription client accepts shared audiodoc example."""
     payload = CONTRACT["transcribe"]
     assert set(payload) == {"text", "language", "duration"}
     assert isinstance(payload["text"], str)
@@ -48,16 +65,18 @@ async def test_bot_transcription_client_accepts_shared_audiodoc_example(monkeypa
     calls = {}
 
     class Session:
-        def __init__(self, timeout, headers=None):
+        def __init__(self, timeout: object, headers: object | None = None) -> None:
+            self.timeout = timeout
             calls["headers"] = headers
 
-        async def __aenter__(self):
+        async def __aenter__(self) -> Self:
             return self
 
-        async def __aexit__(self, *args):
+        async def __aexit__(self, *_args: object) -> bool:
             return False
 
-        def post(self, url, data):
+        def post(self, url: str, data: object) -> FakeResponse:
+            self.posted_data = data
             calls["url"] = url
             return FakeResponse(payload)
 
@@ -71,23 +90,27 @@ async def test_bot_transcription_client_accepts_shared_audiodoc_example(monkeypa
 
 
 @pytest.mark.asyncio
-async def test_bot_document_client_accepts_shared_audiodoc_example(monkeypatch):
+async def test_bot_document_client_accepts_shared_audiodoc_example(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Bot document client accepts shared audiodoc example."""
     payload = CONTRACT["process_document"]
     assert set(payload) == {"format", "text", "characters", "truncated"}
     assert validate_document_response(payload) is payload
     calls = {}
 
     class Session:
-        def __init__(self, timeout, headers=None):
+        def __init__(self, timeout: object, headers: object | None = None) -> None:
+            self.timeout = timeout
             calls["headers"] = headers
 
-        async def __aenter__(self):
+        async def __aenter__(self) -> Self:
             return self
 
-        async def __aexit__(self, *args):
+        async def __aexit__(self, *_args: object) -> bool:
             return False
 
-        def post(self, url, data):
+        def post(self, url: str, data: object) -> FakeResponse:
             calls["url"] = url
             calls["data"] = data
             return FakeResponse(payload)

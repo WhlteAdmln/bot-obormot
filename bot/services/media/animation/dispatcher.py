@@ -1,3 +1,8 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Dispatch of animation decoding by media format."""
+
 from collections.abc import Callable
 
 from bot.services.media.animation.gif import extract_gif
@@ -16,7 +21,6 @@ def dispatch_extraction(
     video_extractor: FrameExtractor = extract_video,
 ) -> list[bytes]:
     """Выбирает декодер по формату анимации."""
-
     if media_type == "gif":
         return gif_extractor(data)
 
@@ -26,4 +30,5 @@ def dispatch_extraction(
     if media_type in ("webm", "mp4", "video"):
         return video_extractor(data)
 
-    raise ValueError(f"Unsupported animation format: {media_type}")
+    msg = f"Unsupported animation format: {media_type}"
+    raise ValueError(msg)

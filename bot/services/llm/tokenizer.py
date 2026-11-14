@@ -1,8 +1,11 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Подсчёт токенов: llama.cpp или консервативная оценка."""
 
-import asyncio
 import logging
 import math
+from http import HTTPStatus
 from typing import Any, Protocol
 
 import aiohttp
@@ -15,67 +18,75 @@ logger = logging.getLogger(__name__)
 _ESTIMATE_CHARS_PER_TOKEN = 3
 _ESTIMATE_MESSAGE_OVERHEAD = 8
 _PROBE_TEXT = "tokenizer availability check"
+_MODE_LLAMACPP = "llamacpp"
+_MODE_ESTIMATE = "estimate"
 
 
 class TokenizerClient(Protocol):
-    """Минимальный интерфейс LLMClient для токенизации."""
+    """Minimal client interface for tokenization."""
 
-    _token_counting_mode: str | None
-    _token_counting_lock: asyncio.Lock
+    async def get_session(self) -> aiohttp.ClientSession:
+        """Return the shared HTTP session."""
+        ...
 
-    async def _get_session(self) -> aiohttp.ClientSession: ...
+    def get_server_url(self) -> str:
+        """Return the configured LLM server URL."""
+        ...
 
-    def _server_url(self) -> str: ...
+    def normalize_messages(
+        self,
+        messages: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Normalize messages for the LLM API."""
+        ...
 
-    _normalize_messages: Any
-    _prepare_messages_for_count: Any
+    @staticmethod
+    def prepare_messages_for_count(
+        messages: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Prepare messages for server-side token counting."""
+        ...
+
+    async def get_token_counting_mode(self) -> str:
+        """Return the selected token counting backend."""
+        ...
 
 
 async def get_token_counting_mode(client: TokenizerClient) -> str:
-    """Выбирает backend токенизации один раз на экземпляр клиента."""
-    configured_mode = config.LLM_TOKEN_COUNTING
-    if configured_mode != "auto":
-        return configured_mode
-
-    if client._token_counting_mode is not None:
-        return client._token_counting_mode
-
-    async with client._token_counting_lock:
-        if client._token_counting_mode is not None:
-            return client._token_counting_mode
-
-        try:
-            session = await client._get_session()
-            async with session.post(
-                f"{client._server_url()}/tokenize",
-                json={
-                    "model": config.LLM_MODEL,
-                    "content": _PROBE_TEXT,
-                    "add_special": False,
-                    "parse_special": True,
-                },
-                timeout=aiohttp.ClientTimeout(total=min(5, config.LLM_TIMEOUT)),
-            ) as response:
-                data = await response.json() if response.status == 200 else None
-                if isinstance(data, dict) and isinstance(data.get("tokens"), list):
-                    client._token_counting_mode = "llamacpp"
-                else:
-                    client._token_counting_mode = "estimate"
-        except (TimeoutError, aiohttp.ClientError, ValueError, TypeError):
-            client._token_counting_mode = "estimate"
-
-        if client._token_counting_mode == "estimate":
-            logger.warning(
-                "LLM server does not expose the llama.cpp tokenizer; "
-                "using approximate token counting"
+    """Detects the available token counting backend."""
+    try:
+        session = await client.get_session()
+        async with session.post(
+            f"{client.get_server_url()}/tokenize",
+            json={
+                "model": config.LLM_MODEL,
+                "content": _PROBE_TEXT,
+                "add_special": False,
+                "parse_special": True,
+            },
+            timeout=aiohttp.ClientTimeout(total=min(5, config.LLM_TIMEOUT)),
+        ) as response:
+            data = await response.json() if response.status == HTTPStatus.OK else None
+            mode = (
+                _MODE_LLAMACPP
+                if isinstance(data, dict) and isinstance(data.get("tokens"), list)
+                else _MODE_ESTIMATE
             )
-        else:
-            logger.info("Using llama.cpp tokenizer")
+    except (TimeoutError, aiohttp.ClientError, ValueError, TypeError):
+        mode = _MODE_ESTIMATE
 
-        return client._token_counting_mode
+    if mode == _MODE_ESTIMATE:
+        logger.warning(
+            "LLM server does not expose the llama.cpp tokenizer; "
+            "using approximate token counting"
+        )
+    else:
+        logger.info("Using llama.cpp tokenizer")
+
+    return mode
 
 
-def _text_from_content(content: Any) -> str:
+def _text_from_content(content: object) -> str:
     if isinstance(content, str):
         return content
     if not isinstance(content, list):
@@ -112,10 +123,10 @@ async def _count_tokens_llamacpp(
     client: TokenizerClient,
     messages: list[dict[str, Any]],
 ) -> int:
-    session = await client._get_session()
-    base_url = client._server_url()
-    normalized_messages = client._normalize_messages(messages)
-    prepared_messages = client._prepare_messages_for_count(normalized_messages)
+    session = await client.get_session()
+    base_url = client.get_server_url()
+    normalized_messages = client.normalize_messages(messages)
+    prepared_messages = client.prepare_messages_for_count(normalized_messages)
 
     for index, message in enumerate(prepared_messages):
         content = message.get("content")
@@ -126,7 +137,8 @@ async def _count_tokens_llamacpp(
                 message.get("role"),
                 type(content).__name__,
             )
-            raise LLMUnavailableError(f"Invalid message content at index {index}")
+            msg = f"Invalid message content at index {index}"
+            raise LLMUnavailableError(msg)
 
     async with session.post(
         f"{base_url}/apply-template",
@@ -136,7 +148,7 @@ async def _count_tokens_llamacpp(
             "add_generation_prompt": True,
         },
     ) as response:
-        if response.status != 200:
+        if response.status != HTTPStatus.OK:
             detail = await response.text()
             logger.error(
                 "apply-template failed: HTTP %s: %s",
@@ -148,7 +160,8 @@ async def _count_tokens_llamacpp(
 
     prompt = template_data.get("prompt")
     if not isinstance(prompt, str):
-        raise LLMUnavailableError("LLM server returned an invalid tokenization prompt")
+        msg = "LLM server returned an invalid tokenization prompt"
+        raise LLMUnavailableError(msg)
 
     async with session.post(
         f"{base_url}/tokenize",
@@ -159,7 +172,7 @@ async def _count_tokens_llamacpp(
             "parse_special": True,
         },
     ) as response:
-        if response.status != 200:
+        if response.status != HTTPStatus.OK:
             detail = await response.text()
             logger.error(
                 "tokenize failed: HTTP %s: %s",
@@ -171,7 +184,8 @@ async def _count_tokens_llamacpp(
 
     tokens = token_data.get("tokens")
     if not isinstance(tokens, list):
-        raise LLMUnavailableError("LLM server returned an invalid token list")
+        msg = "LLM server returned an invalid token list"
+        raise LLMUnavailableError(msg)
     return len(tokens)
 
 
@@ -180,17 +194,19 @@ async def count_tokens(
     messages: list[dict[str, Any]],
 ) -> int:
     """Считает токены сообщений выбранным backend-ом."""
-    mode = await get_token_counting_mode(client)
+    mode = await client.get_token_counting_mode()
     if mode == "estimate":
-        normalized_messages = client._normalize_messages(messages)
+        normalized_messages = client.normalize_messages(messages)
         return estimate_message_tokens(normalized_messages)
 
     try:
         return await _count_tokens_llamacpp(client, messages)
     except TimeoutError as error:
-        raise LLMTimeoutError("Timeout while counting prompt tokens") from error
+        msg = "Timeout while counting prompt tokens"
+        raise LLMTimeoutError(msg) from error
     except aiohttp.ClientError as error:
-        raise LLMUnavailableError("Could not count prompt tokens") from error
+        msg = "Could not count prompt tokens"
+        raise LLMUnavailableError(msg) from error
 
 
 async def count_text_tokens(client: TokenizerClient, text: str) -> int:
@@ -198,14 +214,14 @@ async def count_text_tokens(client: TokenizerClient, text: str) -> int:
     if not text:
         return 0
 
-    mode = await get_token_counting_mode(client)
+    mode = await client.get_token_counting_mode()
     if mode == "estimate":
         return estimate_text_tokens(text)
 
     try:
-        session = await client._get_session()
+        session = await client.get_session()
         async with session.post(
-            f"{client._server_url()}/tokenize",
+            f"{client.get_server_url()}/tokenize",
             json={
                 "model": config.LLM_MODEL,
                 "content": text,
@@ -213,7 +229,7 @@ async def count_text_tokens(client: TokenizerClient, text: str) -> int:
                 "parse_special": True,
             },
         ) as response:
-            if response.status != 200:
+            if response.status != HTTPStatus.OK:
                 detail = await response.text()
                 logger.error(
                     "Text tokenize failed: HTTP %s: %s",
@@ -225,9 +241,12 @@ async def count_text_tokens(client: TokenizerClient, text: str) -> int:
 
         tokens = token_data.get("tokens")
         if not isinstance(tokens, list):
-            raise LLMUnavailableError("LLM server returned an invalid token list")
+            msg = "LLM server returned an invalid token list"
+            raise LLMUnavailableError(msg)
         return len(tokens)
     except TimeoutError as error:
-        raise LLMTimeoutError("Timeout while counting text tokens") from error
+        msg = "Timeout while counting text tokens"
+        raise LLMTimeoutError(msg) from error
     except aiohttp.ClientError as error:
-        raise LLMUnavailableError("Could not count text tokens") from error
+        msg = "Could not count text tokens"
+        raise LLMUnavailableError(msg) from error

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Публичный API сервиса SQLite.
 
 Реализация фасада находится в :mod:`bot.services.database.facade`.

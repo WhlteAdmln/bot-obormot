@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Упорядоченный каталог правил обработки ошибок чата.
 
 Порядок элементов повторяет исходную последовательность elif, включая
@@ -31,6 +34,8 @@ from bot.services.chat.errors import texts
 
 @dataclass(frozen=True)
 class ChatErrorRule:
+    """Maps an error type to the user message and the log entry it produces."""
+
     error_type: type[Exception]
     user_message: str | Callable[[Exception], str]
     log_method: str | None = None
@@ -152,4 +157,7 @@ CHAT_ERROR_RULES: tuple[ChatErrorRule, ...] = (
     ),
 )
 
-__all__ = ["ChatErrorRule", "CHAT_ERROR_RULES"]
+__all__ = [
+    "CHAT_ERROR_RULES",
+    "ChatErrorRule",
+]

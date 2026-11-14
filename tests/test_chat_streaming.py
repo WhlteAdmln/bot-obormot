@@ -1,11 +1,22 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Tests for chat streaming."""
+
 import asyncio
 import logging
 from types import SimpleNamespace
 
 import pytest
 
-from bot.services.chat.streaming.delivery import deliver_final_response
-from bot.services.chat.streaming.responder import StreamingResponder
+from bot.services.chat.streaming.delivery import (
+    DeliveryOptions,
+    deliver_final_response,
+)
+from bot.services.chat.streaming.responder import (
+    StreamingResponder,
+    StreamingResponderOptions,
+)
 from bot.services.chat.streaming.settings import (
     MAX_MESSAGE_LENGTH,
     STREAM_TOKEN_THRESHOLD,
@@ -14,32 +25,36 @@ from bot.services.chat.streaming.settings import (
 
 
 class FakeMessage:
-    def __init__(self):
+    """Fake message."""
+
+    def __init__(self) -> None:
+        """Initializes the test double."""
         self.answers = []
 
-    async def answer(self, text, **kwargs):
+    async def answer(self, text: str, **kwargs: object) -> SimpleNamespace:
+        """Answer."""
         self.answers.append((text, kwargs))
         return SimpleNamespace(text=text)
 
 
-def _split(text, *, max_length):
+def _split(text: str, *, max_length: object) -> list[object]:
     return [
         text[index : index + max_length] for index in range(0, len(text), max_length)
     ]
 
 
 def _responder(
-    message=None,
+    message: object | None = None,
     *,
-    count=None,
-    safe_edit=None,
-    token_threshold=150,
-    update_interval=0,
-):
-    async def default_count(_text):
+    count: object | None = None,
+    safe_edit: object | None = None,
+    token_threshold: int = 150,
+    update_interval: int = 0,
+) -> StreamingResponder:
+    async def default_count(_text: str) -> int:
         return 151
 
-    async def default_edit(_message, _text):
+    async def default_edit(_message: object, _text: str) -> None:
         return None
 
     return StreamingResponder(
@@ -47,25 +62,29 @@ def _responder(
         user_id=42,
         count_text_tokens=count or default_count,
         safe_edit=safe_edit or default_edit,
-        formatter=lambda text: text,
-        splitter=_split,
-        token_threshold=token_threshold,
-        update_interval=update_interval,
-        max_message_length=3900,
+        options=StreamingResponderOptions(
+            formatter=lambda text: text,
+            splitter=_split,
+            token_threshold=token_threshold,
+            update_interval=update_interval,
+            max_message_length=3900,
+        ),
     )
 
 
-def test_streaming_settings_preserve_original_values():
+def test_streaming_settings_preserve_original_values() -> None:
+    """Streaming settings preserve original values."""
     assert STREAM_TOKEN_THRESHOLD == 150
     assert STREAM_UPDATE_INTERVAL == 0.8
     assert MAX_MESSAGE_LENGTH == 3900
 
 
 @pytest.mark.asyncio
-async def test_responder_waits_until_initial_character_checkpoint():
+async def test_responder_waits_until_initial_character_checkpoint() -> None:
+    """Responder waits until initial character checkpoint."""
     calls = []
 
-    async def count(text):
+    async def count(text: str) -> int:
         calls.append(text)
         return 151
 
@@ -80,11 +99,12 @@ async def test_responder_waits_until_initial_character_checkpoint():
 
 
 @pytest.mark.asyncio
-async def test_responder_checks_token_count_at_character_threshold_and_creates_status():
+async def test_responder_checks_token_count_at_threshold_and_creates_status() -> None:
+    """Responder checks token count at threshold and creates status."""
     calls = []
     message = FakeMessage()
 
-    async def count(text):
+    async def count(text: str) -> int:
         calls.append(text)
         return 151
 
@@ -100,11 +120,14 @@ async def test_responder_checks_token_count_at_character_threshold_and_creates_s
 
 
 @pytest.mark.asyncio
-async def test_responder_increases_character_checkpoint_after_short_token_count():
+async def test_responder_increases_character_checkpoint_after_short_token_count() -> (
+    None
+):
+    """Responder increases character checkpoint after short token count."""
     calls = []
     message = FakeMessage()
 
-    async def count(text):
+    async def count(text: str) -> int:
         calls.append(text)
         return 150
 
@@ -121,10 +144,13 @@ async def test_responder_increases_character_checkpoint_after_short_token_count(
 
 
 @pytest.mark.asyncio
-async def test_responder_updates_status_after_interval_only_when_chunk_changes():
+async def test_responder_updates_status_after_interval_only_when_chunk_changes() -> (
+    None
+):
+    """Responder updates status after interval only when chunk changes."""
     edits = []
 
-    async def safe_edit(status, text):
+    async def safe_edit(status: object, text: str) -> None:
         edits.append((status, text))
 
     message = FakeMessage()
@@ -141,15 +167,19 @@ async def test_responder_updates_status_after_interval_only_when_chunk_changes()
 
 
 @pytest.mark.asyncio
-async def test_responder_count_failure_does_not_disable_future_streaming(caplog):
+async def test_responder_count_failure_does_not_disable_future_streaming(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Responder count failure does not disable future streaming."""
     attempts = 0
     message = FakeMessage()
 
-    async def count(_text):
+    async def count(_text: str) -> int:
         nonlocal attempts
         attempts += 1
         if attempts == 1:
-            raise RuntimeError("tokenizer down")
+            msg = "tokenizer down"
+            raise RuntimeError(msg)
         return 151
 
     responder = _responder(message, count=count)
@@ -165,10 +195,15 @@ async def test_responder_count_failure_does_not_disable_future_streaming(caplog)
 
 
 @pytest.mark.asyncio
-async def test_responder_disables_streaming_after_initial_send_failure(caplog):
+async def test_responder_disables_streaming_after_initial_send_failure(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Responder disables streaming after initial send failure."""
+
     class BrokenMessage:
-        async def answer(self, *_args, **_kwargs):
-            raise RuntimeError("telegram down")
+        async def answer(self, *_args: object, **_kwargs: object) -> None:
+            msg = "telegram down"
+            raise RuntimeError(msg)
 
     responder = _responder(BrokenMessage())
     with caplog.at_level(logging.WARNING, logger="bot.handlers.chat"):
@@ -181,9 +216,14 @@ async def test_responder_disables_streaming_after_initial_send_failure(caplog):
 
 
 @pytest.mark.asyncio
-async def test_responder_disables_streaming_after_edit_failure(caplog):
-    async def broken_edit(_status, _text):
-        raise RuntimeError("edit failed")
+async def test_responder_disables_streaming_after_edit_failure(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Responder disables streaming after edit failure."""
+
+    async def broken_edit(_status: object, _text: str) -> None:
+        msg = "edit failed"
+        raise RuntimeError(msg)
 
     responder = _responder(safe_edit=broken_edit)
     await responder.on_update("x" * 300)
@@ -197,11 +237,12 @@ async def test_responder_disables_streaming_after_edit_failure(caplog):
 
 
 @pytest.mark.asyncio
-async def test_responder_cancel_uses_shielded_safe_edit():
+async def test_responder_cancel_uses_shielded_safe_edit() -> None:
+    """Responder cancel uses shielded safe edit."""
     edits = []
     completed = asyncio.Event()
 
-    async def safe_edit(status, text):
+    async def safe_edit(status: object, text: str) -> None:
         edits.append((status, text))
         await asyncio.sleep(0)
         completed.set()
@@ -217,7 +258,8 @@ async def test_responder_cancel_uses_shielded_safe_edit():
 
 
 @pytest.mark.asyncio
-async def test_delivery_sends_all_chunks_without_streaming_status():
+async def test_delivery_sends_all_chunks_without_streaming_status() -> None:
+    """Delivery sends all chunks without streaming status."""
     message = FakeMessage()
 
     await deliver_final_response(
@@ -225,9 +267,11 @@ async def test_delivery_sends_all_chunks_without_streaming_status():
         response="abcdefgh",
         status=None,
         safe_edit=lambda *_args: None,
-        formatter=lambda text: text,
-        splitter=_split,
-        max_message_length=3,
+        options=DeliveryOptions(
+            formatter=lambda text: text,
+            splitter=_split,
+            max_message_length=3,
+        ),
     )
 
     assert message.answers == [
@@ -238,11 +282,12 @@ async def test_delivery_sends_all_chunks_without_streaming_status():
 
 
 @pytest.mark.asyncio
-async def test_delivery_edits_first_chunk_and_sends_remaining_chunks():
+async def test_delivery_edits_first_chunk_and_sends_remaining_chunks() -> None:
+    """Delivery edits first chunk and sends remaining chunks."""
     message = FakeMessage()
     edits = []
 
-    async def safe_edit(status, text):
+    async def safe_edit(status: object, text: str) -> None:
         edits.append((status, text))
 
     status = object()
@@ -251,10 +296,12 @@ async def test_delivery_edits_first_chunk_and_sends_remaining_chunks():
         response="abcdefgh",
         status=status,
         safe_edit=safe_edit,
-        formatter=lambda text: text,
-        splitter=_split,
-        max_message_length=3,
-        user_id=42,
+        options=DeliveryOptions(
+            formatter=lambda text: text,
+            splitter=_split,
+            max_message_length=3,
+            user_id=42,
+        ),
     )
 
     assert edits == [(status, "abc")]
@@ -265,11 +312,15 @@ async def test_delivery_edits_first_chunk_and_sends_remaining_chunks():
 
 
 @pytest.mark.asyncio
-async def test_delivery_falls_back_to_all_chunks_when_status_edit_fails(caplog):
+async def test_delivery_falls_back_to_all_chunks_when_status_edit_fails(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Delivery falls back to all chunks when status edit fails."""
     message = FakeMessage()
 
-    async def broken_edit(_status, _text):
-        raise RuntimeError("edit failed")
+    async def broken_edit(_status: object, _text: str) -> None:
+        msg = "edit failed"
+        raise RuntimeError(msg)
 
     with caplog.at_level(logging.WARNING, logger="bot.handlers.chat"):
         await deliver_final_response(
@@ -277,10 +328,12 @@ async def test_delivery_falls_back_to_all_chunks_when_status_edit_fails(caplog):
             response="abcdef",
             status=object(),
             safe_edit=broken_edit,
-            formatter=lambda text: text,
-            splitter=_split,
-            max_message_length=3,
-            user_id=42,
+            options=DeliveryOptions(
+                formatter=lambda text: text,
+                splitter=_split,
+                max_message_length=3,
+                user_id=42,
+            ),
         )
 
     assert message.answers == [
@@ -291,7 +344,8 @@ async def test_delivery_falls_back_to_all_chunks_when_status_edit_fails(caplog):
 
 
 @pytest.mark.asyncio
-async def test_delivery_does_nothing_for_empty_formatted_response():
+async def test_delivery_does_nothing_for_empty_formatted_response() -> None:
+    """Delivery does nothing for empty formatted response."""
     message = FakeMessage()
 
     await deliver_final_response(
@@ -299,15 +353,17 @@ async def test_delivery_does_nothing_for_empty_formatted_response():
         response="anything",
         status=None,
         safe_edit=lambda *_args: None,
-        formatter=lambda _text: "",
-        splitter=_split,
+        options=DeliveryOptions(
+            formatter=lambda _text: "",
+        ),
     )
 
     assert message.answers == []
 
 
 @pytest.mark.asyncio
-async def test_delivery_splits_response_longer_than_telegram_message_limit():
+async def test_delivery_splits_response_longer_than_telegram_message_limit() -> None:
+    """Delivery splits response longer than telegram message limit."""
     message = FakeMessage()
     response = "x" * 3901
 
@@ -316,8 +372,10 @@ async def test_delivery_splits_response_longer_than_telegram_message_limit():
         response=response,
         status=None,
         safe_edit=lambda *_args: None,
-        formatter=lambda text: text,
-        splitter=_split,
+        options=DeliveryOptions(
+            formatter=lambda text: text,
+            splitter=_split,
+        ),
     )
 
     assert [len(text) for text, _kwargs in message.answers] == [3900, 1]

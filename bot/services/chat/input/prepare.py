@@ -1,9 +1,12 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Координация подготовки текста, медиа, аудио и документов."""
 
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from bot.services.chat.input.audio_part import prepare_audio
 from bot.services.chat.input.document_part import prepare_document
@@ -24,12 +27,11 @@ async def prepare_message(
     text_override: str | None = None,
 ) -> PreparedMessage:
     """Скачивает и обрабатывает входящие данные."""
-
-    image_urls = None
-    image_bytes = None
-    transcribed_text = None
-    document_text = None
-    document_format = None
+    image_urls: list[str] | None = None
+    image_bytes: list[bytes] | None = None
+    transcribed_text: str | None = None
+    document_text: str | None = None
+    document_format: str | None = None
 
     # Порядок обработки намеренно сохранён: аудио, медиа, документ.
     if info.has_audio:
@@ -48,7 +50,6 @@ async def prepare_message(
         transcribed_text=transcribed_text,
         image_urls=image_urls,
         document_text=document_text,
-        document_format=document_format,
     )
 
     saved_user_text = build_saved_user_text(
@@ -59,8 +60,10 @@ async def prepare_message(
         document_format=document_format,
     )
 
+    # PreparedMessage keeps its historical annotations; the values are passed
+    # through unchanged, so only the static type is narrowed here.
     return PreparedMessage(
-        user_content=user_content,
-        saved_user_text=saved_user_text,
+        user_content=cast("str", user_content),
+        saved_user_text=cast("str", saved_user_text),
         image_bytes=image_bytes,
     )

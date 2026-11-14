@@ -1,6 +1,13 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Client for the Document Engine (audiodoc) API."""
+
 import json
 import logging
+from http import HTTPStatus
 from pathlib import Path
+from typing import Any
 
 import aiohttp
 
@@ -29,11 +36,11 @@ MAX_DOCUMENT_TEXT_LENGTH = MAX_INPUT_TEXT_LENGTH - DOCUMENT_TEXT_OVERHEAD_RESERV
 async def process_document(
     document_data: bytes,
     filename: str,
-) -> dict:
+) -> dict[str, Any]:
     """Отправляет документ в Document Engine и возвращает результат."""
-
     if not config.DOCUMENT_API_URL:
-        raise DocumentUnavailableError("DOCUMENT_API_URL is not configured")
+        msg = "DOCUMENT_API_URL is not configured"
+        raise DocumentUnavailableError(msg)
 
     filename = Path(filename or "document").name
     # The name is copied into a multipart header as well as the log.
@@ -73,7 +80,7 @@ async def process_document(
                 data=form,
             ) as response,
         ):
-            if response.status != 200:
+            if response.status != HTTPStatus.OK:
                 body = await read_limited_body(response, MAX_ERROR_BODY_BYTES)
                 detail = (body or b"").decode("utf-8", errors="replace")
 
@@ -107,12 +114,13 @@ async def process_document(
             result["characters"],
         )
 
-        return result
-
     except TimeoutError as error:
-        raise DocumentTimeoutError("Document processing timed out") from error
+        msg = "Document processing timed out"
+        raise DocumentTimeoutError(msg) from error
 
     except aiohttp.ClientError as error:
-        raise DocumentUnavailableError(
-            f"Document Engine connection error: {error}"
-        ) from error
+        msg = f"Document Engine connection error: {error}"
+        raise DocumentUnavailableError(msg) from error
+
+    else:
+        return result

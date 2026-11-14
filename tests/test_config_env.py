@@ -1,3 +1,10 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Tests for config env."""
+
+import importlib
+
 import pytest
 
 from bot.config.env import get_bool, get_optional_int
@@ -16,53 +23,63 @@ from bot.config.env import get_bool, get_optional_int
         ("off", False),
     ],
 )
-def test_get_bool_parses_supported_values(monkeypatch, value, expected):
+def test_get_bool_parses_supported_values(
+    monkeypatch: pytest.MonkeyPatch, value: str, expected: object
+) -> None:
+    """Get bool parses supported values."""
     monkeypatch.setenv("TEST_BOOL_SETTING", value)
 
     assert get_bool("TEST_BOOL_SETTING") is expected
 
 
-def test_get_bool_uses_default_for_missing_or_empty_value(monkeypatch):
+def test_get_bool_uses_default_for_missing_or_empty_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Get bool uses default for missing or empty value."""
     monkeypatch.delenv("TEST_BOOL_SETTING", raising=False)
     assert get_bool("TEST_BOOL_SETTING") is False
-    assert get_bool("TEST_BOOL_SETTING", True) is True
+    assert get_bool("TEST_BOOL_SETTING", default=True) is True
 
     monkeypatch.setenv("TEST_BOOL_SETTING", "   ")
-    assert get_bool("TEST_BOOL_SETTING", True) is True
+    assert get_bool("TEST_BOOL_SETTING", default=True) is True
 
 
-def test_get_bool_rejects_invalid_value(monkeypatch):
+def test_get_bool_rejects_invalid_value(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Get bool rejects invalid value."""
     monkeypatch.setenv("TEST_BOOL_SETTING", "sometimes")
 
     with pytest.raises(ValueError, match="TEST_BOOL_SETTING"):
         get_bool("TEST_BOOL_SETTING")
 
 
-def test_config_loads_env_from_project_root_only(monkeypatch):
-    import importlib
-
-    import dotenv
-
-    import bot.config as config_module
-    from bot.config.paths import PROJECT_ROOT
+def test_config_loads_env_from_project_root_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Config loads env from project root only."""
+    dotenv = importlib.import_module("dotenv")
+    config_module = importlib.import_module("bot.config")
+    project_root = importlib.import_module("bot.config.paths").PROJECT_ROOT
 
     loaded_paths = []
     original_load_dotenv = dotenv.load_dotenv
     monkeypatch.setattr(
         dotenv,
         "load_dotenv",
-        lambda dotenv_path: loaded_paths.append(dotenv_path),
+        loaded_paths.append,
     )
 
     importlib.reload(config_module)
 
-    assert loaded_paths == [PROJECT_ROOT / ".env"]
+    assert loaded_paths == [project_root / ".env"]
     # Keep the reloaded package free of the test spy after monkeypatch teardown.
     config_module.load_dotenv = original_load_dotenv
 
 
 @pytest.mark.parametrize("value", [None, "", "   "])
-def test_get_optional_int_returns_none_for_empty_value(monkeypatch, value):
+def test_get_optional_int_returns_none_for_empty_value(
+    monkeypatch: pytest.MonkeyPatch, value: str | None
+) -> None:
+    """Get optional int returns none for empty value."""
     if value is None:
         monkeypatch.delenv("TEST_OPTIONAL_INT", raising=False)
     else:
@@ -71,19 +88,26 @@ def test_get_optional_int_returns_none_for_empty_value(monkeypatch, value):
     assert get_optional_int("TEST_OPTIONAL_INT") is None
 
 
-def test_get_optional_int_parses_positive_integer(monkeypatch):
+def test_get_optional_int_parses_positive_integer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Get optional int parses positive integer."""
     monkeypatch.setenv("TEST_OPTIONAL_INT", "32768")
     assert get_optional_int("TEST_OPTIONAL_INT") == 32768
 
 
 @pytest.mark.parametrize("value", ["zero", "0", "-1"])
-def test_get_optional_int_rejects_invalid_values(monkeypatch, value):
+def test_get_optional_int_rejects_invalid_values(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    """Get optional int rejects invalid values."""
     monkeypatch.setenv("TEST_OPTIONAL_INT", value)
     with pytest.raises(ValueError, match="TEST_OPTIONAL_INT"):
         get_optional_int("TEST_OPTIONAL_INT")
 
 
-def test_stream_update_interval_is_not_an_environment_setting():
-    from bot.config.settings import Config
+def test_stream_update_interval_is_not_an_environment_setting() -> None:
+    """Stream update interval is not an environment setting."""
+    config_class = importlib.import_module("bot.config.settings").Config
 
-    assert not hasattr(Config, "STREAM_UPDATE_INTERVAL")
+    assert not hasattr(config_class, "STREAM_UPDATE_INTERVAL")

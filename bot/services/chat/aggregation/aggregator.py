@@ -1,3 +1,8 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Aggregation of consecutive text messages from one user."""
+
 import asyncio
 import logging
 import time
@@ -20,16 +25,17 @@ class MessageAggregator:
     """Объединяет последовательные текстовые сообщения одного пользователя."""
 
     def __init__(self) -> None:
+        """Creates empty per-user aggregation state."""
         self._states: dict[int, _AggregationState] = {}
         self._lock = asyncio.Lock()
-        self._tasks: set[asyncio.Task] = set()
+        self._tasks: set[asyncio.Task[None]] = set()
 
     async def collect(self, message: Message) -> str | None:
-        """
+        """Returns the collected text, or None for a continuation part.
+
         Возвращает готовый текст либо None, если сообщение
         принято как продолжение предыдущего.
         """
-
         text = message.text
 
         if not text or message.from_user is None:
@@ -143,7 +149,6 @@ class MessageAggregator:
         state: _AggregationState,
     ) -> None:
         """Ожидает продолжение и завершает сборку после таймаута."""
-
         try:
             while True:
                 async with self._lock:

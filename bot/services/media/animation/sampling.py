@@ -1,11 +1,16 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Uniform sampling of animation frame indices."""
+
 from bot.services.media.animation.limits import MAX_FRAMES
 
 
 def sample_frame_indices(total_frames: int) -> list[int]:
     """Возвращает равномерно распределённые индексы кадров."""
-
     if total_frames <= 0:
-        raise ValueError("Animation does not contain frames")
+        msg = "Animation does not contain frames"
+        raise ValueError(msg)
 
     count = min(MAX_FRAMES, total_frames)
 

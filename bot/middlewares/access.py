@@ -1,3 +1,8 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Middleware that restricts the bot to users who have access."""
+
 import time
 
 from aiogram import BaseMiddleware
@@ -5,6 +10,7 @@ from aiogram.enums import ChatType
 from aiogram.types import TelegramObject
 
 from bot.config import config
+from bot.middlewares.aliases import MiddlewareData, NextHandler
 from bot.services.access import user_has_access
 from bot.services.database import db
 
@@ -15,10 +21,19 @@ MAX_TRACKED_DENIED = 5000
 
 
 class AccessMiddleware(BaseMiddleware):
+    """Drops events from users without access and notifies them occasionally."""
+
     def __init__(self) -> None:
+        """Creates an empty table of recently notified users."""
         self._last_denied_notice: dict[int, float] = {}
 
-    async def __call__(self, handler, event: TelegramObject, data: dict):
+    async def __call__(
+        self,
+        handler: NextHandler,
+        event: TelegramObject,
+        data: MiddlewareData,
+    ) -> object:
+        """Passes the event on only when the sender is allowed to use the bot."""
         user = data.get("event_from_user")
 
         # Нет отправителя: не обрабатываем событие.

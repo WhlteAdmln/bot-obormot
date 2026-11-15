@@ -31,13 +31,39 @@ _FIXTURE_KEYS: dict[Endpoint, str] = {
     "process-document": "process_document",
 }
 _ERROR_DETAILS = {
+    HTTPStatus.BAD_REQUEST: "The uploaded file could not be processed",
     HTTPStatus.UNAUTHORIZED: "Invalid API key",
     HTTPStatus.REQUEST_ENTITY_TOO_LARGE: "Request body is too large",
     HTTPStatus.UNSUPPORTED_MEDIA_TYPE: "Unsupported media type",
     HTTPStatus.UNPROCESSABLE_ENTITY: "Invalid request",
+    HTTPStatus.INTERNAL_SERVER_ERROR: "Unexpected internal failure",
     HTTPStatus.SERVICE_UNAVAILABLE: "Service unavailable",
+    HTTPStatus.GATEWAY_TIMEOUT: "Processing timed out",
+}
+_ERROR_CODES: dict[tuple[Endpoint, HTTPStatus], str] = {
+    ("transcribe", HTTPStatus.BAD_REQUEST): "invalid_audio",
+    ("process-document", HTTPStatus.BAD_REQUEST): "document_rejected",
+    ("transcribe", HTTPStatus.REQUEST_ENTITY_TOO_LARGE): "payload_too_large",
+    ("process-document", HTTPStatus.REQUEST_ENTITY_TOO_LARGE): "payload_too_large",
+    ("transcribe", HTTPStatus.INTERNAL_SERVER_ERROR): "internal_error",
+    ("process-document", HTTPStatus.INTERNAL_SERVER_ERROR): "internal_error",
+    ("transcribe", HTTPStatus.SERVICE_UNAVAILABLE): "server_busy",
+    ("process-document", HTTPStatus.SERVICE_UNAVAILABLE): "server_busy",
+    ("transcribe", HTTPStatus.GATEWAY_TIMEOUT): "transcription_timeout",
+    ("process-document", HTTPStatus.GATEWAY_TIMEOUT): "processing_timeout",
 }
 _SUPPORTED_STATUSES = {HTTPStatus.OK, *_ERROR_DETAILS}
+
+
+@dataclass(frozen=True, slots=True)
+class FakeRequest:
+    """Record the request received by the fake server."""
+
+    method: str
+    path: str
+    content_type: str
+    authorization: str | None
+    fields: dict[str, str]
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,6 +124,8 @@ class FakeAudiodoc:
             "transcribe": FakeResponseOptions(),
             "process-document": FakeResponseOptions(),
         }
+        self.requests: list[FakeRequest] = []
+        self.responses: list[tuple[Endpoint, int, dict[str, object]]] = []
 
         self.app = web.Application()
         self.app.router.add_get("/health", self._health)
@@ -170,6 +198,22 @@ class FakeAudiodoc:
 
         form = await request.post()
         try:
+            self.requests.append(
+                FakeRequest(
+                    method=request.method,
+                    path=request.path,
+                    content_type=request.content_type,
+                    authorization=request.headers.get("Authorization"),
+                    fields={
+                        name: (
+                            value.filename
+                            if isinstance(value, web.FileField)
+                            else str(value)
+                        )
+                        for name, value in form.items()
+                    },
+                )
+            )
             if "file" not in form:
                 return web.json_response(
                     {"detail": "Missing file field"},
@@ -193,7 +237,7 @@ class FakeAudiodoc:
         behavior: FakeResponseOptions,
     ) -> web.StreamResponse:
         if behavior.status != HTTPStatus.OK:
-            return self._error_response(behavior)
+            return self._error_response(endpoint, behavior)
 
         body = json.dumps(self._payloads[endpoint]).encode("utf-8")
         if behavior.invalid_json:
@@ -204,12 +248,34 @@ class FakeAudiodoc:
 
         return web.Response(body=body, content_type="application/json")
 
-    def _error_response(self, behavior: FakeResponseOptions) -> web.Response:
+    def _error_response(
+        self,
+        endpoint: Endpoint,
+        behavior: FakeResponseOptions,
+    ) -> web.Response:
+        status = HTTPStatus(behavior.status)
+        if status == HTTPStatus.UNPROCESSABLE_ENTITY:
+            payload: dict[str, object] = {
+                "detail": [
+                    {
+                        "loc": ["body", "file"],
+                        "msg": "Field required",
+                        "type": "missing",
+                    }
+                ]
+            }
+        else:
+            payload = {"detail": _ERROR_DETAILS[status]}
+            code = _ERROR_CODES.get((endpoint, status))
+            if code is not None:
+                payload["code"] = code
+
+        self.responses.append((endpoint, behavior.status, payload))
         headers = {}
-        if behavior.status == HTTPStatus.SERVICE_UNAVAILABLE:
+        if status == HTTPStatus.SERVICE_UNAVAILABLE:
             headers["Retry-After"] = str(behavior.retry_after_seconds)
         return web.json_response(
-            {"detail": _ERROR_DETAILS[HTTPStatus(behavior.status)]},
+            payload,
             status=behavior.status,
             headers=headers,
         )

@@ -93,6 +93,7 @@ jobs:
             pytest-cov \
             pytest-randomly \
             pytest-timeout \
+            hypothesis==6.170.15 \
             packaging
 
       - name: Check installed dependencies

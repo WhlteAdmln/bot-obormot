@@ -60,6 +60,7 @@ test:
 		-m "not integration" \
 		--cov=bot \
 		--cov-branch \
+		--cov-fail-under=92.1 \
 		--cov-report=term-missing:skip-covered \
 		--cov-report=xml \
 		--cov-report=html \
@@ -70,6 +71,7 @@ cov:
 		-m "not integration" \
 		--cov=bot \
 		--cov-branch \
+		--cov-fail-under=92.1 \
 		--cov-report=term-missing:skip-covered \
 		--cov-report=xml
 	$(PYTHON) scripts/coverage_gaps.py

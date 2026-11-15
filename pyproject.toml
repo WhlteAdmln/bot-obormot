@@ -62,7 +62,7 @@ source = ["bot"]
 [tool.coverage.report]
 show_missing = true
 skip_covered = true
-fail_under = 84
+fail_under = 92.1
 exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError", '\.\.\.']
 
 [tool.deptry]

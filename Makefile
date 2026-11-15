@@ -78,4 +78,3 @@ build:
 
 clean:
 	rm -rf .pytest_cache .ruff_cache .mypy_cache .coverage coverage.xml htmlcov junit.xml dist build
-

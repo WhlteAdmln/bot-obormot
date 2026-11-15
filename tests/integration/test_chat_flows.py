@@ -7,8 +7,8 @@ import pytest
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.methods import EditMessageText, GetFile, SendChatAction, SendMessage
+from aiogram.types import Document, Message, Voice
 from aiogram.types import File as TelegramFile
-from aiogram.types import Message, Voice
 
 import bot.services.chat.pipeline as chat_pipeline
 from bot.app.routers import configure_dispatcher
@@ -86,6 +86,56 @@ def _make_voice_telegram_session(
     )
 
 
+def _make_document_message(user_id: int, document_size: int) -> Message:
+    """Build a deterministic PDF message."""
+    return make_message(
+        user_id=user_id,
+        chat_id=user_id,
+        text=None,
+    ).model_copy(
+        update={
+            "document": Document(
+                file_id="document-file-id",
+                file_unique_id="document-file-unique-id",
+                file_name="report.pdf",
+                mime_type="application/pdf",
+                file_size=document_size,
+            )
+        }
+    )
+
+
+def _make_document_telegram_session(
+    user_id: int,
+    document_data: bytes,
+) -> FakeTelegramSession:
+    """Create fake Telegram responses for PDF download and replies."""
+    return FakeTelegramSession(
+        {
+            GetFile: TelegramFile(
+                file_id="document-file-id",
+                file_unique_id="document-file-unique-id",
+                file_size=len(document_data),
+                file_path="documents/report.pdf",
+            ),
+            SendChatAction: True,
+            SendMessage: make_message(
+                message_id=902,
+                chat_id=user_id,
+                user_id=902,
+                text=None,
+            ),
+            EditMessageText: make_message(
+                message_id=902,
+                chat_id=user_id,
+                user_id=902,
+                text=None,
+            ),
+        },
+        stream_data=document_data,
+    )
+
+
 def _configure_voice_flow(
     monkeypatch: pytest.MonkeyPatch,
     test_db: Database,
@@ -111,6 +161,35 @@ def _configure_voice_flow(
         f"{audiodoc_base_url.rstrip('/')}/transcribe",
     )
     monkeypatch.setattr(config, "WHISPER_API_KEY", "whisper-test-key")
+    monkeypatch.setattr(access_middleware, "db", test_db)
+    monkeypatch.setattr(chat_pipeline, "db", test_db)
+
+
+def _configure_document_flow(
+    monkeypatch: pytest.MonkeyPatch,
+    test_db: Database,
+    *,
+    llm_base_url: str,
+    audiodoc_base_url: str,
+) -> None:
+    """Configure real clients to use local fake backend servers."""
+    monkeypatch.setattr(
+        config,
+        "LLM_BASE_URL",
+        f"{llm_base_url.rstrip('/')}/v1",
+    )
+    monkeypatch.setattr(config, "LLM_API_KEY", "test-key")
+    monkeypatch.setattr(config, "LLM_MODEL", "test-model")
+    monkeypatch.setattr(config, "LLM_CONTEXT_SIZE", None)
+    monkeypatch.setattr(config, "LLM_TOKEN_COUNTING", "auto")
+    monkeypatch.setattr(config, "ALLOW_ALL_USERS", True)
+    monkeypatch.setattr(config, "ALLOWED_USERS", set())
+    monkeypatch.setattr(
+        config,
+        "DOCUMENT_API_URL",
+        f"{audiodoc_base_url.rstrip('/')}/process-document",
+    )
+    monkeypatch.setattr(config, "DOCUMENT_API_KEY", "document-test-key")
     monkeypatch.setattr(access_middleware, "db", test_db)
     monkeypatch.setattr(chat_pipeline, "db", test_db)
 
@@ -293,5 +372,91 @@ async def test_voice_message_is_transcribed_answered_and_persisted(
 
             _assert_voice_delivery(telegram_session, llm_server, response)
             await _assert_voice_history(test_db, user_id, response)
+    finally:
+        await _reset_llm_client()
+
+
+@pytest.mark.asyncio
+async def test_pdf_document_is_extracted_answered_and_persisted(
+    test_db: Database,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Process a PDF through Telegram, audiodoc, LLM and SQLite."""
+    user_id = 712345680
+    first_chunk = " ".join(["streamed"] * 180) + " "
+    response = f"{first_chunk}complete"
+    document_data = b"%PDF-1.7\n% fake PDF integration document\n"
+
+    await _reset_llm_client()
+
+    try:
+        async with (
+            FakeAudiodoc() as audiodoc_server,
+            FakeLLM(
+                options=FakeLLMOptions(chunks=(first_chunk, "complete")),
+            ) as llm_server,
+        ):
+            _configure_document_flow(
+                monkeypatch,
+                test_db,
+                llm_base_url=llm_server.base_url,
+                audiodoc_base_url=audiodoc_server.base_url,
+            )
+
+            telegram_session = _make_document_telegram_session(
+                user_id,
+                document_data,
+            )
+            bot = Bot(token=config.BOT_TOKEN, session=telegram_session)
+            dispatcher = configure_dispatcher(Dispatcher(storage=MemoryStorage()))
+            document_message = _make_document_message(
+                user_id,
+                len(document_data),
+            )
+
+            try:
+                await dispatcher.feed_update(
+                    bot,
+                    make_update(message=document_message),
+                )
+            finally:
+                await bot.session.close()
+                _release_dispatcher(dispatcher)
+
+            file_requests = [
+                request
+                for request in telegram_session.requests
+                if isinstance(request, GetFile)
+            ]
+            sent_messages = [
+                request
+                for request in telegram_session.requests
+                if isinstance(request, SendMessage)
+            ]
+            edited_texts = [
+                request.text
+                for request in telegram_session.requests
+                if isinstance(request, EditMessageText) and request.text is not None
+            ]
+
+            assert len(file_requests) == 1
+            assert telegram_session.streamed_urls
+            assert telegram_session.streamed_urls[0].endswith("/documents/report.pdf")
+            assert llm_server.stream_started.is_set()
+            assert len(sent_messages) == 1
+            assert edited_texts
+            assert edited_texts[-1] == format_roleplay(response)
+            assert llm_server.chat_requests
+            assert any(
+                "Example document text." in str(request.get("messages", []))
+                for request in llm_server.chat_requests
+            )
+
+            history = await test_db.get_history(user_id)
+            assert len(history) == 2
+            assert history[0]["content"] == (
+                "[Пользователь отправил документ: report.pdf (TXT)]"
+            )
+            assert history[1]["content"] == response
     finally:
         await _reset_llm_client()

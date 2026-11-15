@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 from aiogram.client.session.base import BaseSession
 from aiogram.types import Chat, Message, Update, User
@@ -14,7 +14,6 @@ from typing_extensions import override
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Mapping
-    from typing import Any
 
     from aiogram.client.bot import Bot
     from aiogram.methods import TelegramMethod
@@ -53,13 +52,17 @@ class FakeTelegramSession(BaseSession):
         timeout: int | None = None,
     ) -> TelegramType:
         """Record a Telegram API request and return its configured response."""
-        _ = (bot, timeout)
+        _ = timeout
         self.requests.append(method)
         method_type = type(method)
         if method_type not in self.responses:
             msg = f"No fake response configured for {method_type.__name__}"
             raise AssertionError(msg)
-        return self.responses[method_type]
+
+        response = self.responses[method_type]
+        if isinstance(response, Message):
+            return cast("TelegramType", response.as_(bot))
+        return cast("TelegramType", response)
 
     @override
     async def stream_content(

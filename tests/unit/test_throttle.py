@@ -100,3 +100,44 @@ def test_throttle_rejects_invalid_limits() -> None:
 
     with pytest.raises(ValueError, match="max_tracked_users"):
         throttle_module.ThrottleMiddleware(max_tracked_users=0)
+
+
+@pytest.mark.asyncio
+async def test_throttle_isolates_users() -> None:
+    """One user's burst does not consume another user's event allowance."""
+    ticks = iter((1.0, 2.0, 3.0, 4.0, 5.0))
+    middleware = throttle_module.ThrottleMiddleware(
+        max_events=2,
+        window_seconds=10,
+        clock=lambda: next(ticks),
+    )
+    calls = []
+
+    async def handler(event: object, _data: object) -> str:
+        calls.append(event)
+        return "handled"
+
+    sequence = (
+        (1, "user-1-first"),
+        (2, "user-2-first"),
+        (1, "user-1-second"),
+        (1, "user-1-over-limit"),
+        (2, "user-2-second"),
+    )
+    results = []
+
+    for user_id, event in sequence:
+        result = await middleware(
+            handler,
+            event,
+            {"event_from_user": SimpleNamespace(id=user_id)},
+        )
+        results.append(result)
+
+    assert results == ["handled", "handled", "handled", None, "handled"]
+    assert calls == [
+        "user-1-first",
+        "user-2-first",
+        "user-1-second",
+        "user-2-second",
+    ]

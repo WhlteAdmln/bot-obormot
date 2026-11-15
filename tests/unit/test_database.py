@@ -5,12 +5,13 @@
 
 import asyncio
 from collections.abc import AsyncIterator
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 import pytest_asyncio
 
-from bot.config import config
+from bot.config.settings import get_settings
 from bot.services.database import Database
 
 USER_ID = 111111111
@@ -18,19 +19,18 @@ USER_ID = 111111111
 
 @pytest_asyncio.fixture
 async def test_db(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
 ) -> AsyncIterator[Database]:
     """Db."""
-    monkeypatch.setattr(
-        config,
-        "DATABASE_PATH",
-        str(tmp_path / "history_test.db"),
+    settings = replace(
+        get_settings(),
+        DATABASE_PATH=str(tmp_path / "history_test.db"),
+        SUPERVISOR_ID=999999999,
+        ADMIN_IDS=set(),
+        DEFAULT_SYSTEM_PROMPT="Тестовый промпт",
     )
-    monkeypatch.setattr(config, "SUPERVISOR_ID", 999999999)
-    monkeypatch.setattr(config, "ADMIN_IDS", set())
-    monkeypatch.setattr(config, "DEFAULT_SYSTEM_PROMPT", "Тестовый промпт")
 
-    database = Database()
+    database = Database(settings)
 
     await database.connect()
 
@@ -43,7 +43,10 @@ async def test_db(
 @pytest.mark.asyncio
 async def test_history_limit_defaults_to_default_value(test_db: Database) -> None:
     """History limit defaults to default value."""
-    assert await test_db.get_history_limit(USER_ID) == config.DEFAULT_HISTORY_EXCHANGES
+    assert (
+        await test_db.get_history_limit(USER_ID)
+        == test_db.settings.DEFAULT_HISTORY_EXCHANGES
+    )
 
 
 @pytest.mark.asyncio
@@ -55,7 +58,10 @@ async def test_set_and_delete_history_limit(test_db: Database) -> None:
 
     await test_db.delete_history_limit(USER_ID)
 
-    assert await test_db.get_history_limit(USER_ID) == config.DEFAULT_HISTORY_EXCHANGES
+    assert (
+        await test_db.get_history_limit(USER_ID)
+        == test_db.settings.DEFAULT_HISTORY_EXCHANGES
+    )
 
 
 @pytest.mark.asyncio
@@ -67,7 +73,7 @@ async def test_history_limit_rejects_invalid_values(test_db: Database) -> None:
     with pytest.raises(ValueError, match="Недопустимый лимит истории"):
         await test_db.set_history_limit(
             USER_ID,
-            config.MAX_HISTORY_EXCHANGES + 1,
+            test_db.settings.MAX_HISTORY_EXCHANGES + 1,
         )
 
 
@@ -140,18 +146,18 @@ async def test_history_limit_isolated_between_users(test_db: Database) -> None:
     assert await test_db.get_history_limit(USER_ID + 1) == 5
 
     assert (
-        await test_db.get_history_limit(USER_ID + 2) == config.DEFAULT_HISTORY_EXCHANGES
+        await test_db.get_history_limit(USER_ID + 2)
+        == test_db.settings.DEFAULT_HISTORY_EXCHANGES
     )
 
 
 @pytest.mark.asyncio
 async def test_prune_history_keeps_latest_exchanges_and_removes_old_images(
     test_db: Database,
-    monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     """Prune history keeps latest exchanges and removes old images."""
-    monkeypatch.setattr(config, "MAX_STORED_EXCHANGES", 2)
+    test_db.settings = replace(test_db.settings, MAX_STORED_EXCHANGES=2)
     old_image_path = None
     latest_image_path = None
     external_image_path = tmp_path / "external-old-image.jpg"
@@ -274,8 +280,14 @@ async def test_forget_user_removes_history_prompt_limit_and_owned_images(
     await test_db.forget_user(user_id)
 
     assert await test_db.get_user_system_prompt(user_id) is None
-    assert await test_db.get_system_prompt(user_id) == config.DEFAULT_SYSTEM_PROMPT
-    assert await test_db.get_history_limit(user_id) == config.DEFAULT_HISTORY_EXCHANGES
+    assert (
+        await test_db.get_system_prompt(user_id)
+        == test_db.settings.DEFAULT_SYSTEM_PROMPT
+    )
+    assert (
+        await test_db.get_history_limit(user_id)
+        == test_db.settings.DEFAULT_HISTORY_EXCHANGES
+    )
     assert await test_db.get_history(user_id) == []
     assert not await asyncio.to_thread(own_image_path.exists)
 
@@ -291,12 +303,11 @@ async def test_forget_user_removes_history_prompt_limit_and_owned_images(
 
 @pytest.mark.asyncio
 async def test_blocked_users_repository_and_supervisor_protection(
-    test_db: Database, monkeypatch: pytest.MonkeyPatch
+    test_db: Database,
 ) -> None:
     """Blocked users repository and supervisor protection."""
     user_id = USER_ID + 100
     supervisor_id = 999999999
-    monkeypatch.setattr(config, "SUPERVISOR_ID", supervisor_id)
 
     assert await test_db.get_blocked_ids() == set()
     assert await test_db.block_user(user_id) is True

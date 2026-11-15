@@ -4,6 +4,7 @@
 """Tests for access."""
 
 from collections.abc import AsyncIterator, Callable
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -12,6 +13,7 @@ import pytest_asyncio
 from aiogram.enums import ChatType
 
 from bot.config import config
+from bot.config.settings import get_settings
 from bot.handlers.admin import handler as admin_handler
 from bot.middlewares import access as access_module
 from bot.services.database import Database
@@ -75,21 +77,15 @@ async def test_database(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> AsyncIterator[Database]:
     """Создаёт отдельную временную базу данных."""
-    monkeypatch.setattr(
-        config,
-        "DATABASE_PATH",
-        str(tmp_path / "access_test.db"),
+    settings = replace(
+        get_settings(),
+        DATABASE_PATH=str(tmp_path / "access_test.db"),
+        SUPERVISOR_ID=SUPERVISOR_ID,
+        ADMIN_IDS=set(),
+        DEFAULT_SYSTEM_PROMPT="Тестовый промпт",
     )
 
-    monkeypatch.setattr(config, "SUPERVISOR_ID", SUPERVISOR_ID)
-    monkeypatch.setattr(config, "ADMIN_IDS", set())
-    monkeypatch.setattr(
-        config,
-        "DEFAULT_SYSTEM_PROMPT",
-        "Тестовый промпт",
-    )
-
-    database = Database()
+    database = Database(settings)
     await database.connect()
 
     monkeypatch.setattr(access_module, "db", database)

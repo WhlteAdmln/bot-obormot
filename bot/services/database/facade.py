@@ -8,7 +8,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from bot.config import config
+from bot.config.settings import Settings, get_settings
 from bot.errors import DatabaseError
 from bot.services.database.connection import open_connection
 from bot.services.database.decorators import handle_database_errors
@@ -59,11 +59,12 @@ MAX_HISTORY_IMAGES = MAX_HISTORY_MEDIA_MESSAGES
 class Database:
     """Facade over the SQLite repositories and use cases."""
 
-    def __init__(self) -> None:
+    def __init__(self, settings: Settings) -> None:
         """Prepares the images directory path and the connection lock."""
         self.connection: aiosqlite.Connection | None = None
+        self.settings = settings
 
-        self.images_dir = Path(config.DATABASE_PATH).resolve().parent / "images"
+        self.images_dir = Path(settings.DATABASE_PATH).resolve().parent / "images"
 
         # Защищает общее SQLite-соединение от конкурентного использования.
         self._lock = asyncio.Lock()
@@ -76,17 +77,20 @@ class Database:
     @handle_database_errors
     async def connect(self) -> None:
         """Создаёт подключение, таблицы и выполняет миграции."""
-        Path(config.DATABASE_PATH).parent.mkdir(parents=True, exist_ok=True)
+        Path(self.settings.DATABASE_PATH).parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
 
         self.images_dir.mkdir(parents=True, exist_ok=True)
 
-        self.connection = await open_connection(config.DATABASE_PATH)
+        self.connection = await open_connection(self.settings.DATABASE_PATH)
 
         await create_schema(self.connection)
         await migrate_admin_ids(
             self.connection,
-            config.ADMIN_IDS,
-            config.SUPERVISOR_ID,
+            self.settings.ADMIN_IDS,
+            self.settings.SUPERVISOR_ID,
         )
 
         await self.connection.commit()
@@ -154,7 +158,7 @@ class Database:
         paths = await messages_repository.prune_user_history(
             self._conn,
             user_id,
-            config.MAX_STORED_EXCHANGES * 2,
+            self.settings.MAX_STORED_EXCHANGES * 2,
         )
 
         for file_path in paths:
@@ -234,7 +238,7 @@ class Database:
             self._conn,
             user_id,
         )
-        return prompt if prompt is not None else config.DEFAULT_SYSTEM_PROMPT
+        return prompt if prompt is not None else self.settings.DEFAULT_SYSTEM_PROMPT
 
     @handle_database_errors
     async def get_user_system_prompt(self, user_id: int) -> str | None:
@@ -273,7 +277,7 @@ class Database:
             user_id,
         )
         return (
-            config.DEFAULT_HISTORY_EXCHANGES
+            self.settings.DEFAULT_HISTORY_EXCHANGES
             if exchange_limit is None
             else exchange_limit
         )
@@ -285,7 +289,7 @@ class Database:
         exchange_limit: int,
     ) -> None:
         """Устанавливает индивидуальный лимит истории."""
-        if not 1 <= exchange_limit <= config.MAX_HISTORY_EXCHANGES:
+        if not 1 <= exchange_limit <= self.settings.MAX_HISTORY_EXCHANGES:
             msg = "Недопустимый лимит истории."
             raise ValueError(msg)
 
@@ -315,7 +319,7 @@ class Database:
     @handle_database_errors
     async def add_admin(self, user_id: int) -> bool:
         """Добавляет обычного администратора."""
-        if user_id == config.SUPERVISOR_ID:
+        if user_id == self.settings.SUPERVISOR_ID:
             return False
 
         return await admins_repository.add_admin(
@@ -326,7 +330,7 @@ class Database:
     @handle_database_errors
     async def remove_admin(self, user_id: int) -> bool:
         """Удаляет обычного администратора."""
-        if user_id == config.SUPERVISOR_ID:
+        if user_id == self.settings.SUPERVISOR_ID:
             return False
 
         return await admins_repository.remove_admin(
@@ -346,7 +350,7 @@ class Database:
     @handle_database_errors
     async def block_user(self, user_id: int) -> bool:
         """Блокирует пользователя, кроме Supervisor."""
-        if user_id == config.SUPERVISOR_ID:
+        if user_id == self.settings.SUPERVISOR_ID:
             return False
         return await blocked_users_repository.block_user(self._conn, user_id)
 
@@ -356,7 +360,7 @@ class Database:
         return await blocked_users_repository.unblock_user(self._conn, user_id)
 
 
-db = Database()
+db = Database(get_settings())
 
 __all__ = [
     "MAX_HISTORY_IMAGES",

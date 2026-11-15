@@ -10,11 +10,14 @@
 import importlib
 import os
 from collections.abc import AsyncIterator
+from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
 import pytest_asyncio
+
+from bot.config.settings import get_settings
 
 if TYPE_CHECKING:
     from bot.services.database import Database
@@ -71,7 +74,7 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
 
 @pytest_asyncio.fixture
 async def test_db(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
 ) -> AsyncIterator["Database"]:
     """Создаёт изолированную SQLite-базу для тестов репозиториев.
 
@@ -79,19 +82,17 @@ async def test_db(
     тестовым модулям, а не только test_database.py.
     """
     # Импорты выполняются после настройки тестовых переменных выше.
-    config = importlib.import_module("bot.config").config
     database_class = importlib.import_module("bot.services.database").Database
 
-    monkeypatch.setattr(
-        config,
-        "DATABASE_PATH",
-        str(tmp_path / "history_test.db"),
+    settings = replace(
+        get_settings(),
+        DATABASE_PATH=str(tmp_path / "history_test.db"),
+        SUPERVISOR_ID=999999999,
+        ADMIN_IDS=set(),
+        DEFAULT_SYSTEM_PROMPT="Тестовый промпт",
     )
-    monkeypatch.setattr(config, "SUPERVISOR_ID", 999999999)
-    monkeypatch.setattr(config, "ADMIN_IDS", set())
-    monkeypatch.setattr(config, "DEFAULT_SYSTEM_PROMPT", "Тестовый промпт")
 
-    database = database_class()
+    database = database_class(settings)
     await database.connect()
 
     try:

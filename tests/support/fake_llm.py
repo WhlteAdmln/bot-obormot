@@ -80,6 +80,7 @@ class FakeLLM:
         self.api_key = api_key
         self.options = options or FakeLLMOptions()
         self.stream_started = asyncio.Event()
+        self.chat_requests: list[dict[str, Any]] = []
 
         self.app = web.Application()
         self.app.router.add_get("/health", self._health)
@@ -172,6 +173,8 @@ class FakeLLM:
             )
 
         payload: Any = await request.json()
+        if isinstance(payload, dict):
+            self.chat_requests.append(payload)
         if isinstance(payload, dict) and payload.get("stream") is True:
             return await self._stream_response(request)
 

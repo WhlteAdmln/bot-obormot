@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from bot.config.settings import get_settings
 from bot.handlers.history.basic import (
     cmd_forget_me,
     cmd_history_clear,
@@ -37,7 +38,11 @@ async def test_handlers_ignore_messages_without_sender(
     """Handlers return quietly when Telegram sends no sender information."""
     message = SimpleNamespace(from_user=None, text="prompt", answer=AsyncMock())
 
-    await handler(message, SimpleNamespace())
+    state = SimpleNamespace()
+    if handler in (cmd_start, show_history_limit):
+        await handler(message, state, get_settings())
+    else:
+        await handler(message, state)
 
     message.answer.assert_not_awaited()
 
@@ -47,6 +52,11 @@ async def test_history_limit_command_ignores_messages_without_sender() -> None:
     """The history limit command returns quietly without a sender."""
     message = SimpleNamespace(from_user=None, answer=AsyncMock())
 
-    await cmd_history_limit(message, SimpleNamespace(), SimpleNamespace(args="5"))
+    await cmd_history_limit(
+        message,
+        SimpleNamespace(),
+        SimpleNamespace(args="5"),
+        get_settings(),
+    )
 
     message.answer.assert_not_awaited()

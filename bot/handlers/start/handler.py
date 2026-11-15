@@ -15,7 +15,7 @@ from aiogram.types import (
     Message,
 )
 
-from bot.config import config
+from bot.config.settings import Settings
 from bot.fsm.keys import WELCOME_MESSAGE_KEY
 from bot.services.database import db
 
@@ -27,7 +27,7 @@ logger = logging.getLogger("bot.handlers.start")
 
 
 @router.message(Command("start"))
-async def cmd_start(message: Message, state: FSMContext) -> None:
+async def cmd_start(message: Message, state: FSMContext, settings: Settings) -> None:
     """Registers the command menu for the user and sends the welcome message."""
     if message.from_user is None:
         return
@@ -35,7 +35,7 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
     user_id = message.from_user.id
 
     # Supervisor всегда имеет доступ к административным функциям.
-    is_admin = user_id == config.SUPERVISOR_ID
+    is_admin = user_id == settings.SUPERVISOR_ID
 
     # Проверяем обычных администраторов через SQLite.
     if not is_admin:
@@ -79,7 +79,7 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
         )
 
     # Управление администраторами доступно только Supervisor.
-    if user_id == config.SUPERVISOR_ID:
+    if user_id == settings.SUPERVISOR_ID:
         commands.extend(
             [
                 BotCommand(
@@ -128,14 +128,14 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
             "/health — проверить состояние компонентов\n\n"
             "📚 Управление историей:\n"
             f"/history_limit ЧИСЛО — изменить свой лимит "
-            f"(до {config.MAX_HISTORY_EXCHANGES})\n"
+            f"(до {settings.MAX_HISTORY_EXCHANGES})\n"
             "/history_limit ID ЧИСЛО — изменить лимит пользователя\n"
             "/ban ID — заблокировать пользователя\n"
             "/unban ID — снять блокировку пользователя\n\n"
         )
 
     # Блок управления администраторами видит только Supervisor.
-    if user_id == config.SUPERVISOR_ID:
+    if user_id == settings.SUPERVISOR_ID:
         text += (
             "🛠 Управление администраторами:\n"
             "/admin — панель управления\n"

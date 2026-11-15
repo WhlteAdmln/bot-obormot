@@ -121,6 +121,7 @@ async def run_middleware(
             SimpleNamespace(id=user_id) if user_id is not None else None
         ),
         "event_chat": SimpleNamespace(type=chat_type),
+        "settings": get_settings(),
     }
 
     result = await middleware(handler, event, data)
@@ -291,6 +292,7 @@ async def test_admin_changes_apply_immediately(
         return "allowed"
 
     data = {"event_from_user": SimpleNamespace(id=ADMIN_ID)}
+    data["settings"] = get_settings()
 
     # До добавления администратора доступ запрещён.
     result = await middleware(handler, fake_event, data)
@@ -381,6 +383,7 @@ async def test_denied_notice_is_rate_limited(
     data = {
         "event_from_user": SimpleNamespace(id=OUTSIDER_ID),
         "event_chat": SimpleNamespace(type=ChatType.PRIVATE),
+        "settings": get_settings(),
     }
 
     first_event = FakeEvent()
@@ -415,6 +418,7 @@ async def test_block_and_unblock_apply_immediately(
     data = {
         "event_from_user": SimpleNamespace(id=ALLOWED_USER_ID),
         "event_chat": SimpleNamespace(type=ChatType.PRIVATE),
+        "settings": get_settings(),
     }
 
     assert await middleware(handler, fake_event, data) == "allowed"
@@ -483,6 +487,7 @@ async def test_access_matrix(
     monkeypatch.setattr(config, "SUPERVISOR_ID", SUPERVISOR_ID)
     monkeypatch.setattr(config, "ALLOWED_USERS", allowed_users)
     monkeypatch.setattr(config, "ALLOW_ALL_USERS", allow_all)
+    settings = get_settings()
     monkeypatch.setattr(access_module, "db", database)
     monkeypatch.setattr(admin_handler, "db", database)
 
@@ -493,6 +498,7 @@ async def test_access_matrix(
     data = {
         "event_from_user": SimpleNamespace(id=user_id),
         "event_chat": SimpleNamespace(type=ChatType.PRIVATE),
+        "settings": settings,
     }
     middleware_result = await access_module.AccessMiddleware()(
         handler,
@@ -509,10 +515,11 @@ async def test_access_matrix(
     if command_class == "ordinary":
         command_allowed = True
     elif command_class == "admin":
-        command_allowed = await admin_handler.is_admin_or_supervisor(user_id)
+        command_allowed = await admin_handler.is_admin_or_supervisor(user_id, settings)
     else:
         command_allowed = admin_handler.is_supervisor(
-            SimpleNamespace(from_user=SimpleNamespace(id=user_id))
+            SimpleNamespace(from_user=SimpleNamespace(id=user_id)),
+            settings,
         )
 
     actual = middleware_passed and command_allowed

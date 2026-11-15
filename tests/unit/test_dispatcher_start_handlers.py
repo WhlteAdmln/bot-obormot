@@ -20,6 +20,7 @@ from aiogram.types import User
 
 from bot.app.routers import configure_dispatcher
 from bot.config import config
+from bot.config.settings import get_settings
 from bot.handlers.admin import handler as admin_handler
 from bot.handlers.history import basic as history_basic
 from bot.handlers.history import limits as history_limits
@@ -201,7 +202,10 @@ def _reset_throttle(dispatcher: Dispatcher) -> None:
 
 
 @pytest.fixture
-def access_database(monkeypatch: pytest.MonkeyPatch) -> _AccessDatabase:
+def access_database(
+    monkeypatch: pytest.MonkeyPatch,
+    dispatcher: Dispatcher,
+) -> _AccessDatabase:
     """Configure an isolated database and open access for dispatcher tests."""
     database = _AccessDatabase()
     monkeypatch.setattr(access_module, "db", database)
@@ -214,6 +218,7 @@ def access_database(monkeypatch: pytest.MonkeyPatch) -> _AccessDatabase:
     monkeypatch.setattr(config, "SUPERVISOR_ID", SUPERVISOR_ID)
     monkeypatch.setattr(config, "ALLOW_ALL_USERS", True)
     monkeypatch.setattr(config, "ALLOWED_USERS", set())
+    dispatcher.workflow_data["settings"] = get_settings()
     return database
 
 
@@ -226,8 +231,11 @@ def dispatcher() -> Dispatcher:
 @pytest_asyncio.fixture
 async def dispatcher_runtime(
     dispatcher: Dispatcher,
+    access_database: _AccessDatabase,
 ) -> AsyncIterator[tuple[Dispatcher, Bot, FakeTelegramSession]]:
     """Create a fake Telegram API session for one dispatcher update."""
+    assert isinstance(access_database, _AccessDatabase)
+    assert dispatcher.workflow_data["settings"] is get_settings()
     _reset_throttle(dispatcher)
     session = FakeTelegramSession(
         {
@@ -366,6 +374,7 @@ async def test_dispatcher_denies_commands_without_access(
     dispatcher, bot, session = dispatcher_runtime
     user_id, command_text = case
     monkeypatch.setattr(config, "ALLOW_ALL_USERS", False)
+    dispatcher.workflow_data["settings"] = get_settings()
 
     await dispatcher.feed_update(
         bot,
@@ -705,6 +714,7 @@ async def test_history_commands_are_denied_without_access(
     """Access middleware denies history commands before database mutations."""
     user_id, command_text, operation = case
     monkeypatch.setattr(config, "ALLOW_ALL_USERS", False)
+    dispatcher_runtime[0].workflow_data["settings"] = get_settings()
 
     session = await _feed_command(dispatcher_runtime, user_id, command_text)
 
@@ -1034,6 +1044,7 @@ async def test_prompt_commands_are_denied_without_access(
     """Access middleware denies prompt commands before handler execution."""
     user_id, command_text = case
     monkeypatch.setattr(config, "ALLOW_ALL_USERS", False)
+    dispatcher_runtime[0].workflow_data["settings"] = get_settings()
 
     session = await _feed_command(dispatcher_runtime, user_id, command_text)
 

@@ -4,15 +4,18 @@
 """Middleware that restricts the bot to users who have access."""
 
 import time
+from typing import TYPE_CHECKING
 
 from aiogram import BaseMiddleware
 from aiogram.enums import ChatType
 from aiogram.types import TelegramObject
 
-from bot.config import config
 from bot.middlewares.aliases import MiddlewareData, NextHandler
 from bot.services.access import user_has_access
 from bot.services.database import db
+
+if TYPE_CHECKING:
+    from bot.config.settings import Settings
 
 # Как часто можно повторять один и тот же отказ одному человеку.
 DENY_NOTICE_INTERVAL = 60.0
@@ -48,11 +51,12 @@ class AccessMiddleware(BaseMiddleware):
         if chat is not None and chat.type != ChatType.PRIVATE:
             return None
 
+        settings: Settings = data["settings"]
         allowed = await user_has_access(
             user.id,
-            supervisor_id=config.SUPERVISOR_ID,
-            allowed_users=config.ALLOWED_USERS,
-            allow_all=config.ALLOW_ALL_USERS,
+            supervisor_id=settings.SUPERVISOR_ID,
+            allowed_users=settings.ALLOWED_USERS,
+            allow_all=settings.ALLOW_ALL_USERS,
             database=db,
         )
 

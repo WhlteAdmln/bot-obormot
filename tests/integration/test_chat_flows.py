@@ -967,3 +967,76 @@ async def test_llm_connection_failure_is_reported_without_persisting_exchange(
             assert await test_db.get_history(user_id) == []
     finally:
         await _reset_llm_client()
+
+
+@pytest.mark.asyncio
+async def test_document_connection_failure_is_reported_without_persisting_exchange(
+    test_db: Database,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Report audiodoc connection loss without persisting the exchange."""
+    user_id = 712345686
+    expected_error = "🔌 Не удалось связаться с сервисом обработки документов."
+    document_data = b"%PDF-1.7\n% unavailable audiodoc integration document\n"
+
+    await _reset_llm_client()
+
+    try:
+        async with (
+            FakeAudiodoc() as audiodoc_server,
+            FakeLLM() as llm_server,
+        ):
+            _configure_document_flow(
+                monkeypatch,
+                test_db,
+                llm_base_url=llm_server.base_url,
+                audiodoc_base_url=audiodoc_server.base_url,
+            )
+            await audiodoc_server.server.close()
+
+            telegram_session = _make_document_telegram_session(
+                user_id,
+                document_data,
+            )
+            bot = Bot(token=config.BOT_TOKEN, session=telegram_session)
+            dispatcher = configure_dispatcher(Dispatcher(storage=MemoryStorage()))
+
+            try:
+                await dispatcher.feed_update(
+                    bot,
+                    make_update(
+                        message=_make_document_message(
+                            user_id,
+                            len(document_data),
+                        ),
+                    ),
+                )
+            finally:
+                await bot.session.close()
+                _release_dispatcher(dispatcher)
+
+            sent_messages = [
+                request
+                for request in telegram_session.requests
+                if isinstance(request, SendMessage)
+            ]
+            file_requests = [
+                request
+                for request in telegram_session.requests
+                if isinstance(request, GetFile)
+            ]
+
+            assert len(file_requests) == 1
+            assert telegram_session.streamed_urls
+            assert telegram_session.streamed_urls[0].endswith("/documents/report.pdf")
+            assert len(sent_messages) == 1
+            assert sent_messages[0].text == expected_error
+            assert llm_server.chat_requests == []
+            assert not llm_server.stream_started.is_set()
+            assert not any(
+                isinstance(request, EditMessageText)
+                for request in telegram_session.requests
+            )
+            assert await test_db.get_history(user_id) == []
+    finally:
+        await _reset_llm_client()

@@ -186,9 +186,7 @@ async def test_user_locks_allow_different_users_to_run_concurrently() -> None:
 
 
 @pytest.mark.asyncio
-async def test_chat_pipeline_streams_calls_callback_and_persists_exchange(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_chat_pipeline_streams_calls_callback_and_persists_exchange() -> None:
     """Chat pipeline streams calls callback and persists exchange."""
     calls = []
     updates = []
@@ -225,13 +223,14 @@ async def test_chat_pipeline_streams_calls_callback_and_persists_exchange(
     async def on_update(text: str) -> None:
         updates.append(text)
 
-    monkeypatch.setattr(chat_pipeline, "db", FakeDatabase())
-
     result = await chat_pipeline.process_chat(
         user_id=77,
         user_content="вход",
         saved_user_text="сохранённый вход",
-        llm_client=FakeLLM(),
+        dependencies=chat_pipeline.ChatPipelineDependencies(
+            llm_client=FakeLLM(),
+            database=FakeDatabase(),
+        ),
         media=[b"image"],
         on_update=on_update,
     )
@@ -247,9 +246,7 @@ async def test_chat_pipeline_streams_calls_callback_and_persists_exchange(
 
 
 @pytest.mark.asyncio
-async def test_chat_pipeline_caps_history_limit_at_100(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_chat_pipeline_caps_history_limit_at_100() -> None:
     """Chat pipeline caps history limit at 100."""
     calls = []
 
@@ -277,13 +274,14 @@ async def test_chat_pipeline_caps_history_limit_at_100(
         async def stream(self, _messages: object) -> AsyncIterator[str]:
             yield "ответ"
 
-    monkeypatch.setattr(chat_pipeline, "db", FakeDatabase())
-
     result = await chat_pipeline.process_chat(
         77,
         "вход",
         "вход",
-        llm_client=FakeLLM(),
+        dependencies=chat_pipeline.ChatPipelineDependencies(
+            llm_client=FakeLLM(),
+            database=FakeDatabase(),
+        ),
     )
 
     assert result == "ответ"
@@ -291,9 +289,7 @@ async def test_chat_pipeline_caps_history_limit_at_100(
 
 
 @pytest.mark.asyncio
-async def test_chat_pipeline_keeps_history_limit_below_cap(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_chat_pipeline_keeps_history_limit_below_cap() -> None:
     """Chat pipeline keeps history limit below cap."""
     calls = []
 
@@ -323,13 +319,14 @@ async def test_chat_pipeline_keeps_history_limit_below_cap(
         async def stream(self, _messages: object) -> AsyncIterator[str]:
             yield "ответ"
 
-    monkeypatch.setattr(chat_pipeline, "db", FakeDatabase())
-
     result = await chat_pipeline.process_chat(
         77,
         "вход",
         "вход",
-        llm_client=FakeLLM(),
+        dependencies=chat_pipeline.ChatPipelineDependencies(
+            llm_client=FakeLLM(),
+            database=FakeDatabase(),
+        ),
     )
 
     assert result == "ответ"
@@ -337,9 +334,7 @@ async def test_chat_pipeline_keeps_history_limit_below_cap(
 
 
 @pytest.mark.asyncio
-async def test_chat_pipeline_does_not_persist_empty_response(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_chat_pipeline_does_not_persist_empty_response() -> None:
     """Chat pipeline does not persist empty response."""
 
     class FakeDatabase:
@@ -367,14 +362,15 @@ async def test_chat_pipeline_does_not_persist_empty_response(
             if False:
                 yield ""
 
-    monkeypatch.setattr(chat_pipeline, "db", FakeDatabase())
-
     with pytest.raises(RuntimeError, match="пустой ответ"):
         await chat_pipeline.process_chat(
             77,
             "вход",
             "вход",
-            llm_client=FakeLLM(),
+            dependencies=chat_pipeline.ChatPipelineDependencies(
+                llm_client=FakeLLM(),
+                database=FakeDatabase(),
+            ),
         )
 
 
@@ -611,9 +607,7 @@ def test_chat_services_are_loaded_from_canonical_modules() -> None:
 
 
 @pytest.mark.asyncio
-async def test_chat_pipeline_returns_response_when_history_pruning_fails(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_chat_pipeline_returns_response_when_history_pruning_fails() -> None:
     """Chat pipeline returns response when history pruning fails."""
 
     class FakeDatabase:
@@ -643,14 +637,15 @@ async def test_chat_pipeline_returns_response_when_history_pruning_fails(
         async def stream(self, _messages: object) -> AsyncIterator[str]:
             yield "ответ"
 
-    monkeypatch.setattr(chat_pipeline, "db", FakeDatabase())
-
     assert (
         await chat_pipeline.process_chat(
             77,
             "вход",
             "вход",
-            llm_client=FakeLLM(),
+            dependencies=chat_pipeline.ChatPipelineDependencies(
+                llm_client=FakeLLM(),
+                database=FakeDatabase(),
+            ),
         )
         == "ответ"
     )

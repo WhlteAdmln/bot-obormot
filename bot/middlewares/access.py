@@ -12,10 +12,10 @@ from aiogram.types import TelegramObject
 
 from bot.middlewares.aliases import MiddlewareData, NextHandler
 from bot.services.access import user_has_access
-from bot.services.database import db
 
 if TYPE_CHECKING:
     from bot.config.settings import Settings
+    from bot.services.database import Database
 
 # Как часто можно повторять один и тот же отказ одному человеку.
 DENY_NOTICE_INTERVAL = 60.0
@@ -52,12 +52,13 @@ class AccessMiddleware(BaseMiddleware):
             return None
 
         settings: Settings = data["settings"]
+        database: Database = data["database"]
         allowed = await user_has_access(
             user.id,
             supervisor_id=settings.SUPERVISOR_ID,
             allowed_users=settings.ALLOWED_USERS,
             allow_all=settings.ALLOW_ALL_USERS,
-            database=db,
+            database=database,
         )
 
         if allowed:

@@ -9,7 +9,6 @@ from http import HTTPStatus
 
 import aiohttp
 
-from bot.config import config
 from bot.errors import (
     WhisperAPIError,
     WhisperEmptyAudioError,
@@ -21,6 +20,7 @@ from bot.services.http_limits import (
     MAX_SERVICE_RESPONSE_BYTES,
     read_limited_body,
 )
+from bot.settings import get_settings
 from bot.utils.text import log_safe
 
 logger = logging.getLogger(__name__)
@@ -46,7 +46,8 @@ async def transcribe_audio(
     filename: str = "audio.ogg",
 ) -> str:
     """Отправляет аудио в Whisper и возвращает распознанный текст."""
-    if not config.WHISPER_API_URL:
+    settings = get_settings()
+    if not settings.WHISPER_API_URL:
         msg = "WHISPER_API_URL is not configured"
         raise WhisperUnavailableError(msg)
 
@@ -63,10 +64,10 @@ async def transcribe_audio(
         content_type="application/octet-stream",
     )
 
-    timeout = aiohttp.ClientTimeout(total=config.WHISPER_TIMEOUT)
+    timeout = aiohttp.ClientTimeout(total=settings.WHISPER_TIMEOUT)
     headers = (
-        {"Authorization": f"Bearer {config.WHISPER_API_KEY}"}
-        if config.WHISPER_API_KEY
+        {"Authorization": f"Bearer {settings.WHISPER_API_KEY}"}
+        if settings.WHISPER_API_KEY
         else {}
     )
 
@@ -83,7 +84,7 @@ async def transcribe_audio(
                 headers=headers,
             ) as session,
             session.post(
-                config.WHISPER_API_URL,
+                settings.WHISPER_API_URL,
                 data=form,
             ) as response,
         ):

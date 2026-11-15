@@ -11,7 +11,6 @@ from typing import Any
 
 import aiohttp
 
-from bot.config import config
 from bot.errors import (
     DocumentAPIError,
     DocumentTimeoutError,
@@ -24,6 +23,7 @@ from bot.services.http_limits import (
     read_limited_body,
 )
 from bot.services.validation import MAX_INPUT_TEXT_LENGTH
+from bot.settings import get_settings
 from bot.utils.text import log_safe
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,8 @@ async def process_document(
     filename: str,
 ) -> dict[str, Any]:
     """Отправляет документ в Document Engine и возвращает результат."""
-    if not config.DOCUMENT_API_URL:
+    settings = get_settings()
+    if not settings.DOCUMENT_API_URL:
         msg = "DOCUMENT_API_URL is not configured"
         raise DocumentUnavailableError(msg)
 
@@ -56,10 +57,10 @@ async def process_document(
     )
     form.add_field("max_characters", str(MAX_DOCUMENT_TEXT_LENGTH))
 
-    timeout = aiohttp.ClientTimeout(total=config.DOCUMENT_TIMEOUT)
+    timeout = aiohttp.ClientTimeout(total=settings.DOCUMENT_TIMEOUT)
     headers = (
-        {"Authorization": f"Bearer {config.DOCUMENT_API_KEY}"}
-        if config.DOCUMENT_API_KEY
+        {"Authorization": f"Bearer {settings.DOCUMENT_API_KEY}"}
+        if settings.DOCUMENT_API_KEY
         else {}
     )
 
@@ -76,7 +77,7 @@ async def process_document(
                 headers=headers,
             ) as session,
             session.post(
-                config.DOCUMENT_API_URL,
+                settings.DOCUMENT_API_URL,
                 data=form,
             ) as response,
         ):

@@ -4,6 +4,7 @@
 """In-process end-to-end chat flows."""
 
 import base64
+from functools import partial
 from io import BytesIO
 
 import pytest
@@ -14,10 +15,12 @@ from aiogram.types import Document, Message, PhotoSize, Voice
 from aiogram.types import File as TelegramFile
 from PIL import Image
 
+import bot.app.routers as app_routers
 import bot.services.chat.pipeline as chat_pipeline
 from bot.app.routers import configure_dispatcher
 from bot.config import config
 from bot.middlewares import access as access_middleware
+from bot.middlewares import throttle as throttle_middleware
 from bot.services.chat.formatting import format_roleplay
 from bot.services.database import Database
 from bot.services.llm import llm_client
@@ -693,5 +696,105 @@ async def test_blocked_user_is_denied_before_llm_is_called(
             assert llm_server.chat_requests == []
             assert not llm_server.stream_started.is_set()
             assert await test_db.get_history(user_id) == []
+    finally:
+        await _reset_llm_client()
+
+
+@pytest.mark.asyncio
+async def test_throttled_user_is_blocked_before_llm_is_called(
+    test_db: Database,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reject the eleventh message in a burst before calling the LLM."""
+    user_id = 712345683
+    allowed_questions = [f"Question {index}" for index in range(1, 11)]
+    blocked_question = "Question 11"
+
+    await _reset_llm_client()
+
+    try:
+        async with FakeLLM() as llm_server:
+            monkeypatch.setattr(
+                config,
+                "LLM_BASE_URL",
+                f"{llm_server.base_url.rstrip('/')}/v1",
+            )
+            monkeypatch.setattr(config, "LLM_API_KEY", "test-key")
+            monkeypatch.setattr(config, "LLM_MODEL", "test-model")
+            monkeypatch.setattr(config, "LLM_CONTEXT_SIZE", None)
+            monkeypatch.setattr(config, "LLM_TOKEN_COUNTING", "auto")
+            monkeypatch.setattr(config, "ALLOW_ALL_USERS", True)
+            monkeypatch.setattr(config, "ALLOWED_USERS", set())
+            monkeypatch.setattr(access_middleware, "db", test_db)
+            monkeypatch.setattr(chat_pipeline, "db", test_db)
+            monkeypatch.setattr(
+                app_routers,
+                "ThrottleMiddleware",
+                partial(
+                    throttle_middleware.ThrottleMiddleware,
+                    clock=lambda: 1.0,
+                ),
+            )
+
+            telegram_session = FakeTelegramSession(
+                {
+                    SendChatAction: True,
+                    SendMessage: make_message(
+                        message_id=905,
+                        chat_id=user_id,
+                        user_id=905,
+                        text=None,
+                    ),
+                    EditMessageText: make_message(
+                        message_id=905,
+                        chat_id=user_id,
+                        user_id=905,
+                        text=None,
+                    ),
+                }
+            )
+            bot = Bot(token=config.BOT_TOKEN, session=telegram_session)
+            dispatcher = configure_dispatcher(Dispatcher(storage=MemoryStorage()))
+
+            try:
+                for update_id, question in enumerate(
+                    (*allowed_questions, blocked_question),
+                    start=1,
+                ):
+                    await dispatcher.feed_update(
+                        bot,
+                        make_update(
+                            update_id=update_id,
+                            message=make_message(
+                                message_id=update_id,
+                                user_id=user_id,
+                                chat_id=user_id,
+                                text=question,
+                            ),
+                        ),
+                    )
+            finally:
+                await bot.session.close()
+                _release_dispatcher(dispatcher)
+
+            sent_messages = [
+                request
+                for request in telegram_session.requests
+                if isinstance(request, SendMessage)
+            ]
+
+            assert len(sent_messages) == 10
+            assert len(llm_server.chat_requests) == 10
+            assert llm_server.stream_started.is_set()
+
+            history = await test_db.get_history(user_id)
+            assert [(item["role"], item["content"]) for item in history] == [
+                entry
+                for question in allowed_questions
+                for entry in (
+                    ("user", question),
+                    ("assistant", "Hello, world!"),
+                )
+            ]
     finally:
         await _reset_llm_client()

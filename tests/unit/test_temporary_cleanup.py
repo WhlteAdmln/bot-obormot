@@ -433,3 +433,33 @@ async def test_non_message_event(
     assert result == "handled"
     delete_mock.assert_not_awaited()
     handler.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_pending_messages_are_deleted_when_handler_raises(
+    middleware: TemporaryMessagesCleanupMiddleware,
+    handler: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pending temporary messages are deleted before a failing handler."""
+    event = make_message()
+    state = FakeState({PROMPT_STATUS_MESSAGE_KEY: 800})
+
+    delete_mock = AsyncMock()
+    monkeypatch.setattr(
+        TemporaryMessagesCleanupMiddleware,
+        "_delete_message",
+        delete_mock,
+    )
+    handler.side_effect = RuntimeError("handler failed")
+
+    with pytest.raises(RuntimeError, match="handler failed"):
+        await middleware(handler, event, {"state": state})
+
+    delete_mock.assert_awaited_once_with(
+        event,
+        800,
+        "временное уведомление",
+    )
+    assert state.data[PROMPT_STATUS_MESSAGE_KEY] is None
+    handler.assert_awaited_once()

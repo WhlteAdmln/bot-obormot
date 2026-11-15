@@ -517,3 +517,99 @@ def test_create_bot_accepts_token_with_expected_format(
 
     assert bot.token == token
     assert created_tokens == [token]
+
+
+def test_lifecycle_cancels_running_request_and_background_task_on_shutdown(
+    lifecycle_dependencies: tuple[object, ...],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Lifecycle shuts down resources when polling is cancelled during a request."""
+    fake_bot, fake_dispatcher, calls, lifecycle = lifecycle_dependencies
+    request_started = asyncio.Event()
+    request_cancelled = asyncio.Event()
+
+    async def blocked_polling(
+        _dispatcher: object,
+        _bot: object,
+        **_kwargs: object,
+    ) -> None:
+        calls.append("polling")
+        await asyncio.sleep(0)
+        request_started.set()
+        try:
+            await asyncio.Future()
+        finally:
+            calls.append("request.cancelled")
+            request_cancelled.set()
+
+    monkeypatch.setattr(fake_dispatcher, "start_polling", blocked_polling)
+
+    async def cancel_application() -> None:
+        application_task = asyncio.create_task(
+            lifecycle.run_application(fake_bot(), fake_dispatcher())
+        )
+        await request_started.wait()
+        application_task.cancel()
+
+        with pytest.raises(asyncio.CancelledError):
+            await application_task
+
+    asyncio.run(cancel_application())
+
+    assert request_cancelled.is_set()
+    assert calls == [
+        "db.connect",
+        "llm.start",
+        "polling",
+        "cleanup.start",
+        "request.cancelled",
+        "cleanup.stop",
+        "llm.close",
+        "db.close",
+        "telegram.close",
+    ]
+
+
+def test_periodic_cleanup_continues_after_database_error(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Periodic cleanup continues after a failed iteration."""
+    calls: list[dict[str, object]] = []
+    sleep_calls = 0
+
+    class FakeDatabase:
+        async def cleanup_old_images(self, **kwargs: object) -> dict[str, object]:
+            calls.append(kwargs)
+            if len(calls) == 1:
+                msg = "temporary database failure"
+                raise RuntimeError(msg)
+            return {"old_images": 0, "orphan_images": 0, "failed": 0}
+
+    async def stop_after_retry(_delay: object) -> None:
+        nonlocal sleep_calls
+        sleep_calls += 1
+        if sleep_calls == 2:
+            raise asyncio.CancelledError
+
+    monkeypatch.setitem(
+        sys.modules,
+        "bot.services.database",
+        _module("bot.services.database", db=FakeDatabase()),
+    )
+    sys.modules.pop("bot.app.background.image_cleanup", None)
+    image_cleanup = importlib.import_module("bot.app.background.image_cleanup")
+    monkeypatch.setattr(image_cleanup.asyncio, "sleep", stop_after_retry)
+
+    with (
+        caplog.at_level(logging.ERROR, logger="bot.main"),
+        pytest.raises(asyncio.CancelledError),
+    ):
+        asyncio.run(image_cleanup.periodic_image_cleanup())
+
+    assert calls == [
+        {"retention_days": 30, "orphan_grace_hours": 24},
+        {"retention_days": 30, "orphan_grace_hours": 24},
+    ]
+    assert sleep_calls == 2
+    assert "Scheduled image cleanup failed" in caplog.text

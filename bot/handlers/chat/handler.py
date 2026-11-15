@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING
 from aiogram import Router
 
 from bot.config.settings import get_settings
-from bot.services.chat.aggregation import message_aggregator
 from bot.services.chat.errors.handler import handle_chat_error
 from bot.services.chat.formatting import format_roleplay, split_formatted_message
 from bot.services.chat.incoming_log import log_incoming_message
@@ -35,6 +34,7 @@ if TYPE_CHECKING:
     from aiogram.types import Message
 
     from bot.config.settings import Settings
+    from bot.services.chat.aggregation import MessageAggregator
     from bot.services.llm.client import LLMClient
 
 MAX_PENDING_PER_USER = 3
@@ -49,6 +49,7 @@ async def handle_message(
     settings: Settings | None = None,
     *,
     llm_client: LLMClient,
+    message_aggregator: MessageAggregator,
 ) -> None:
     """Processes an incoming chat message and streams the LLM reply."""
     if settings is None:
@@ -174,7 +175,6 @@ __all__ = [
     "keep_typing",
     "log_incoming_message",
     "logger",
-    "message_aggregator",
     "prepare_message",
     "process_chat",
     "router",

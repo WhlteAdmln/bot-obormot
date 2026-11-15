@@ -158,7 +158,6 @@ def _patch_reporting_stubs(
 def state(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
     """Replace the chat handler dependencies and expose the recorded state."""
     result = _create_chat_handler_state()
-    monkeypatch.setattr(handler_module, "message_aggregator", result.aggregator)
     _patch_input_stubs(monkeypatch, result.calls)
     _patch_lock_stub(monkeypatch, result.calls, result.lock_entered)
     _patch_typing_stub(monkeypatch, result.typing_started, result.typing_stopped)
@@ -199,6 +198,7 @@ async def test_handler_preserves_order_for_short_non_streamed_response(
     await handler_module.handle_message(
         message,
         llm_client=state.llm_client,
+        message_aggregator=state.aggregator,
         settings=SETTINGS,
     )
 
@@ -236,6 +236,7 @@ async def test_handler_streams_long_response_and_finalizes_status(
     await handler_module.handle_message(
         message,
         llm_client=state.llm_client,
+        message_aggregator=state.aggregator,
         settings=SETTINGS,
     )
 
@@ -263,6 +264,7 @@ async def test_handler_cancellation_updates_status_and_cleans_typing_task(
         await handler_module.handle_message(
             message,
             llm_client=state.llm_client,
+            message_aggregator=state.aggregator,
             settings=SETTINGS,
         )
 
@@ -283,6 +285,7 @@ async def test_handler_returns_early_for_aggregated_continuation(
     await handler_module.handle_message(
         message,
         llm_client=state.llm_client,
+        message_aggregator=state.aggregator,
         settings=SETTINGS,
     )
 
@@ -303,6 +306,7 @@ async def test_handler_rejects_user_when_pending_request_limit_is_reached(
     await handler_module.handle_message(
         message,
         llm_client=state.llm_client,
+        message_aggregator=state.aggregator,
         settings=SETTINGS,
     )
 
@@ -329,6 +333,7 @@ async def test_handler_routes_processing_error_to_central_error_handler(
     await handler_module.handle_message(
         message,
         llm_client=state.llm_client,
+        message_aggregator=state.aggregator,
         settings=SETTINGS,
     )
 
@@ -365,6 +370,7 @@ async def test_handler_preserves_final_answer_after_stream_edit_failure(
     await handler_module.handle_message(
         message,
         llm_client=state.llm_client,
+        message_aggregator=state.aggregator,
         settings=SETTINGS,
     )
 
@@ -393,6 +399,7 @@ async def test_handler_routes_llm_connection_loss_with_existing_status(
     await handler_module.handle_message(
         message,
         llm_client=state.llm_client,
+        message_aggregator=state.aggregator,
         settings=SETTINGS,
     )
 

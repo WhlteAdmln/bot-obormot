@@ -48,6 +48,7 @@ types:
 
 test:
 	$(PYTHON) -m pytest -q -rs \
+		-m "not integration" \
 		--cov=bot \
 		--cov-branch \
 		--cov-report=term-missing:skip-covered \

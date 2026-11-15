@@ -10,7 +10,7 @@ from typing import Any, Protocol
 
 import aiohttp
 
-from bot.config import config
+from bot.config.settings import Settings
 from bot.errors import LLMAPIError, LLMTimeoutError, LLMUnavailableError
 from bot.utils.text import log_safe
 
@@ -24,6 +24,11 @@ _MODE_ESTIMATE = "estimate"
 
 class TokenizerClient(Protocol):
     """Minimal client interface for tokenization."""
+
+    @property
+    def settings(self) -> Settings:
+        """Return the client settings."""
+        ...
 
     async def get_session(self) -> aiohttp.ClientSession:
         """Return the shared HTTP session."""
@@ -59,12 +64,12 @@ async def get_token_counting_mode(client: TokenizerClient) -> str:
         async with session.post(
             f"{client.get_server_url()}/tokenize",
             json={
-                "model": config.LLM_MODEL,
+                "model": client.settings.LLM_MODEL,
                 "content": _PROBE_TEXT,
                 "add_special": False,
                 "parse_special": True,
             },
-            timeout=aiohttp.ClientTimeout(total=min(5, config.LLM_TIMEOUT)),
+            timeout=aiohttp.ClientTimeout(total=min(5, client.settings.LLM_TIMEOUT)),
         ) as response:
             data = await response.json() if response.status == HTTPStatus.OK else None
             mode = (
@@ -143,7 +148,7 @@ async def _count_tokens_llamacpp(
     async with session.post(
         f"{base_url}/apply-template",
         json={
-            "model": config.LLM_MODEL,
+            "model": client.settings.LLM_MODEL,
             "messages": prepared_messages,
             "add_generation_prompt": True,
         },
@@ -166,7 +171,7 @@ async def _count_tokens_llamacpp(
     async with session.post(
         f"{base_url}/tokenize",
         json={
-            "model": config.LLM_MODEL,
+            "model": client.settings.LLM_MODEL,
             "content": prompt,
             "add_special": True,
             "parse_special": True,
@@ -223,7 +228,7 @@ async def count_text_tokens(client: TokenizerClient, text: str) -> int:
         async with session.post(
             f"{client.get_server_url()}/tokenize",
             json={
-                "model": config.LLM_MODEL,
+                "model": client.settings.LLM_MODEL,
                 "content": text,
                 "add_special": False,
                 "parse_special": True,

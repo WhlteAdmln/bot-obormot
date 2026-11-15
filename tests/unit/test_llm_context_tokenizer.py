@@ -5,13 +5,20 @@
 
 import logging
 from collections import deque
+from dataclasses import replace
 from typing import Self
 
 import pytest
 
-from bot.config import config
+from bot.config.settings import Settings
 from bot.errors import LLMAPIError, LLMUnavailableError
 from bot.services.llm import LLMClient
+
+
+def _with_token_counting(settings: Settings, mode: str) -> Settings:
+    """Return settings with the requested token counting mode."""
+    changes = {"LLM_TOKEN_COUNTING": mode}
+    return replace(settings, **changes)
 
 
 class FakeResponse:
@@ -62,21 +69,24 @@ class FakeSession:
         return self.responses.popleft()
 
 
-def attach_session(
+def make_client(
     monkeypatch: pytest.MonkeyPatch,
-    client: object,
-    fake_session: object,
+    fake_session: FakeSession,
     base_url: str = "http://llm.test",
-) -> None:
-    """Attach session."""
-    # These fake endpoint tests exercise explicit llama.cpp mode.
-    monkeypatch.setattr(config, "LLM_TOKEN_COUNTING", "llamacpp")
+    settings: Settings | None = None,
+) -> LLMClient:
+    """Build a client with explicit settings and a fake session."""
+    if settings is None:
+        settings = _with_token_counting(Settings(), "llamacpp")
+
+    client = LLMClient(settings=settings)
 
     async def get_session() -> "FakeSession":
         return fake_session
 
     monkeypatch.setattr(client, "_get_session", get_session)
     monkeypatch.setattr(client, "_server_url", lambda: base_url)
+    return client
 
 
 @pytest.mark.asyncio
@@ -87,8 +97,7 @@ async def test_context_size_reads_nested_setting_and_caches_result(
     fake_session = FakeSession(
         [FakeResponse({"default_generation_settings": {"n_ctx": 8192}})]
     )
-    client = LLMClient()
-    attach_session(monkeypatch, client, fake_session)
+    client = make_client(monkeypatch, fake_session)
 
     result = await client.get_context_size()
     cached_result = await client.get_context_size()
@@ -96,7 +105,9 @@ async def test_context_size_reads_nested_setting_and_caches_result(
     assert result == cached_result == 8192
     assert len(fake_session.get_calls) == 1
     assert fake_session.get_calls[0][0] == "http://llm.test/props"
-    assert fake_session.get_calls[0][1]["params"] == {"model": config.LLM_MODEL}
+    assert fake_session.get_calls[0][1]["params"] == {
+        "model": client.settings.LLM_MODEL
+    }
 
 
 @pytest.mark.asyncio
@@ -105,12 +116,13 @@ async def test_context_size_rejects_boolean_value(
 ) -> None:
     """Context size rejects boolean value."""
     fake_session = FakeSession([FakeResponse({"n_ctx": True})])
-    client = LLMClient()
-    attach_session(monkeypatch, client, fake_session)
+    client = make_client(monkeypatch, fake_session)
 
     # A bool is not a valid context size; if /models also omits it,
     # the user receives the actionable configuration error.
-    fake_session.responses.append(FakeResponse({"data": [{"id": config.LLM_MODEL}]}))
+    fake_session.responses.append(
+        FakeResponse({"data": [{"id": client.settings.LLM_MODEL}]})
+    )
     with pytest.raises(LLMUnavailableError, match="LLM_CONTEXT_SIZE"):
         await client.get_context_size()
 
@@ -122,16 +134,23 @@ async def test_context_size_falls_back_to_models_metadata(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Context size falls back to models metadata."""
+    settings = _with_token_counting(
+        replace(
+            Settings(),
+            LLM_CONTEXT_SIZE=None,
+            LLM_BASE_URL="http://llm.test/v1",
+        ),
+        "llamacpp",
+    )
     fake_session = FakeSession(
         [
             FakeResponse({}, status=404, body="Not Found"),
-            FakeResponse({"data": [{"id": config.LLM_MODEL, "max_model_len": 32768}]}),
+            FakeResponse(
+                {"data": [{"id": settings.LLM_MODEL, "max_model_len": 32768}]}
+            ),
         ]
     )
-    client = LLMClient()
-    attach_session(monkeypatch, client, fake_session)
-    monkeypatch.setattr(config, "LLM_CONTEXT_SIZE", None)
-    monkeypatch.setattr(config, "LLM_BASE_URL", "http://llm.test/v1")
+    client = make_client(monkeypatch, fake_session, settings=settings)
 
     assert await client.get_context_size() == 32768
     assert [call[0] for call in fake_session.get_calls] == [
@@ -145,10 +164,15 @@ async def test_configured_context_size_skips_server_requests(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Configured context size skips server requests."""
-    client = LLMClient()
+    settings = _with_token_counting(
+        replace(
+            Settings(),
+            LLM_CONTEXT_SIZE=16384,
+        ),
+        "llamacpp",
+    )
     fake_session = FakeSession([])
-    attach_session(monkeypatch, client, fake_session)
-    monkeypatch.setattr(config, "LLM_CONTEXT_SIZE", 16384)
+    client = make_client(monkeypatch, fake_session, settings=settings)
 
     assert await client.get_context_size() == 16384
     assert fake_session.get_calls == []
@@ -165,8 +189,7 @@ async def test_count_tokens_applies_template_then_tokenizes(
             FakeResponse({"tokens": [1, 2, 3, 4]}),
         ]
     )
-    client = LLMClient()
-    attach_session(monkeypatch, client, fake_session)
+    client = make_client(monkeypatch, fake_session)
     messages = [
         {
             "role": "user",
@@ -188,7 +211,7 @@ async def test_count_tokens_applies_template_then_tokenizes(
         "http://llm.test/tokenize",
     ]
     apply_payload = fake_session.post_calls[0][1]["json"]
-    assert apply_payload["model"] == config.LLM_MODEL
+    assert apply_payload["model"] == client.settings.LLM_MODEL
     assert apply_payload["add_generation_prompt"] is True
     image_part = apply_payload["messages"][0]["content"][0]
     assert image_part["image_url"]["url"] == "data:image/jpeg;base64,"
@@ -196,7 +219,7 @@ async def test_count_tokens_applies_template_then_tokenizes(
 
     tokenize_payload = fake_session.post_calls[1][1]["json"]
     assert tokenize_payload == {
-        "model": config.LLM_MODEL,
+        "model": client.settings.LLM_MODEL,
         "content": "rendered prompt",
         "add_special": True,
         "parse_special": True,
@@ -209,8 +232,7 @@ async def test_count_tokens_rejects_invalid_normalized_content(
 ) -> None:
     """Count tokens rejects invalid normalized content."""
     fake_session = FakeSession([])
-    client = LLMClient()
-    attach_session(monkeypatch, client, fake_session)
+    client = make_client(monkeypatch, fake_session)
     monkeypatch.setattr(
         client,
         "_normalize_messages",
@@ -229,8 +251,7 @@ async def test_count_text_tokens_sends_expected_payload(
 ) -> None:
     """Count text tokens sends expected payload."""
     fake_session = FakeSession([FakeResponse({"tokens": [1, 2, 3]})])
-    client = LLMClient()
-    attach_session(monkeypatch, client, fake_session)
+    client = make_client(monkeypatch, fake_session)
 
     result = await client.count_text_tokens("Привет")
 
@@ -240,7 +261,7 @@ async def test_count_text_tokens_sends_expected_payload(
             "http://llm.test/tokenize",
             {
                 "json": {
-                    "model": config.LLM_MODEL,
+                    "model": client.settings.LLM_MODEL,
                     "content": "Привет",
                     "add_special": False,
                     "parse_special": True,
@@ -255,7 +276,7 @@ async def test_count_text_tokens_empty_text_skips_http(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Count text tokens empty text skips http."""
-    client = LLMClient()
+    client = LLMClient(settings=_with_token_counting(Settings(), "llamacpp"))
 
     async def unexpected_session() -> None:
         msg = "HTTP session must not be requested for empty text"
@@ -272,8 +293,7 @@ async def test_count_text_tokens_rejects_invalid_token_list(
 ) -> None:
     """Count text tokens rejects invalid token list."""
     fake_session = FakeSession([FakeResponse({"tokens": "not-a-list"})])
-    client = LLMClient()
-    attach_session(monkeypatch, client, fake_session)
+    client = make_client(monkeypatch, fake_session)
 
     with pytest.raises(LLMUnavailableError, match="invalid token list"):
         await client.count_text_tokens("hello")
@@ -291,8 +311,7 @@ async def test_context_size_logs_sanitized_error_detail(
             FakeResponse({}, status=503, body=private_detail),
         ]
     )
-    client = LLMClient()
-    attach_session(monkeypatch, client, fake_session)
+    client = make_client(monkeypatch, fake_session)
 
     with (
         caplog.at_level(logging.DEBUG, logger="bot.services.llm.context_size"),
@@ -311,8 +330,7 @@ async def test_count_text_tokens_logs_sanitized_error_detail(
     """Count text tokens logs sanitized error detail."""
     private_detail = "user prompt\nsecond line"
     fake_session = FakeSession([FakeResponse({}, status=503, body=private_detail)])
-    client = LLMClient()
-    attach_session(monkeypatch, client, fake_session)
+    client = make_client(monkeypatch, fake_session)
 
     with (
         caplog.at_level(logging.ERROR, logger="bot.services.llm.tokenizer"),
@@ -332,8 +350,7 @@ async def test_health_check_does_not_return_raw_unexpected_server_payload(
     """Health check does not return raw unexpected server payload."""
     payload = {"status": "error", "details": "private prompt content"}
     fake_session = FakeSession([FakeResponse(payload), FakeResponse({"data": []})])
-    client = LLMClient()
-    attach_session(monkeypatch, client, fake_session)
+    client = make_client(monkeypatch, fake_session)
 
     result = await client.health_check()
 

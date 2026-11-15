@@ -7,7 +7,7 @@ import logging
 import math
 from typing import Any, Protocol
 
-from bot.config import config
+from bot.config.settings import Settings
 from bot.errors import InputTooLongError, LLMUnavailableError
 from bot.services.llm.constants import (
     CONTEXT_SAFETY_MARGIN,
@@ -23,6 +23,11 @@ _PINNED_MESSAGES = 2
 
 class FittingClient(Protocol):
     """Минимальный интерфейс клиента, необходимый для fitting истории."""
+
+    @property
+    def settings(self) -> Settings:
+        """Return the client settings."""
+        ...
 
     async def get_context_size(self) -> int:
         """Returns the context window size of the model."""
@@ -78,7 +83,9 @@ async def fit_messages_to_context(
         image_count = client.count_images(messages)
 
         image_reserved_tokens = IMAGE_TOKEN_RESERVE * image_count
-        reserved_tokens = config.LLM_MAX_TOKENS + safety_margin + image_reserved_tokens
+        reserved_tokens = (
+            client.settings.LLM_MAX_TOKENS + safety_margin + image_reserved_tokens
+        )
 
         available_tokens = context_size - reserved_tokens
 
@@ -98,7 +105,7 @@ async def fit_messages_to_context(
                 token_count,
                 available_tokens,
                 context_size,
-                config.LLM_MAX_TOKENS,
+                client.settings.LLM_MAX_TOKENS,
                 safety_margin,
                 image_count,
                 image_reserved_tokens,

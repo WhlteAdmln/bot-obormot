@@ -4,10 +4,11 @@
 """Tests for llm primitives."""
 
 import json
+from dataclasses import replace
 
 import pytest
 
-from bot.config import config
+from bot.config.settings import Settings
 from bot.errors import LLMUnavailableError
 from bot.services.llm import LLMClient, endpoints, llm_client, messages
 
@@ -167,12 +168,33 @@ def test_count_images_counts_only_image_url_parts() -> None:
     )
 
 
-def test_server_url_removes_trailing_slashes_and_v1(
+def test_server_url_removes_trailing_slashes_and_v1() -> None:
+    """Server url removes trailing slashes and v1."""
+    settings = replace(
+        Settings(),
+        LLM_BASE_URL="http://localhost:8080/v1///",
+    )
+    assert endpoints.server_url(settings) == "http://localhost:8080"
+
+
+def test_client_resolves_process_settings_lazily(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Server url removes trailing slashes and v1."""
-    monkeypatch.setattr(config, "LLM_BASE_URL", "http://localhost:8080/v1///")
-    assert endpoints.server_url() == "http://localhost:8080"
+    """Resolve process settings only when the client first needs them."""
+    settings = replace(Settings(), LLM_BASE_URL="http://localhost:8080/v1")
+    calls = 0
+
+    def load_settings() -> Settings:
+        nonlocal calls
+        calls += 1
+        return settings
+
+    monkeypatch.setattr("bot.services.llm.client.get_settings", load_settings)
+    client = LLMClient()
+
+    assert calls == 0
+    assert client.get_server_url() == "http://localhost:8080"
+    assert calls == 1
 
 
 def test_client_exposes_message_normalization_and_counting_helpers() -> None:

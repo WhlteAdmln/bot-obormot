@@ -29,6 +29,13 @@ async def _reset_llm_client() -> None:
     llm_client._token_counting_mode = None
 
 
+def _release_dispatcher(dispatcher: Dispatcher) -> None:
+    """Detach shared application routers after an integration flow."""
+    for router in dispatcher.sub_routers:
+        router._parent_router = None
+    dispatcher.sub_routers.clear()
+
+
 def _make_voice_message(user_id: int, audio_size: int) -> Message:
     """Build a deterministic voice message."""
     return make_message(
@@ -214,6 +221,7 @@ async def test_text_message_streams_answer_and_persists_exchange(
                 )
             finally:
                 await bot.session.close()
+                _release_dispatcher(dispatcher)
 
             sent_messages = [
                 request
@@ -281,6 +289,7 @@ async def test_voice_message_is_transcribed_answered_and_persisted(
                 )
             finally:
                 await bot.session.close()
+                _release_dispatcher(dispatcher)
 
             _assert_voice_delivery(telegram_session, llm_server, response)
             await _assert_voice_history(test_db, user_id, response)

@@ -40,6 +40,42 @@ async def test_db(
 
 
 @pytest.mark.asyncio
+async def test_database_context_manager_connects_and_closes(
+    tmp_path: Path,
+) -> None:
+    """Database context manager connects and closes."""
+    settings = make_settings(DATABASE_PATH=str(tmp_path / "context.db"))
+    database = Database(settings)
+
+    async with database as entered_database:
+        assert entered_database is database
+        assert database.connection is not None
+        assert await database.health_check()
+
+    assert database.connection is None
+
+
+@pytest.mark.asyncio
+async def test_database_context_manager_closes_after_exception(
+    tmp_path: Path,
+) -> None:
+    """Database context manager closes after an exception."""
+    settings = make_settings(DATABASE_PATH=str(tmp_path / "context_error.db"))
+    database = Database(settings)
+
+    async def fail_inside_context() -> None:
+        async with database:
+            assert database.connection is not None
+            msg = "context failure"
+            raise RuntimeError(msg)
+
+    with pytest.raises(RuntimeError, match="context failure"):
+        await fail_inside_context()
+
+    assert database.connection is None
+
+
+@pytest.mark.asyncio
 async def test_history_limit_defaults_to_default_value(test_db: Database) -> None:
     """History limit defaults to default value."""
     assert (

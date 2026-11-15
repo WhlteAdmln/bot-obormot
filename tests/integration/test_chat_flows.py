@@ -3,12 +3,16 @@
 
 """In-process end-to-end chat flows."""
 
+import base64
+from io import BytesIO
+
 import pytest
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.methods import EditMessageText, GetFile, SendChatAction, SendMessage
-from aiogram.types import Document, Message, Voice
+from aiogram.types import Document, Message, PhotoSize, Voice
 from aiogram.types import File as TelegramFile
+from PIL import Image
 
 import bot.services.chat.pipeline as chat_pipeline
 from bot.app.routers import configure_dispatcher
@@ -458,5 +462,165 @@ async def test_pdf_document_is_extracted_answered_and_persisted(
                 "[Пользователь отправил документ: report.pdf (TXT)]"
             )
             assert history[1]["content"] == response
+    finally:
+        await _reset_llm_client()
+
+
+def _assert_photo_delivery(
+    telegram_session: FakeTelegramSession,
+    llm_server: FakeLLM,
+    response: str,
+) -> None:
+    """Verify photo download, Vision payload and streamed response delivery."""
+    file_requests = [
+        request for request in telegram_session.requests if isinstance(request, GetFile)
+    ]
+    sent_messages = [
+        request
+        for request in telegram_session.requests
+        if isinstance(request, SendMessage)
+    ]
+    edited_texts = [
+        request.text
+        for request in telegram_session.requests
+        if isinstance(request, EditMessageText) and request.text is not None
+    ]
+
+    assert len(file_requests) == 1
+    assert telegram_session.streamed_urls
+    assert telegram_session.streamed_urls[0].endswith("/photos/photo.png")
+    assert llm_server.stream_started.is_set()
+    assert len(sent_messages) == 1
+    assert edited_texts
+    assert edited_texts[-1] == format_roleplay(response)
+
+    image_parts = [
+        part
+        for request in llm_server.chat_requests
+        for llm_message in request.get("messages", [])
+        for part in (
+            llm_message.get("content", [])
+            if isinstance(llm_message.get("content"), list)
+            else []
+        )
+        if isinstance(part, dict) and part.get("type") == "image_url"
+    ]
+
+    assert len(image_parts) == 1
+    image_url = image_parts[0]["image_url"]["url"]
+    assert image_url.startswith("data:image/jpeg;base64,")
+
+    decoded_image = base64.b64decode(image_url.split(",", 1)[1])
+    with Image.open(BytesIO(decoded_image)) as prepared_image:
+        assert prepared_image.format == "JPEG"
+        assert prepared_image.size == (2, 2)
+
+
+async def _assert_photo_history(
+    test_db: Database,
+    user_id: int,
+    response: str,
+) -> None:
+    """Verify that the photo and assistant response were persisted."""
+    history = await test_db.get_history(user_id)
+
+    assert len(history) == 2
+    assert isinstance(history[0]["content"], list)
+    assert any(
+        isinstance(part, dict) and part.get("type") == "image_url"
+        for part in history[0]["content"]
+    )
+    assert history[1]["content"] == response
+
+
+@pytest.mark.asyncio
+async def test_photo_message_is_processed_by_vision_and_persisted(
+    test_db: Database,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Process a photo through Telegram, Vision, LLM and SQLite."""
+    user_id = 712345681
+    first_chunk = " ".join(["streamed"] * 180) + " "
+    response = f"{first_chunk}complete"
+
+    image_buffer = BytesIO()
+    Image.new("RGB", (2, 2), (24, 48, 96)).save(image_buffer, format="PNG")
+    image_data = image_buffer.getvalue()
+
+    await _reset_llm_client()
+
+    try:
+        async with FakeLLM(
+            options=FakeLLMOptions(chunks=(first_chunk, "complete")),
+        ) as llm_server:
+            monkeypatch.setattr(
+                config,
+                "LLM_BASE_URL",
+                f"{llm_server.base_url.rstrip('/')}/v1",
+            )
+            monkeypatch.setattr(config, "LLM_API_KEY", "test-key")
+            monkeypatch.setattr(config, "LLM_MODEL", "test-model")
+            monkeypatch.setattr(config, "LLM_CONTEXT_SIZE", None)
+            monkeypatch.setattr(config, "LLM_TOKEN_COUNTING", "auto")
+            monkeypatch.setattr(config, "ALLOW_ALL_USERS", True)
+            monkeypatch.setattr(config, "ALLOWED_USERS", set())
+            monkeypatch.setattr(access_middleware, "db", test_db)
+            monkeypatch.setattr(chat_pipeline, "db", test_db)
+
+            telegram_session = FakeTelegramSession(
+                {
+                    GetFile: TelegramFile(
+                        file_id="photo-file-id",
+                        file_unique_id="photo-file-unique-id",
+                        file_size=len(image_data),
+                        file_path="photos/photo.png",
+                    ),
+                    SendChatAction: True,
+                    SendMessage: make_message(
+                        message_id=903,
+                        chat_id=user_id,
+                        user_id=903,
+                        text=None,
+                    ),
+                    EditMessageText: make_message(
+                        message_id=903,
+                        chat_id=user_id,
+                        user_id=903,
+                        text=None,
+                    ),
+                },
+                stream_data=image_data,
+            )
+            photo_message = make_message(
+                user_id=user_id,
+                chat_id=user_id,
+                text=None,
+            ).model_copy(
+                update={
+                    "photo": [
+                        PhotoSize(
+                            file_id="photo-file-id",
+                            file_unique_id="photo-file-unique-id",
+                            width=2,
+                            height=2,
+                            file_size=len(image_data),
+                        )
+                    ]
+                }
+            )
+            bot = Bot(token=config.BOT_TOKEN, session=telegram_session)
+            dispatcher = configure_dispatcher(Dispatcher(storage=MemoryStorage()))
+
+            try:
+                await dispatcher.feed_update(
+                    bot,
+                    make_update(message=photo_message),
+                )
+            finally:
+                await bot.session.close()
+                _release_dispatcher(dispatcher)
+
+            _assert_photo_delivery(telegram_session, llm_server, response)
+            await _assert_photo_history(test_db, user_id, response)
     finally:
         await _reset_llm_client()

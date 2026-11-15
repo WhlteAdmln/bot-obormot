@@ -888,3 +888,82 @@ async def test_long_answer_is_split_into_multiple_telegram_messages(
             ]
     finally:
         await _reset_llm_client()
+
+
+@pytest.mark.asyncio
+async def test_llm_connection_failure_is_reported_without_persisting_exchange(
+    test_db: Database,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Report LLM connection loss and leave the conversation history unchanged."""
+    user_id = 712345685
+    error_prefix = "🔌 Не удалось связаться с языковой моделью."
+    error_suffix = "Проверь доступность AI-сервера."
+    expected_error = f"{error_prefix} {error_suffix}"
+
+    await _reset_llm_client()
+
+    try:
+        async with FakeLLM() as llm_server:
+            monkeypatch.setattr(
+                config,
+                "LLM_BASE_URL",
+                f"{llm_server.base_url.rstrip('/')}/v1",
+            )
+            monkeypatch.setattr(config, "LLM_API_KEY", "test-key")
+            monkeypatch.setattr(config, "LLM_MODEL", "test-model")
+            monkeypatch.setattr(config, "LLM_CONTEXT_SIZE", 8192)
+            monkeypatch.setattr(config, "LLM_TOKEN_COUNTING", "estimate")
+            monkeypatch.setattr(config, "ALLOW_ALL_USERS", True)
+            monkeypatch.setattr(config, "ALLOWED_USERS", set())
+            monkeypatch.setattr(access_middleware, "db", test_db)
+            monkeypatch.setattr(chat_pipeline, "db", test_db)
+
+            await llm_server.server.close()
+
+            telegram_session = FakeTelegramSession(
+                {
+                    SendChatAction: True,
+                    SendMessage: make_message(
+                        message_id=907,
+                        chat_id=user_id,
+                        user_id=907,
+                        text=None,
+                    ),
+                }
+            )
+            bot = Bot(token=config.BOT_TOKEN, session=telegram_session)
+            dispatcher = configure_dispatcher(Dispatcher(storage=MemoryStorage()))
+
+            try:
+                await dispatcher.feed_update(
+                    bot,
+                    make_update(
+                        message=make_message(
+                            user_id=user_id,
+                            chat_id=user_id,
+                            text="This request must fail because the LLM is offline.",
+                        )
+                    ),
+                )
+            finally:
+                await bot.session.close()
+                _release_dispatcher(dispatcher)
+
+            sent_messages = [
+                request
+                for request in telegram_session.requests
+                if isinstance(request, SendMessage)
+            ]
+
+            assert len(sent_messages) == 1
+            assert sent_messages[0].text == expected_error
+            assert llm_server.chat_requests == []
+            assert not llm_server.stream_started.is_set()
+            assert not any(
+                isinstance(request, EditMessageText)
+                for request in telegram_session.requests
+            )
+            assert await test_db.get_history(user_id) == []
+    finally:
+        await _reset_llm_client()

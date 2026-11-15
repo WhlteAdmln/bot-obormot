@@ -13,8 +13,6 @@ from typing import Self
 import aiohttp
 import pytest
 
-from bot.config import config
-from bot.config.settings import Settings
 from bot.errors import (
     DocumentAPIError,
     DocumentUnavailableError,
@@ -35,6 +33,7 @@ from bot.services.documents.client import MAX_DOCUMENT_TEXT_LENGTH
 from bot.services.documents.response import validate_document_response
 from bot.services.http_limits import read_limited_body
 from bot.settings import get_settings
+from tests.support.settings import make_settings
 
 
 class FakeContent:
@@ -125,14 +124,11 @@ def test_validate_audio_duration_checks_audio_and_video_note() -> None:
 
 
 @pytest.mark.asyncio
-async def test_transcribe_audio_rejects_missing_whisper_url(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_transcribe_audio_rejects_missing_whisper_url() -> None:
     """Transcribe audio rejects missing whisper url."""
-    audio_client = importlib.import_module("bot.services.audio.client")
-    monkeypatch.setattr(audio_client, "get_settings", Settings)
+    settings = make_settings(WHISPER_API_URL="")
     with pytest.raises(WhisperUnavailableError, match="not configured"):
-        await transcribe_audio(b"audio")
+        await transcribe_audio(b"audio", settings=settings)
 
 
 @pytest.mark.asyncio
@@ -170,15 +166,10 @@ async def test_transcribe_audio_posts_multipart_and_strips_result(
             calls.update(url=url, data=data)
             return Response()
 
-    audio_client = importlib.import_module("bot.services.audio.client")
-    monkeypatch.setattr(
-        audio_client,
-        "get_settings",
-        lambda: Settings(
-            WHISPER_API_URL="http://whisper.test/transcribe?token=private",
-            WHISPER_TIMEOUT=37,
-            WHISPER_API_KEY="",
-        ),
+    settings = make_settings(
+        WHISPER_API_URL="http://whisper.test/transcribe?token=private",
+        WHISPER_TIMEOUT=37,
+        WHISPER_API_KEY="",
     )
     monkeypatch.setattr(aiohttp, "ClientSession", Session)
 
@@ -186,6 +177,7 @@ async def test_transcribe_audio_posts_multipart_and_strips_result(
         result = await transcribe_audio(
             b"audio-bytes",
             "voice\nERROR forged.ogg",
+            settings=settings,
         )
 
     assert result == "распознанный текст"
@@ -236,11 +228,13 @@ async def test_transcribe_audio_sends_bearer_api_key(
         def post(self, *_args: object, **_kwargs: object) -> Response:
             return Response()
 
-    monkeypatch.setattr(config, "WHISPER_API_URL", "http://whisper.test")
-    monkeypatch.setattr(config, "WHISPER_API_KEY", "whisper-secret")
+    settings = make_settings(
+        WHISPER_API_URL="http://whisper.test",
+        WHISPER_API_KEY="whisper-secret",
+    )
     monkeypatch.setattr(aiohttp, "ClientSession", Session)
 
-    assert await transcribe_audio(b"audio") == "recognized"
+    assert await transcribe_audio(b"audio", settings=settings) == "recognized"
     assert calls["headers"] == {"Authorization": "Bearer whisper-secret"}
 
 
@@ -251,7 +245,7 @@ async def test_transcribe_audio_rejects_oversized_response(
     """Transcribe audio rejects oversized response."""
     audio_client = importlib.import_module("bot.services.audio.client")
 
-    monkeypatch.setattr(config, "WHISPER_API_URL", "http://whisper.test")
+    settings = make_settings(WHISPER_API_URL="http://whisper.test")
     monkeypatch.setattr(audio_client, "MAX_SERVICE_RESPONSE_BYTES", 10)
 
     class Response:
@@ -278,7 +272,7 @@ async def test_transcribe_audio_rejects_oversized_response(
     monkeypatch.setattr(aiohttp, "ClientSession", lambda **_kwargs: Session())
 
     with pytest.raises(WhisperAPIError, match="response is too large"):
-        await transcribe_audio(b"audio")
+        await transcribe_audio(b"audio", settings=settings)
 
 
 @pytest.mark.asyncio
@@ -286,7 +280,7 @@ async def test_transcribe_audio_preserves_api_empty_and_timeout_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Transcribe audio preserves api empty and timeout errors."""
-    monkeypatch.setattr(config, "WHISPER_API_URL", "http://whisper.test")
+    settings = make_settings(WHISPER_API_URL="http://whisper.test")
 
     class Response:
         content_length = None
@@ -320,7 +314,7 @@ async def test_transcribe_audio_preserves_api_empty_and_timeout_errors(
         lambda **_kwargs: Session(Response(503, b"backend unavailable")),
     )
     with pytest.raises(WhisperAPIError, match="Whisper HTTP 503"):
-        await transcribe_audio(b"audio")
+        await transcribe_audio(b"audio", settings=settings)
 
     monkeypatch.setattr(
         aiohttp,
@@ -328,14 +322,14 @@ async def test_transcribe_audio_preserves_api_empty_and_timeout_errors(
         lambda **_kwargs: Session(Response(body=json_body({"text": "  "}))),
     )
     with pytest.raises(WhisperEmptyAudioError):
-        await transcribe_audio(b"audio")
+        await transcribe_audio(b"audio", settings=settings)
 
     def timeout_session(**_kwargs: object) -> None:
         raise TimeoutError
 
     monkeypatch.setattr(aiohttp, "ClientSession", timeout_session)
     with pytest.raises(WhisperTimeoutError):
-        await transcribe_audio(b"audio")
+        await transcribe_audio(b"audio", settings=settings)
 
 
 def test_validate_document_response_accepts_valid_payload_without_copying() -> None:
@@ -424,15 +418,10 @@ async def test_process_document_preserves_filename_sanitization_and_response(
             calls["data"] = data
             return Response()
 
-    documents_client = importlib.import_module("bot.services.documents.client")
-    monkeypatch.setattr(
-        documents_client,
-        "get_settings",
-        lambda: Settings(
-            DOCUMENT_API_URL="http://documents.test/process",
-            DOCUMENT_TIMEOUT=61,
-            DOCUMENT_API_KEY="",
-        ),
+    settings = make_settings(
+        DOCUMENT_API_URL="http://documents.test/process",
+        DOCUMENT_TIMEOUT=61,
+        DOCUMENT_API_KEY="",
     )
     monkeypatch.setattr(aiohttp, "ClientSession", Session)
 
@@ -440,6 +429,7 @@ async def test_process_document_preserves_filename_sanitization_and_response(
         result = await process_document(
             b"document-bytes",
             "../../report\nERROR forged.pdf",
+            settings=settings,
         )
 
     assert result == {
@@ -497,11 +487,13 @@ async def test_process_document_sends_bearer_api_key(
         def post(self, *_args: object, **_kwargs: object) -> Response:
             return Response()
 
-    monkeypatch.setattr(config, "DOCUMENT_API_URL", "http://documents.test")
-    monkeypatch.setattr(config, "DOCUMENT_API_KEY", "documents-secret")
+    settings = make_settings(
+        DOCUMENT_API_URL="http://documents.test",
+        DOCUMENT_API_KEY="documents-secret",
+    )
     monkeypatch.setattr(aiohttp, "ClientSession", Session)
 
-    await process_document(b"document", "file.pdf")
+    await process_document(b"document", "file.pdf", settings=settings)
     assert calls["headers"] == {"Authorization": "Bearer documents-secret"}
 
 
@@ -512,7 +504,7 @@ async def test_process_document_rejects_oversized_response(
     """Process document rejects oversized response."""
     documents_client = importlib.import_module("bot.services.documents.client")
 
-    monkeypatch.setattr(config, "DOCUMENT_API_URL", "http://documents.test")
+    settings = make_settings(DOCUMENT_API_URL="http://documents.test")
     monkeypatch.setattr(documents_client, "MAX_SERVICE_RESPONSE_BYTES", 10)
 
     class Response:
@@ -547,7 +539,7 @@ async def test_process_document_rejects_oversized_response(
     monkeypatch.setattr(aiohttp, "ClientSession", lambda **_kwargs: Session())
 
     with pytest.raises(DocumentAPIError) as error:
-        await process_document(b"document", "file.pdf")
+        await process_document(b"document", "file.pdf", settings=settings)
 
     assert error.value.status == 502
     assert error.value.detail == "Document Engine response is too large"
@@ -558,16 +550,14 @@ async def test_process_document_rejects_missing_url_and_preserves_http_status(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Process document rejects missing url and preserves http status."""
-    documents_client = importlib.import_module("bot.services.documents.client")
-    monkeypatch.setattr(documents_client, "get_settings", Settings)
     with pytest.raises(DocumentUnavailableError, match="not configured"):
-        await process_document(b"data", "file.pdf")
+        await process_document(
+            b"data",
+            "file.pdf",
+            settings=make_settings(DOCUMENT_API_URL=""),
+        )
 
-    monkeypatch.setattr(
-        documents_client,
-        "get_settings",
-        lambda: Settings(DOCUMENT_API_URL="http://documents.test"),
-    )
+    settings = make_settings(DOCUMENT_API_URL="http://documents.test")
 
     class Response:
         status = 415
@@ -594,7 +584,7 @@ async def test_process_document_rejects_missing_url_and_preserves_http_status(
 
     monkeypatch.setattr(aiohttp, "ClientSession", lambda **_kwargs: Session())
     with pytest.raises(DocumentAPIError) as error:
-        await process_document(b"data", "file.pdf")
+        await process_document(b"data", "file.pdf", settings=settings)
     assert error.value.status == 415
     assert error.value.detail == "unsupported file type"
 
@@ -604,7 +594,7 @@ async def test_process_document_maps_timeout_and_connection_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Process document maps timeout and connection errors."""
-    monkeypatch.setattr(config, "DOCUMENT_API_URL", "http://documents.test")
+    settings = make_settings(DOCUMENT_API_URL="http://documents.test")
 
     def timeout_session(**_kwargs: object) -> None:
         raise TimeoutError
@@ -613,7 +603,7 @@ async def test_process_document_maps_timeout_and_connection_errors(
     document_timeout_error = importlib.import_module("bot.errors").DocumentTimeoutError
 
     with pytest.raises(document_timeout_error, match="timed out"):
-        await process_document(b"data", "file.pdf")
+        await process_document(b"data", "file.pdf", settings=settings)
 
     def failed_session(**_kwargs: object) -> None:
         msg = "connection refused"
@@ -621,4 +611,4 @@ async def test_process_document_maps_timeout_and_connection_errors(
 
     monkeypatch.setattr(aiohttp, "ClientSession", failed_session)
     with pytest.raises(DocumentUnavailableError, match="connection error"):
-        await process_document(b"data", "file.pdf")
+        await process_document(b"data", "file.pdf", settings=settings)

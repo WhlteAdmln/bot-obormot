@@ -9,7 +9,7 @@ from pathlib import Path
 import aiohttp
 import pytest
 
-from bot.config import config
+from bot.config.settings import Settings
 from bot.errors import (
     WhisperAPIError,
     WhisperTimeoutError,
@@ -18,6 +18,7 @@ from bot.errors import (
 from bot.services.audio.client import transcribe_audio
 from bot.services.documents.client import process_document
 from tests.support.fake_audiodoc import FakeAudiodoc, FakeResponseOptions
+from tests.support.settings import make_settings
 
 _FIXTURE_PATH = (
     Path(__file__).resolve().parents[1]
@@ -27,34 +28,24 @@ _FIXTURE_PATH = (
 )
 
 
-def _configure_bot_clients(
-    monkeypatch: pytest.MonkeyPatch,
-    server: FakeAudiodoc,
-) -> None:
-    """Point both real bot clients at the fake audiodoc server."""
-    monkeypatch.setattr(
-        config,
-        "WHISPER_API_URL",
-        f"{server.base_url}transcribe",
+def _bot_settings(server: FakeAudiodoc, **overrides: object) -> Settings:
+    """Build settings that point both real bot clients at the fake server."""
+    return make_settings(
+        WHISPER_API_URL=f"{server.base_url}transcribe",
+        WHISPER_API_KEY=server.whisper_api_key,
+        DOCUMENT_API_URL=f"{server.base_url}process-document",
+        DOCUMENT_API_KEY=server.document_api_key,
+        **overrides,
     )
-    monkeypatch.setattr(config, "WHISPER_API_KEY", server.whisper_api_key)
-    monkeypatch.setattr(
-        config,
-        "DOCUMENT_API_URL",
-        f"{server.base_url}process-document",
-    )
-    monkeypatch.setattr(config, "DOCUMENT_API_KEY", server.document_api_key)
 
 
 @pytest.mark.asyncio
-async def test_fake_audiodoc_serves_contract_responses_to_real_clients(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_fake_audiodoc_serves_contract_responses_to_real_clients() -> None:
     """Serve fixture responses over HTTP to both real bot clients."""
     contract = json.loads(_FIXTURE_PATH.read_text(encoding="utf-8"))
 
     async with FakeAudiodoc() as server:
-        _configure_bot_clients(monkeypatch, server)
+        settings = _bot_settings(server)
 
         async with aiohttp.ClientSession() as session:
             for endpoint, expected_status in (
@@ -66,13 +57,14 @@ async def test_fake_audiodoc_serves_contract_responses_to_real_clients(
                     assert await response.json() == {"status": expected_status}
 
         assert (
-            await transcribe_audio(b"audio", "voice.ogg")
+            await transcribe_audio(b"audio", "voice.ogg", settings=settings)
             == contract["transcribe"]["text"]
         )
         assert (
             await process_document(
                 b"document",
                 "note.txt",
+                settings=settings,
             )
             == contract["process_document"]
         )
@@ -82,11 +74,10 @@ async def test_fake_audiodoc_serves_contract_responses_to_real_clients(
 @pytest.mark.asyncio
 async def test_fake_audiodoc_can_return_configured_http_errors(
     status: int,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Return configured HTTP errors and Retry-After for service unavailability."""
     async with FakeAudiodoc() as server:
-        _configure_bot_clients(monkeypatch, server)
+        settings = _bot_settings(server)
         server.set_behavior(
             "transcribe",
             FakeResponseOptions(status=status, retry_after_seconds=17),
@@ -111,53 +102,46 @@ async def test_fake_audiodoc_can_return_configured_http_errors(
                 await response.read()
 
         with pytest.raises(WhisperAPIError, match=f"Whisper HTTP {status}"):
-            await transcribe_audio(b"audio")
+            await transcribe_audio(b"audio", settings=settings)
 
 
 @pytest.mark.asyncio
-async def test_fake_audiodoc_can_return_invalid_json(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_fake_audiodoc_can_return_invalid_json() -> None:
     """Return invalid JSON when the corresponding switch is enabled."""
     async with FakeAudiodoc() as server:
-        _configure_bot_clients(monkeypatch, server)
+        settings = _bot_settings(server)
         server.set_behavior(
             "transcribe",
             FakeResponseOptions(invalid_json=True),
         )
 
         with pytest.raises(WhisperAPIError, match="invalid JSON"):
-            await transcribe_audio(b"audio")
+            await transcribe_audio(b"audio", settings=settings)
 
 
 @pytest.mark.asyncio
-async def test_fake_audiodoc_can_delay_a_response(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_fake_audiodoc_can_delay_a_response() -> None:
     """Delay a response long enough to exercise the real client timeout."""
     async with FakeAudiodoc() as server:
-        _configure_bot_clients(monkeypatch, server)
-        monkeypatch.setattr(config, "WHISPER_TIMEOUT", 0.01)
+        settings = _bot_settings(server, WHISPER_TIMEOUT=0.01)
         server.set_behavior(
             "transcribe",
             FakeResponseOptions(delay=0.05),
         )
 
         with pytest.raises(WhisperTimeoutError, match="timed out"):
-            await transcribe_audio(b"audio")
+            await transcribe_audio(b"audio", settings=settings)
 
 
 @pytest.mark.asyncio
-async def test_fake_audiodoc_can_truncate_a_response(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_fake_audiodoc_can_truncate_a_response() -> None:
     """Close a response before its declared content length is received."""
     async with FakeAudiodoc() as server:
-        _configure_bot_clients(monkeypatch, server)
+        settings = _bot_settings(server)
         server.set_behavior(
             "transcribe",
             FakeResponseOptions(truncated_body=True),
         )
 
         with pytest.raises(WhisperUnavailableError, match="connection error"):
-            await transcribe_audio(b"audio")
+            await transcribe_audio(b"audio", settings=settings)

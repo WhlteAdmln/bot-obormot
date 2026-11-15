@@ -4,6 +4,7 @@
 """Exercise handlers through the real Dispatcher."""
 
 from collections.abc import AsyncIterator
+from dataclasses import replace
 
 import pytest
 import pytest_asyncio
@@ -19,8 +20,6 @@ from aiogram.methods import (
 from aiogram.types import User
 
 from bot.app.routers import configure_dispatcher
-from bot.config import config
-from bot.config.settings import get_settings
 from bot.handlers.admin import handler as admin_handler
 from bot.handlers.history import basic as history_basic
 from bot.handlers.history import limits as history_limits
@@ -28,6 +27,7 @@ from bot.handlers.prompt import handler as prompt_handler
 from bot.handlers.start import handler as start_handler
 from bot.middlewares import access as access_module
 from bot.middlewares.throttle import ThrottleMiddleware
+from tests.support.settings import make_settings
 from tests.support.telegram import (
     FakeTelegramSession,
     make_message,
@@ -44,6 +44,8 @@ HISTORY_TARGET_ID = 444000002
 PROMPT_USER_ID = 555000000
 PROMPT_USER_ID_2 = 555000001
 PROMPT_USER_ID_3 = 555000002
+
+SETTINGS = make_settings(SUPERVISOR_ID=SUPERVISOR_ID, ALLOW_ALL_USERS=True)
 
 
 class _AccessDatabase:
@@ -215,17 +217,14 @@ def access_database(
     monkeypatch.setattr(history_basic, "db", database)
     monkeypatch.setattr(history_limits, "db", database)
     monkeypatch.setattr(prompt_handler, "db", database)
-    monkeypatch.setattr(config, "SUPERVISOR_ID", SUPERVISOR_ID)
-    monkeypatch.setattr(config, "ALLOW_ALL_USERS", True)
-    monkeypatch.setattr(config, "ALLOWED_USERS", set())
-    dispatcher.workflow_data["settings"] = get_settings()
+    dispatcher.workflow_data["settings"] = SETTINGS
     return database
 
 
 @pytest.fixture(scope="module")
 def dispatcher() -> Dispatcher:
     """Create one configured dispatcher for the test module."""
-    return configure_dispatcher(Dispatcher(storage=MemoryStorage()))
+    return configure_dispatcher(Dispatcher(storage=MemoryStorage()), SETTINGS)
 
 
 @pytest_asyncio.fixture
@@ -235,7 +234,7 @@ async def dispatcher_runtime(
 ) -> AsyncIterator[tuple[Dispatcher, Bot, FakeTelegramSession]]:
     """Create a fake Telegram API session for one dispatcher update."""
     assert isinstance(access_database, _AccessDatabase)
-    assert dispatcher.workflow_data["settings"] is get_settings()
+    assert dispatcher.workflow_data["settings"] is SETTINGS
     _reset_throttle(dispatcher)
     session = FakeTelegramSession(
         {
@@ -246,7 +245,7 @@ async def dispatcher_runtime(
             SetMyCommands: True,
         }
     )
-    bot = Bot(token=config.BOT_TOKEN, session=session)
+    bot = Bot(token=SETTINGS.BOT_TOKEN, session=session)
 
     try:
         yield dispatcher, bot, session
@@ -367,14 +366,12 @@ async def test_start_falls_back_to_regular_menu_when_database_fails(
 )
 async def test_dispatcher_denies_commands_without_access(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
-    monkeypatch: pytest.MonkeyPatch,
     case: tuple[int, str],
 ) -> None:
     """Access middleware rejects both known and unknown commands."""
     dispatcher, bot, session = dispatcher_runtime
     user_id, command_text = case
-    monkeypatch.setattr(config, "ALLOW_ALL_USERS", False)
-    dispatcher.workflow_data["settings"] = get_settings()
+    dispatcher.workflow_data["settings"] = replace(SETTINGS, ALLOW_ALL_USERS=False)
 
     await dispatcher.feed_update(
         bot,
@@ -440,7 +437,7 @@ async def test_history_basic_commands_through_dispatcher(
     else:
         expected_text = (
             f"📚 Твой лимит истории: 17 полных обменов.\n"
-            f"Стандартный лимит: {config.DEFAULT_HISTORY_EXCHANGES}."
+            f"Стандартный лимит: {SETTINGS.DEFAULT_HISTORY_EXCHANGES}."
         )
 
     assert _sent_texts(session) == [expected_text]
@@ -498,8 +495,8 @@ async def test_history_limit_without_arguments_shows_usage(
     "case",
     [
         (HISTORY_USER_ID + 31, set(), 12),
-        (HISTORY_ADMIN_ID, {HISTORY_ADMIN_ID}, config.MAX_HISTORY_EXCHANGES),
-        (SUPERVISOR_ID, set(), config.MAX_HISTORY_EXCHANGES),
+        (HISTORY_ADMIN_ID, {HISTORY_ADMIN_ID}, SETTINGS.MAX_HISTORY_EXCHANGES),
+        (SUPERVISOR_ID, set(), SETTINGS.MAX_HISTORY_EXCHANGES),
     ],
 )
 async def test_history_limit_sets_own_limit_for_user_admin_and_supervisor(
@@ -535,12 +532,12 @@ async def test_history_limit_sets_own_limit_for_user_admin_and_supervisor(
         (
             HISTORY_USER_ID + 41,
             "0",
-            f"⚠️ Допустимый лимит: от 1 до {config.DEFAULT_HISTORY_EXCHANGES}.",
+            f"⚠️ Допустимый лимит: от 1 до {SETTINGS.DEFAULT_HISTORY_EXCHANGES}.",
         ),
         (
             HISTORY_USER_ID + 42,
-            str(config.DEFAULT_HISTORY_EXCHANGES + 1),
-            f"⚠️ Допустимый лимит: от 1 до {config.DEFAULT_HISTORY_EXCHANGES}.",
+            str(SETTINGS.DEFAULT_HISTORY_EXCHANGES + 1),
+            f"⚠️ Допустимый лимит: от 1 до {SETTINGS.DEFAULT_HISTORY_EXCHANGES}.",
         ),
     ],
 )
@@ -626,7 +623,7 @@ async def test_history_limit_allows_admin_to_change_target_limit(
         (
             HISTORY_ADMIN_ID + 5,
             f"{HISTORY_TARGET_ID} 0",
-            f"⚠️ Допустимый лимит: от 1 до {config.MAX_HISTORY_EXCHANGES}.",
+            f"⚠️ Допустимый лимит: от 1 до {SETTINGS.MAX_HISTORY_EXCHANGES}.",
         ),
     ],
 )
@@ -708,13 +705,13 @@ async def test_history_limit_propagates_database_failures(
 async def test_history_commands_are_denied_without_access(
     access_database: _AccessDatabase,
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
-    monkeypatch: pytest.MonkeyPatch,
     case: tuple[int, str, str],
 ) -> None:
     """Access middleware denies history commands before database mutations."""
     user_id, command_text, operation = case
-    monkeypatch.setattr(config, "ALLOW_ALL_USERS", False)
-    dispatcher_runtime[0].workflow_data["settings"] = get_settings()
+    dispatcher_runtime[0].workflow_data["settings"] = replace(
+        SETTINGS, ALLOW_ALL_USERS=False
+    )
 
     session = await _feed_command(dispatcher_runtime, user_id, command_text)
 
@@ -1038,13 +1035,13 @@ async def test_prompt_save_propagates_database_failure(
 )
 async def test_prompt_commands_are_denied_without_access(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
-    monkeypatch: pytest.MonkeyPatch,
     case: tuple[int, str],
 ) -> None:
     """Access middleware denies prompt commands before handler execution."""
     user_id, command_text = case
-    monkeypatch.setattr(config, "ALLOW_ALL_USERS", False)
-    dispatcher_runtime[0].workflow_data["settings"] = get_settings()
+    dispatcher_runtime[0].workflow_data["settings"] = replace(
+        SETTINGS, ALLOW_ALL_USERS=False
+    )
 
     session = await _feed_command(dispatcher_runtime, user_id, command_text)
 

@@ -8,10 +8,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from bot.config import config
-from bot.config.settings import get_settings
 from bot.handlers.admin import handler as admin_handler
 from bot.handlers.history import limits as history_limits_handler
+from tests.support.settings import make_settings
+
+SETTINGS = make_settings()
 
 
 class FakeMessage:
@@ -32,7 +33,7 @@ async def test_admin_add_writes_audit_record(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Admin add writes audit record."""
-    actor_id = config.SUPERVISOR_ID
+    actor_id = SETTINGS.SUPERVISOR_ID
     target_id = 123456789
 
     async def add_admin(user_id: int) -> bool:
@@ -44,7 +45,7 @@ async def test_admin_add_writes_audit_record(
     command = SimpleNamespace(args=str(target_id))
 
     with caplog.at_level(logging.INFO, logger="bot.audit"):
-        await admin_handler.cmd_admin_add(message, command, get_settings())
+        await admin_handler.cmd_admin_add(message, command, SETTINGS)
 
     assert (
         f"AUDIT action=admin_add actor={actor_id} target={target_id} result=added"
@@ -56,7 +57,7 @@ async def test_admin_remove_writes_not_found_result(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Admin remove writes not found result."""
-    actor_id = config.SUPERVISOR_ID
+    actor_id = SETTINGS.SUPERVISOR_ID
     target_id = 123456789
 
     async def remove_admin(user_id: int) -> bool:
@@ -68,7 +69,7 @@ async def test_admin_remove_writes_not_found_result(
     command = SimpleNamespace(args=str(target_id))
 
     with caplog.at_level(logging.INFO, logger="bot.audit"):
-        await admin_handler.cmd_admin_remove(message, command, get_settings())
+        await admin_handler.cmd_admin_remove(message, command, SETTINGS)
 
     assert (
         f"AUDIT action=admin_remove actor={actor_id} "
@@ -81,13 +82,13 @@ async def test_non_supervisor_admin_command_is_audited(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Non supervisor admin command is audited."""
-    message = FakeMessage(config.SUPERVISOR_ID - 1)
+    message = FakeMessage(SETTINGS.SUPERVISOR_ID - 1)
 
     with caplog.at_level(logging.INFO, logger="bot.audit"):
-        await admin_handler.cmd_admin(message, get_settings())
+        await admin_handler.cmd_admin(message, SETTINGS)
 
     assert (
-        f"AUDIT action=admin_denied actor={config.SUPERVISOR_ID - 1} "
+        f"AUDIT action=admin_denied actor={SETTINGS.SUPERVISOR_ID - 1} "
         "target=None result=denied"
     ) in caplog.text
     assert message.answers == ["⛔ Доступ запрещён."]
@@ -98,7 +99,7 @@ async def test_history_limit_for_another_user_is_audited(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """History limit for another user is audited."""
-    actor_id = config.SUPERVISOR_ID
+    actor_id = SETTINGS.SUPERVISOR_ID
     target_id = 123456789
     exchange_limit = 35
     calls = []
@@ -123,7 +124,7 @@ async def test_history_limit_for_another_user_is_audited(
 
     with caplog.at_level(logging.INFO, logger="bot.audit"):
         await history_limits_handler.cmd_history_limit(
-            message, state, command, get_settings()
+            message, state, command, SETTINGS
         )
 
     assert calls == [(target_id, exchange_limit)]
@@ -138,7 +139,7 @@ async def test_ban_command_blocks_non_admin_and_audits(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Ban command blocks non admin and audits."""
-    actor_id = config.SUPERVISOR_ID
+    actor_id = SETTINGS.SUPERVISOR_ID
     target_id = 123456789
     calls = []
 
@@ -155,7 +156,7 @@ async def test_ban_command_blocks_non_admin_and_audits(
     command = SimpleNamespace(args=str(target_id))
 
     with caplog.at_level(logging.INFO, logger="bot.audit"):
-        await admin_handler.cmd_ban(message, command, get_settings())
+        await admin_handler.cmd_ban(message, command, SETTINGS)
 
     assert calls == [target_id]
     assert message.answers == [f"✅ Пользователь {target_id} заблокирован."]
@@ -169,7 +170,7 @@ async def test_ban_rejects_supervisor_and_admin_targets(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Ban rejects supervisor and admin targets."""
-    actor_id = config.SUPERVISOR_ID
+    actor_id = SETTINGS.SUPERVISOR_ID
     admin_id = 123456789
 
     async def get_admin_ids() -> set[object]:
@@ -186,7 +187,7 @@ async def test_ban_rejects_supervisor_and_admin_targets(
     for target_id in (actor_id, admin_id):
         message = FakeMessage(actor_id)
         await admin_handler.cmd_ban(
-            message, SimpleNamespace(args=str(target_id)), get_settings()
+            message, SimpleNamespace(args=str(target_id)), SETTINGS
         )
         assert "заблокировать нельзя" in message.answers[0]
 
@@ -196,7 +197,7 @@ async def test_unban_command_removes_block_and_audits(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Unban command removes block and audits."""
-    actor_id = config.SUPERVISOR_ID
+    actor_id = SETTINGS.SUPERVISOR_ID
     target_id = 123456789
 
     async def get_admin_ids() -> set[int]:
@@ -212,7 +213,7 @@ async def test_unban_command_removes_block_and_audits(
 
     with caplog.at_level(logging.INFO, logger="bot.audit"):
         await admin_handler.cmd_unban(
-            message, SimpleNamespace(args=str(target_id)), get_settings()
+            message, SimpleNamespace(args=str(target_id)), SETTINGS
         )
 
     assert message.answers == [f"✅ Блокировка пользователя {target_id} снята."]
@@ -226,7 +227,7 @@ async def test_database_admin_can_ban_non_admin(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Database admin can ban non admin."""
-    actor_id = config.SUPERVISOR_ID - 10
+    actor_id = SETTINGS.SUPERVISOR_ID - 10
     target_id = 123456789
     blocked = []
 
@@ -243,7 +244,7 @@ async def test_database_admin_can_ban_non_admin(
 
     with caplog.at_level(logging.INFO, logger="bot.audit"):
         await admin_handler.cmd_ban(
-            message, SimpleNamespace(args=str(target_id)), get_settings()
+            message, SimpleNamespace(args=str(target_id)), SETTINGS
         )
 
     assert blocked == [target_id]
@@ -256,7 +257,7 @@ async def test_non_admin_cannot_ban(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Non admin cannot ban."""
-    actor_id = config.SUPERVISOR_ID - 10
+    actor_id = SETTINGS.SUPERVISOR_ID - 10
     target_id = 123456789
 
     async def get_admin_ids() -> set[int]:
@@ -271,7 +272,7 @@ async def test_non_admin_cannot_ban(
 
     with caplog.at_level(logging.INFO, logger="bot.audit"):
         await admin_handler.cmd_ban(
-            message, SimpleNamespace(args=str(target_id)), get_settings()
+            message, SimpleNamespace(args=str(target_id)), SETTINGS
         )
 
     assert message.answers == ["⛔ Доступ запрещён."]

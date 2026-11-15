@@ -6,6 +6,7 @@
 import json
 import logging
 from http import HTTPStatus
+from urllib.parse import urlsplit, urlunsplit
 
 import aiohttp
 
@@ -24,6 +25,12 @@ from bot.services.http_limits import (
 from bot.utils.text import log_safe
 
 logger = logging.getLogger(__name__)
+
+
+def _endpoint_url(base_url: str, endpoint: str) -> str:
+    parts = urlsplit(base_url)
+    path = f"{parts.path.rstrip('/')}/{endpoint}"
+    return urlunsplit((parts.scheme, parts.netloc, path, parts.query, parts.fragment))
 
 
 def _extract_text(result: object) -> str:
@@ -51,8 +58,8 @@ async def transcribe_audio(
     if settings is None:
         settings = get_settings()
 
-    if not settings.WHISPER_API_URL:
-        msg = "WHISPER_API_URL is not configured"
+    if not settings.AUDIODOC_URL:
+        msg = "AUDIODOC_URL is not configured"
         raise WhisperUnavailableError(msg)
 
     # The filename is also embedded in a multipart header. Normalize it before
@@ -68,10 +75,10 @@ async def transcribe_audio(
         content_type="application/octet-stream",
     )
 
-    timeout = aiohttp.ClientTimeout(total=settings.WHISPER_TIMEOUT)
+    timeout = aiohttp.ClientTimeout(total=settings.AUDIODOC_AUDIO_TIMEOUT)
     headers = (
-        {"Authorization": f"Bearer {settings.WHISPER_API_KEY}"}
-        if settings.WHISPER_API_KEY
+        {"Authorization": f"Bearer {settings.AUDIODOC_AUDIO_KEY}"}
+        if settings.AUDIODOC_AUDIO_KEY
         else {}
     )
 
@@ -88,7 +95,7 @@ async def transcribe_audio(
                 headers=headers,
             ) as session,
             session.post(
-                settings.WHISPER_API_URL,
+                _endpoint_url(settings.AUDIODOC_URL, "transcribe"),
                 data=form,
             ) as response,
         ):

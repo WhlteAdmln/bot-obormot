@@ -22,8 +22,8 @@ def configure_logging(settings: Settings) -> None:
         [
             settings.BOT_TOKEN,
             settings.LLM_API_KEY,
-            settings.WHISPER_API_KEY,
-            settings.DOCUMENT_API_KEY,
+            settings.AUDIODOC_AUDIO_KEY,
+            settings.AUDIODOC_DOCUMENT_KEY,
         ]
     )
 
@@ -32,3 +32,9 @@ def configure_logging(settings: Settings) -> None:
         handler.addFilter(secrets_filter)
 
     logger.info("Logging level: %s", settings.LOG_LEVEL)
+    for old_name, new_name in settings.deprecated_env_vars:
+        logger.warning(
+            "Environment variable %s is deprecated; use %s instead",
+            old_name,
+            new_name,
+        )

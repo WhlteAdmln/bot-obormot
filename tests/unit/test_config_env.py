@@ -4,9 +4,11 @@
 """Tests for config env."""
 
 import importlib
+import logging
 
 import pytest
 
+from bot.app.logging_setup import configure_logging
 from bot.config.env import get_bool, get_optional_int
 from bot.config.model import (
     ConfigError,
@@ -93,10 +95,11 @@ def test_load_settings_uses_the_supplied_environment() -> None:
             "LLM_CONTEXT_SIZE": "8192",
             "LLM_TOKEN_COUNTING": "ESTIMATE",
             "DATABASE_PATH": " data/custom.db ",
-            "WHISPER_API_URL": "https://audio.test///",
-            "WHISPER_API_KEY": " whisper-key ",
-            "DOCUMENT_API_URL": " https://docs.test///",
-            "DOCUMENT_API_KEY": " document-key ",
+            "AUDIODOC_URL": " https://audio.test/// ",
+            "AUDIODOC_AUDIO_KEY": " whisper-key ",
+            "AUDIODOC_DOCUMENT_KEY": " document-key ",
+            "AUDIODOC_AUDIO_TIMEOUT": "37",
+            "AUDIODOC_DOCUMENT_TIMEOUT": "61",
         }
     )
 
@@ -113,10 +116,122 @@ def test_load_settings_uses_the_supplied_environment() -> None:
     expected_mode = "estimate"
     assert expected_mode == settings.LLM_TOKEN_COUNTING
     assert settings.DATABASE_PATH == "data/custom.db"
-    assert settings.WHISPER_API_URL == "https://audio.test"
-    assert settings.WHISPER_API_KEY == "whisper-key"
-    assert settings.DOCUMENT_API_URL == "https://docs.test"
-    assert settings.DOCUMENT_API_KEY == "document-key"
+    assert settings.AUDIODOC_URL == "https://audio.test"
+    assert settings.AUDIODOC_AUDIO_KEY == "whisper-key"
+    assert settings.AUDIODOC_DOCUMENT_KEY == "document-key"
+    assert settings.AUDIODOC_AUDIO_TIMEOUT == 37
+    assert settings.AUDIODOC_DOCUMENT_TIMEOUT == 61
+
+
+def test_load_settings_reads_legacy_audiodoc_names() -> None:
+    """Load settings maps legacy audiodoc names to the shared settings."""
+    settings = load_settings(
+        {
+            "SUPERVISOR_ID": "1",
+            "WHISPER_API_URL": "https://audio.test/transcribe",
+            "WHISPER_API_KEY": "whisper-key",
+            "WHISPER_TIMEOUT": "37",
+            "DOCUMENT_API_URL": "https://audio.test/process-document",
+            "DOCUMENT_API_KEY": "document-key",
+            "DOCUMENT_TIMEOUT": "61",
+        }
+    )
+
+    assert settings.AUDIODOC_URL == "https://audio.test"
+    assert settings.AUDIODOC_AUDIO_KEY == "whisper-key"
+    assert settings.AUDIODOC_DOCUMENT_KEY == "document-key"
+    assert settings.AUDIODOC_AUDIO_TIMEOUT == 37
+    assert settings.AUDIODOC_DOCUMENT_TIMEOUT == 61
+    assert set(settings.deprecated_env_vars) == {
+        ("WHISPER_API_URL", "AUDIODOC_URL"),
+        ("WHISPER_API_KEY", "AUDIODOC_AUDIO_KEY"),
+        ("WHISPER_TIMEOUT", "AUDIODOC_AUDIO_TIMEOUT"),
+        ("DOCUMENT_API_URL", "AUDIODOC_URL"),
+        ("DOCUMENT_API_KEY", "AUDIODOC_DOCUMENT_KEY"),
+        ("DOCUMENT_TIMEOUT", "AUDIODOC_DOCUMENT_TIMEOUT"),
+    }
+
+
+def test_load_settings_prefers_new_audiodoc_names() -> None:
+    """New audiodoc names take precedence over legacy names."""
+    settings = load_settings(
+        {
+            "SUPERVISOR_ID": "1",
+            "AUDIODOC_URL": "https://new-audio.test",
+            "AUDIODOC_AUDIO_KEY": "new-audio-key",
+            "AUDIODOC_DOCUMENT_KEY": "new-document-key",
+            "AUDIODOC_AUDIO_TIMEOUT": "40",
+            "AUDIODOC_DOCUMENT_TIMEOUT": "70",
+            "WHISPER_API_URL": "https://old-audio.test/transcribe",
+            "WHISPER_API_KEY": "old-audio-key",
+            "WHISPER_TIMEOUT": "41",
+            "DOCUMENT_API_URL": "https://old-docs.test/process-document",
+            "DOCUMENT_API_KEY": "old-document-key",
+            "DOCUMENT_TIMEOUT": "71",
+        }
+    )
+
+    assert settings.AUDIODOC_URL == "https://new-audio.test"
+    assert settings.AUDIODOC_AUDIO_KEY == "new-audio-key"
+    assert settings.AUDIODOC_DOCUMENT_KEY == "new-document-key"
+    assert settings.AUDIODOC_AUDIO_TIMEOUT == 40
+    assert settings.AUDIODOC_DOCUMENT_TIMEOUT == 70
+    assert settings.deprecated_env_vars == ()
+
+
+def test_load_settings_disables_audiodoc_when_no_url_is_configured() -> None:
+    """Audiodoc clients remain disabled when neither URL name is configured."""
+    settings = load_settings({"SUPERVISOR_ID": "1"})
+
+    assert settings.AUDIODOC_URL == ""
+    assert settings.AUDIODOC_AUDIO_KEY == ""
+    assert settings.AUDIODOC_DOCUMENT_KEY == ""
+    assert settings.AUDIODOC_AUDIO_TIMEOUT == 180
+    assert settings.AUDIODOC_DOCUMENT_TIMEOUT == 300
+    assert settings.deprecated_env_vars == ()
+
+
+def test_configure_logging_warns_for_legacy_names_and_redacts_audiodoc_keys(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Startup logs each used legacy name and redacts the new API keys."""
+    settings = load_settings(
+        {
+            "SUPERVISOR_ID": "1",
+            "WHISPER_API_URL": "https://audio.test/transcribe",
+            "WHISPER_API_KEY": "whisper-secret-key",
+            "WHISPER_TIMEOUT": "37",
+            "DOCUMENT_API_URL": "https://audio.test/process-document",
+            "DOCUMENT_API_KEY": "document-secret-key",
+            "DOCUMENT_TIMEOUT": "61",
+        }
+    )
+
+    with caplog.at_level(logging.WARNING):
+        configure_logging(settings)
+        logging.getLogger("bot.main").warning(
+            "Configured keys: %s %s",
+            settings.AUDIODOC_AUDIO_KEY,
+            settings.AUDIODOC_DOCUMENT_KEY,
+        )
+
+    warnings = [
+        record.getMessage()
+        for record in caplog.records
+        if " is deprecated; use " in record.getMessage()
+    ]
+    assert len(warnings) == 6
+    for old_name in (
+        "WHISPER_API_URL",
+        "WHISPER_API_KEY",
+        "WHISPER_TIMEOUT",
+        "DOCUMENT_API_URL",
+        "DOCUMENT_API_KEY",
+        "DOCUMENT_TIMEOUT",
+    ):
+        assert sum(old_name in message for message in warnings) == 1
+    assert "whisper-secret-key" not in caplog.text
+    assert "document-secret-key" not in caplog.text
 
 
 @pytest.mark.parametrize(
@@ -136,8 +251,8 @@ def test_load_settings_uses_the_supplied_environment() -> None:
         ("MAX_HISTORY_EXCHANGES", "invalid"),
         ("MAX_STORED_EXCHANGES", "0"),
         ("DATABASE_PATH", "   "),
-        ("WHISPER_TIMEOUT", "invalid"),
-        ("DOCUMENT_TIMEOUT", "invalid"),
+        ("AUDIODOC_AUDIO_TIMEOUT", "invalid"),
+        ("AUDIODOC_DOCUMENT_TIMEOUT", "invalid"),
     ],
 )
 def test_load_settings_rejects_each_invalid_setting(name: str, value: str) -> None:
@@ -170,7 +285,7 @@ def test_load_settings_collects_multiple_errors() -> None:
 
 
 def test_get_settings_is_cached_until_reset() -> None:
-    """Get settings returns a cached instance until the cache is reset."""
+    """Get settings returns a cached instance until reset."""
     reset_settings_cache()
     try:
         with pytest.MonkeyPatch.context() as patch:

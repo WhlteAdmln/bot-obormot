@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+import pytest_asyncio
 
 if TYPE_CHECKING:
     from bot.services.database import Database
@@ -50,7 +51,22 @@ for _name, _value in _TEST_ENV.items():
     if not os.environ.get(_name, "").strip():
         os.environ[_name] = _value
 
-import pytest_asyncio  # noqa: E402
+
+_TEST_MARKERS = {"unit", "integration", "contract", "e2e"}
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Apply test markers based on the top-level test directory."""
+    tests_root = Path(__file__).resolve().parent
+
+    for item in items:
+        try:
+            relative_path = item.path.resolve().relative_to(tests_root)
+        except ValueError:
+            continue
+
+        if relative_path.parts and relative_path.parts[0] in _TEST_MARKERS:
+            item.add_marker(relative_path.parts[0])
 
 
 @pytest_asyncio.fixture

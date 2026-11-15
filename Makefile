@@ -6,7 +6,7 @@ PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
 VERSION ?= dev
 PYTHON_SCRIPTS_DIR = $(shell $(PYTHON) -c "import sysconfig; print(sysconfig.get_path('scripts'))")
 
-.PHONY: venv install-dev lint fix types test cov docs-check check build clean
+.PHONY: venv install-dev lint fix types deptry vulture import-lint test cov docs-check check build clean
 
 venv:
 	@set -eu; \
@@ -46,6 +46,15 @@ fix:
 types:
 	$(PYTHON) -m mypy bot
 
+deptry:
+	$(PYTHON_SCRIPTS_DIR)/deptry .
+
+vulture:
+	$(PYTHON_SCRIPTS_DIR)/vulture
+
+import-lint:
+	$(PYTHON_SCRIPTS_DIR)/lint-imports
+
 test:
 	$(PYTHON) -m pytest -q -rs \
 		-m "not integration" \
@@ -62,10 +71,11 @@ cov:
 docs-check:
 	@echo "not enabled yet"
 
-check: lint types test
+check: lint types deptry vulture import-lint test
 
 build:
 	bash scripts/build_release.sh "$(VERSION)"
 
 clean:
 	rm -rf .pytest_cache .ruff_cache .mypy_cache .coverage coverage.xml htmlcov junit.xml dist build
+

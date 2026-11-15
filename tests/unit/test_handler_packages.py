@@ -6,8 +6,13 @@
 from bot.fsm.keys import PROMPT_FLOW_KEY, WELCOME_MESSAGE_KEY
 from bot.fsm.states import PromptStates
 from bot.handlers import admin, chat, commands, fallback, history, prompt, start
+from bot.handlers.admin import handler as admin_handler
 from bot.handlers.admin.handler import cmd_ban, cmd_unban
+from bot.handlers.history import basic as history_basic
+from bot.handlers.history import limits as history_limits
 from bot.handlers.history.basic import cmd_forget_me
+from bot.handlers.start import handler as start_handler
+from bot.middlewares import access as access_middleware
 from bot.middlewares.temporary_messages import TemporaryMessagesCleanupMiddleware
 
 
@@ -78,3 +83,16 @@ def test_commands_package_only_exports_router() -> None:
             "cmd_unknown",
         }
     )
+
+
+def test_settings_migrated_modules_do_not_import_legacy_config() -> None:
+    """Migrated handlers and middleware do not import the legacy config proxy."""
+    modules = (
+        admin_handler,
+        history_basic,
+        history_limits,
+        start_handler,
+        access_middleware,
+    )
+
+    assert all("config" not in vars(module) for module in modules)

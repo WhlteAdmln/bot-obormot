@@ -5,6 +5,7 @@
 
 from aiogram import Dispatcher
 
+from bot.config.settings import Settings, get_settings
 from bot.handlers import admin, chat, commands, start
 from bot.middlewares.access import AccessMiddleware
 from bot.middlewares.temporary_messages import (
@@ -13,8 +14,15 @@ from bot.middlewares.temporary_messages import (
 from bot.middlewares.throttle import ThrottleMiddleware
 
 
-def configure_dispatcher(dispatcher: Dispatcher) -> Dispatcher:
+def configure_dispatcher(
+    dispatcher: Dispatcher,
+    settings: Settings | None = None,
+) -> Dispatcher:
     """Подключает middleware и роутеры к уже созданному Dispatcher."""
+    if settings is None:
+        settings = get_settings()
+    dispatcher.workflow_data["settings"] = settings
+
     # Сначала ограничиваем частоту событий, затем проверяем доступ
     # и очищаем временные сообщения.
     dispatcher.message.middleware(ThrottleMiddleware())

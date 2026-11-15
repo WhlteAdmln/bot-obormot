@@ -9,7 +9,7 @@ from aiogram.filters.command import CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
-from bot.config import config
+from bot.config.settings import Settings
 from bot.handlers.prompt.handler import send_prompt_status
 from bot.services.database import db
 from bot.utils.audit import audit
@@ -20,9 +20,9 @@ router = Router()
 _ARGS_WITH_TARGET_USER = 2
 
 
-async def is_history_admin(user_id: int) -> bool:
+async def is_history_admin(user_id: int, settings: Settings) -> bool:
     """Проверяет права Supervisor или администратора."""
-    if user_id == config.SUPERVISOR_ID:
+    if user_id == settings.SUPERVISOR_ID:
         return True
 
     return user_id in await db.get_admin_ids()
@@ -34,6 +34,7 @@ async def _set_own_limit(
     raw_limit: str,
     *,
     is_admin: bool,
+    settings: Settings,
 ) -> None:
     """Sets the history limit of the sender."""
     if message.from_user is None:
@@ -52,7 +53,9 @@ async def _set_own_limit(
         return
 
     maximum = (
-        config.MAX_HISTORY_EXCHANGES if is_admin else config.DEFAULT_HISTORY_EXCHANGES
+        settings.MAX_HISTORY_EXCHANGES
+        if is_admin
+        else settings.DEFAULT_HISTORY_EXCHANGES
     )
 
     if not 1 <= exchange_limit <= maximum:
@@ -78,6 +81,7 @@ async def _set_user_limit(
     args: list[str],
     *,
     is_admin: bool,
+    settings: Settings,
 ) -> None:
     """Sets the history limit of another user (administrators only)."""
     if message.from_user is None:
@@ -112,11 +116,11 @@ async def _set_user_limit(
         )
         return
 
-    if not 1 <= exchange_limit <= config.MAX_HISTORY_EXCHANGES:
+    if not 1 <= exchange_limit <= settings.MAX_HISTORY_EXCHANGES:
         await send_prompt_status(
             message,
             state,
-            f"⚠️ Допустимый лимит: от 1 до {config.MAX_HISTORY_EXCHANGES}.",
+            f"⚠️ Допустимый лимит: от 1 до {settings.MAX_HISTORY_EXCHANGES}.",
         )
         return
 
@@ -141,6 +145,7 @@ async def cmd_history_limit(
     message: Message,
     state: FSMContext,
     command: CommandObject,
+    settings: Settings,
 ) -> None:
     """Shows usage or sets the history limit of the sender or of another user."""
     if message.from_user is None:
@@ -149,7 +154,7 @@ async def cmd_history_limit(
     user_id = message.from_user.id
     args = (command.args or "").split()
 
-    is_admin = await is_history_admin(user_id)
+    is_admin = await is_history_admin(user_id, settings)
 
     # Без аргументов — показать инструкцию.
     if not args:
@@ -166,12 +171,24 @@ async def cmd_history_limit(
 
     # Один аргумент — установить лимит самому себе.
     if len(args) == 1:
-        await _set_own_limit(message, state, args[0], is_admin=is_admin)
+        await _set_own_limit(
+            message,
+            state,
+            args[0],
+            is_admin=is_admin,
+            settings=settings,
+        )
         return
 
     # Два аргумента — назначение лимита другому пользователю.
     if len(args) == _ARGS_WITH_TARGET_USER:
-        await _set_user_limit(message, state, args, is_admin=is_admin)
+        await _set_user_limit(
+            message,
+            state,
+            args,
+            is_admin=is_admin,
+            settings=settings,
+        )
         return
 
     await send_prompt_status(

@@ -13,6 +13,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from bot.config.settings import Settings
+
 
 def _module(name: str, **attributes: object) -> types.ModuleType:
     result = types.ModuleType(name)
@@ -31,6 +33,7 @@ def router_dependencies(
         def __init__(self) -> None:
             self.middleware_calls = []
             self.routers = []
+            self.workflow_data: dict[str, object] = {}
             self.message = SimpleNamespace(middleware=self.middleware_calls.append)
 
         def include_router(self, router: object) -> None:
@@ -107,9 +110,11 @@ def test_dispatcher_registers_middlewares_and_routers_once_in_original_order(
     ) = router_dependencies
 
     dispatcher = fake_dispatcher()
-    configured = routers_module.configure_dispatcher(dispatcher)
+    settings = Settings(SUPERVISOR_ID=123456789)
+    configured = routers_module.configure_dispatcher(dispatcher, settings)
 
     assert configured is dispatcher
+    assert dispatcher.workflow_data["settings"] is settings
     assert len(dispatcher.middleware_calls) == 3
     assert isinstance(dispatcher.middleware_calls[0], fake_throttle_middleware)
     assert isinstance(dispatcher.middleware_calls[1], fake_access_middleware)

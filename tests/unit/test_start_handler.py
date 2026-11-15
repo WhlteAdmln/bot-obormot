@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from bot.config import config
+from bot.config.settings import get_settings
 from bot.handlers.start.handler import cmd_start
 from bot.services.database import db
 
@@ -33,7 +34,7 @@ async def test_start_help_and_command_menu_include_forget_me(
     )
     state = SimpleNamespace(update_data=AsyncMock())
 
-    await cmd_start(message, state)
+    await cmd_start(message, state, get_settings())
 
     commands = set_my_commands.await_args.kwargs["commands"]
     assert any(command.command == "forget_me" for command in commands)
@@ -60,7 +61,7 @@ async def test_start_adds_ban_commands_for_admins(
     )
     state = SimpleNamespace(update_data=AsyncMock())
 
-    await cmd_start(message, state)
+    await cmd_start(message, state, get_settings())
 
     commands = {
         command.command for command in set_my_commands.await_args.kwargs["commands"]

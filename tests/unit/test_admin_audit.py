@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import pytest
 
 from bot.config import config
+from bot.config.settings import get_settings
 from bot.handlers.admin import handler as admin_handler
 from bot.handlers.history import limits as history_limits_handler
 
@@ -43,7 +44,7 @@ async def test_admin_add_writes_audit_record(
     command = SimpleNamespace(args=str(target_id))
 
     with caplog.at_level(logging.INFO, logger="bot.audit"):
-        await admin_handler.cmd_admin_add(message, command)
+        await admin_handler.cmd_admin_add(message, command, get_settings())
 
     assert (
         f"AUDIT action=admin_add actor={actor_id} target={target_id} result=added"
@@ -67,7 +68,7 @@ async def test_admin_remove_writes_not_found_result(
     command = SimpleNamespace(args=str(target_id))
 
     with caplog.at_level(logging.INFO, logger="bot.audit"):
-        await admin_handler.cmd_admin_remove(message, command)
+        await admin_handler.cmd_admin_remove(message, command, get_settings())
 
     assert (
         f"AUDIT action=admin_remove actor={actor_id} "
@@ -83,7 +84,7 @@ async def test_non_supervisor_admin_command_is_audited(
     message = FakeMessage(config.SUPERVISOR_ID - 1)
 
     with caplog.at_level(logging.INFO, logger="bot.audit"):
-        await admin_handler.cmd_admin(message)
+        await admin_handler.cmd_admin(message, get_settings())
 
     assert (
         f"AUDIT action=admin_denied actor={config.SUPERVISOR_ID - 1} "
@@ -121,7 +122,9 @@ async def test_history_limit_for_another_user_is_audited(
     command = SimpleNamespace(args=f"{target_id} {exchange_limit}")
 
     with caplog.at_level(logging.INFO, logger="bot.audit"):
-        await history_limits_handler.cmd_history_limit(message, state, command)
+        await history_limits_handler.cmd_history_limit(
+            message, state, command, get_settings()
+        )
 
     assert calls == [(target_id, exchange_limit)]
     assert (
@@ -152,7 +155,7 @@ async def test_ban_command_blocks_non_admin_and_audits(
     command = SimpleNamespace(args=str(target_id))
 
     with caplog.at_level(logging.INFO, logger="bot.audit"):
-        await admin_handler.cmd_ban(message, command)
+        await admin_handler.cmd_ban(message, command, get_settings())
 
     assert calls == [target_id]
     assert message.answers == [f"✅ Пользователь {target_id} заблокирован."]
@@ -182,7 +185,9 @@ async def test_ban_rejects_supervisor_and_admin_targets(
 
     for target_id in (actor_id, admin_id):
         message = FakeMessage(actor_id)
-        await admin_handler.cmd_ban(message, SimpleNamespace(args=str(target_id)))
+        await admin_handler.cmd_ban(
+            message, SimpleNamespace(args=str(target_id)), get_settings()
+        )
         assert "заблокировать нельзя" in message.answers[0]
 
 
@@ -206,7 +211,9 @@ async def test_unban_command_removes_block_and_audits(
     message = FakeMessage(actor_id)
 
     with caplog.at_level(logging.INFO, logger="bot.audit"):
-        await admin_handler.cmd_unban(message, SimpleNamespace(args=str(target_id)))
+        await admin_handler.cmd_unban(
+            message, SimpleNamespace(args=str(target_id)), get_settings()
+        )
 
     assert message.answers == [f"✅ Блокировка пользователя {target_id} снята."]
     assert (
@@ -235,7 +242,9 @@ async def test_database_admin_can_ban_non_admin(
     message = FakeMessage(actor_id)
 
     with caplog.at_level(logging.INFO, logger="bot.audit"):
-        await admin_handler.cmd_ban(message, SimpleNamespace(args=str(target_id)))
+        await admin_handler.cmd_ban(
+            message, SimpleNamespace(args=str(target_id)), get_settings()
+        )
 
     assert blocked == [target_id]
     assert message.answers == [f"✅ Пользователь {target_id} заблокирован."]
@@ -261,7 +270,9 @@ async def test_non_admin_cannot_ban(
     message = FakeMessage(actor_id)
 
     with caplog.at_level(logging.INFO, logger="bot.audit"):
-        await admin_handler.cmd_ban(message, SimpleNamespace(args=str(target_id)))
+        await admin_handler.cmd_ban(
+            message, SimpleNamespace(args=str(target_id)), get_settings()
+        )
 
     assert message.answers == ["⛔ Доступ запрещён."]
     assert (

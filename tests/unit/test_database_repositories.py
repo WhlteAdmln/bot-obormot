@@ -6,6 +6,7 @@
 import asyncio
 import base64
 import io
+import logging
 import uuid
 from pathlib import Path
 
@@ -21,6 +22,7 @@ from bot.services.database.repositories import (
     messages,
     user_settings,
 )
+from bot.services.database.usecases import history as history_usecase
 
 USER_ID = 515151
 
@@ -283,3 +285,114 @@ async def test_cleanup_usecase_deletes_old_image_but_keeps_message(
         (message_id,),
     )
     assert (await cursor.fetchone())["content"] == "Текст должен сохраниться"
+
+
+@pytest.mark.asyncio
+async def test_history_keeps_image_parts_when_contact_sheet_creation_fails(
+    test_db: Database,
+) -> None:
+    """History keeps original image parts when contact sheet creation fails."""
+    await test_db.add_exchange(
+        USER_ID,
+        "Question",
+        "Answer",
+        media=[b"frame-one", b"frame-two"],
+    )
+
+    def read_invalid_image(_image_path: Path, _mime_type: str) -> str:
+        return "invalid-data-url"
+
+    history = await history_usecase.get_history(
+        test_db.connection,
+        USER_ID,
+        limit=10,
+        max_images=1,
+        read_image_as_base64=read_invalid_image,
+        logger=logging.getLogger(__name__),
+    )
+
+    assert history[0]["content"] == [
+        {"type": "text", "text": "Question"},
+        {
+            "type": "image_url",
+            "image_url": {"url": "invalid-data-url"},
+        },
+        {
+            "type": "image_url",
+            "image_url": {"url": "invalid-data-url"},
+        },
+    ]
+
+
+@pytest.mark.parametrize(
+    ("error_type", "expected_message"),
+    [
+        (FileNotFoundError, "History image not found"),
+        (PermissionError, "Could not read history image"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_history_skips_images_when_image_read_fails(
+    test_db: Database,
+    caplog: pytest.LogCaptureFixture,
+    error_type: type[OSError],
+    expected_message: str,
+) -> None:
+    """History skips an image when reading it fails."""
+    await test_db.add_exchange(
+        USER_ID,
+        "Question",
+        "Answer",
+        media=[b"image-bytes"],
+    )
+
+    def fail_read_image(_image_path: Path, _mime_type: str) -> str:
+        msg = "Image read failed"
+        raise error_type(msg)
+
+    with caplog.at_level(logging.WARNING):
+        history = await history_usecase.get_history(
+            test_db.connection,
+            USER_ID,
+            limit=10,
+            max_images=1,
+            read_image_as_base64=fail_read_image,
+            logger=logging.getLogger(__name__),
+        )
+
+    assert history[0]["content"] == "Question"
+    assert expected_message in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_reset_history_keeps_database_reset_when_image_delete_fails(
+    test_db: Database,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Reset history removes messages even when image deletion fails."""
+    await test_db.add_exchange(
+        USER_ID,
+        "Question",
+        "Answer",
+        media=[b"image-bytes"],
+    )
+
+    cursor = await test_db.connection.execute("SELECT file_path FROM message_media")
+    image_path = Path((await cursor.fetchone())["file_path"])
+
+    def fail_delete_image(_image_path: Path) -> None:
+        msg = "Permission denied"
+        raise OSError(msg)
+
+    with caplog.at_level(logging.ERROR):
+        await history_usecase.reset_history(
+            test_db.connection,
+            USER_ID,
+            fail_delete_image,
+            logging.getLogger(__name__),
+            images_dir=test_db.images_dir,
+        )
+
+    assert await test_db.get_history(USER_ID) == []
+    assert await asyncio.to_thread(image_path.exists)
+    assert "Could not remove image during history reset" in caplog.text

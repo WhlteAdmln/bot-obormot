@@ -3,6 +3,9 @@
 
 """Tests for database schema."""
 
+import asyncio
+from pathlib import Path
+
 import aiosqlite
 import pytest
 
@@ -39,9 +42,11 @@ async def test_create_schema_is_idempotent() -> None:
 
 
 @pytest.mark.asyncio
-async def test_admin_ids_migration_runs_once_and_excludes_supervisor() -> None:
+async def test_admin_ids_migration_runs_once_and_excludes_supervisor(
+    tmp_path: Path,
+) -> None:
     """Admin ids migration runs once and excludes supervisor."""
-    connection = await aiosqlite.connect(":memory:")
+    connection = await open_connection(str(tmp_path / "admin_ids.db"))
 
     try:
         await create_schema(connection)
@@ -66,8 +71,73 @@ async def test_admin_ids_migration_runs_once_and_excludes_supervisor() -> None:
         assert admin_ids == {101, 202}
 
         cursor = await connection.execute(
-            "SELECT name FROM app_migrations WHERE name = ?",
+            "SELECT COUNT(*) AS total FROM app_migrations WHERE name = ?",
             ("migrate_admin_ids_to_sqlite",),
+        )
+        assert (await cursor.fetchone())["total"] == 1
+    finally:
+        await connection.close()
+
+
+@pytest.mark.asyncio
+async def test_open_previous_schema_database_preserves_existing_data(
+    tmp_path: Path,
+) -> None:
+    """Opening a previous schema database preserves data and adds new tables."""
+    database_path = tmp_path / "previous-schema.db"
+    fixtures_dir = Path(__file__).parent.parent / "fixtures"
+    fixture_path = fixtures_dir / "previous_database_schema.sql"
+    fixture_sql = await asyncio.to_thread(
+        fixture_path.read_text,
+        encoding="utf-8",
+    )
+
+    legacy_connection = await aiosqlite.connect(str(database_path))
+    try:
+        await legacy_connection.executescript(fixture_sql)
+        await legacy_connection.commit()
+    finally:
+        await legacy_connection.close()
+
+    connection = await open_connection(str(database_path))
+    try:
+        await create_schema(connection)
+
+        cursor = await connection.execute(
+            "SELECT role, content FROM messages WHERE user_id = ?",
+            (424242,),
+        )
+        message = await cursor.fetchone()
+        assert message is not None
+        assert (message["role"], message["content"]) == (
+            "user",
+            "Legacy message",
+        )
+
+        cursor = await connection.execute(
+            "SELECT system_prompt FROM user_settings WHERE user_id = ?",
+            (424242,),
+        )
+        assert (await cursor.fetchone())["system_prompt"] == "Legacy prompt"
+
+        cursor = await connection.execute(
+            "SELECT exchange_limit FROM user_history_limits WHERE user_id = ?",
+            (424242,),
+        )
+        assert (await cursor.fetchone())["exchange_limit"] == 7
+
+        cursor = await connection.execute(
+            "SELECT file_path FROM message_media WHERE message_id = ?",
+            (1,),
+        )
+        assert (await cursor.fetchone())["file_path"] == ("/legacy/images/legacy.jpg")
+
+        cursor = await connection.execute(
+            """
+            SELECT name
+            FROM sqlite_master
+            WHERE type = 'table' AND name = 'blocked_users'
+            """
         )
         assert await cursor.fetchone() is not None
     finally:

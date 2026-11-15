@@ -1040,3 +1040,182 @@ async def test_document_connection_failure_is_reported_without_persisting_exchan
             assert await test_db.get_history(user_id) == []
     finally:
         await _reset_llm_client()
+
+
+def _configure_history_limit_flow(
+    monkeypatch: pytest.MonkeyPatch,
+    test_db: Database,
+    llm_server: FakeLLM,
+) -> None:
+    """Configure the application to use the fake LLM and test database."""
+    monkeypatch.setattr(
+        config,
+        "LLM_BASE_URL",
+        f"{llm_server.base_url.rstrip('/')}/v1",
+    )
+    monkeypatch.setattr(config, "LLM_API_KEY", "test-key")
+    monkeypatch.setattr(config, "LLM_MODEL", "test-model")
+    monkeypatch.setattr(config, "LLM_CONTEXT_SIZE", None)
+    monkeypatch.setattr(config, "LLM_TOKEN_COUNTING", "auto")
+    monkeypatch.setattr(config, "ALLOW_ALL_USERS", True)
+    monkeypatch.setattr(config, "ALLOWED_USERS", set())
+    monkeypatch.setattr(access_middleware, "db", test_db)
+    monkeypatch.setattr(chat_pipeline, "db", test_db)
+
+
+async def _dispatch_history_limit_message(
+    user_id: int,
+    user_text: str,
+) -> FakeTelegramSession:
+    """Process a text message through the real application dispatcher."""
+    telegram_session = FakeTelegramSession(
+        {
+            SendChatAction: True,
+            SendMessage: make_message(
+                message_id=909,
+                chat_id=user_id,
+                user_id=909,
+                text=None,
+            ),
+            EditMessageText: make_message(
+                message_id=909,
+                chat_id=user_id,
+                user_id=909,
+                text=None,
+            ),
+        }
+    )
+    bot = Bot(token=config.BOT_TOKEN, session=telegram_session)
+    dispatcher = configure_dispatcher(Dispatcher(storage=MemoryStorage()))
+
+    try:
+        await dispatcher.feed_update(
+            bot,
+            make_update(
+                message=make_message(
+                    user_id=user_id,
+                    chat_id=user_id,
+                    text=user_text,
+                )
+            ),
+        )
+    finally:
+        await bot.session.close()
+        _release_dispatcher(dispatcher)
+
+    return telegram_session
+
+
+def _assert_history_limit_context(
+    llm_server: FakeLLM,
+    previous_exchanges: list[tuple[str, str]],
+    user_text: str,
+) -> None:
+    """Verify that only the latest previous exchange reaches the LLM."""
+    assert llm_server.stream_started.is_set()
+    assert len(llm_server.chat_requests) == 1
+
+    request_messages = llm_server.chat_requests[0]["messages"]
+    assert isinstance(request_messages, list)
+    context_text = str(request_messages)
+
+    for question, answer in previous_exchanges[:-1]:
+        assert question not in context_text
+        assert answer not in context_text
+
+    assert previous_exchanges[-1][0] in context_text
+    assert previous_exchanges[-1][1] in context_text
+    assert user_text in context_text
+
+
+def _assert_history_limit_delivery(
+    telegram_session: FakeTelegramSession,
+    response: str,
+) -> None:
+    """Verify that Telegram receives the completed answer."""
+    sent_messages = [
+        request
+        for request in telegram_session.requests
+        if isinstance(request, SendMessage)
+    ]
+    edited_texts = [
+        request.text
+        for request in telegram_session.requests
+        if isinstance(request, EditMessageText) and request.text is not None
+    ]
+
+    assert len(sent_messages) == 1
+    delivered_text = sent_messages[0].text
+    if edited_texts:
+        delivered_text = edited_texts[-1]
+    assert delivered_text == format_roleplay(response)
+
+
+async def _assert_history_limit_persistence(
+    test_db: Database,
+    user_id: int,
+    previous_exchanges: list[tuple[str, str]],
+    user_text: str,
+    response: str,
+) -> None:
+    """Verify that the complete conversation remains stored in SQLite."""
+    history = await test_db.get_history(user_id)
+    expected_exchanges = [*previous_exchanges, (user_text, response)]
+    expected_history = [
+        (role, content)
+        for question, answer in expected_exchanges
+        for role, content in (
+            ("user", question),
+            ("assistant", answer),
+        )
+    ]
+
+    assert [(item["role"], item["content"]) for item in history] == expected_history
+
+
+@pytest.mark.asyncio
+async def test_history_limit_restricts_llm_context_and_preserves_history(
+    test_db: Database,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Limit the LLM context without deleting older stored exchanges."""
+    user_id = 712345687
+    previous_exchanges = [
+        ("Previous question 1", "Previous answer 1"),
+        ("Previous question 2", "Previous answer 2"),
+        ("Previous question 3", "Previous answer 3"),
+    ]
+
+    for question, answer in previous_exchanges:
+        await test_db.add_exchange(user_id, question, answer)
+    await test_db.set_history_limit(user_id, 1)
+
+    user_text = "Use only the recent conversation."
+    response = "History limit respected."
+
+    await _reset_llm_client()
+
+    try:
+        async with FakeLLM(
+            options=FakeLLMOptions(chunks=(response,)),
+        ) as llm_server:
+            _configure_history_limit_flow(monkeypatch, test_db, llm_server)
+            telegram_session = await _dispatch_history_limit_message(
+                user_id,
+                user_text,
+            )
+            _assert_history_limit_context(
+                llm_server,
+                previous_exchanges,
+                user_text,
+            )
+            _assert_history_limit_delivery(telegram_session, response)
+            await _assert_history_limit_persistence(
+                test_db,
+                user_id,
+                previous_exchanges,
+                user_text,
+                response,
+            )
+    finally:
+        await _reset_llm_client()

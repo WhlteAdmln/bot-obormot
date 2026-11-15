@@ -3,8 +3,11 @@
 
 """Tests for llm tokenizer."""
 
+import os
+
 import pytest
 
+from bot.config.model import load_settings
 from bot.services.llm import llm_client
 
 
@@ -18,6 +21,11 @@ async def test_count_text_tokens() -> None:
         "Я улыбаюсь и смотрю на тебя. 😊",
         "Длинный текст " * 100,
     ]
+
+    settings_environ = os.environ.copy()
+    if not settings_environ.get("SUPERVISOR_ID", "").strip():
+        settings_environ["SUPERVISOR_ID"] = "1"
+    llm_client.configure(load_settings(settings_environ))
 
     await llm_client.start()
 

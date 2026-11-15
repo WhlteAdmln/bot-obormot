@@ -125,8 +125,8 @@ def test_validate_audio_duration_checks_audio_and_video_note() -> None:
 
 @pytest.mark.asyncio
 async def test_transcribe_audio_rejects_missing_whisper_url() -> None:
-    """Transcribe audio rejects missing whisper url."""
-    settings = make_settings(WHISPER_API_URL="")
+    """Transcribe audio rejects missing audiodoc url."""
+    settings = make_settings(AUDIODOC_URL="")
     with pytest.raises(WhisperUnavailableError, match="not configured"):
         await transcribe_audio(b"audio", settings=settings)
 
@@ -167,9 +167,9 @@ async def test_transcribe_audio_posts_multipart_and_strips_result(
             return Response()
 
     settings = make_settings(
-        WHISPER_API_URL="http://whisper.test/transcribe?token=private",
-        WHISPER_TIMEOUT=37,
-        WHISPER_API_KEY="",
+        AUDIODOC_URL="http://whisper.test?token=private",
+        AUDIODOC_AUDIO_TIMEOUT=37,
+        AUDIODOC_AUDIO_KEY="",
     )
     monkeypatch.setattr(aiohttp, "ClientSession", Session)
 
@@ -229,8 +229,8 @@ async def test_transcribe_audio_sends_bearer_api_key(
             return Response()
 
     settings = make_settings(
-        WHISPER_API_URL="http://whisper.test",
-        WHISPER_API_KEY="whisper-secret",
+        AUDIODOC_URL="http://whisper.test",
+        AUDIODOC_AUDIO_KEY="whisper-secret",
     )
     monkeypatch.setattr(aiohttp, "ClientSession", Session)
 
@@ -245,7 +245,7 @@ async def test_transcribe_audio_rejects_oversized_response(
     """Transcribe audio rejects oversized response."""
     audio_client = importlib.import_module("bot.services.audio.client")
 
-    settings = make_settings(WHISPER_API_URL="http://whisper.test")
+    settings = make_settings(AUDIODOC_URL="http://whisper.test")
     monkeypatch.setattr(audio_client, "MAX_SERVICE_RESPONSE_BYTES", 10)
 
     class Response:
@@ -280,7 +280,7 @@ async def test_transcribe_audio_preserves_api_empty_and_timeout_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Transcribe audio preserves api empty and timeout errors."""
-    settings = make_settings(WHISPER_API_URL="http://whisper.test")
+    settings = make_settings(AUDIODOC_URL="http://whisper.test")
 
     class Response:
         content_length = None
@@ -419,9 +419,9 @@ async def test_process_document_preserves_filename_sanitization_and_response(
             return Response()
 
     settings = make_settings(
-        DOCUMENT_API_URL="http://documents.test/process",
-        DOCUMENT_TIMEOUT=61,
-        DOCUMENT_API_KEY="",
+        AUDIODOC_URL="http://documents.test",
+        AUDIODOC_DOCUMENT_TIMEOUT=61,
+        AUDIODOC_DOCUMENT_KEY="",
     )
     monkeypatch.setattr(aiohttp, "ClientSession", Session)
 
@@ -440,7 +440,7 @@ async def test_process_document_preserves_filename_sanitization_and_response(
     }
     assert r"filename=report\nERROR forged.pdf" in caplog.text
     assert "\nERROR forged.pdf" not in caplog.text
-    assert calls["url"] == "http://documents.test/process"
+    assert calls["url"] == "http://documents.test/process-document"
     assert calls["timeout"].total == 61
     assert calls["headers"] == {}
     assert isinstance(calls["data"], aiohttp.FormData)
@@ -488,8 +488,8 @@ async def test_process_document_sends_bearer_api_key(
             return Response()
 
     settings = make_settings(
-        DOCUMENT_API_URL="http://documents.test",
-        DOCUMENT_API_KEY="documents-secret",
+        AUDIODOC_URL="http://documents.test",
+        AUDIODOC_DOCUMENT_KEY="documents-secret",
     )
     monkeypatch.setattr(aiohttp, "ClientSession", Session)
 
@@ -504,7 +504,7 @@ async def test_process_document_rejects_oversized_response(
     """Process document rejects oversized response."""
     documents_client = importlib.import_module("bot.services.documents.client")
 
-    settings = make_settings(DOCUMENT_API_URL="http://documents.test")
+    settings = make_settings(AUDIODOC_URL="http://documents.test")
     monkeypatch.setattr(documents_client, "MAX_SERVICE_RESPONSE_BYTES", 10)
 
     class Response:
@@ -554,10 +554,10 @@ async def test_process_document_rejects_missing_url_and_preserves_http_status(
         await process_document(
             b"data",
             "file.pdf",
-            settings=make_settings(DOCUMENT_API_URL=""),
+            settings=make_settings(AUDIODOC_URL=""),
         )
 
-    settings = make_settings(DOCUMENT_API_URL="http://documents.test")
+    settings = make_settings(AUDIODOC_URL="http://documents.test")
 
     class Response:
         status = 415
@@ -594,7 +594,7 @@ async def test_process_document_maps_timeout_and_connection_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Process document maps timeout and connection errors."""
-    settings = make_settings(DOCUMENT_API_URL="http://documents.test")
+    settings = make_settings(AUDIODOC_URL="http://documents.test")
 
     def timeout_session(**_kwargs: object) -> None:
         raise TimeoutError

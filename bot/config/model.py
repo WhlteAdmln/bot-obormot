@@ -7,6 +7,7 @@ import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from functools import lru_cache
+from urllib.parse import urlsplit, urlunsplit
 
 from bot.config.env import (
     get_bool,
@@ -56,21 +57,79 @@ class Settings:
     MAX_STORED_EXCHANGES: int = 2000
     DATABASE_PATH: str = "data/bot.db"
     DEFAULT_SYSTEM_PROMPT: str = field(default_factory=load_default_system_prompt)
-    WHISPER_API_URL: str = ""
-    WHISPER_API_KEY: str = ""
-    WHISPER_TIMEOUT: int = 180
-    DOCUMENT_API_URL: str = ""
-    DOCUMENT_API_KEY: str = ""
-    DOCUMENT_TIMEOUT: int = 300
+    AUDIODOC_URL: str = ""
+    AUDIODOC_AUDIO_KEY: str = ""
+    AUDIODOC_DOCUMENT_KEY: str = ""
+    AUDIODOC_AUDIO_TIMEOUT: int = 180
+    AUDIODOC_DOCUMENT_TIMEOUT: int = 300
+    _deprecated_env_vars: tuple[tuple[str, str], ...] = field(
+        default=(), repr=False, compare=False
+    )
+
+    @property
+    def deprecated_env_vars(self) -> tuple[tuple[str, str], ...]:
+        """Return legacy environment variables used during loading."""
+        return self._deprecated_env_vars
 
 
 class _SettingsLoader:
     """Read validated settings from one environment mapping."""
 
     def __init__(self, environ: Mapping[str, str]) -> None:
-        self.environ = environ
+        self.environ = dict(environ)
         self.errors: list[str] = []
+        self.deprecated_env_vars: list[tuple[str, str]] = []
         self.defaults = Settings()
+        self._apply_audiodoc_compatibility()
+
+    @staticmethod
+    def _legacy_audiodoc_base_url(value: str, endpoint: str) -> str:
+        parts = urlsplit(value)
+        path = parts.path.rstrip("/")
+        suffix = f"/{endpoint}"
+        path = path.removesuffix(suffix)
+        return urlunsplit(
+            (parts.scheme, parts.netloc, path, parts.query, parts.fragment)
+        ).rstrip("/")
+
+    def _apply_audiodoc_compatibility(self) -> None:
+        """Copy legacy audiodoc environment values to the shared names."""
+        if not self.environ.get("AUDIODOC_URL", "").strip():
+            legacy_urls: list[tuple[str, str]] = []
+            for name, endpoint in (
+                ("WHISPER_API_URL", "transcribe"),
+                ("DOCUMENT_API_URL", "process-document"),
+            ):
+                value = self.environ.get(name, "").strip()
+                if value:
+                    legacy_urls.append(
+                        (name, self._legacy_audiodoc_base_url(value, endpoint))
+                    )
+
+            if legacy_urls:
+                base_url = legacy_urls[0][1]
+                if any(url != base_url for _, url in legacy_urls[1:]):
+                    self.errors.append(
+                        "WHISPER_API_URL and DOCUMENT_API_URL must resolve "
+                        "to the same AUDIODOC_URL"
+                    )
+                self.environ["AUDIODOC_URL"] = base_url
+                self.deprecated_env_vars.extend(
+                    (name, "AUDIODOC_URL") for name, _ in legacy_urls
+                )
+
+        for new_name, legacy_name in (
+            ("AUDIODOC_AUDIO_KEY", "WHISPER_API_KEY"),
+            ("AUDIODOC_DOCUMENT_KEY", "DOCUMENT_API_KEY"),
+            ("AUDIODOC_AUDIO_TIMEOUT", "WHISPER_TIMEOUT"),
+            ("AUDIODOC_DOCUMENT_TIMEOUT", "DOCUMENT_TIMEOUT"),
+        ):
+            if self.environ.get(new_name, "").strip():
+                continue
+            value = self.environ.get(legacy_name, "")
+            if value.strip():
+                self.environ[new_name] = value
+                self.deprecated_env_vars.append((legacy_name, new_name))
 
     def _read_str(
         self,
@@ -250,33 +309,30 @@ class _SettingsLoader:
             ),
             DATABASE_PATH=self._read_database_path(),
             DEFAULT_SYSTEM_PROMPT=defaults.DEFAULT_SYSTEM_PROMPT,
-            WHISPER_API_URL=self._read_str(
-                "WHISPER_API_URL",
-                defaults.WHISPER_API_URL,
-            ).rstrip("/"),
-            WHISPER_API_KEY=self._read_str(
-                "WHISPER_API_KEY",
-                defaults.WHISPER_API_KEY,
-                strip=True,
-            ),
-            WHISPER_TIMEOUT=self._read_int(
-                "WHISPER_TIMEOUT",
-                defaults.WHISPER_TIMEOUT,
-            ),
-            DOCUMENT_API_URL=self._read_str(
-                "DOCUMENT_API_URL",
-                defaults.DOCUMENT_API_URL,
+            AUDIODOC_URL=self._read_str(
+                "AUDIODOC_URL",
+                defaults.AUDIODOC_URL,
                 strip=True,
             ).rstrip("/"),
-            DOCUMENT_API_KEY=self._read_str(
-                "DOCUMENT_API_KEY",
-                defaults.DOCUMENT_API_KEY,
+            AUDIODOC_AUDIO_KEY=self._read_str(
+                "AUDIODOC_AUDIO_KEY",
+                defaults.AUDIODOC_AUDIO_KEY,
                 strip=True,
             ),
-            DOCUMENT_TIMEOUT=self._read_int(
-                "DOCUMENT_TIMEOUT",
-                defaults.DOCUMENT_TIMEOUT,
+            AUDIODOC_DOCUMENT_KEY=self._read_str(
+                "AUDIODOC_DOCUMENT_KEY",
+                defaults.AUDIODOC_DOCUMENT_KEY,
+                strip=True,
             ),
+            AUDIODOC_AUDIO_TIMEOUT=self._read_int(
+                "AUDIODOC_AUDIO_TIMEOUT",
+                defaults.AUDIODOC_AUDIO_TIMEOUT,
+            ),
+            AUDIODOC_DOCUMENT_TIMEOUT=self._read_int(
+                "AUDIODOC_DOCUMENT_TIMEOUT",
+                defaults.AUDIODOC_DOCUMENT_TIMEOUT,
+            ),
+            _deprecated_env_vars=tuple(self.deprecated_env_vars),
         )
 
         if self.errors:

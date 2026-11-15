@@ -8,6 +8,7 @@ import logging
 from http import HTTPStatus
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 import aiohttp
 
@@ -28,6 +29,13 @@ from bot.utils.text import log_safe
 
 logger = logging.getLogger(__name__)
 
+
+def _endpoint_url(base_url: str, endpoint: str) -> str:
+    parts = urlsplit(base_url)
+    path = f"{parts.path.rstrip('/')}/{endpoint}"
+    return urlunsplit((parts.scheme, parts.netloc, path, parts.query, parts.fragment))
+
+
 # Reserve room for the document label, filename, and an optional Telegram caption.
 DOCUMENT_TEXT_OVERHEAD_RESERVE = 1024
 MAX_DOCUMENT_TEXT_LENGTH = MAX_INPUT_TEXT_LENGTH - DOCUMENT_TEXT_OVERHEAD_RESERVE
@@ -43,8 +51,8 @@ async def process_document(
     if settings is None:
         settings = get_settings()
 
-    if not settings.DOCUMENT_API_URL:
-        msg = "DOCUMENT_API_URL is not configured"
+    if not settings.AUDIODOC_URL:
+        msg = "AUDIODOC_URL is not configured"
         raise DocumentUnavailableError(msg)
 
     filename = Path(filename or "document").name
@@ -61,10 +69,10 @@ async def process_document(
     )
     form.add_field("max_characters", str(MAX_DOCUMENT_TEXT_LENGTH))
 
-    timeout = aiohttp.ClientTimeout(total=settings.DOCUMENT_TIMEOUT)
+    timeout = aiohttp.ClientTimeout(total=settings.AUDIODOC_DOCUMENT_TIMEOUT)
     headers = (
-        {"Authorization": f"Bearer {settings.DOCUMENT_API_KEY}"}
-        if settings.DOCUMENT_API_KEY
+        {"Authorization": f"Bearer {settings.AUDIODOC_DOCUMENT_KEY}"}
+        if settings.AUDIODOC_DOCUMENT_KEY
         else {}
     )
 
@@ -81,7 +89,7 @@ async def process_document(
                 headers=headers,
             ) as session,
             session.post(
-                settings.DOCUMENT_API_URL,
+                _endpoint_url(settings.AUDIODOC_URL, "process-document"),
                 data=form,
             ) as response,
         ):

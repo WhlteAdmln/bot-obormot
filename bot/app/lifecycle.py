@@ -10,7 +10,7 @@ from aiogram import Bot, Dispatcher
 
 from bot.app.background.image_cleanup import periodic_image_cleanup
 from bot.config.settings import Settings
-from bot.services.database import db
+from bot.services.database import Database, db
 from bot.services.llm.client import LLMClient
 
 logger = logging.getLogger("bot.main")
@@ -21,37 +21,49 @@ async def run_application(
     dispatcher: Dispatcher,
     settings: Settings,
     llm_client: LLMClient,
+    database: Database,
 ) -> None:
     """Подключает ресурсы, запускает polling и закрывает их в обратном порядке."""
     image_cleanup_task: asyncio.Task[None] | None = None
 
     try:
+        # Keep the legacy database connected for components not yet migrated.
         db.configure(settings)
-
-        # Порядок старта является частью контракта приложения.
         await db.connect()
-        logger.info("Database connected")
+        logger.info("Legacy database connected")
 
-        await llm_client.start()
-        logger.info("LLM client started")
+        async with database:
+            logger.info("Database connected")
 
-        # Фоновая задача запускается только после подключения обоих ресурсов.
-        image_cleanup_task = asyncio.create_task(
-            periodic_image_cleanup(),
-            name="image_cleanup",
-        )
-        logger.info("Image cleanup task started")
-        logger.info("Telegram LLM bot started")
+            await llm_client.start()
+            logger.info("LLM client started")
 
-        await dispatcher.start_polling(
-            bot,
-            close_bot_session=False,
-        )
+            # The legacy cleanup task still uses the module-level database.
+            image_cleanup_task = asyncio.create_task(
+                periodic_image_cleanup(),
+                name="image_cleanup",
+            )
+            try:
+                logger.info("Image cleanup task started")
+                logger.info("Telegram LLM bot started")
+
+                await dispatcher.start_polling(
+                    bot,
+                    close_bot_session=False,
+                )
+            finally:
+                image_cleanup_task.cancel()
+                await asyncio.gather(
+                    image_cleanup_task,
+                    return_exceptions=True,
+                )
+                image_cleanup_task = None
+                logger.info("Image cleanup task stopped")
 
     finally:
         logger.info("Shutting down bot...")
 
-        # Сначала останавливаем и дожидаемся завершения фоновой очистки.
+        # Keep a fallback for failures before the task's inner cleanup block.
         if image_cleanup_task is not None:
             image_cleanup_task.cancel()
             await asyncio.gather(
@@ -62,11 +74,10 @@ async def run_application(
 
         cleanup_steps = [
             ("LLM client", llm_client.close),
-            ("Database", db.close),
+            ("Legacy database", db.close),
             ("Telegram session", bot.session.close),
         ]
 
-        # Ошибка закрытия одного ресурса не мешает закрытию остальных.
         for name, cleanup in cleanup_steps:
             try:
                 await cleanup()

@@ -6,11 +6,25 @@
 import math
 import os
 import warnings
+from collections.abc import Mapping
+
+from dotenv import load_dotenv
+
+from bot.config.paths import PROJECT_ROOT
 
 
-def get_bool(name: str, *, default: bool = False) -> bool:
-    """Читает логическую переменную окружения (true/false, 1/0, yes/no, on/off)."""
-    value = os.getenv(name)
+def _get_environment(environ: Mapping[str, str] | None) -> Mapping[str, str]:
+    return os.environ if environ is None else environ
+
+
+def get_bool(
+    name: str,
+    *,
+    default: bool = False,
+    environ: Mapping[str, str] | None = None,
+) -> bool:
+    """Read a boolean environment variable."""
+    value = _get_environment(environ).get(name)
 
     if value is None or not value.strip():
         return default
@@ -23,30 +37,41 @@ def get_bool(name: str, *, default: bool = False) -> bool:
     if normalized in {"0", "false", "no", "off"}:
         return False
 
-    msg = f"Настройка {name} должна быть true или false. Получено: {value!r}"
+    msg = f"Setting {name} must be true or false. Got: {value!r}"
     raise ValueError(msg)
 
 
-def get_int(name: str, default: str, minimum: int = 1) -> int:
-    """Reads an integer environment variable and checks its lower bound."""
-    value = os.getenv(name, default)
+def get_int(
+    name: str,
+    default: str,
+    minimum: int = 1,
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> int:
+    """Read an integer environment variable and check its lower bound."""
+    value = _get_environment(environ).get(name, default)
 
     try:
         result = int(value)
     except (TypeError, ValueError) as err:
-        msg = f"Настройка {name} должна быть целым числом. Получено: {value!r}"
+        msg = f"Setting {name} must be an integer. Got: {value!r}"
         raise ValueError(msg) from err
 
     if result < minimum:
-        msg = f"Настройка {name} должна быть не меньше {minimum}. Получено: {result}"
+        msg = f"Setting {name} must be at least {minimum}. Got: {result}"
         raise ValueError(msg)
 
     return result
 
 
-def get_optional_int(name: str, minimum: int = 1) -> int | None:
-    """Читает необязательное целое число; пустое значение означает None."""
-    value = os.getenv(name)
+def get_optional_int(
+    name: str,
+    minimum: int = 1,
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> int | None:
+    """Read an optional integer environment variable."""
+    value = _get_environment(environ).get(name)
 
     if value is None or not value.strip():
         return None
@@ -54,11 +79,11 @@ def get_optional_int(name: str, minimum: int = 1) -> int | None:
     try:
         result = int(value)
     except (TypeError, ValueError) as err:
-        msg = f"Настройка {name} должна быть целым числом. Получено: {value!r}"
+        msg = f"Setting {name} must be an integer. Got: {value!r}"
         raise ValueError(msg) from err
 
     if result < minimum:
-        msg = f"Настройка {name} должна быть не меньше {minimum}. Получено: {result}"
+        msg = f"Setting {name} must be at least {minimum}. Got: {result}"
         raise ValueError(msg)
 
     return result
@@ -69,34 +94,36 @@ def get_float(
     default: str,
     minimum: float | None = None,
     maximum: float | None = None,
+    *,
+    environ: Mapping[str, str] | None = None,
 ) -> float:
-    """Reads a finite float environment variable and checks its bounds."""
-    value = os.getenv(name, default)
+    """Read a finite float environment variable and check its bounds."""
+    value = _get_environment(environ).get(name, default)
 
     try:
         result = float(value)
     except (TypeError, ValueError) as err:
-        msg = f"Настройка {name} должна быть числом. Получено: {value!r}"
+        msg = f"Setting {name} must be a number. Got: {value!r}"
         raise ValueError(msg) from err
 
     if not math.isfinite(result):
-        msg = f"Настройка {name} должна быть конечным числом. Получено: {value!r}"
+        msg = f"Setting {name} must be finite. Got: {value!r}"
         raise ValueError(msg)
 
     if minimum is not None and result < minimum:
-        msg = f"Настройка {name} должна быть не меньше {minimum}. Получено: {result}"
+        msg = f"Setting {name} must be at least {minimum}. Got: {result}"
         raise ValueError(msg)
 
     if maximum is not None and result > maximum:
-        msg = f"Настройка {name} должна быть не больше {maximum}. Получено: {result}"
+        msg = f"Setting {name} must be at most {maximum}. Got: {result}"
         raise ValueError(msg)
 
     return result
 
 
-def get_log_level() -> str:
-    """Возвращает допустимый уровень логирования."""
-    value = os.getenv("LOG_LEVEL", "INFO").strip().upper()
+def get_log_level(*, environ: Mapping[str, str] | None = None) -> str:
+    """Return a valid logging level."""
+    value = _get_environment(environ).get("LOG_LEVEL", "INFO").strip().upper()
 
     allowed_levels = {
         "DEBUG",
@@ -108,7 +135,7 @@ def get_log_level() -> str:
 
     if value not in allowed_levels:
         warnings.warn(
-            f"Некорректный LOG_LEVEL={value!r}. Используется уровень INFO.",
+            f"Invalid LOG_LEVEL={value!r}. Using INFO.",
             RuntimeWarning,
             stacklevel=2,
         )
@@ -117,14 +144,14 @@ def get_log_level() -> str:
     return value
 
 
-def parse_ids(name: str) -> set[int]:
-    """Parses a comma-separated environment variable into positive integer IDs."""
-    value = os.getenv(name, "").strip()
+def parse_ids(name: str, *, environ: Mapping[str, str] | None = None) -> set[int]:
+    """Parse a comma-separated environment variable into positive integer IDs."""
+    value = _get_environment(environ).get(name, "").strip()
 
     if not value:
         return set()
 
-    result = set()
+    result: set[int] = set()
 
     for raw_item in value.split(","):
         item = raw_item.strip()
@@ -135,13 +162,18 @@ def parse_ids(name: str) -> set[int]:
         try:
             user_id = int(item)
         except ValueError as err:
-            msg = f"Настройка {name} содержит некорректный ID: {item!r}"
+            msg = f"Setting {name} contains an invalid ID: {item!r}"
             raise ValueError(msg) from err
 
         if user_id <= 0:
-            msg = f"ID в настройке {name} должен быть положительным: {user_id}"
+            msg = f"IDs in setting {name} must be positive. Got: {user_id}"
             raise ValueError(msg)
 
         result.add(user_id)
 
     return result
+
+
+def load_env_file() -> None:
+    """Load the project .env file into the process environment."""
+    load_dotenv(PROJECT_ROOT / ".env")

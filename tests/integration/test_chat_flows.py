@@ -624,3 +624,74 @@ async def test_photo_message_is_processed_by_vision_and_persisted(
             await _assert_photo_history(test_db, user_id, response)
     finally:
         await _reset_llm_client()
+
+
+@pytest.mark.asyncio
+async def test_blocked_user_is_denied_before_llm_is_called(
+    test_db: Database,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reject a blocked user through Dispatcher without calling the LLM."""
+    user_id = 712345682
+    denied_text = "⛔ У тебя нет доступа к этому боту."
+
+    assert await test_db.block_user(user_id) is True
+    await _reset_llm_client()
+
+    try:
+        async with FakeLLM() as llm_server:
+            monkeypatch.setattr(
+                config,
+                "LLM_BASE_URL",
+                f"{llm_server.base_url.rstrip('/')}/v1",
+            )
+            monkeypatch.setattr(config, "LLM_API_KEY", "test-key")
+            monkeypatch.setattr(config, "LLM_MODEL", "test-model")
+            monkeypatch.setattr(config, "LLM_CONTEXT_SIZE", None)
+            monkeypatch.setattr(config, "LLM_TOKEN_COUNTING", "auto")
+            monkeypatch.setattr(config, "ALLOW_ALL_USERS", True)
+            monkeypatch.setattr(config, "ALLOWED_USERS", {user_id})
+            monkeypatch.setattr(access_middleware, "db", test_db)
+
+            telegram_session = FakeTelegramSession(
+                {
+                    SendMessage: make_message(
+                        message_id=904,
+                        chat_id=user_id,
+                        user_id=904,
+                        text=None,
+                    ),
+                }
+            )
+            bot = Bot(token=config.BOT_TOKEN, session=telegram_session)
+            dispatcher = configure_dispatcher(Dispatcher(storage=MemoryStorage()))
+
+            try:
+                await dispatcher.feed_update(
+                    bot,
+                    make_update(
+                        message=make_message(
+                            user_id=user_id,
+                            chat_id=user_id,
+                            text="This request must be rejected.",
+                        )
+                    ),
+                )
+            finally:
+                await bot.session.close()
+                _release_dispatcher(dispatcher)
+
+            sent_messages = [
+                request
+                for request in telegram_session.requests
+                if isinstance(request, SendMessage)
+            ]
+
+            assert len(sent_messages) == 1
+            assert sent_messages[0].text == denied_text
+            assert len(telegram_session.requests) == 1
+            assert llm_server.chat_requests == []
+            assert not llm_server.stream_started.is_set()
+            assert await test_db.get_history(user_id) == []
+    finally:
+        await _reset_llm_client()

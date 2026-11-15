@@ -88,6 +88,8 @@ jobs:
             pytest \
             pytest-asyncio \
             pytest-cov \
+            pytest-randomly \
+            pytest-timeout \
             packaging
 
       - name: Check installed dependencies
@@ -97,6 +99,7 @@ jobs:
         run: |
           set -o pipefail
           python -m pytest -q -rs \
+            -m "not integration" \
             --cov=bot \
             --cov-branch \
             --cov-report=term-missing:skip-covered \

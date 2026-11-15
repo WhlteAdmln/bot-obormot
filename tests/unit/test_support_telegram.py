@@ -7,7 +7,7 @@ import pytest
 from aiogram import Bot
 from aiogram.methods import SendMessage
 
-from bot.config import config
+from tests.support.settings import make_settings
 from tests.support.telegram import FakeTelegramSession, make_message, make_update
 
 
@@ -19,7 +19,7 @@ async def test_fake_telegram_session_records_requests_and_streams_content() -> N
         {SendMessage: response},
         stream_data=b"file-data",
     )
-    bot = Bot(token=config.BOT_TOKEN, session=session)
+    bot = Bot(token=make_settings().BOT_TOKEN, session=session)
 
     try:
         result = await bot.send_message(chat_id=42, text="Hello")

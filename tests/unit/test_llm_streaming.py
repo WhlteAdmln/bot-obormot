@@ -10,11 +10,11 @@ from typing import Self
 import aiohttp
 import pytest
 
-from bot.config import config
 from bot.errors import LLMAPIError, LLMTimeoutError, LLMUnavailableError
 from bot.services.llm import LLMClient
 from bot.services.llm import client as client_module
 from bot.services.llm.streaming import stream_unlimited
+from tests.support.settings import make_settings
 
 
 class AsyncLines:
@@ -97,7 +97,8 @@ async def test_stream_unlimited_yields_content_and_ignores_non_content_chunks(
         ]
     )
     session = FakeSession(response)
-    client = LLMClient()
+    settings = make_settings()
+    client = LLMClient(settings)
 
     async def get_session() -> "FakeSession":
         return session
@@ -119,14 +120,14 @@ async def test_stream_unlimited_yields_content_and_ignores_non_content_chunks(
     assert normalized == [[{"role": "user", "content": "raw"}]]
     assert session.calls == [
         (
-            f"{config.LLM_BASE_URL.rstrip('/')}/chat/completions",
+            f"{settings.LLM_BASE_URL.rstrip('/')}/chat/completions",
             {
                 "json": {
-                    "model": config.LLM_MODEL,
+                    "model": settings.LLM_MODEL,
                     "messages": [{"role": "user", "content": "normalized"}],
-                    "temperature": config.LLM_TEMPERATURE,
-                    "top_p": config.LLM_TOP_P,
-                    "max_tokens": config.LLM_MAX_TOKENS,
+                    "temperature": settings.LLM_TEMPERATURE,
+                    "top_p": settings.LLM_TOP_P,
+                    "max_tokens": settings.LLM_MAX_TOKENS,
                     "stream": True,
                 }
             },
@@ -141,7 +142,7 @@ async def test_stream_unlimited_raises_api_error_with_response_details(
     """Stream unlimited raises api error with response details."""
     private_detail = "prompt fragment\nsecond line"
     session = FakeSession(FakeResponse(status=503, body=private_detail))
-    client = LLMClient()
+    client = LLMClient(make_settings())
 
     async def get_session() -> "FakeSession":
         return session
@@ -165,7 +166,7 @@ async def test_stream_unlimited_converts_timeout(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Stream unlimited converts timeout."""
-    client = LLMClient()
+    client = LLMClient(make_settings())
 
     async def get_session() -> None:
         raise TimeoutError
@@ -181,7 +182,7 @@ async def test_stream_unlimited_converts_aiohttp_client_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Stream unlimited converts aiohttp client error."""
-    client = LLMClient()
+    client = LLMClient(make_settings())
 
     async def get_session() -> None:
         msg = "connection refused"
@@ -198,7 +199,7 @@ async def test_llm_client_unlimited_stream_delegates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Llm client unlimited stream delegates."""
-    client = LLMClient()
+    client = LLMClient(make_settings())
     messages = [{"role": "user", "content": "hello"}]
     calls = []
 
@@ -220,7 +221,7 @@ async def test_public_stream_keeps_semaphore_wrapping_unlimited_stream(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Public stream keeps semaphore wrapping unlimited stream."""
-    client = LLMClient()
+    client = LLMClient(make_settings())
     messages = [{"role": "user", "content": "hello"}]
     calls = []
 

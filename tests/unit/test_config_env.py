@@ -187,17 +187,17 @@ def test_get_settings_is_cached_until_reset() -> None:
         reset_settings_cache()
 
 
-def test_config_proxy_supports_attribute_overrides(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Config proxy supports legacy monkeypatch attribute overrides."""
-    reset_settings_cache()
-    config = importlib.import_module("bot.config").config
-    original_value = config.SUPERVISOR_ID
+def test_legacy_config_proxy_and_config_alias_are_removed() -> None:
+    """The legacy proxy and Config alias are no longer exported."""
+    config_module = importlib.import_module("bot.config")
+    settings_module = importlib.import_module("bot.config.settings")
+    model_module = importlib.import_module("bot.config.model")
 
-    monkeypatch.setattr(config, "SUPERVISOR_ID", original_value + 1)
-
-    assert original_value + 1 == config.SUPERVISOR_ID
+    assert not hasattr(config_module, "config")
+    assert not hasattr(config_module, "Config")
+    assert not hasattr(settings_module, "config")
+    assert not hasattr(settings_module, "Config")
+    assert not hasattr(model_module, "config")
 
 
 @pytest.mark.parametrize("value", [None, "", "   "])
@@ -232,7 +232,7 @@ def test_get_optional_int_rejects_invalid_values(
 
 
 def test_stream_update_interval_is_not_an_environment_setting() -> None:
-    """Stream update interval is not an environment setting."""
-    config_class = importlib.import_module("bot.config.settings").Config
+    """Stream update interval is not an application setting."""
+    settings_class = importlib.import_module("bot.config.settings").Settings
 
-    assert not hasattr(config_class, "STREAM_UPDATE_INTERVAL")
+    assert not hasattr(settings_class, "STREAM_UPDATE_INTERVAL")

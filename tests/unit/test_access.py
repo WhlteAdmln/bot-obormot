@@ -4,7 +4,6 @@
 """Tests for access."""
 
 from collections.abc import AsyncIterator, Callable
-from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -12,11 +11,11 @@ import pytest
 import pytest_asyncio
 from aiogram.enums import ChatType
 
-from bot.config import config
-from bot.config.settings import get_settings
+from bot.config.settings import Settings
 from bot.handlers.admin import handler as admin_handler
 from bot.middlewares import access as access_module
 from bot.services.database import Database
+from tests.support.settings import make_settings
 
 SUPERVISOR_ID = 999999999
 ADMIN_ID = 111111111
@@ -77,8 +76,7 @@ async def test_database(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> AsyncIterator[Database]:
     """Создаёт отдельную временную базу данных."""
-    settings = replace(
-        get_settings(),
+    settings = make_settings(
         DATABASE_PATH=str(tmp_path / "access_test.db"),
         SUPERVISOR_ID=SUPERVISOR_ID,
         ADMIN_IDS=set(),
@@ -96,17 +94,21 @@ async def test_database(
 
 
 @pytest.fixture
-def configure_allowlist(monkeypatch: pytest.MonkeyPatch) -> Callable[..., None]:
-    """Configure allowlist."""
+def configure_allowlist() -> Callable[..., Settings]:
+    """Build settings with the requested allowlist."""
 
-    def configure(user_ids: object, *, allow_all: bool = False) -> None:
-        monkeypatch.setattr(config, "ALLOWED_USERS", set(user_ids))
-        monkeypatch.setattr(config, "ALLOW_ALL_USERS", allow_all)
+    def configure(user_ids: object, *, allow_all: bool = False) -> Settings:
+        return make_settings(
+            SUPERVISOR_ID=SUPERVISOR_ID,
+            ALLOWED_USERS=set(user_ids),
+            ALLOW_ALL_USERS=allow_all,
+        )
 
     return configure
 
 
 async def run_middleware(
+    settings: Settings,
     user_id: int,
     event: object,
     handler: object,
@@ -121,7 +123,7 @@ async def run_middleware(
             SimpleNamespace(id=user_id) if user_id is not None else None
         ),
         "event_chat": SimpleNamespace(type=chat_type),
-        "settings": get_settings(),
+        "settings": settings,
     }
 
     result = await middleware(handler, event, data)
@@ -132,16 +134,17 @@ async def run_middleware(
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("test_database")
 async def test_supervisor_access(
-    configure_allowlist: Callable[..., None],
+    configure_allowlist: Callable[..., Settings],
     fake_event: FakeEvent,
     fake_handler: tuple[object, ...],
 ) -> None:
     """Supervisor всегда получает доступ."""
-    configure_allowlist([])
+    settings = configure_allowlist([])
 
     handler, calls = fake_handler
 
     result, _ = await run_middleware(
+        settings,
         SUPERVISOR_ID,
         fake_event,
         handler,
@@ -156,18 +159,19 @@ async def test_supervisor_access(
 @pytest.mark.asyncio
 async def test_admin_access(
     test_database: Database,
-    configure_allowlist: Callable[..., None],
+    configure_allowlist: Callable[..., Settings],
     fake_event: FakeEvent,
     fake_handler: tuple[object, ...],
 ) -> None:
     """Обычный администратор получает доступ."""
-    configure_allowlist([ALLOWED_USER_ID])
+    settings = configure_allowlist([ALLOWED_USER_ID])
 
     await test_database.add_admin(ADMIN_ID)
 
     handler, calls = fake_handler
 
     result, _ = await run_middleware(
+        settings,
         ADMIN_ID,
         fake_event,
         handler,
@@ -182,16 +186,17 @@ async def test_admin_access(
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("test_database")
 async def test_allowed_user_access(
-    configure_allowlist: Callable[..., None],
+    configure_allowlist: Callable[..., Settings],
     fake_event: FakeEvent,
     fake_handler: tuple[object, ...],
 ) -> None:
     """Пользователь из ALLOWED_USERS получает доступ."""
-    configure_allowlist([ALLOWED_USER_ID])
+    settings = configure_allowlist([ALLOWED_USER_ID])
 
     handler, calls = fake_handler
 
     result, _ = await run_middleware(
+        settings,
         ALLOWED_USER_ID,
         fake_event,
         handler,
@@ -206,16 +211,17 @@ async def test_allowed_user_access(
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("test_database")
 async def test_outsider_denied(
-    configure_allowlist: Callable[..., None],
+    configure_allowlist: Callable[..., Settings],
     fake_event: FakeEvent,
     fake_handler: tuple[object, ...],
 ) -> None:
     """Посторонний пользователь получает отказ."""
-    configure_allowlist([ALLOWED_USER_ID])
+    settings = configure_allowlist([ALLOWED_USER_ID])
 
     handler, calls = fake_handler
 
     result, _ = await run_middleware(
+        settings,
         OUTSIDER_ID,
         fake_event,
         handler,
@@ -231,16 +237,17 @@ async def test_outsider_denied(
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("test_database")
 async def test_empty_allowlist_denies_access_by_default(
-    configure_allowlist: Callable[..., None],
+    configure_allowlist: Callable[..., Settings],
     fake_event: FakeEvent,
     fake_handler: tuple[object, ...],
 ) -> None:
     """Пустой allowlist не открывает доступ посторонним."""
-    configure_allowlist([])
+    settings = configure_allowlist([])
 
     handler, calls = fake_handler
 
     result, _ = await run_middleware(
+        settings,
         OUTSIDER_ID,
         fake_event,
         handler,
@@ -256,16 +263,17 @@ async def test_empty_allowlist_denies_access_by_default(
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("test_database")
 async def test_open_access_requires_explicit_flag(
-    configure_allowlist: Callable[..., None],
+    configure_allowlist: Callable[..., Settings],
     fake_event: FakeEvent,
     fake_handler: tuple[object, ...],
 ) -> None:
     """Открытый доступ включается только явным флагом."""
-    configure_allowlist([], allow_all=True)
+    settings = configure_allowlist([], allow_all=True)
 
     handler, calls = fake_handler
 
     result, _ = await run_middleware(
+        settings,
         OUTSIDER_ID,
         fake_event,
         handler,
@@ -280,19 +288,18 @@ async def test_open_access_requires_explicit_flag(
 @pytest.mark.asyncio
 async def test_admin_changes_apply_immediately(
     test_database: Database,
-    configure_allowlist: Callable[..., None],
+    configure_allowlist: Callable[..., Settings],
     fake_event: FakeEvent,
 ) -> None:
     """Добавление и удаление администратора действуют сразу."""
-    configure_allowlist([ALLOWED_USER_ID])
+    settings = configure_allowlist([ALLOWED_USER_ID])
 
     middleware = access_module.AccessMiddleware()
 
     async def handler(_event: object, _data: object) -> str:
         return "allowed"
 
-    data = {"event_from_user": SimpleNamespace(id=ADMIN_ID)}
-    data["settings"] = get_settings()
+    data = {"event_from_user": SimpleNamespace(id=ADMIN_ID), "settings": settings}
 
     # До добавления администратора доступ запрещён.
     result = await middleware(handler, fake_event, data)
@@ -317,16 +324,17 @@ async def test_admin_changes_apply_immediately(
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("test_database")
 async def test_event_without_user_is_rejected(
-    configure_allowlist: Callable[..., None],
+    configure_allowlist: Callable[..., Settings],
     fake_event: FakeEvent,
     fake_handler: tuple[object, ...],
 ) -> None:
     """Событие без пользователя не передаётся обработчикам."""
-    configure_allowlist([ALLOWED_USER_ID])
+    settings = configure_allowlist([ALLOWED_USER_ID])
 
     handler, calls = fake_handler
 
     result, _ = await run_middleware(
+        settings,
         None,
         fake_event,
         handler,
@@ -342,17 +350,18 @@ async def test_event_without_user_is_rejected(
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("test_database")
 async def test_group_chat_is_rejected(
-    configure_allowlist: Callable[..., None],
+    configure_allowlist: Callable[..., Settings],
     fake_event: FakeEvent,
     fake_handler: tuple[object, ...],
     chat_type: object,
 ) -> None:
     """Бот не обрабатывает сообщения в группах и супергруппах."""
-    configure_allowlist([ALLOWED_USER_ID])
+    settings = configure_allowlist([ALLOWED_USER_ID])
 
     handler, calls = fake_handler
 
     result, _ = await run_middleware(
+        settings,
         ALLOWED_USER_ID,
         fake_event,
         handler,
@@ -368,11 +377,11 @@ async def test_group_chat_is_rejected(
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("test_database")
 async def test_denied_notice_is_rate_limited(
-    configure_allowlist: Callable[..., None],
+    configure_allowlist: Callable[..., Settings],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Повторный отказ одному пользователю отправляется не чаще минуты."""
-    configure_allowlist([])
+    settings = configure_allowlist([])
     middleware = access_module.AccessMiddleware()
     current_time = 100.0
     monkeypatch.setattr(access_module.time, "monotonic", lambda: current_time)
@@ -383,7 +392,7 @@ async def test_denied_notice_is_rate_limited(
     data = {
         "event_from_user": SimpleNamespace(id=OUTSIDER_ID),
         "event_chat": SimpleNamespace(type=ChatType.PRIVATE),
-        "settings": get_settings(),
+        "settings": settings,
     }
 
     first_event = FakeEvent()
@@ -403,11 +412,11 @@ async def test_denied_notice_is_rate_limited(
 @pytest.mark.asyncio
 async def test_block_and_unblock_apply_immediately(
     test_database: Database,
-    configure_allowlist: Callable[..., None],
+    configure_allowlist: Callable[..., Settings],
     fake_event: FakeEvent,
 ) -> None:
     """Block and unblock apply immediately."""
-    configure_allowlist([ALLOWED_USER_ID], allow_all=True)
+    settings = configure_allowlist([ALLOWED_USER_ID], allow_all=True)
     middleware = access_module.AccessMiddleware()
     calls = []
 
@@ -418,7 +427,7 @@ async def test_block_and_unblock_apply_immediately(
     data = {
         "event_from_user": SimpleNamespace(id=ALLOWED_USER_ID),
         "event_chat": SimpleNamespace(type=ChatType.PRIVATE),
-        "settings": get_settings(),
+        "settings": settings,
     }
 
     assert await middleware(handler, fake_event, data) == "allowed"
@@ -433,15 +442,16 @@ async def test_block_and_unblock_apply_immediately(
 @pytest.mark.asyncio
 async def test_supervisor_cannot_be_blocked(
     test_database: Database,
-    configure_allowlist: Callable[..., None],
+    configure_allowlist: Callable[..., Settings],
     fake_event: FakeEvent,
     fake_handler: tuple[object, ...],
 ) -> None:
     """Supervisor cannot be blocked."""
-    configure_allowlist([])
+    settings = configure_allowlist([])
     assert await test_database.block_user(SUPERVISOR_ID) is False
     handler, calls = fake_handler
     result, _ = await run_middleware(
+        settings,
         SUPERVISOR_ID,
         fake_event,
         handler,
@@ -484,10 +494,11 @@ async def test_access_matrix(
         blocked_ids={BLOCKED_USER_ID},
     )
 
-    monkeypatch.setattr(config, "SUPERVISOR_ID", SUPERVISOR_ID)
-    monkeypatch.setattr(config, "ALLOWED_USERS", allowed_users)
-    monkeypatch.setattr(config, "ALLOW_ALL_USERS", allow_all)
-    settings = get_settings()
+    settings = make_settings(
+        SUPERVISOR_ID=SUPERVISOR_ID,
+        ALLOWED_USERS=allowed_users,
+        ALLOW_ALL_USERS=allow_all,
+    )
     monkeypatch.setattr(access_module, "db", database)
     monkeypatch.setattr(admin_handler, "db", database)
 

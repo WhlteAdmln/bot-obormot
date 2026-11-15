@@ -12,43 +12,49 @@ from aiogram import Bot, Dispatcher
 from bot.app.lifecycle import run_application
 from bot.app.logging_setup import configure_logging
 from bot.app.routers import configure_dispatcher
-from bot.config import config
+from bot.config.env import load_env_file
+from bot.config.settings import Settings, load_settings
 from bot.services.media.safety import configure_pillow_limits
 
 logger = logging.getLogger("bot.main")
 
 
-def log_access_mode() -> None:
+def log_access_mode(settings: Settings) -> None:
     """Пишет в лог, кто может пользоваться ботом."""
-    if config.ALLOW_ALL_USERS:
+    if settings.ALLOW_ALL_USERS:
         logger.warning("ACCESS MODE: open to everyone (ALLOW_ALL_USERS=true)")
-    elif config.ALLOWED_USERS:
-        logger.info("ACCESS MODE: allowlist, %d users", len(config.ALLOWED_USERS))
+    elif settings.ALLOWED_USERS:
+        logger.info("ACCESS MODE: allowlist, %d users", len(settings.ALLOWED_USERS))
     else:
         logger.warning(
             "ACCESS MODE: only supervisor and administrators (ALLOWED_USERS is empty)"
         )
 
 
-def create_bot() -> Bot:
+def create_bot(settings: Settings) -> Bot:
     """Создаёт Telegram Bot после проверки обязательного токена."""
-    if not re.fullmatch(r"\d{5,}:[A-Za-z0-9_-]{30,}", config.BOT_TOKEN):
+    if not re.fullmatch(r"\d{5,}:[A-Za-z0-9_-]{30,}", settings.BOT_TOKEN):
         msg = "BOT_TOKEN имеет неверный формат. Проверьте .env"
         raise RuntimeError(msg)
-    return Bot(token=config.BOT_TOKEN)
+    return Bot(token=settings.BOT_TOKEN)
 
 
-def create_dispatcher() -> Dispatcher:
+def create_dispatcher(settings: Settings) -> Dispatcher:
     """Создаёт Dispatcher и подключает к нему middleware и роутеры."""
-    return configure_dispatcher(Dispatcher())
+    return configure_dispatcher(Dispatcher(), settings)
 
 
 async def main() -> None:
     """Точка сборки приложения."""
     os.umask(0o077)
-    configure_logging()
+
+    load_env_file()
+    settings = load_settings(os.environ)
+
+    configure_logging(settings)
     configure_pillow_limits()
-    log_access_mode()
-    bot = create_bot()
-    dispatcher = create_dispatcher()
-    await run_application(bot, dispatcher)
+    log_access_mode(settings)
+
+    bot = create_bot(settings)
+    dispatcher = create_dispatcher(settings)
+    await run_application(bot, dispatcher, settings)

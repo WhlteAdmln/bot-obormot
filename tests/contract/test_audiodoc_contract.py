@@ -12,12 +12,13 @@ import aiohttp
 import pytest
 from jsonschema import Draft202012Validator
 
-from bot.config import config
+from bot.config.settings import Settings
 from bot.errors import DocumentAPIError, WhisperAPIError
 from bot.services.audio.client import transcribe_audio
 from bot.services.documents.client import process_document
 from bot.services.documents.response import validate_document_response
 from tests.support.fake_audiodoc import FakeAudiodoc, FakeResponseOptions
+from tests.support.settings import make_settings
 
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "audiodoc_responses.json"
 CONTRACT = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
@@ -54,18 +55,13 @@ def _validate_response(path: str, status: int, payload: object) -> None:
     OPENAPI_VALIDATOR.evolve(schema=schema).validate(payload)
 
 
-def _configure_real_clients(
-    monkeypatch: pytest.MonkeyPatch,
-    server: FakeAudiodoc,
-) -> None:
-    monkeypatch.setattr(config, "WHISPER_API_URL", f"{server.base_url}transcribe")
-    monkeypatch.setattr(config, "WHISPER_API_KEY", server.whisper_api_key)
-    monkeypatch.setattr(
-        config,
-        "DOCUMENT_API_URL",
-        f"{server.base_url}process-document",
+def _real_client_settings(server: FakeAudiodoc) -> Settings:
+    return make_settings(
+        WHISPER_API_URL=f"{server.base_url}transcribe",
+        WHISPER_API_KEY=server.whisper_api_key,
+        DOCUMENT_API_URL=f"{server.base_url}process-document",
+        DOCUMENT_API_KEY=server.document_api_key,
     )
-    monkeypatch.setattr(config, "DOCUMENT_API_KEY", server.document_api_key)
 
 
 class FakeContent:
@@ -128,11 +124,14 @@ async def test_bot_transcription_client_accepts_shared_audiodoc_example(
             calls["url"] = url
             return FakeResponse(payload)
 
-    monkeypatch.setattr(config, "WHISPER_API_URL", "http://audiodoc.test/transcribe")
-    monkeypatch.setattr(config, "WHISPER_API_KEY", "whisper-test-key")
+    settings = make_settings(
+        WHISPER_API_URL="http://audiodoc.test/transcribe",
+        WHISPER_API_KEY="whisper-test-key",
+    )
     monkeypatch.setattr(aiohttp, "ClientSession", Session)
 
-    assert await transcribe_audio(b"audio", "voice.ogg") == payload["text"]
+    result = await transcribe_audio(b"audio", "voice.ogg", settings=settings)
+    assert result == payload["text"]
     assert calls["url"].endswith("/transcribe")
     assert calls["headers"] == {"Authorization": "Bearer whisper-test-key"}
 
@@ -163,13 +162,17 @@ async def test_bot_document_client_accepts_shared_audiodoc_example(
             calls["data"] = data
             return FakeResponse(payload)
 
-    monkeypatch.setattr(
-        config, "DOCUMENT_API_URL", "http://audiodoc.test/process-document"
+    settings = make_settings(
+        DOCUMENT_API_URL="http://audiodoc.test/process-document",
+        DOCUMENT_API_KEY="document-test-key",
     )
-    monkeypatch.setattr(config, "DOCUMENT_API_KEY", "document-test-key")
     monkeypatch.setattr(aiohttp, "ClientSession", Session)
 
-    result = await process_document(b"Example document text.", "note.txt")
+    result = await process_document(
+        b"Example document text.",
+        "note.txt",
+        settings=settings,
+    )
     assert result == payload
     assert calls["url"].endswith("/process-document")
     assert calls["headers"] == {"Authorization": "Bearer document-test-key"}
@@ -184,19 +187,17 @@ def test_shared_audiodoc_response_examples_match_openapi() -> None:
 
 
 @pytest.mark.asyncio
-async def test_real_bot_requests_match_audiodoc_openapi(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_real_bot_requests_match_audiodoc_openapi() -> None:
     """Validate real client requests and response parsing over local HTTP."""
     async with FakeAudiodoc() as server:
-        _configure_real_clients(monkeypatch, server)
+        settings = _real_client_settings(server)
 
         assert (
-            await transcribe_audio(b"audio", "voice.ogg")
+            await transcribe_audio(b"audio", "voice.ogg", settings=settings)
             == CONTRACT["transcribe"]["text"]
         )
         assert (
-            await process_document(b"document", "note.txt")
+            await process_document(b"document", "note.txt", settings=settings)
             == CONTRACT["process_document"]
         )
 
@@ -251,20 +252,19 @@ async def test_real_bot_requests_match_audiodoc_openapi(
 async def test_bot_handles_every_documented_audiodoc_error_status(
     path: str,
     status: int,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Parse every documented error response through the real HTTP clients."""
     endpoint = "transcribe" if path == "/transcribe" else "process-document"
     async with FakeAudiodoc() as server:
-        _configure_real_clients(monkeypatch, server)
+        settings = _real_client_settings(server)
         server.set_behavior(endpoint, FakeResponseOptions(status=status))
 
         if endpoint == "transcribe":
             with pytest.raises(WhisperAPIError, match=f"Whisper HTTP {status}"):
-                await transcribe_audio(b"audio", "voice.ogg")
+                await transcribe_audio(b"audio", "voice.ogg", settings=settings)
         else:
             with pytest.raises(DocumentAPIError) as error:
-                await process_document(b"document", "note.txt")
+                await process_document(b"document", "note.txt", settings=settings)
             assert error.value.status == status
 
         response_endpoint, response_status, payload = server.responses[-1]

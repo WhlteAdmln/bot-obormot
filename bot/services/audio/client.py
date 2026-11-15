@@ -9,6 +9,7 @@ from http import HTTPStatus
 
 import aiohttp
 
+from bot.config.settings import Settings, get_settings
 from bot.errors import (
     WhisperAPIError,
     WhisperEmptyAudioError,
@@ -20,7 +21,6 @@ from bot.services.http_limits import (
     MAX_SERVICE_RESPONSE_BYTES,
     read_limited_body,
 )
-from bot.settings import get_settings
 from bot.utils.text import log_safe
 
 logger = logging.getLogger(__name__)
@@ -44,9 +44,13 @@ def _extract_text(result: object) -> str:
 async def transcribe_audio(
     audio_data: bytes,
     filename: str = "audio.ogg",
+    *,
+    settings: Settings | None = None,
 ) -> str:
     """Отправляет аудио в Whisper и возвращает распознанный текст."""
-    settings = get_settings()
+    if settings is None:
+        settings = get_settings()
+
     if not settings.WHISPER_API_URL:
         msg = "WHISPER_API_URL is not configured"
         raise WhisperUnavailableError(msg)

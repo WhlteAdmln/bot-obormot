@@ -9,7 +9,6 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from bot.config.settings import get_settings
 from bot.handlers.history.basic import (
     cmd_forget_me,
     cmd_history_clear,
@@ -18,6 +17,7 @@ from bot.handlers.history.basic import (
 from bot.handlers.history.limits import cmd_history_limit
 from bot.handlers.prompt.handler import reset_prompt, save_prompt
 from bot.handlers.start.handler import cmd_start
+from tests.support.settings import make_settings
 
 
 @pytest.mark.asyncio
@@ -39,8 +39,10 @@ async def test_handlers_ignore_messages_without_sender(
     message = SimpleNamespace(from_user=None, text="prompt", answer=AsyncMock())
 
     state = SimpleNamespace()
+    settings = make_settings()
+
     if handler in (cmd_start, show_history_limit):
-        await handler(message, state, get_settings())
+        await handler(message, state, settings)
     else:
         await handler(message, state)
 
@@ -56,7 +58,7 @@ async def test_history_limit_command_ignores_messages_without_sender() -> None:
         message,
         SimpleNamespace(),
         SimpleNamespace(args="5"),
-        get_settings(),
+        make_settings(),
     )
 
     message.answer.assert_not_awaited()

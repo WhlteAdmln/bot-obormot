@@ -3,57 +3,17 @@
 
 """Общая конфигурация тестовой среды.
 
-Переменные задаются до импорта bot.*: конфигурация приложения читается
-непосредственно во время импорта модулей.
+Настройки тестов создаются явно через tests.support.settings.
 """
 
-import importlib
-import os
 from collections.abc import AsyncIterator
-from dataclasses import replace
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import pytest
 import pytest_asyncio
 
-from bot.config.settings import get_settings
-
-if TYPE_CHECKING:
-    from bot.services.database import Database
-
-_TEST_ENV = {
-    "BOT_TOKEN": "123456789:TEST_TOKEN_NOT_VALID",
-    "SUPERVISOR_ID": "999999999",
-    "ADMIN_IDS": "",
-    "ALLOWED_USERS": "",
-    "ALLOW_ALL_USERS": "false",
-    "DATABASE_PATH": "data/test-bot.db",
-    "LLM_BASE_URL": "http://127.0.0.1:8080/v1",
-    "LLM_API_KEY": "test-key",
-    "LLM_MODEL": "test-model",
-    "LLM_TEMPERATURE": "0.7",
-    "LLM_TOP_P": "0.9",
-    "LLM_MAX_TOKENS": "2048",
-    "LLM_TIMEOUT": "300",
-    "LLM_CONTEXT_SIZE": "",
-    "LLM_TOKEN_COUNTING": "auto",
-    "LLM_MAX_CONCURRENT_GENERATIONS": "1",
-    "MAX_HISTORY_EXCHANGES": "1000",
-    "MAX_STORED_EXCHANGES": "2000",
-    "WHISPER_API_URL": "",
-    "WHISPER_API_KEY": "",
-    "WHISPER_TIMEOUT": "180",
-    "DOCUMENT_API_URL": "",
-    "DOCUMENT_API_KEY": "",
-    "DOCUMENT_TIMEOUT": "300",
-    "LOG_LEVEL": "WARNING",
-}
-
-for _name, _value in _TEST_ENV.items():
-    if not os.environ.get(_name, "").strip():
-        os.environ[_name] = _value
-
+from bot.services.database import Database
+from tests.support.settings import make_settings
 
 _TEST_MARKERS = {"unit", "integration", "contract", "e2e"}
 
@@ -81,18 +41,14 @@ async def test_db(
     Фикстура расположена в conftest.py, чтобы быть доступной всем
     тестовым модулям, а не только test_database.py.
     """
-    # Импорты выполняются после настройки тестовых переменных выше.
-    database_class = importlib.import_module("bot.services.database").Database
-
-    settings = replace(
-        get_settings(),
+    settings = make_settings(
         DATABASE_PATH=str(tmp_path / "history_test.db"),
         SUPERVISOR_ID=999999999,
         ADMIN_IDS=set(),
         DEFAULT_SYSTEM_PROMPT="Тестовый промпт",
     )
 
-    database = database_class(settings)
+    database = Database(settings)
     await database.connect()
 
     try:

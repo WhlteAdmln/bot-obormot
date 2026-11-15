@@ -13,7 +13,6 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from bot.config import config
 from bot.services.database import Database
 from bot.services.database.repositories import (
     admins,
@@ -89,8 +88,8 @@ async def test_admins_repository_is_idempotent_and_facade_excludes_supervisor(
     assert await admins.add_admin(test_db.connection, USER_ID) is False
     assert await test_db.get_admin_ids() == {USER_ID}
 
-    assert await test_db.add_admin(config.SUPERVISOR_ID) is False
-    assert await test_db.remove_admin(config.SUPERVISOR_ID) is False
+    assert await test_db.add_admin(test_db.settings.SUPERVISOR_ID) is False
+    assert await test_db.remove_admin(test_db.settings.SUPERVISOR_ID) is False
     assert await test_db.get_admin_ids() == {USER_ID}
 
     assert await admins.remove_admin(test_db.connection, USER_ID) is True
@@ -238,7 +237,10 @@ async def test_facade_system_prompt_methods_preserve_default_behavior(
     test_db: Database,
 ) -> None:
     """Facade system prompt methods preserve default behavior."""
-    assert await test_db.get_system_prompt(USER_ID) == config.DEFAULT_SYSTEM_PROMPT
+    assert (
+        await test_db.get_system_prompt(USER_ID)
+        == test_db.settings.DEFAULT_SYSTEM_PROMPT
+    )
     await test_db.set_system_prompt(USER_ID, "Новый промпт")
     assert await test_db.get_user_system_prompt(USER_ID) == "Новый промпт"
 

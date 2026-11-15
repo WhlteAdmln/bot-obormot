@@ -5,12 +5,13 @@
 
 import asyncio
 from collections.abc import AsyncIterator
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 import pytest_asyncio
 
-from bot.config import config
+from bot.config.settings import get_settings
 from bot.errors import DatabaseError
 from bot.services.database import Database
 
@@ -23,36 +24,20 @@ SUPERVISOR_ID = 999999999
 
 @pytest_asyncio.fixture
 async def test_db(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
 ) -> AsyncIterator[Database]:
     """Создаёт отдельную временную базу для тестов."""
     database_path = tmp_path / "test_database.db"
 
-    monkeypatch.setattr(
-        config,
-        "DATABASE_PATH",
-        str(database_path),
+    settings = replace(
+        get_settings(),
+        DATABASE_PATH=str(database_path),
+        SUPERVISOR_ID=SUPERVISOR_ID,
+        ADMIN_IDS=set(),
+        DEFAULT_SYSTEM_PROMPT="Тестовый стандартный промпт",
     )
 
-    monkeypatch.setattr(
-        config,
-        "SUPERVISOR_ID",
-        SUPERVISOR_ID,
-    )
-
-    monkeypatch.setattr(
-        config,
-        "ADMIN_IDS",
-        set(),
-    )
-
-    monkeypatch.setattr(
-        config,
-        "DEFAULT_SYSTEM_PROMPT",
-        "Тестовый стандартный промпт",
-    )
-
-    database = Database()
+    database = Database(settings)
 
     await database.connect()
 

@@ -3,11 +3,10 @@
 
 """Tests for database package."""
 
+from dataclasses import replace
 from pathlib import Path
 
-import pytest
-
-from bot.config import config
+from bot.config.settings import get_settings
 from bot.services.database import (
     MAX_HISTORY_IMAGES,
     Database,
@@ -45,26 +44,26 @@ def test_database_package_reexports_same_facade_objects() -> None:
     assert callable(read_image_as_base64)
 
 
-def test_database_images_dir_uses_config_at_instance_creation(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_database_images_dir_uses_injected_settings_at_instance_creation(
+    tmp_path: Path,
 ) -> None:
-    """Database images dir uses config at instance creation."""
+    """Database images dir uses injected settings at instance creation."""
     database_path = tmp_path / "custom" / "history.db"
-    monkeypatch.setattr(config, "DATABASE_PATH", str(database_path))
+    settings = replace(get_settings(), DATABASE_PATH=str(database_path))
 
-    database = Database()
+    database = Database(settings)
 
     assert database.images_dir == database_path.resolve().parent / "images"
 
 
 def test_database_instance_does_not_create_files_before_connect(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
 ) -> None:
     """Database instance does not create files before connect."""
     database_path = tmp_path / "not-created" / "history.db"
-    monkeypatch.setattr(config, "DATABASE_PATH", str(database_path))
+    settings = replace(get_settings(), DATABASE_PATH=str(database_path))
 
-    Database()
+    Database(settings)
 
     assert not database_path.parent.exists()
 

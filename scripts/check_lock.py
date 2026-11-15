@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Check that every direct runtime requirement is pinned compatibly in the lock."""
 
 from __future__ import annotations
@@ -116,6 +119,7 @@ def check_lock(requirements_path: Path, lock_path: Path) -> list[str]:
 
 
 def main() -> int:
+    """Run the lock consistency check and return the process exit code."""
     root = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--requirements", type=Path, default=root / "requirements.txt")
@@ -125,10 +129,10 @@ def main() -> int:
     errors = check_lock(args.requirements, args.lock)
     if errors:
         for error in errors:
-            print(f"ERROR: {error}", file=sys.stderr)
+            sys.stderr.write(f"ERROR: {error}\n")
         return 1
 
-    print(f"Lock is consistent: {args.requirements} -> {args.lock}")
+    sys.stdout.write(f"Lock is consistent: {args.requirements} -> {args.lock}\n")
     return 0
 
 

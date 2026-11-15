@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Константы для расчёта доступного контекста LLM."""
 
 CONTEXT_SAFETY_MARGIN = 512

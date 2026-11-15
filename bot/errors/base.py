@@ -1,3 +1,9 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Base exception types shared by all bot services."""
+
+
 class BotServiceError(Exception):
     """Базовая ошибка внутренних сервисов бота."""
 

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Форматирование сообщений для Telegram."""
 
 from bot.services.chat.formatting.roleplay import format_roleplay

@@ -1,10 +1,22 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Общая конфигурация тестовой среды.
 
 Переменные задаются до импорта bot.*: конфигурация приложения читается
 непосредственно во время импорта модулей.
 """
 
+import importlib
 import os
+from collections.abc import AsyncIterator
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+import pytest
+
+if TYPE_CHECKING:
+    from bot.services.database import Database
 
 _TEST_ENV = {
     "BOT_TOKEN": "123456789:TEST_TOKEN_NOT_VALID",
@@ -42,15 +54,17 @@ import pytest_asyncio  # noqa: E402
 
 
 @pytest_asyncio.fixture
-async def test_db(tmp_path, monkeypatch):
+async def test_db(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> AsyncIterator["Database"]:
     """Создаёт изолированную SQLite-базу для тестов репозиториев.
 
     Фикстура расположена в conftest.py, чтобы быть доступной всем
     тестовым модулям, а не только test_database.py.
     """
     # Импорты выполняются после настройки тестовых переменных выше.
-    from bot.config import config
-    from bot.services.database import Database
+    config = importlib.import_module("bot.config").config
+    database_class = importlib.import_module("bot.services.database").Database
 
     monkeypatch.setattr(
         config,
@@ -61,7 +75,7 @@ async def test_db(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "ADMIN_IDS", set())
     monkeypatch.setattr(config, "DEFAULT_SYSTEM_PROMPT", "Тестовый промпт")
 
-    database = Database()
+    database = database_class()
     await database.connect()
 
     try:

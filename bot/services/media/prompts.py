@@ -1,9 +1,13 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Default text prompts for media messages."""
+
 from aiogram.types import Message
 
 
-def get_media_prompt(message: Message, media_type: str) -> str:
+def get_media_prompt(message: Message, media_type: str | None) -> str:
     """Формирует текстовую часть мультимодального запроса."""
-
     if message.caption:
         return message.caption
 

@@ -1,3 +1,8 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Chat pipeline: context fitting, LLM streaming and saving the exchange."""
+
 import logging
 from collections.abc import Awaitable, Callable
 
@@ -17,14 +22,14 @@ async def process_chat(
     media: list[bytes] | None = None,
     on_update: Callable[[str], Awaitable[None]] | None = None,
 ) -> str:
-    """
+    """Builds the context, streams the LLM reply and saves the full exchange.
+
     Формирует контекст с учётом лимита токенов,
     получает ответ от LLM и сохраняет полный обмен в БД.
 
     on_update — необязательный callback для передачи
     накопленного текста во время генерации.
     """
-
     system_prompt = await db.get_system_prompt(user_id)
 
     # Получаем индивидуальный лимит пользователя.
@@ -55,7 +60,8 @@ async def process_chat(
     response = "".join(response_parts).strip()
 
     if not response:
-        raise RuntimeError("LLM вернула пустой ответ.")
+        msg = "LLM вернула пустой ответ."
+        raise RuntimeError(msg)
 
     await db.add_exchange(
         user_id,

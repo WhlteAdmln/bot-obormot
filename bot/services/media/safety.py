@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Проверки размеров изображений до их декодирования."""
 
 import warnings
@@ -13,7 +16,8 @@ def check_image_size(image: Image.Image, max_pixels: int) -> None:
     width, height = image.size
 
     if width <= 0 or height <= 0 or width * height > max_pixels:
-        raise MediaError("Изображение слишком большое по размеру.")
+        msg = "Изображение слишком большое по размеру."
+        raise MediaError(msg)
 
 
 def configure_pillow_limits() -> None:

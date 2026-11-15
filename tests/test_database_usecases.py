@@ -1,18 +1,28 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Tests for database usecases."""
+
 import logging
 import os
 import time
 import uuid
+from pathlib import Path
 
 import pytest
 
 from bot.errors import DatabaseError
+from bot.services.database import Database
 from bot.services.database.usecases import cleanup as cleanup_usecase
 
 USER_ID = 616161
 
 
 @pytest.mark.asyncio
-async def test_add_exchange_rolls_back_database_and_removes_saved_images(test_db):
+async def test_add_exchange_rolls_back_database_and_removes_saved_images(
+    test_db: Database,
+) -> None:
+    """Add exchange rolls back database and removes saved images."""
     await test_db.connection.execute(
         """
         CREATE TRIGGER reject_assistant_message
@@ -49,7 +59,10 @@ async def test_add_exchange_rolls_back_database_and_removes_saved_images(test_db
 
 
 @pytest.mark.asyncio
-async def test_cleanup_usecase_removes_only_expired_orphan_images(test_db):
+async def test_cleanup_usecase_removes_only_expired_orphan_images(
+    test_db: Database,
+) -> None:
+    """Cleanup usecase removes only expired orphan images."""
     expired_orphan = test_db.images_dir / f"{uuid.uuid4().hex}.jpg"
     recent_orphan = test_db.images_dir / f"{uuid.uuid4().hex}.jpg"
     non_managed_file = test_db.images_dir / "readme.txt"
@@ -74,7 +87,10 @@ async def test_cleanup_usecase_removes_only_expired_orphan_images(test_db):
 
 
 @pytest.mark.asyncio
-async def test_cleanup_usecase_rejects_invalid_retention_values(test_db):
+async def test_cleanup_usecase_rejects_invalid_retention_values(
+    test_db: Database,
+) -> None:
+    """Cleanup usecase rejects invalid retention values."""
     with pytest.raises(ValueError, match="retention_days"):
         await cleanup_usecase.cleanup_old_images(
             test_db.connection,
@@ -95,7 +111,10 @@ async def test_cleanup_usecase_rejects_invalid_retention_values(test_db):
 
 
 @pytest.mark.asyncio
-async def test_cleanup_skips_old_image_outside_managed_directory(test_db, tmp_path):
+async def test_cleanup_skips_old_image_outside_managed_directory(
+    test_db: Database, tmp_path: Path
+) -> None:
+    """Cleanup skips old image outside managed directory."""
     external_image = tmp_path.parent / "external-old-image.jpg"
     external_image.write_bytes(b"do-not-delete")
     cursor = await test_db.connection.execute(

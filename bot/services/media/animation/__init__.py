@@ -1,9 +1,13 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Извлечение кадров из анимаций и видео."""
 
 import logging
 
 from bot.errors import MediaError
 from bot.services.media.animation import concurrency as _concurrency
+from bot.services.media.animation.concurrency import _animation_semaphore
 from bot.services.media.animation.dispatcher import dispatch_extraction
 from bot.services.media.animation.gif import extract_gif
 from bot.services.media.animation.jpeg import image_to_bytes
@@ -19,7 +23,6 @@ from bot.services.media.animation.tgs import extract_tgs
 from bot.services.media.animation.video import extract_video
 
 logger = logging.getLogger("bot.services.media.animation")
-_animation_semaphore = _concurrency._animation_semaphore
 
 # Сохраняем прежние внутренние имена на старом пути импорта.
 _image_to_bytes = image_to_bytes
@@ -30,7 +33,6 @@ _extract_webm = extract_video
 
 def _extract_frames(data: bytes, media_type: str) -> list[bytes]:
     """Совместимый диспетчер, сохраняющий прежние точки подмены декодеров."""
-
     return dispatch_extraction(
         data,
         media_type,
@@ -57,7 +59,6 @@ async def extract_animation_frames(
     media_type: str,
 ) -> list[bytes]:
     """Извлекает кадры и преобразует ошибки обработки в MediaError."""
-
     try:
         return await _extract_with_limit(data, media_type)
 
@@ -69,7 +70,8 @@ async def extract_animation_frames(
             "Failed to extract animation frames: format=%s",
             media_type,
         )
-        raise MediaError(f"Failed to process {media_type} animation") from error
+        msg = f"Failed to process {media_type} animation"
+        raise MediaError(msg) from error
 
 
 __all__ = [

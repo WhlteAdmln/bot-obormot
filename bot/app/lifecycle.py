@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Запуск ресурсов приложения, polling и корректное завершение."""
 
 import asyncio
@@ -14,7 +17,7 @@ logger = logging.getLogger("bot.main")
 
 async def run_application(bot: Bot, dispatcher: Dispatcher) -> None:
     """Подключает ресурсы, запускает polling и закрывает их в обратном порядке."""
-    image_cleanup_task: asyncio.Task | None = None
+    image_cleanup_task: asyncio.Task[None] | None = None
 
     try:
         # Порядок старта является частью контракта приложения.

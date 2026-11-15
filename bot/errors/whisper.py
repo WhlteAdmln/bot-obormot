@@ -1,3 +1,8 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Exceptions raised while transcribing audio."""
+
 from bot.errors.base import BotServiceError
 
 

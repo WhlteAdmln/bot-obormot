@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Публичный API LLM-сервиса с сохранением прежних импортов."""
 
 from bot.services.llm.client import LLMClient, llm_client

@@ -1,7 +1,14 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Validation of the Document Engine response structure."""
+
+from typing import Any
+
 from bot.errors import DocumentAPIError
 
 
-def validate_document_response(result: object) -> dict:
+def validate_document_response(result: object) -> dict[str, Any]:
     """Проверяет структуру ответа Document Engine без преобразования данных."""
     if not isinstance(result, dict):
         raise DocumentAPIError(

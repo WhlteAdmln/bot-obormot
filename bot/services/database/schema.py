@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Создание таблиц и индексов SQLite."""
 
 import aiosqlite
@@ -5,7 +8,6 @@ import aiosqlite
 
 async def create_schema(connection: aiosqlite.Connection) -> None:
     """Создаёт структуру БД, если она ещё не существует."""
-
     await connection.execute("""
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

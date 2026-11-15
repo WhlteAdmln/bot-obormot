@@ -1,6 +1,14 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Tests for audio documents."""
+
+import importlib
 import json
 import logging
+from collections.abc import AsyncIterator
 from types import SimpleNamespace
+from typing import Self
 
 import aiohttp
 import pytest
@@ -28,20 +36,26 @@ from bot.services.http_limits import read_limited_body
 
 
 class FakeContent:
-    def __init__(self, body: bytes):
+    """Fake content."""
+
+    def __init__(self, body: bytes) -> None:
+        """Initializes the test double."""
         self._body = body
 
-    async def iter_chunked(self, size):
+    async def iter_chunked(self, size: object) -> AsyncIterator[bytes]:
+        """Iter chunked."""
         for start in range(0, len(self._body), size):
             yield self._body[start : start + size]
 
 
-def json_body(payload) -> bytes:
+def json_body(payload: object) -> bytes:
+    """Json body."""
     return json.dumps(payload).encode("utf-8")
 
 
 @pytest.mark.asyncio
-async def test_read_limited_body_rejects_declared_and_streamed_oversize():
+async def test_read_limited_body_rejects_declared_and_streamed_oversize() -> None:
+    """Read limited body rejects declared and streamed oversize."""
     declared_oversize = SimpleNamespace(
         content_length=11,
         content=FakeContent(b"ignored"),
@@ -61,13 +75,15 @@ async def test_read_limited_body_rejects_declared_and_streamed_oversize():
     assert await read_limited_body(within_limit, 10) == b"1234567890"
 
 
-def make_message(**values):
+def make_message(**values: object) -> SimpleNamespace:
+    """Make message."""
     defaults = {"voice": None, "audio": None, "video_note": None}
     defaults.update(values)
     return SimpleNamespace(**defaults)
 
 
-def test_get_audio_info_preserves_voice_audio_and_video_note_names():
+def test_get_audio_info_preserves_voice_audio_and_video_note_names() -> None:
+    """Get audio info preserves voice audio and video note names."""
     assert get_audio_info(make_message(voice=SimpleNamespace(file_id="voice-id"))) == (
         "voice-id",
         "voice.ogg",
@@ -84,14 +100,16 @@ def test_get_audio_info_preserves_voice_audio_and_video_note_names():
     assert get_audio_info(make_message()) == (None, None)
 
 
-def test_validate_audio_duration_keeps_five_minute_boundary():
+def test_validate_audio_duration_keeps_five_minute_boundary() -> None:
+    """Validate audio duration keeps five minute boundary."""
     assert MAX_AUDIO_DURATION == 300
     validate_audio_duration(make_message(voice=SimpleNamespace(duration=300)))
     with pytest.raises(MediaError, match="Аудиофайл слишком длинный"):
         validate_audio_duration(make_message(voice=SimpleNamespace(duration=301)))
 
 
-def test_validate_audio_duration_checks_audio_and_video_note():
+def test_validate_audio_duration_checks_audio_and_video_note() -> None:
+    """Validate audio duration checks audio and video note."""
     with pytest.raises(MediaError):
         validate_audio_duration(make_message(audio=SimpleNamespace(duration=301)))
     with pytest.raises(MediaError):
@@ -99,41 +117,47 @@ def test_validate_audio_duration_checks_audio_and_video_note():
 
 
 @pytest.mark.asyncio
-async def test_transcribe_audio_rejects_missing_whisper_url(monkeypatch):
+async def test_transcribe_audio_rejects_missing_whisper_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Transcribe audio rejects missing whisper url."""
     monkeypatch.setattr(config, "WHISPER_API_URL", "")
     with pytest.raises(WhisperUnavailableError, match="not configured"):
         await transcribe_audio(b"audio")
 
 
 @pytest.mark.asyncio
-async def test_transcribe_audio_posts_multipart_and_strips_result(monkeypatch, caplog):
+async def test_transcribe_audio_posts_multipart_and_strips_result(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Transcribe audio posts multipart and strips result."""
     calls = {}
 
     class Response:
         status = 200
         content_length = None
 
-        def __init__(self):
+        def __init__(self) -> None:
             self.content = FakeContent(json_body({"text": "  распознанный текст  "}))
 
-        async def __aenter__(self):
+        async def __aenter__(self) -> Self:
             return self
 
-        async def __aexit__(self, *args):
+        async def __aexit__(self, *_args: object) -> bool:
             return False
 
     class Session:
-        def __init__(self, timeout, headers=None):
+        def __init__(self, timeout: object, headers: object | None = None) -> None:
             calls["timeout"] = timeout
             calls["headers"] = headers
 
-        async def __aenter__(self):
+        async def __aenter__(self) -> Self:
             return self
 
-        async def __aexit__(self, *args):
+        async def __aexit__(self, *_args: object) -> bool:
             return False
 
-        def post(self, url, data):
+        def post(self, url: str, data: object) -> Response:
             calls.update(url=url, data=data)
             return Response()
 
@@ -162,11 +186,15 @@ async def test_transcribe_audio_posts_multipart_and_strips_result(monkeypatch, c
     assert isinstance(calls["data"], aiohttp.FormData)
     multipart_filename = calls["data"]._fields[0][0]["filename"]
     assert multipart_filename == r"voice\nERROR forged.ogg"
-    assert "\r" not in multipart_filename and "\n" not in multipart_filename
+    assert "\r" not in multipart_filename
+    assert "\n" not in multipart_filename
 
 
 @pytest.mark.asyncio
-async def test_transcribe_audio_sends_bearer_api_key(monkeypatch):
+async def test_transcribe_audio_sends_bearer_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Transcribe audio sends bearer api key."""
     calls = {}
 
     class Response:
@@ -174,23 +202,24 @@ async def test_transcribe_audio_sends_bearer_api_key(monkeypatch):
         content_length = None
         content = FakeContent(json_body({"text": "recognized"}))
 
-        async def __aenter__(self):
+        async def __aenter__(self) -> Self:
             return self
 
-        async def __aexit__(self, *args):
+        async def __aexit__(self, *_args: object) -> bool:
             return False
 
     class Session:
-        def __init__(self, timeout, headers=None):
+        def __init__(self, timeout: object, headers: object | None = None) -> None:
+            self.timeout = timeout
             calls["headers"] = headers
 
-        async def __aenter__(self):
+        async def __aenter__(self) -> Self:
             return self
 
-        async def __aexit__(self, *args):
+        async def __aexit__(self, *_args: object) -> bool:
             return False
 
-        def post(self, *args, **kwargs):
+        def post(self, *_args: object, **_kwargs: object) -> Response:
             return Response()
 
     monkeypatch.setattr(config, "WHISPER_API_URL", "http://whisper.test")
@@ -202,8 +231,11 @@ async def test_transcribe_audio_sends_bearer_api_key(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_transcribe_audio_rejects_oversized_response(monkeypatch):
-    import bot.services.audio.client as audio_client
+async def test_transcribe_audio_rejects_oversized_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Transcribe audio rejects oversized response."""
+    audio_client = importlib.import_module("bot.services.audio.client")
 
     monkeypatch.setattr(config, "WHISPER_API_URL", "http://whisper.test")
     monkeypatch.setattr(audio_client, "MAX_SERVICE_RESPONSE_BYTES", 10)
@@ -213,62 +245,65 @@ async def test_transcribe_audio_rejects_oversized_response(monkeypatch):
         content_length = None
         content = FakeContent(json_body({"text": "response is too long"}))
 
-        async def __aenter__(self):
+        async def __aenter__(self) -> Self:
             return self
 
-        async def __aexit__(self, *args):
+        async def __aexit__(self, *_args: object) -> bool:
             return False
 
     class Session:
-        async def __aenter__(self):
+        async def __aenter__(self) -> Self:
             return self
 
-        async def __aexit__(self, *args):
+        async def __aexit__(self, *_args: object) -> bool:
             return False
 
-        def post(self, *args, **kwargs):
+        def post(self, *_args: object, **_kwargs: object) -> Response:
             return Response()
 
-    monkeypatch.setattr(aiohttp, "ClientSession", lambda **kwargs: Session())
+    monkeypatch.setattr(aiohttp, "ClientSession", lambda **_kwargs: Session())
 
     with pytest.raises(WhisperAPIError, match="response is too large"):
         await transcribe_audio(b"audio")
 
 
 @pytest.mark.asyncio
-async def test_transcribe_audio_preserves_api_empty_and_timeout_errors(monkeypatch):
+async def test_transcribe_audio_preserves_api_empty_and_timeout_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Transcribe audio preserves api empty and timeout errors."""
     monkeypatch.setattr(config, "WHISPER_API_URL", "http://whisper.test")
 
     class Response:
         content_length = None
 
-        def __init__(self, status=200, body=b'{"text": ""}'):
+        def __init__(self, status: int = 200, body: bytes = b'{"text": ""}') -> None:
             self.status = status
             self.content = FakeContent(body)
 
-        async def __aenter__(self):
+        async def __aenter__(self) -> Self:
             return self
 
-        async def __aexit__(self, *args):
+        async def __aexit__(self, *_args: object) -> bool:
             return False
 
     class Session:
-        def __init__(self, response):
+        def __init__(self, response: object) -> None:
             self.response = response
 
-        async def __aenter__(self):
+        async def __aenter__(self) -> Self:
             return self
 
-        async def __aexit__(self, *args):
+        async def __aexit__(self, *_args: object) -> bool:
             return False
 
-        def post(self, *args, **kwargs):
+        def post(self, *_args: object, **_kwargs: object) -> object:
             return self.response
 
     monkeypatch.setattr(
         aiohttp,
         "ClientSession",
-        lambda **kwargs: Session(Response(503, b"backend unavailable")),
+        lambda **_kwargs: Session(Response(503, b"backend unavailable")),
     )
     with pytest.raises(WhisperAPIError, match="Whisper HTTP 503"):
         await transcribe_audio(b"audio")
@@ -276,12 +311,12 @@ async def test_transcribe_audio_preserves_api_empty_and_timeout_errors(monkeypat
     monkeypatch.setattr(
         aiohttp,
         "ClientSession",
-        lambda **kwargs: Session(Response(body=json_body({"text": "  "}))),
+        lambda **_kwargs: Session(Response(body=json_body({"text": "  "}))),
     )
     with pytest.raises(WhisperEmptyAudioError):
         await transcribe_audio(b"audio")
 
-    def timeout_session(**kwargs):
+    def timeout_session(**_kwargs: object) -> None:
         raise TimeoutError
 
     monkeypatch.setattr(aiohttp, "ClientSession", timeout_session)
@@ -289,7 +324,8 @@ async def test_transcribe_audio_preserves_api_empty_and_timeout_errors(monkeypat
         await transcribe_audio(b"audio")
 
 
-def test_validate_document_response_accepts_valid_payload_without_copying():
+def test_validate_document_response_accepts_valid_payload_without_copying() -> None:
+    """Validate document response accepts valid payload without copying."""
     payload = {
         "text": "Текст",
         "format": "pdf",
@@ -299,7 +335,8 @@ def test_validate_document_response_accepts_valid_payload_without_copying():
     assert validate_document_response(payload) is payload
 
 
-def test_validate_document_response_rejects_non_boolean_truncated_flag():
+def test_validate_document_response_rejects_non_boolean_truncated_flag() -> None:
+    """Validate document response rejects non boolean truncated flag."""
     payload = {
         "text": "Текст",
         "format": "pdf",
@@ -319,23 +356,27 @@ def test_validate_document_response_rejects_non_boolean_truncated_flag():
         ({"text": "x", "format": "pdf"}, "invalid character count"),
     ],
 )
-def test_validate_document_response_rejects_invalid_payloads(payload, detail):
+def test_validate_document_response_rejects_invalid_payloads(
+    payload: object, detail: str
+) -> None:
+    """Validate document response rejects invalid payloads."""
     with pytest.raises(DocumentAPIError, match=detail):
         validate_document_response(payload)
 
 
 @pytest.mark.asyncio
 async def test_process_document_preserves_filename_sanitization_and_response(
-    monkeypatch,
-    caplog,
-):
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Process document preserves filename sanitization and response."""
     calls = {}
 
     class Response:
         status = 200
         content_length = None
 
-        def __init__(self):
+        def __init__(self) -> None:
             self.content = FakeContent(
                 json_body(
                     {
@@ -347,24 +388,24 @@ async def test_process_document_preserves_filename_sanitization_and_response(
                 )
             )
 
-        async def __aenter__(self):
+        async def __aenter__(self) -> Self:
             return self
 
-        async def __aexit__(self, *args):
+        async def __aexit__(self, *_args: object) -> bool:
             return False
 
     class Session:
-        def __init__(self, timeout, headers=None):
+        def __init__(self, timeout: object, headers: object | None = None) -> None:
             calls["timeout"] = timeout
             calls["headers"] = headers
 
-        async def __aenter__(self):
+        async def __aenter__(self) -> Self:
             return self
 
-        async def __aexit__(self, *args):
+        async def __aexit__(self, *_args: object) -> bool:
             return False
 
-        def post(self, url, data):
+        def post(self, url: str, data: object) -> Response:
             calls["url"] = url
             calls["data"] = data
             return Response()
@@ -394,14 +435,18 @@ async def test_process_document_preserves_filename_sanitization_and_response(
     assert isinstance(calls["data"], aiohttp.FormData)
     multipart_filename = calls["data"]._fields[0][0]["filename"]
     assert multipart_filename == r"report\nERROR forged.pdf"
-    assert "\r" not in multipart_filename and "\n" not in multipart_filename
+    assert "\r" not in multipart_filename
+    assert "\n" not in multipart_filename
 
     form_fields = {field[0].get("name"): field[2] for field in calls["data"]._fields}
     assert form_fields["max_characters"] == str(MAX_DOCUMENT_TEXT_LENGTH)
 
 
 @pytest.mark.asyncio
-async def test_process_document_sends_bearer_api_key(monkeypatch):
+async def test_process_document_sends_bearer_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Process document sends bearer api key."""
     calls = {}
 
     class Response:
@@ -411,23 +456,24 @@ async def test_process_document_sends_bearer_api_key(monkeypatch):
             json_body({"text": "Text", "format": "pdf", "characters": 4})
         )
 
-        async def __aenter__(self):
+        async def __aenter__(self) -> Self:
             return self
 
-        async def __aexit__(self, *args):
+        async def __aexit__(self, *_args: object) -> bool:
             return False
 
     class Session:
-        def __init__(self, timeout, headers=None):
+        def __init__(self, timeout: object, headers: object | None = None) -> None:
+            self.timeout = timeout
             calls["headers"] = headers
 
-        async def __aenter__(self):
+        async def __aenter__(self) -> Self:
             return self
 
-        async def __aexit__(self, *args):
+        async def __aexit__(self, *_args: object) -> bool:
             return False
 
-        def post(self, *args, **kwargs):
+        def post(self, *_args: object, **_kwargs: object) -> Response:
             return Response()
 
     monkeypatch.setattr(config, "DOCUMENT_API_URL", "http://documents.test")
@@ -439,8 +485,11 @@ async def test_process_document_sends_bearer_api_key(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_process_document_rejects_oversized_response(monkeypatch):
-    import bot.services.documents.client as documents_client
+async def test_process_document_rejects_oversized_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Process document rejects oversized response."""
+    documents_client = importlib.import_module("bot.services.documents.client")
 
     monkeypatch.setattr(config, "DOCUMENT_API_URL", "http://documents.test")
     monkeypatch.setattr(documents_client, "MAX_SERVICE_RESPONSE_BYTES", 10)
@@ -458,23 +507,23 @@ async def test_process_document_rejects_oversized_response(monkeypatch):
             )
         )
 
-        async def __aenter__(self):
+        async def __aenter__(self) -> Self:
             return self
 
-        async def __aexit__(self, *args):
+        async def __aexit__(self, *_args: object) -> bool:
             return False
 
     class Session:
-        async def __aenter__(self):
+        async def __aenter__(self) -> Self:
             return self
 
-        async def __aexit__(self, *args):
+        async def __aexit__(self, *_args: object) -> bool:
             return False
 
-        def post(self, *args, **kwargs):
+        def post(self, *_args: object, **_kwargs: object) -> Response:
             return Response()
 
-    monkeypatch.setattr(aiohttp, "ClientSession", lambda **kwargs: Session())
+    monkeypatch.setattr(aiohttp, "ClientSession", lambda **_kwargs: Session())
 
     with pytest.raises(DocumentAPIError) as error:
         await process_document(b"document", "file.pdf")
@@ -485,8 +534,9 @@ async def test_process_document_rejects_oversized_response(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_process_document_rejects_missing_url_and_preserves_http_status(
-    monkeypatch,
-):
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Process document rejects missing url and preserves http status."""
     monkeypatch.setattr(config, "DOCUMENT_API_URL", "")
     with pytest.raises(DocumentUnavailableError, match="not configured"):
         await process_document(b"data", "file.pdf")
@@ -497,26 +547,26 @@ async def test_process_document_rejects_missing_url_and_preserves_http_status(
         status = 415
         content_length = None
 
-        def __init__(self):
+        def __init__(self) -> None:
             self.content = FakeContent(b"unsupported file type")
 
-        async def __aenter__(self):
+        async def __aenter__(self) -> Self:
             return self
 
-        async def __aexit__(self, *args):
+        async def __aexit__(self, *_args: object) -> bool:
             return False
 
     class Session:
-        async def __aenter__(self):
+        async def __aenter__(self) -> Self:
             return self
 
-        async def __aexit__(self, *args):
+        async def __aexit__(self, *_args: object) -> bool:
             return False
 
-        def post(self, *args, **kwargs):
+        def post(self, *_args: object, **_kwargs: object) -> Response:
             return Response()
 
-    monkeypatch.setattr(aiohttp, "ClientSession", lambda **kwargs: Session())
+    monkeypatch.setattr(aiohttp, "ClientSession", lambda **_kwargs: Session())
     with pytest.raises(DocumentAPIError) as error:
         await process_document(b"data", "file.pdf")
     assert error.value.status == 415
@@ -524,20 +574,24 @@ async def test_process_document_rejects_missing_url_and_preserves_http_status(
 
 
 @pytest.mark.asyncio
-async def test_process_document_maps_timeout_and_connection_errors(monkeypatch):
+async def test_process_document_maps_timeout_and_connection_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Process document maps timeout and connection errors."""
     monkeypatch.setattr(config, "DOCUMENT_API_URL", "http://documents.test")
 
-    def timeout_session(**kwargs):
+    def timeout_session(**_kwargs: object) -> None:
         raise TimeoutError
 
     monkeypatch.setattr(aiohttp, "ClientSession", timeout_session)
-    from bot.errors import DocumentTimeoutError
+    document_timeout_error = importlib.import_module("bot.errors").DocumentTimeoutError
 
-    with pytest.raises(DocumentTimeoutError, match="timed out"):
+    with pytest.raises(document_timeout_error, match="timed out"):
         await process_document(b"data", "file.pdf")
 
-    def failed_session(**kwargs):
-        raise aiohttp.ClientConnectionError("connection refused")
+    def failed_session(**_kwargs: object) -> None:
+        msg = "connection refused"
+        raise aiohttp.ClientConnectionError(msg)
 
     monkeypatch.setattr(aiohttp, "ClientSession", failed_session)
     with pytest.raises(DocumentUnavailableError, match="connection error"):

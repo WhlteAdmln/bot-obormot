@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Ограничения обработки изображений Telegram."""
 
 MAX_IMAGE_DIMENSION = 1536

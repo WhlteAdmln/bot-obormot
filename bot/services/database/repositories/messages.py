@@ -1,4 +1,10 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Репозиторий сообщений и выборок истории."""
+
+import sqlite3
+from collections.abc import Iterable
 
 import aiosqlite
 
@@ -27,7 +33,7 @@ async def fetch_history_rows(
     user_id: int,
     exchange_limit: int,
     max_images: int,
-):
+) -> Iterable[sqlite3.Row]:
     """Возвращает строки полных обменов и связанные изображения."""
     cursor = await connection.execute(
         HISTORY_WITH_MEDIA,
@@ -39,7 +45,7 @@ async def fetch_history_rows(
 async def fetch_user_media_paths(
     connection: aiosqlite.Connection,
     user_id: int,
-):
+) -> Iterable[sqlite3.Row]:
     """Возвращает пути изображений, связанных с сообщениями пользователя."""
     cursor = await connection.execute(
         """
@@ -71,26 +77,32 @@ async def prune_user_history(
     keep_last_messages: int,
 ) -> list[str]:
     """Удаляет самые старые сообщения пользователя. Возвращает пути их картинок."""
-    keep_ids = """
-        SELECT id FROM messages
-        WHERE user_id = ?
-        ORDER BY id DESC
-        LIMIT ?
-    """
-
     cursor = await connection.execute(
-        f"""
+        """
         SELECT mm.file_path
         FROM message_media AS mm
         JOIN messages AS m ON m.id = mm.message_id
-        WHERE m.user_id = ? AND m.id NOT IN ({keep_ids})
+        WHERE m.user_id = ? AND m.id NOT IN (
+            SELECT id FROM messages
+            WHERE user_id = ?
+            ORDER BY id DESC
+            LIMIT ?
+        )
         """,
         (user_id, user_id, keep_last_messages),
     )
     paths = [row["file_path"] for row in await cursor.fetchall() if row["file_path"]]
 
     await connection.execute(
-        f"DELETE FROM messages WHERE user_id = ? AND id NOT IN ({keep_ids})",
+        """
+        DELETE FROM messages
+        WHERE user_id = ? AND id NOT IN (
+            SELECT id FROM messages
+            WHERE user_id = ?
+            ORDER BY id DESC
+            LIMIT ?
+        )
+        """,
         (user_id, user_id, keep_last_messages),
     )
     await connection.commit()

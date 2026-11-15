@@ -1,3 +1,8 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Tests for temporary cleanup."""
+
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
@@ -21,30 +26,37 @@ CHAT_ID = 111111111
 class FakeState:
     """Упрощённая имитация FSMContext."""
 
-    def __init__(self, data=None, current_state=None):
+    def __init__(
+        self, data: object | None = None, current_state: object | None = None
+    ) -> None:
+        """Initializes the test double."""
         self.data = dict(data or {})
         self.current_state = current_state
 
-    async def get_data(self):
+    async def get_data(self) -> dict[str, object]:
+        """Get data."""
         return dict(self.data)
 
-    async def update_data(self, **kwargs):
+    async def update_data(self, **kwargs: object) -> None:
+        """Update data."""
         self.data.update(kwargs)
 
-    async def get_state(self):
+    async def get_state(self) -> str | None:
+        """Get state."""
         return self.current_state
 
-    async def set_state(self, state):
+    async def set_state(self, state: object) -> None:
+        """Set state."""
         self.current_state = state.state if state else None
 
-    async def clear(self):
+    async def clear(self) -> None:
+        """Clear."""
         self.data.clear()
         self.current_state = None
 
 
-def make_message(text="Обычное сообщение"):
+def make_message(text: str = "Обычное сообщение") -> Message:
     """Создаёт тестовое сообщение aiogram без обращения к Telegram."""
-
     return Message(
         message_id=100,
         date=datetime.now(UTC),
@@ -62,23 +74,24 @@ def make_message(text="Обычное сообщение"):
 
 
 @pytest.fixture
-def middleware():
+def middleware() -> TemporaryMessagesCleanupMiddleware:
+    """Middleware."""
     return TemporaryMessagesCleanupMiddleware()
 
 
 @pytest.fixture
-def handler():
+def handler() -> AsyncMock:
+    """Handler."""
     return AsyncMock(return_value="handled")
 
 
 @pytest.mark.asyncio
 async def test_delete_status_message(
-    middleware,
-    handler,
-    monkeypatch,
-):
+    middleware: TemporaryMessagesCleanupMiddleware,
+    handler: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Удаляется временное уведомление после следующего сообщения."""
-
     event = make_message()
     state = FakeState({PROMPT_STATUS_MESSAGE_KEY: 500})
 
@@ -103,12 +116,11 @@ async def test_delete_status_message(
 
 @pytest.mark.asyncio
 async def test_delete_welcome_message(
-    middleware,
-    handler,
-    monkeypatch,
-):
+    middleware: TemporaryMessagesCleanupMiddleware,
+    handler: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Удаляется приветствие после следующего сообщения."""
-
     event = make_message()
     state = FakeState({WELCOME_MESSAGE_KEY: 600})
 
@@ -133,12 +145,11 @@ async def test_delete_welcome_message(
 
 @pytest.mark.asyncio
 async def test_delete_status_and_welcome(
-    middleware,
-    handler,
-    monkeypatch,
-):
+    middleware: TemporaryMessagesCleanupMiddleware,
+    handler: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Удаляются оба временных сообщения."""
-
     event = make_message()
     state = FakeState(
         {
@@ -174,12 +185,11 @@ async def test_delete_status_and_welcome(
 
 @pytest.mark.asyncio
 async def test_command_after_status_is_not_deleted(
-    middleware,
-    handler,
-    monkeypatch,
-):
+    middleware: TemporaryMessagesCleanupMiddleware,
+    handler: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Следующая команда не удаляется вместе с временным уведомлением."""
-
     event = make_message("/help")
     state = FakeState({PROMPT_STATUS_MESSAGE_KEY: 500})
 
@@ -211,12 +221,11 @@ async def test_command_after_status_is_not_deleted(
 
 @pytest.mark.asyncio
 async def test_regular_message_is_not_deleted(
-    middleware,
-    handler,
-    monkeypatch,
-):
+    middleware: TemporaryMessagesCleanupMiddleware,
+    handler: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Обычное сообщение не удаляется из-за временного уведомления."""
-
     event = make_message("Привет!")
     state = FakeState({PROMPT_STATUS_MESSAGE_KEY: 500})
 
@@ -243,12 +252,11 @@ async def test_regular_message_is_not_deleted(
 
 @pytest.mark.asyncio
 async def test_messages_are_not_deleted_twice(
-    middleware,
-    handler,
-    monkeypatch,
-):
+    middleware: TemporaryMessagesCleanupMiddleware,
+    handler: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """После очистки ID повторное удаление не выполняется."""
-
     event = make_message()
     state = FakeState(
         {
@@ -279,12 +287,11 @@ async def test_messages_are_not_deleted_twice(
 
 @pytest.mark.asyncio
 async def test_delete_prompt_flow_messages(
-    middleware,
-    handler,
-    monkeypatch,
-):
+    middleware: TemporaryMessagesCleanupMiddleware,
+    handler: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Сообщения просмотра промпта удаляются при следующем сообщении."""
-
     event = make_message("/health")
     state = FakeState(
         {
@@ -317,12 +324,11 @@ async def test_delete_prompt_flow_messages(
 
 @pytest.mark.asyncio
 async def test_prompt_flow_is_preserved_while_waiting_for_prompt(
-    middleware,
-    handler,
-    monkeypatch,
-):
+    middleware: TemporaryMessagesCleanupMiddleware,
+    handler: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Во время ввода промпта сообщения процесса не удаляются."""
-
     event = make_message("Новый системный промпт")
     state = FakeState(
         {PROMPT_FLOW_KEY: [300, 301]},
@@ -345,12 +351,11 @@ async def test_prompt_flow_is_preserved_while_waiting_for_prompt(
 
 @pytest.mark.asyncio
 async def test_delete_unknown_command_and_response(
-    middleware,
-    handler,
-    monkeypatch,
-):
+    middleware: TemporaryMessagesCleanupMiddleware,
+    handler: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Удаляются неизвестная команда и ответ на неё."""
-
     event = make_message("/unknown")
     state = FakeState(
         {
@@ -386,12 +391,11 @@ async def test_delete_unknown_command_and_response(
 
 @pytest.mark.asyncio
 async def test_without_fsm_state(
-    middleware,
-    handler,
-    monkeypatch,
-):
+    middleware: TemporaryMessagesCleanupMiddleware,
+    handler: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """При отсутствии FSM обработчик продолжает работать."""
-
     event = make_message()
 
     delete_mock = AsyncMock()
@@ -410,12 +414,11 @@ async def test_without_fsm_state(
 
 @pytest.mark.asyncio
 async def test_non_message_event(
-    middleware,
-    handler,
-    monkeypatch,
-):
+    middleware: TemporaryMessagesCleanupMiddleware,
+    handler: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """События, не являющиеся Message, передаются дальше."""
-
     event = Update(update_id=1)
 
     delete_mock = AsyncMock()

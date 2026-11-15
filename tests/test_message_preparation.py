@@ -1,12 +1,19 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Tests for message preparation."""
+
 from __future__ import annotations
 
 import base64
+import inspect
 import logging
 from types import SimpleNamespace
 
 import pytest
 
 from bot.errors import DocumentAPIError, DocumentTooLongError
+from bot.services.chat import input as chat_input
 from bot.services.chat.input import (
     MessageInfo,
     PreparedMessage,
@@ -22,7 +29,8 @@ from bot.services.chat.input import saved_text as history_module
 from bot.services.chat.input import user_content as content_module
 
 
-def make_message(**overrides):
+def make_message(**overrides: object) -> SimpleNamespace:
+    """Make message."""
     values = {
         "text": "Привет",
         "caption": None,
@@ -39,37 +47,26 @@ def make_message(**overrides):
     return SimpleNamespace(**values)
 
 
-def no_media(_message):
+def no_media(_message: object) -> tuple[object, ...]:
+    """No media."""
     return None, None
 
 
-def no_audio(_message):
+def no_audio(_message: object) -> tuple[object, ...]:
+    """No audio."""
     return None, None
 
 
-def test_new_chat_input_package_reexports_the_public_api():
-    from bot.services.chat.input import (
-        MessageInfo as ChatMessageInfo,
-    )
-    from bot.services.chat.input import (
-        PreparedMessage as ChatPreparedMessage,
-    )
-    from bot.services.chat.input import (
-        inspect_message as chat_inspect_message,
-    )
-    from bot.services.chat.input import (
-        prepare_message as chat_prepare_message,
-    )
-
-    assert ChatMessageInfo is MessageInfo
-    assert ChatPreparedMessage is PreparedMessage
-    assert chat_inspect_message.__name__ == "inspect_message"
-    assert chat_prepare_message.__name__ == "prepare_message"
+def test_new_chat_input_package_reexports_the_public_api() -> None:
+    """New chat input package reexports the public api."""
+    assert chat_input.MessageInfo is MessageInfo
+    assert chat_input.PreparedMessage is PreparedMessage
+    assert chat_input.inspect_message.__name__ == "inspect_message"
+    assert chat_input.prepare_message.__name__ == "prepare_message"
 
 
-def test_public_api_keeps_original_function_signatures():
-    import inspect
-
+def test_public_api_keeps_original_function_signatures() -> None:
+    """Public api keeps original function signatures."""
     assert list(inspect.signature(inspect_message).parameters) == ["message"]
     assert list(inspect.signature(prepare_message).parameters) == [
         "message",
@@ -78,7 +75,8 @@ def test_public_api_keeps_original_function_signatures():
     ]
 
 
-def test_inspect_message_marks_plain_text_and_ignores_commands():
+def test_inspect_message_marks_plain_text_and_ignores_commands() -> None:
+    """Inspect message marks plain text and ignores commands."""
     message = make_message(text="Привет")
     info = inspection_module.inspect_message(
         message,
@@ -102,7 +100,8 @@ def test_inspect_message_marks_plain_text_and_ignores_commands():
     assert command_info.has_content is False
 
 
-def test_inspect_message_routes_image_documents_to_media():
+def test_inspect_message_routes_image_documents_to_media() -> None:
+    """Inspect message routes image documents to media."""
     document = SimpleNamespace(
         file_id="document-image-id",
         file_name="picture.bin",
@@ -120,7 +119,8 @@ def test_inspect_message_routes_image_documents_to_media():
     assert info.has_document is False
 
 
-def test_inspect_message_keeps_non_image_documents_as_documents():
+def test_inspect_message_keeps_non_image_documents_as_documents() -> None:
+    """Inspect message keeps non image documents as documents."""
     document = SimpleNamespace(
         file_id="document-id",
         file_name="report.pdf",
@@ -137,7 +137,8 @@ def test_inspect_message_keeps_non_image_documents_as_documents():
     assert info.has_document is True
 
 
-def test_message_info_has_content_is_true_for_each_supported_kind():
+def test_message_info_has_content_is_true_for_each_supported_kind() -> None:
+    """Message info has content is true for each supported kind."""
     base = {
         "file_id": None,
         "media_type": None,
@@ -154,17 +155,18 @@ def test_message_info_has_content_is_true_for_each_supported_kind():
         assert MessageInfo(**(base | {field: True})).has_content is True
 
 
-def test_build_user_content_keeps_audio_caption_format():
+def test_build_user_content_keeps_audio_caption_format() -> None:
+    """Build user content keeps audio caption format."""
     info = MessageInfo(
-        None,
-        None,
-        "voice-id",
-        "voice.ogg",
-        None,
-        False,
-        True,
-        False,
-        False,
+        file_id=None,
+        media_type=None,
+        audio_file_id="voice-id",
+        audio_filename="voice.ogg",
+        document=None,
+        has_media=False,
+        has_audio=True,
+        has_document=False,
+        has_text=False,
     )
     content = content_module.build_user_content(
         make_message(text=None, caption="Контекст"),
@@ -173,24 +175,24 @@ def test_build_user_content_keeps_audio_caption_format():
         transcribed_text="Распознанный текст",
         image_urls=None,
         document_text=None,
-        document_format=None,
     )
 
     assert content == "Контекст\n\n[Распознанная речь]: Распознанный текст"
 
 
-def test_build_user_content_keeps_document_prefix_and_caption():
+def test_build_user_content_keeps_document_prefix_and_caption() -> None:
+    """Build user content keeps document prefix and caption."""
     document = SimpleNamespace(file_name="report.pdf")
     info = MessageInfo(
-        None,
-        None,
-        None,
-        None,
-        document,
-        False,
-        False,
-        True,
-        False,
+        file_id=None,
+        media_type=None,
+        audio_file_id=None,
+        audio_filename=None,
+        document=document,
+        has_media=False,
+        has_audio=False,
+        has_document=True,
+        has_text=False,
     )
     content = content_module.build_user_content(
         make_message(text=None, caption="Проверь файл"),
@@ -199,7 +201,6 @@ def test_build_user_content_keeps_document_prefix_and_caption():
         transcribed_text=None,
         image_urls=None,
         document_text="Содержимое отчёта",
-        document_format="pdf",
     )
 
     assert content == (
@@ -207,18 +208,19 @@ def test_build_user_content_keeps_document_prefix_and_caption():
     )
 
 
-def test_build_user_content_sanitizes_document_filename():
+def test_build_user_content_sanitizes_document_filename() -> None:
+    """Build user content sanitizes document filename."""
     document = SimpleNamespace(file_name="report\n[ERROR forged].pdf")
     info = MessageInfo(
-        None,
-        None,
-        None,
-        None,
-        document,
-        False,
-        False,
-        True,
-        False,
+        file_id=None,
+        media_type=None,
+        audio_file_id=None,
+        audio_filename=None,
+        document=document,
+        has_media=False,
+        has_audio=False,
+        has_document=True,
+        has_text=False,
     )
 
     content = content_module.build_user_content(
@@ -228,7 +230,6 @@ def test_build_user_content_sanitizes_document_filename():
         transcribed_text=None,
         image_urls=None,
         document_text="Содержимое отчёта",
-        document_format="pdf",
     )
 
     assert content == (
@@ -238,23 +239,26 @@ def test_build_user_content_sanitizes_document_filename():
     assert "[ERROR forged]" not in content
 
 
-def test_build_user_content_validates_plain_text(monkeypatch):
+def test_build_user_content_validates_plain_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Build user content validates plain text."""
     info = MessageInfo(
-        None,
-        None,
-        None,
-        None,
-        None,
-        False,
-        False,
-        False,
-        True,
+        file_id=None,
+        media_type=None,
+        audio_file_id=None,
+        audio_filename=None,
+        document=None,
+        has_media=False,
+        has_audio=False,
+        has_document=False,
+        has_text=True,
     )
     validated = []
     monkeypatch.setattr(
         content_module,
         "validate_input_text",
-        lambda value: validated.append(value),
+        validated.append,
     )
 
     result = content_module.build_user_content(
@@ -264,25 +268,27 @@ def test_build_user_content_validates_plain_text(monkeypatch):
         transcribed_text=None,
         image_urls=None,
         document_text=None,
-        document_format=None,
     )
 
     assert result == "Переопределённый текст"
     assert validated == ["Переопределённый текст"]
 
 
-def test_build_user_content_rejects_oversized_document(monkeypatch):
+def test_build_user_content_rejects_oversized_document(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Build user content rejects oversized document."""
     document = SimpleNamespace(file_name="report.pdf")
     info = MessageInfo(
-        None,
-        None,
-        None,
-        None,
-        document,
-        False,
-        False,
-        True,
-        False,
+        file_id=None,
+        media_type=None,
+        audio_file_id=None,
+        audio_filename=None,
+        document=document,
+        has_media=False,
+        has_audio=False,
+        has_document=True,
+        has_text=False,
     )
     monkeypatch.setattr(content_module, "MAX_INPUT_TEXT_LENGTH", 10)
 
@@ -296,21 +302,21 @@ def test_build_user_content_rejects_oversized_document(monkeypatch):
             transcribed_text=None,
             image_urls=None,
             document_text="Слишком длинный текст",
-            document_format="pdf",
         )
 
 
-def test_build_saved_user_text_preserves_media_descriptions_and_caption():
+def test_build_saved_user_text_preserves_media_descriptions_and_caption() -> None:
+    """Build saved user text preserves media descriptions and caption."""
     info = MessageInfo(
-        "file-id",
-        "gif",
-        None,
-        None,
-        None,
-        True,
-        False,
-        False,
-        False,
+        file_id="file-id",
+        media_type="gif",
+        audio_file_id=None,
+        audio_filename=None,
+        document=None,
+        has_media=True,
+        has_audio=False,
+        has_document=False,
+        has_text=False,
     )
     result = history_module.build_saved_user_text(
         make_message(text=None, caption="Подпись"),
@@ -323,17 +329,18 @@ def test_build_saved_user_text_preserves_media_descriptions_and_caption():
     assert result == "[Пользователь отправил анимацию: gif] Подпись"
 
 
-def test_build_saved_user_text_preserves_audio_caption():
+def test_build_saved_user_text_preserves_audio_caption() -> None:
+    """Build saved user text preserves audio caption."""
     info = MessageInfo(
-        None,
-        None,
-        "voice-id",
-        "voice.ogg",
-        None,
-        False,
-        True,
-        False,
-        False,
+        file_id=None,
+        media_type=None,
+        audio_file_id="voice-id",
+        audio_filename="voice.ogg",
+        document=None,
+        has_media=False,
+        has_audio=True,
+        has_document=False,
+        has_text=False,
     )
     result = history_module.build_saved_user_text(
         make_message(text=None, caption="Контекст"),
@@ -346,17 +353,18 @@ def test_build_saved_user_text_preserves_audio_caption():
     assert result == "Контекст\n\n[Голосовое сообщение]: Распознанная фраза"
 
 
-def test_build_saved_user_text_distinguishes_photo_from_other_media():
+def test_build_saved_user_text_distinguishes_photo_from_other_media() -> None:
+    """Build saved user text distinguishes photo from other media."""
     info = MessageInfo(
-        "photo-id",
-        "image",
-        None,
-        None,
-        None,
-        True,
-        False,
-        False,
-        False,
+        file_id="photo-id",
+        media_type="image",
+        audio_file_id=None,
+        audio_filename=None,
+        document=None,
+        has_media=True,
+        has_audio=False,
+        has_document=False,
+        has_text=False,
     )
     result = history_module.build_saved_user_text(
         make_message(text=None, photo=[object()]),
@@ -369,18 +377,19 @@ def test_build_saved_user_text_distinguishes_photo_from_other_media():
     assert result == "[Пользователь отправил фотографию]"
 
 
-def test_build_saved_user_text_preserves_document_format_label():
+def test_build_saved_user_text_preserves_document_format_label() -> None:
+    """Build saved user text preserves document format label."""
     document = SimpleNamespace(file_name="report.pdf")
     info = MessageInfo(
-        None,
-        None,
-        None,
-        None,
-        document,
-        False,
-        False,
-        True,
-        False,
+        file_id=None,
+        media_type=None,
+        audio_file_id=None,
+        audio_filename=None,
+        document=document,
+        has_media=False,
+        has_audio=False,
+        has_document=True,
+        has_text=False,
     )
     result = history_module.build_saved_user_text(
         make_message(text=None),
@@ -395,29 +404,30 @@ def test_build_saved_user_text_preserves_document_format_label():
 
 @pytest.mark.asyncio
 async def test_prepare_audio_preserves_validation_download_and_transcription_order(
-    caplog,
-):
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Prepare audio preserves validation download and transcription order."""
     events = []
     info = MessageInfo(
-        None,
-        None,
-        "voice-id",
-        "voice.ogg",
-        None,
-        False,
-        True,
-        False,
-        False,
+        file_id=None,
+        media_type=None,
+        audio_file_id="voice-id",
+        audio_filename="voice.ogg",
+        document=None,
+        has_media=False,
+        has_audio=True,
+        has_document=False,
+        has_text=False,
     )
 
-    def validate(_message):
+    def validate(_message: object) -> None:
         events.append("validate")
 
-    async def download(_message, file_id):
+    async def download(_message: object, file_id: str) -> bytes:
         events.append(("download", file_id))
         return b"audio-bytes"
 
-    async def transcribe(data, filename):
+    async def transcribe(data: object, filename: object) -> str:
         events.append(("transcribe", data, filename))
         return "Распознано"
 
@@ -442,24 +452,25 @@ async def test_prepare_audio_preserves_validation_download_and_transcription_ord
 
 
 @pytest.mark.asyncio
-async def test_prepare_media_decodes_data_urls_to_original_image_bytes():
+async def test_prepare_media_decodes_data_urls_to_original_image_bytes() -> None:
+    """Prepare media decodes data urls to original image bytes."""
     image = b"image-data"
     data_url = "data:image/jpeg;base64," + base64.b64encode(image).decode("ascii")
 
-    async def process(_message, media_type, file_id):
+    async def process(_message: object, media_type: str, file_id: str) -> list[object]:
         assert (media_type, file_id) == ("image", "image-id")
         return [data_url]
 
     info = MessageInfo(
-        "image-id",
-        "image",
-        None,
-        None,
-        None,
-        True,
-        False,
-        False,
-        False,
+        file_id="image-id",
+        media_type="image",
+        audio_file_id=None,
+        audio_filename=None,
+        document=None,
+        has_media=True,
+        has_audio=False,
+        has_document=False,
+        has_text=False,
     )
     urls, image_bytes = await media_module.prepare_media(
         make_message(),
@@ -472,65 +483,71 @@ async def test_prepare_media_decodes_data_urls_to_original_image_bytes():
 
 
 @pytest.mark.asyncio
-async def test_prepare_document_rejects_empty_extracted_text(caplog):
+async def test_prepare_document_rejects_empty_extracted_text(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Prepare document rejects empty extracted text."""
     filename = "empty.pdf\nERROR forged entry"
     document = SimpleNamespace(file_id="doc-id", file_name=filename)
     info = MessageInfo(
-        None,
-        None,
-        None,
-        None,
-        document,
-        False,
-        False,
-        True,
-        False,
+        file_id=None,
+        media_type=None,
+        audio_file_id=None,
+        audio_filename=None,
+        document=document,
+        has_media=False,
+        has_audio=False,
+        has_document=True,
+        has_text=False,
     )
 
-    async def download(_message, file_id):
+    async def download(_message: object, file_id: str) -> bytes:
         assert file_id == "doc-id"
         return b"document-bytes"
 
-    async def process(_data, actual_filename):
+    async def process(_data: object, actual_filename: object) -> dict[str, object]:
         # Очистка относится только к логам, а не к имени файла для сервиса.
         assert actual_filename == filename
         return {"text": "  ", "format": "pdf", "characters": 0}
 
-    with caplog.at_level(logging.INFO, logger=documents_module.logger.name):
-        with pytest.raises(
+    with (
+        caplog.at_level(logging.INFO, logger=documents_module.logger.name),
+        pytest.raises(
             DocumentAPIError,
             match="Document contains no extractable text",
-        ):
-            await documents_module.prepare_document(
-                make_message(),
-                info,
-                downloader=download,
-                document_processor=process,
-            )
+        ),
+    ):
+        await documents_module.prepare_document(
+            make_message(),
+            info,
+            downloader=download,
+            document_processor=process,
+        )
 
     assert r"DOCUMENT: начинаю скачивание: empty.pdf\nERROR forged entry" in caplog.text
     assert "\nERROR forged entry" not in caplog.text
 
 
 @pytest.mark.asyncio
-async def test_prepare_document_rejects_truncated_extracted_text():
+async def test_prepare_document_rejects_truncated_extracted_text() -> None:
+    """Prepare document rejects truncated extracted text."""
     document = SimpleNamespace(file_id="doc-id", file_name="large.pdf")
     info = MessageInfo(
-        None,
-        None,
-        None,
-        None,
-        document,
-        False,
-        False,
-        True,
-        False,
+        file_id=None,
+        media_type=None,
+        audio_file_id=None,
+        audio_filename=None,
+        document=document,
+        has_media=False,
+        has_audio=False,
+        has_document=True,
+        has_text=False,
     )
 
-    async def download(_message, _file_id):
+    async def download(_message: object, _file_id: object) -> bytes:
         return b"document-bytes"
 
-    async def process(_data, _filename):
+    async def process(_data: object, _filename: object) -> dict[str, object]:
         return {
             "text": "Извлечённый фрагмент",
             "format": "pdf",
@@ -548,41 +565,45 @@ async def test_prepare_document_rejects_truncated_extracted_text():
 
 
 @pytest.mark.asyncio
-async def test_prepare_message_preserves_processing_order_and_result(monkeypatch):
+async def test_prepare_message_preserves_processing_order_and_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Prepare message preserves processing order and result."""
     events = []
     info = MessageInfo(
-        "image-id",
-        "image",
-        "voice-id",
-        "voice.ogg",
-        SimpleNamespace(file_id="doc-id", file_name="report.pdf"),
-        True,
-        True,
-        True,
-        False,
+        file_id="image-id",
+        media_type="image",
+        audio_file_id="voice-id",
+        audio_filename="voice.ogg",
+        document=SimpleNamespace(file_id="doc-id", file_name="report.pdf"),
+        has_media=True,
+        has_audio=True,
+        has_document=True,
+        has_text=False,
     )
     image_bytes = [b"image-bytes"]
 
-    async def prepare_audio(_message, _info):
+    async def prepare_audio(_message: object, _info: object) -> str:
         events.append("audio")
         return "Распознано"
 
-    async def prepare_media(_message, _info):
+    async def prepare_media(_message: object, _info: object) -> tuple[object, ...]:
         events.append("media")
         return ["data:image/jpeg;base64,AA=="], image_bytes
 
-    async def prepare_document(_message, _info):
+    async def prepare_document(_message: object, _info: object) -> tuple[object, ...]:
         events.append("document")
         return "Текст документа", "pdf"
 
-    def build_content(_message, _info, **kwargs):
+    def build_content(_message: object, _info: object, **kwargs: object) -> str:
         events.append("content")
         assert kwargs["transcribed_text"] == "Распознано"
         assert kwargs["image_urls"] == ["data:image/jpeg;base64,AA=="]
         assert kwargs["document_text"] == "Текст документа"
+        assert "document_format" not in kwargs
         return "Содержимое для LLM"
 
-    def build_history(_message, _info, **kwargs):
+    def build_history(_message: object, _info: object, **kwargs: object) -> str:
         events.append("history")
         assert kwargs["document_format"] == "pdf"
         return "Текст для истории"

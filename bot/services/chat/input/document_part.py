@@ -1,17 +1,24 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Скачивание и извлечение текста из документов."""
 
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 from bot.errors import DocumentAPIError, DocumentTooLongError
-from bot.services.chat.input.models import MessageInfo
+from bot.services.documents import process_document
+from bot.services.telegram.downloader import download_telegram_file
 from bot.utils.text import log_safe
 
 if TYPE_CHECKING:
-    from aiogram.types import Message
+    from collections.abc import Awaitable, Callable
+
+    from aiogram.types import Document, Message
+
+    from bot.services.chat.input.models import MessageInfo
 
 logger = logging.getLogger("bot.services.chat.input.document_part")
 
@@ -21,21 +28,17 @@ async def prepare_document(
     info: MessageInfo,
     *,
     downloader: Callable[..., Awaitable[bytes]] | None = None,
-    document_processor: Callable[..., Awaitable[dict]] | None = None,
+    document_processor: Callable[..., Awaitable[dict[str, Any]]] | None = None,
 ) -> tuple[str, str]:
     """Скачивает документ и получает извлечённый текст."""
-
     if downloader is None:
-        from bot.services.telegram.downloader import download_telegram_file
-
         downloader = download_telegram_file
 
     if document_processor is None:
-        from bot.services.documents import process_document
-
         document_processor = process_document
 
-    document = info.document
+    # has_document is only set when the message carries a document.
+    document = cast("Document", info.document)
 
     logger.info(
         "DOCUMENT: начинаю скачивание: %s",
@@ -58,7 +61,7 @@ async def prepare_document(
     )
 
     if result.get("truncated", False) is True:
-        raise DocumentTooLongError()
+        raise DocumentTooLongError
 
     document_text = result["text"]
     document_format = result["format"]

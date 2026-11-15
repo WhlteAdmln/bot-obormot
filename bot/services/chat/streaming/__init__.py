@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Инструменты потоковой доставки ответа чата."""
 
 from bot.services.chat.streaming.delivery import deliver_final_response

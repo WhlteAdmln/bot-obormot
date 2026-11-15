@@ -1,5 +1,9 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Проверки интеграции с LLM-серверами без расширений llama.cpp."""
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import pytest
@@ -10,7 +14,8 @@ from bot.services.llm import LLMClient
 
 
 @asynccontextmanager
-async def running_server(app: web.Application):
+async def running_server(app: web.Application) -> AsyncIterator[str]:
+    """Running server."""
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "127.0.0.1", 0)
@@ -24,7 +29,8 @@ async def running_server(app: web.Application):
 
 
 @pytest.fixture
-def configure_openai(monkeypatch):
+def configure_openai(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Configure openai."""
     monkeypatch.setattr(config, "LLM_MODEL", "test-model")
     monkeypatch.setattr(config, "LLM_API_KEY", "")
     monkeypatch.setattr(config, "LLM_TOKEN_COUNTING", "auto")
@@ -32,21 +38,22 @@ def configure_openai(monkeypatch):
     monkeypatch.setattr(config, "LLM_MAX_TOKENS", 128)
 
 
-def make_openai_only_app():
+def make_openai_only_app() -> tuple[object, ...]:
+    """Make openai only app."""
     requests = []
     app = web.Application()
 
-    async def models(_request):
+    async def models(_request: web.Request) -> web.Response:
         requests.append(("GET", "/v1/models"))
         return web.json_response(
             {"object": "list", "data": [{"id": "test-model", "object": "model"}]}
         )
 
-    async def unsupported(request):
+    async def unsupported(request: web.Request) -> None:
         requests.append((request.method, request.path))
-        raise web.HTTPNotFound()
+        raise web.HTTPNotFound
 
-    async def chat_completions(request):
+    async def chat_completions(request: web.Request) -> web.StreamResponse:
         requests.append(("POST", "/v1/chat/completions"))
         payload = await request.json()
         assert payload["model"] == "test-model"
@@ -74,9 +81,11 @@ def make_openai_only_app():
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("configure_openai")
 async def test_openai_compatible_server_works_without_llama_endpoints(
-    configure_openai, monkeypatch
-):
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Openai compatible server works without llama endpoints."""
     app, requests = make_openai_only_app()
     async with running_server(app) as base_url:
         monkeypatch.setattr(config, "LLM_BASE_URL", f"{base_url}/v1")
@@ -116,25 +125,28 @@ async def test_openai_compatible_server_works_without_llama_endpoints(
 
 
 @pytest.mark.asyncio
-async def test_auto_mode_keeps_llamacpp_tokenization_when_available(monkeypatch):
+async def test_auto_mode_keeps_llamacpp_tokenization_when_available(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Auto mode keeps llamacpp tokenization when available."""
     requests = []
     app = web.Application()
 
-    async def props(_request):
+    async def props(_request: web.Request) -> web.Response:
         requests.append(("GET", "/props"))
         return web.json_response({"n_ctx": 4096})
 
-    async def tokenize(request):
+    async def tokenize(request: web.Request) -> web.Response:
         requests.append(("POST", "/tokenize"))
         payload = await request.json()
         count = 2 if payload["content"] == "rendered" else 3
         return web.json_response({"tokens": list(range(count))})
 
-    async def apply_template(_request):
+    async def apply_template(_request: web.Request) -> web.Response:
         requests.append(("POST", "/apply-template"))
         return web.json_response({"prompt": "rendered"})
 
-    async def health(_request):
+    async def health(_request: web.Request) -> web.Response:
         requests.append(("GET", "/health"))
         return web.json_response({"status": "ok"})
 

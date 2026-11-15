@@ -1,3 +1,8 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Validation of incoming audio messages."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -11,9 +16,8 @@ if TYPE_CHECKING:
 MAX_AUDIO_DURATION = 300
 
 
-def validate_audio_duration(message: Message):
+def validate_audio_duration(message: Message) -> None:
     """Проверяет длительность входящего аудио."""
-
     duration = None
 
     if message.voice:
@@ -24,4 +28,5 @@ def validate_audio_duration(message: Message):
         duration = message.video_note.duration
 
     if duration is not None and duration > MAX_AUDIO_DURATION:
-        raise MediaError("Аудиофайл слишком длинный (максимум 5 минут).")
+        msg = "Аудиофайл слишком длинный (максимум 5 минут)."
+        raise MediaError(msg)

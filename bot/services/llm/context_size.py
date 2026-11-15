@@ -1,6 +1,10 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Получение и кеширование размера контекстного окна модели."""
 
 import logging
+from http import HTTPStatus
 from typing import Any, Protocol
 
 import aiohttp
@@ -24,14 +28,16 @@ _CONTEXT_FIELDS = (
 class ContextSizeClient(Protocol):
     """Минимальный интерфейс клиента для определения размера контекста."""
 
-    _context_size: int | None
+    async def get_session(self) -> aiohttp.ClientSession:
+        """Return the shared HTTP session."""
+        ...
 
-    async def _get_session(self) -> aiohttp.ClientSession: ...
+    def get_server_url(self) -> str:
+        """Return the configured LLM server URL."""
+        ...
 
-    def _server_url(self) -> str: ...
 
-
-async def _read_json(response: Any) -> dict[str, Any] | None:
+async def _read_json(response: aiohttp.ClientResponse) -> dict[str, Any] | None:
     try:
         data = await response.json()
     except (aiohttp.ClientError, ValueError, TypeError):
@@ -39,7 +45,7 @@ async def _read_json(response: Any) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
-def _positive_int(value: Any) -> int | None:
+def _positive_int(value: object) -> int | None:
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         return None
     return value
@@ -82,29 +88,24 @@ def _models_payload_context(data: dict[str, Any]) -> int | None:
 
 async def get_context_size(client: ContextSizeClient) -> int:
     """Возвращает контекст: настройка, llama.cpp /props, затем OpenAI /models."""
-    if client._context_size is not None:
-        return client._context_size
-
     configured_size = config.LLM_CONTEXT_SIZE
     if configured_size is not None:
-        client._context_size = configured_size
         logger.info("LLM context size configured: %s tokens", configured_size)
         return configured_size
 
-    session = await client._get_session()
+    session = await client.get_session()
 
     # /props — необязательное расширение llama.cpp, а не обязательная часть API.
     try:
         async with session.get(
-            f"{client._server_url()}/props",
+            f"{client.get_server_url()}/props",
             params={"model": config.LLM_MODEL},
             timeout=aiohttp.ClientTimeout(total=min(5, config.LLM_TIMEOUT)),
         ) as response:
-            if response.status == 200:
+            if response.status == HTTPStatus.OK:
                 data = await _read_json(response)
                 context_size = _extract_context_size(data or {})
                 if context_size is not None:
-                    client._context_size = context_size
                     logger.info(
                         "LLM context size detected via /props: %s",
                         context_size,
@@ -127,11 +128,10 @@ async def get_context_size(client: ContextSizeClient) -> int:
             f"{config.LLM_BASE_URL}/models",
             timeout=aiohttp.ClientTimeout(total=min(5, config.LLM_TIMEOUT)),
         ) as response:
-            if response.status == 200:
+            if response.status == HTTPStatus.OK:
                 data = await _read_json(response)
                 context_size = _models_payload_context(data or {})
                 if context_size is not None:
-                    client._context_size = context_size
                     logger.info(
                         "LLM context size detected via /models: %s",
                         context_size,
@@ -148,6 +148,5 @@ async def get_context_size(client: ContextSizeClient) -> int:
             type(error).__name__,
         )
 
-    raise LLMUnavailableError(
-        "Не удалось определить размер контекста. Задайте LLM_CONTEXT_SIZE в .env"
-    )
+    msg = "Не удалось определить размер контекста. Задайте LLM_CONTEXT_SIZE в .env"
+    raise LLMUnavailableError(msg)

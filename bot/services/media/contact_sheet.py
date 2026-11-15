@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Сборка кадров анимации в одно изображение для Vision-модели.
 
 Контактный лист позволяет модели увидеть кадры как единую
@@ -24,15 +27,16 @@ def build_contact_sheet(frames: list[bytes]) -> bytes:
     Порядок кадров сохраняется: слева направо, затем сверху вниз.
     Одно изображение возвращается без перекодирования.
     """
-
     if not frames:
-        raise ValueError("Cannot build a contact sheet without frames")
+        msg = "Cannot build a contact sheet without frames"
+        raise ValueError(msg)
 
     if len(frames) == 1:
         return frames[0]
 
     if len(frames) > MAX_FRAMES:
-        raise ValueError(f"Contact sheet supports at most {MAX_FRAMES} frames")
+        msg = f"Contact sheet supports at most {MAX_FRAMES} frames"
+        raise ValueError(msg)
 
     columns = min(GRID_COLUMNS, len(frames))
     rows = math.ceil(len(frames) / columns)

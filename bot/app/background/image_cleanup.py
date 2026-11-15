@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Периодическая фоновая очистка старых и осиротевших изображений."""
 
 import asyncio

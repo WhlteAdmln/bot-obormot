@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Ограничение частоты входящих событий от одного пользователя."""
 
 import time
@@ -6,6 +9,8 @@ from collections.abc import Callable
 
 from aiogram import BaseMiddleware
 from aiogram.types import TelegramObject
+
+from bot.middlewares.aliases import MiddlewareData, NextHandler
 
 
 class ThrottleMiddleware(BaseMiddleware):
@@ -18,12 +23,16 @@ class ThrottleMiddleware(BaseMiddleware):
         max_tracked_users: int = 5000,
         clock: Callable[[], float] | None = None,
     ) -> None:
+        """Validates the limits and prepares the per-user event table."""
         if max_events <= 0:
-            raise ValueError("max_events must be positive")
+            msg = "max_events must be positive"
+            raise ValueError(msg)
         if window_seconds <= 0:
-            raise ValueError("window_seconds must be positive")
+            msg = "window_seconds must be positive"
+            raise ValueError(msg)
         if max_tracked_users <= 0:
-            raise ValueError("max_tracked_users must be positive")
+            msg = "max_tracked_users must be positive"
+            raise ValueError(msg)
 
         self.max_events = max_events
         self.window = window_seconds
@@ -33,7 +42,13 @@ class ThrottleMiddleware(BaseMiddleware):
         # пользователей при появлении новых идентификаторов.
         self._events: OrderedDict[int, list[float]] = OrderedDict()
 
-    async def __call__(self, handler, event: TelegramObject, data: dict):
+    async def __call__(
+        self,
+        handler: NextHandler,
+        event: TelegramObject,
+        data: MiddlewareData,
+    ) -> object:
+        """Passes the event on unless the sender exceeded the rate limit."""
         user = data.get("event_from_user")
 
         if user is None:

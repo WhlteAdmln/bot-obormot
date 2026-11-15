@@ -1,5 +1,11 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Client for the Whisper speech-to-text API."""
+
 import json
 import logging
+from http import HTTPStatus
 
 import aiohttp
 
@@ -20,14 +26,29 @@ from bot.utils.text import log_safe
 logger = logging.getLogger(__name__)
 
 
+def _extract_text(result: object) -> str:
+    """Returns the transcribed text from the Whisper response or raises."""
+    if not isinstance(result, dict):
+        msg = "Whisper returned an unexpected response"
+        raise WhisperAPIError(msg)
+
+    text = str(result.get("text", "")).strip()
+
+    if not text:
+        msg = "No speech detected in audio"
+        raise WhisperEmptyAudioError(msg)
+
+    return text
+
+
 async def transcribe_audio(
     audio_data: bytes,
     filename: str = "audio.ogg",
 ) -> str:
     """Отправляет аудио в Whisper и возвращает распознанный текст."""
-
     if not config.WHISPER_API_URL:
-        raise WhisperUnavailableError("WHISPER_API_URL is not configured")
+        msg = "WHISPER_API_URL is not configured"
+        raise WhisperUnavailableError(msg)
 
     # The filename is also embedded in a multipart header. Normalize it before
     # handing it to aiohttp so CR/LF and other control characters cannot break
@@ -66,37 +87,35 @@ async def transcribe_audio(
                 data=form,
             ) as response,
         ):
-            if response.status != 200:
+            if response.status != HTTPStatus.OK:
                 body = await read_limited_body(response, MAX_ERROR_BODY_BYTES)
                 detail = (body or b"").decode("utf-8", errors="replace")
-                raise WhisperAPIError(
-                    f"Whisper HTTP {response.status}: {detail[:1000]}"
-                )
+                msg = f"Whisper HTTP {response.status}: {detail[:1000]}"
+                raise WhisperAPIError(msg)
 
             body = await read_limited_body(response, MAX_SERVICE_RESPONSE_BYTES)
 
             if body is None:
-                raise WhisperAPIError("Whisper response is too large")
+                msg = "Whisper response is too large"
+                raise WhisperAPIError(msg)
 
             try:
                 result = json.loads(body)
             except ValueError as error:
-                raise WhisperAPIError("Whisper returned invalid JSON") from error
+                msg = "Whisper returned invalid JSON"
+                raise WhisperAPIError(msg) from error
 
-        if not isinstance(result, dict):
-            raise WhisperAPIError("Whisper returned an unexpected response")
-
-        text = str(result.get("text", "")).strip()
-
-        if not text:
-            raise WhisperEmptyAudioError("No speech detected in audio")
+        text = _extract_text(result)
 
         logger.info("Whisper transcription received: %d chars", len(text))
 
-        return text
-
     except TimeoutError as error:
-        raise WhisperTimeoutError("Whisper request timed out") from error
+        msg = "Whisper request timed out"
+        raise WhisperTimeoutError(msg) from error
 
     except aiohttp.ClientError as error:
-        raise WhisperUnavailableError(f"Whisper connection error: {error}") from error
+        msg = f"Whisper connection error: {error}"
+        raise WhisperUnavailableError(msg) from error
+
+    else:
+        return text

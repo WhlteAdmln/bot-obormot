@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Создание Telegram Bot/Dispatcher и запуск приложения."""
 
 import logging
@@ -30,7 +33,8 @@ def log_access_mode() -> None:
 def create_bot() -> Bot:
     """Создаёт Telegram Bot после проверки обязательного токена."""
     if not re.fullmatch(r"\d{5,}:[A-Za-z0-9_-]{30,}", config.BOT_TOKEN):
-        raise RuntimeError("BOT_TOKEN имеет неверный формат. Проверьте .env")
+        msg = "BOT_TOKEN имеет неверный формат. Проверьте .env"
+        raise RuntimeError(msg)
     return Bot(token=config.BOT_TOKEN)
 
 

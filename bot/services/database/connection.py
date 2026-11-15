@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
 """Создание и настройка SQLite-соединения."""
 
 import aiosqlite
@@ -5,7 +8,6 @@ import aiosqlite
 
 async def open_connection(database_path: str) -> aiosqlite.Connection:
     """Открывает SQLite-соединение с настройками приложения."""
-
     connection = await aiosqlite.connect(
         database_path,
         timeout=5.0,

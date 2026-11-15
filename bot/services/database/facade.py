@@ -6,7 +6,8 @@
 import asyncio
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from types import TracebackType
+from typing import TYPE_CHECKING, Any, Self, cast
 
 from bot.config.settings import Settings
 from bot.errors import DatabaseError
@@ -68,6 +69,21 @@ class Database:
 
         # Защищает общее SQLite-соединение от конкурентного использования.
         self._lock = asyncio.Lock()
+
+    async def __aenter__(self) -> Self:
+        """Open the database connection and return this instance."""
+        await self.connect()
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        """Close the database connection after leaving the context."""
+        _ = exc_type, exc_value
+        await self.close()
 
     def configure(self, settings: Settings) -> None:
         """Apply application settings before opening the connection."""

@@ -14,6 +14,7 @@ import aiohttp
 import pytest
 
 from bot.config import config
+from bot.config.settings import Settings
 from bot.errors import (
     DocumentAPIError,
     DocumentUnavailableError,
@@ -33,6 +34,7 @@ from bot.services.documents import process_document
 from bot.services.documents.client import MAX_DOCUMENT_TEXT_LENGTH
 from bot.services.documents.response import validate_document_response
 from bot.services.http_limits import read_limited_body
+from bot.settings import get_settings
 
 
 class FakeContent:
@@ -51,6 +53,12 @@ class FakeContent:
 def json_body(payload: object) -> bytes:
     """Json body."""
     return json.dumps(payload).encode("utf-8")
+
+
+def test_bot_settings_reexports_get_settings() -> None:
+    """Bot settings reexports the shared settings getter."""
+    settings_module = importlib.import_module("bot.config.settings")
+    assert get_settings is settings_module.get_settings
 
 
 @pytest.mark.asyncio
@@ -121,7 +129,8 @@ async def test_transcribe_audio_rejects_missing_whisper_url(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Transcribe audio rejects missing whisper url."""
-    monkeypatch.setattr(config, "WHISPER_API_URL", "")
+    audio_client = importlib.import_module("bot.services.audio.client")
+    monkeypatch.setattr(audio_client, "get_settings", Settings)
     with pytest.raises(WhisperUnavailableError, match="not configured"):
         await transcribe_audio(b"audio")
 
@@ -161,11 +170,16 @@ async def test_transcribe_audio_posts_multipart_and_strips_result(
             calls.update(url=url, data=data)
             return Response()
 
+    audio_client = importlib.import_module("bot.services.audio.client")
     monkeypatch.setattr(
-        config, "WHISPER_API_URL", "http://whisper.test/transcribe?token=private"
+        audio_client,
+        "get_settings",
+        lambda: Settings(
+            WHISPER_API_URL="http://whisper.test/transcribe?token=private",
+            WHISPER_TIMEOUT=37,
+            WHISPER_API_KEY="",
+        ),
     )
-    monkeypatch.setattr(config, "WHISPER_TIMEOUT", 37)
-    monkeypatch.setattr(config, "WHISPER_API_KEY", "")
     monkeypatch.setattr(aiohttp, "ClientSession", Session)
 
     with caplog.at_level(logging.INFO, logger="bot.services.audio.client"):
@@ -410,9 +424,16 @@ async def test_process_document_preserves_filename_sanitization_and_response(
             calls["data"] = data
             return Response()
 
-    monkeypatch.setattr(config, "DOCUMENT_API_URL", "http://documents.test/process")
-    monkeypatch.setattr(config, "DOCUMENT_TIMEOUT", 61)
-    monkeypatch.setattr(config, "DOCUMENT_API_KEY", "")
+    documents_client = importlib.import_module("bot.services.documents.client")
+    monkeypatch.setattr(
+        documents_client,
+        "get_settings",
+        lambda: Settings(
+            DOCUMENT_API_URL="http://documents.test/process",
+            DOCUMENT_TIMEOUT=61,
+            DOCUMENT_API_KEY="",
+        ),
+    )
     monkeypatch.setattr(aiohttp, "ClientSession", Session)
 
     with caplog.at_level(logging.INFO, logger="bot.services.documents.client"):
@@ -537,11 +558,16 @@ async def test_process_document_rejects_missing_url_and_preserves_http_status(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Process document rejects missing url and preserves http status."""
-    monkeypatch.setattr(config, "DOCUMENT_API_URL", "")
+    documents_client = importlib.import_module("bot.services.documents.client")
+    monkeypatch.setattr(documents_client, "get_settings", Settings)
     with pytest.raises(DocumentUnavailableError, match="not configured"):
         await process_document(b"data", "file.pdf")
 
-    monkeypatch.setattr(config, "DOCUMENT_API_URL", "http://documents.test")
+    monkeypatch.setattr(
+        documents_client,
+        "get_settings",
+        lambda: Settings(DOCUMENT_API_URL="http://documents.test"),
+    )
 
     class Response:
         status = 415

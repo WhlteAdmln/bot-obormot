@@ -6,7 +6,8 @@
 import asyncio
 import logging
 import os
-from types import SimpleNamespace
+from types import SimpleNamespace, TracebackType
+from typing import Self
 
 import pytest
 
@@ -62,17 +63,20 @@ def test_dispatcher_registers_middlewares_and_routers_once_in_original_order(
     dispatcher = _FakeRouterDispatcher()
     llm_client = _FakeLLM([])
     message_aggregator = MessageAggregator()
+    database = object()
     configured = app_routers.configure_dispatcher(
         dispatcher,
         SETTINGS,
         llm_client,
         message_aggregator,
+        database,
     )
 
     assert configured is dispatcher
     assert dispatcher.workflow_data["settings"] is SETTINGS
     assert dispatcher.workflow_data["llm_client"] is llm_client
     assert dispatcher.workflow_data["message_aggregator"] is message_aggregator
+    assert dispatcher.workflow_data["database"] is database
     assert len(dispatcher.middleware_calls) == 3
     assert isinstance(dispatcher.middleware_calls[0], _FakeThrottleMiddleware)
     assert isinstance(dispatcher.middleware_calls[1], _FakeAccessMiddleware)
@@ -154,6 +158,7 @@ class _LifecycleHarness:
     def __init__(self) -> None:
         self.calls: list[str] = []
         self.db = _FakeDatabase(self.calls)
+        self.database = _FakeManagedDatabase(self.calls)
         self.llm = _FakeLLM(self.calls)
         self.bot = _FakeBot(self.calls)
         self.dispatcher = _FakeDispatcher(self.calls)
@@ -193,6 +198,27 @@ class _FakeDatabase:
 
     async def close(self) -> None:
         self.calls.append("db.close")
+
+
+class _FakeManagedDatabase(_FakeDatabase):
+    def __init__(self, calls: list[str]) -> None:
+        super().__init__(calls)
+        self.fail_on_enter = False
+
+    async def __aenter__(self) -> Self:
+        self.calls.append("database.connect")
+        if self.fail_on_enter:
+            msg = "application database unavailable"
+            raise RuntimeError(msg)
+        return self
+
+    async def __aexit__(
+        self,
+        _exc_type: type[BaseException] | None,
+        _exc_value: BaseException | None,
+        _traceback: TracebackType | None,
+    ) -> None:
+        self.calls.append("database.close")
 
 
 class _FakeLLM:
@@ -238,6 +264,7 @@ def test_lifecycle_preserves_startup_polling_and_shutdown_order(
             harness.dispatcher,
             SETTINGS,
             harness.llm,
+            harness.database,
         )
     )
 
@@ -245,10 +272,12 @@ def test_lifecycle_preserves_startup_polling_and_shutdown_order(
     assert harness.calls == [
         "db.configure",
         "db.connect",
+        "database.connect",
         "llm.start",
         "polling",
         "cleanup.start",
         "cleanup.stop",
+        "database.close",
         "llm.close",
         "db.close",
         "telegram.close",
@@ -275,12 +304,40 @@ def test_lifecycle_closes_remaining_resources_when_startup_fails(
                 harness.dispatcher,
                 SETTINGS,
                 harness.llm,
+                harness.database,
             )
         )
 
     assert harness.calls == [
         "db.configure",
         "db.connect",
+        "llm.close",
+        "db.close",
+        "telegram.close",
+    ]
+
+
+def test_lifecycle_closes_legacy_resources_when_application_database_fails(
+    harness: _LifecycleHarness,
+) -> None:
+    """Lifecycle closes legacy resources when the application database fails."""
+    harness.database.fail_on_enter = True
+
+    with pytest.raises(RuntimeError, match="application database unavailable"):
+        asyncio.run(
+            lifecycle.run_application(
+                harness.bot,
+                harness.dispatcher,
+                SETTINGS,
+                harness.llm,
+                harness.database,
+            )
+        )
+
+    assert harness.calls == [
+        "db.configure",
+        "db.connect",
+        "database.connect",
         "llm.close",
         "db.close",
         "telegram.close",
@@ -306,6 +363,7 @@ def test_lifecycle_continues_closing_after_one_cleanup_error(
             harness.dispatcher,
             SETTINGS,
             harness.llm,
+            harness.database,
         )
     )
 
@@ -339,6 +397,7 @@ def test_lifecycle_cancels_running_request_and_background_task_on_shutdown(
                 harness.dispatcher,
                 SETTINGS,
                 harness.llm,
+                harness.database,
             )
         )
         await request_started.wait()
@@ -353,11 +412,13 @@ def test_lifecycle_cancels_running_request_and_background_task_on_shutdown(
     assert harness.calls == [
         "db.configure",
         "db.connect",
+        "database.connect",
         "llm.start",
         "polling",
         "cleanup.start",
         "request.cancelled",
         "cleanup.stop",
+        "database.close",
         "llm.close",
         "db.close",
         "telegram.close",
@@ -398,6 +459,7 @@ def test_bootstrap_main_loads_env_and_passes_settings_down(
     bot_instance = object()
     dispatcher_instance = object()
     aggregator_instance = object()
+    database_instance = object()
     _patch_main_components(monkeypatch, calls)
     llm_instance = _FakeLLM(calls)
 
@@ -409,6 +471,10 @@ def test_bootstrap_main_loads_env_and_passes_settings_down(
     def create_message_aggregator() -> object:
         calls.append("message_aggregator")
         return aggregator_instance
+
+    def create_database(settings: Settings) -> object:
+        calls.append(("database", settings))
+        return database_instance
 
     def create_llm_client(settings: Settings) -> _FakeLLM:
         calls.append(("llm_client", settings))
@@ -422,8 +488,9 @@ def test_bootstrap_main_loads_env_and_passes_settings_down(
         settings: Settings,
         llm_client: _FakeLLM,
         message_aggregator: object,
+        database: object,
     ) -> object:
-        calls.append(("dispatcher", settings, llm_client, message_aggregator))
+        calls.append(("dispatcher", settings, llm_client, message_aggregator, database))
         return dispatcher_instance
 
     async def run_application(
@@ -431,15 +498,18 @@ def test_bootstrap_main_loads_env_and_passes_settings_down(
         dispatcher: object,
         settings: Settings,
         llm_client: _FakeLLM,
+        database: object,
     ) -> None:
         assert bot is bot_instance
         assert dispatcher is dispatcher_instance
         assert llm_client is llm_instance
+        assert database is database_instance
         calls.append(("run", settings))
 
     monkeypatch.setattr(bootstrap, "load_settings", load_settings)
     monkeypatch.setattr(bootstrap, "LLMClient", create_llm_client)
     monkeypatch.setattr(bootstrap, "MessageAggregator", create_message_aggregator)
+    monkeypatch.setattr(bootstrap, "Database", create_database)
     monkeypatch.setattr(bootstrap, "create_bot", create_bot)
     monkeypatch.setattr(bootstrap, "create_dispatcher", create_dispatcher)
     monkeypatch.setattr(bootstrap, "run_application", run_application)
@@ -456,7 +526,8 @@ def test_bootstrap_main_loads_env_and_passes_settings_down(
         ("bot", SETTINGS),
         ("llm_client", SETTINGS),
         "message_aggregator",
-        ("dispatcher", SETTINGS, llm_instance, aggregator_instance),
+        ("database", SETTINGS),
+        ("dispatcher", SETTINGS, llm_instance, aggregator_instance, database_instance),
         ("run", SETTINGS),
     ]
 
@@ -485,24 +556,27 @@ def test_create_dispatcher_passes_settings_to_router_configuration(
 
     llm_client = _FakeLLM([])
     message_aggregator = MessageAggregator()
+    database = object()
 
     def configure_dispatcher(
         dispatcher: object,
         settings: Settings,
         configured_llm: _FakeLLM,
         configured_aggregator: MessageAggregator,
+        configured_database: object,
     ) -> object:
         assert isinstance(dispatcher, FakeDispatcher)
         assert settings is SETTINGS
         assert configured_llm is llm_client
         assert configured_aggregator is message_aggregator
+        assert configured_database is database
         return dispatcher
 
     monkeypatch.setattr(bootstrap, "Dispatcher", FakeDispatcher)
     monkeypatch.setattr(bootstrap, "configure_dispatcher", configure_dispatcher)
 
     assert isinstance(
-        bootstrap.create_dispatcher(SETTINGS, llm_client, message_aggregator),
+        bootstrap.create_dispatcher(SETTINGS, llm_client, message_aggregator, database),
         FakeDispatcher,
     )
 

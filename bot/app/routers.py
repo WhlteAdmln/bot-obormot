@@ -13,6 +13,7 @@ from bot.middlewares.temporary_messages import (
 )
 from bot.middlewares.throttle import ThrottleMiddleware
 from bot.services.chat.aggregation import MessageAggregator
+from bot.services.database import Database
 from bot.services.llm.client import LLMClient
 
 
@@ -21,6 +22,7 @@ def configure_dispatcher(
     settings: Settings | None = None,
     llm_client: LLMClient | None = None,
     message_aggregator: MessageAggregator | None = None,
+    database: Database | None = None,
 ) -> Dispatcher:
     """Подключает middleware и роутеры к уже созданному Dispatcher."""
     if settings is None:
@@ -31,6 +33,8 @@ def configure_dispatcher(
     if message_aggregator is None:
         message_aggregator = MessageAggregator()
     dispatcher.workflow_data["message_aggregator"] = message_aggregator
+    if database is not None:
+        dispatcher.workflow_data["database"] = database
 
     # Сначала ограничиваем частоту событий, затем проверяем доступ
     # и очищаем временные сообщения.

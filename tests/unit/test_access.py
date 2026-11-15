@@ -12,6 +12,7 @@ import pytest_asyncio
 from aiogram.enums import ChatType
 
 from bot.config import config
+from bot.handlers.admin import handler as admin_handler
 from bot.middlewares import access as access_module
 from bot.services.database import Database
 
@@ -19,6 +20,7 @@ SUPERVISOR_ID = 999999999
 ADMIN_ID = 111111111
 ALLOWED_USER_ID = 222222222
 OUTSIDER_ID = 333333333
+BLOCKED_USER_ID = 444444444
 
 
 class FakeEvent:
@@ -31,6 +33,23 @@ class FakeEvent:
     async def answer(self, text: str) -> None:
         """Answer."""
         self.answers.append(text)
+
+
+class AccessMatrixDatabase:
+    """Database stub for access matrix tests."""
+
+    def __init__(self, admin_ids: set[int], blocked_ids: set[int]) -> None:
+        """Initializes the test database."""
+        self.admin_ids = admin_ids
+        self.blocked_ids = blocked_ids
+
+    async def get_blocked_ids(self) -> set[int]:
+        """Returns blocked user IDs."""
+        return self.blocked_ids
+
+    async def get_admin_ids(self) -> set[int]:
+        """Returns administrator IDs."""
+        return self.admin_ids
 
 
 @pytest.fixture
@@ -429,3 +448,85 @@ async def test_supervisor_cannot_be_blocked(
         calls,
     )
     assert result == "allowed"
+
+
+@pytest.mark.parametrize(
+    "role",
+    ["supervisor", "admin", "allowed", "blocked", "stranger"],
+)
+@pytest.mark.parametrize("allow_all_mode", ["closed", "open"])
+@pytest.mark.parametrize("allowlist_mode", ["empty", "nonempty"])
+@pytest.mark.parametrize(
+    "command_class",
+    ["ordinary", "admin", "supervisor"],
+)
+@pytest.mark.asyncio
+async def test_access_matrix(
+    monkeypatch: pytest.MonkeyPatch,
+    role: str,
+    allow_all_mode: str,
+    allowlist_mode: str,
+    command_class: str,
+) -> None:
+    """Combines global access with ordinary, admin, and supervisor command gates."""
+    allow_all = allow_all_mode == "open"
+    allowlist_nonempty = allowlist_mode == "nonempty"
+    user_id = {
+        "supervisor": SUPERVISOR_ID,
+        "admin": ADMIN_ID,
+        "allowed": ALLOWED_USER_ID,
+        "blocked": BLOCKED_USER_ID,
+        "stranger": OUTSIDER_ID,
+    }[role]
+    allowed_users = {ALLOWED_USER_ID} if allowlist_nonempty else set()
+    database = AccessMatrixDatabase(
+        admin_ids={ADMIN_ID},
+        blocked_ids={BLOCKED_USER_ID},
+    )
+
+    monkeypatch.setattr(config, "SUPERVISOR_ID", SUPERVISOR_ID)
+    monkeypatch.setattr(config, "ALLOWED_USERS", allowed_users)
+    monkeypatch.setattr(config, "ALLOW_ALL_USERS", allow_all)
+    monkeypatch.setattr(access_module, "db", database)
+    monkeypatch.setattr(admin_handler, "db", database)
+
+    async def handler(_event: object, _data: object) -> str:
+        return "allowed"
+
+    event = FakeEvent()
+    data = {
+        "event_from_user": SimpleNamespace(id=user_id),
+        "event_chat": SimpleNamespace(type=ChatType.PRIVATE),
+    }
+    middleware_result = await access_module.AccessMiddleware()(
+        handler,
+        event,
+        data,
+    )
+    middleware_passed = middleware_result == "allowed"
+
+    general_expected = role == "supervisor" or (
+        role != "blocked"
+        and (role == "admin" or (role == "allowed" and allowlist_nonempty) or allow_all)
+    )
+
+    if command_class == "ordinary":
+        command_allowed = True
+    elif command_class == "admin":
+        command_allowed = await admin_handler.is_admin_or_supervisor(user_id)
+    else:
+        command_allowed = admin_handler.is_supervisor(
+            SimpleNamespace(from_user=SimpleNamespace(id=user_id))
+        )
+
+    actual = middleware_passed and command_allowed
+
+    if command_class == "ordinary":
+        expected = general_expected
+    elif command_class == "admin":
+        expected = general_expected and role in {"supervisor", "admin"}
+    else:
+        expected = general_expected and role == "supervisor"
+
+    assert middleware_passed is general_expected
+    assert actual is expected

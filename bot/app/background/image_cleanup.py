@@ -6,17 +6,17 @@
 import asyncio
 import logging
 
-from bot.services.database import db
+from bot.services.database import Database
 
 logger = logging.getLogger("bot.main")
 IMAGE_CLEANUP_INTERVAL = 24 * 60 * 60
 
 
-async def periodic_image_cleanup() -> None:
+async def periodic_image_cleanup(database: Database) -> None:
     """Выполняет очистку изображений раз в сутки."""
     while True:
         try:
-            result = await db.cleanup_old_images(
+            result = await database.cleanup_old_images(
                 retention_days=30,
                 orphan_grace_hours=24,
             )

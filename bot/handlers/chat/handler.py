@@ -17,7 +17,10 @@ from bot.services.chat.formatting import format_roleplay, split_formatted_messag
 from bot.services.chat.incoming_log import log_incoming_message
 from bot.services.chat.input import inspect_message, prepare_message
 from bot.services.chat.locks import get_user_lock, pending_requests
-from bot.services.chat.pipeline import process_chat
+from bot.services.chat.pipeline import (
+    ChatPipelineDependencies,
+    process_chat,
+)
 from bot.services.chat.reporting import safe_edit
 from bot.services.chat.streaming import (
     MAX_MESSAGE_LENGTH,
@@ -35,6 +38,7 @@ if TYPE_CHECKING:
 
     from bot.config.settings import Settings
     from bot.services.chat.aggregation import MessageAggregator
+    from bot.services.database import Database
     from bot.services.llm.client import LLMClient
 
 MAX_PENDING_PER_USER = 3
@@ -50,6 +54,7 @@ async def handle_message(
     *,
     llm_client: LLMClient,
     message_aggregator: MessageAggregator,
+    database: Database,
 ) -> None:
     """Processes an incoming chat message and streams the LLM reply."""
     if settings is None:
@@ -120,7 +125,10 @@ async def handle_message(
                 saved_user_text=prepared.saved_user_text,
                 media=prepared.image_bytes,
                 on_update=responder.on_update,
-                llm_client=llm_client,
+                dependencies=ChatPipelineDependencies(
+                    llm_client=llm_client,
+                    database=database,
+                ),
             )
 
             await deliver_final_response(

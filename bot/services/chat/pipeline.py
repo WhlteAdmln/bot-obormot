@@ -3,13 +3,28 @@
 
 """Chat pipeline: context fitting, LLM streaming and saving the exchange."""
 
-import logging
-from collections.abc import Awaitable, Callable
+from __future__ import annotations
 
-from bot.services.database import db
-from bot.services.llm.client import LLMClient
+import logging
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
+    from bot.services.database import Database
+    from bot.services.llm.client import LLMClient
 
 logger = logging.getLogger("bot.services.chat.pipeline")
+
+
+@dataclass(frozen=True, slots=True)
+class ChatPipelineDependencies:
+    """Holds the shared services required by chat processing."""
+
+    llm_client: LLMClient
+    database: Database
+
 
 # Более длинная история создаёт лишние запросы при подгонке контекста.
 MAX_CONTEXT_EXCHANGES = 100
@@ -22,7 +37,7 @@ async def process_chat(
     media: list[bytes] | None = None,
     on_update: Callable[[str], Awaitable[None]] | None = None,
     *,
-    llm_client: LLMClient,
+    dependencies: ChatPipelineDependencies,
 ) -> str:
     """Builds the context, streams the LLM reply and saves the exchange.
 
@@ -32,20 +47,23 @@ async def process_chat(
     on_update — необязательный callback для передачи
     накопленного текста во время генерации.
     """
-    system_prompt = await db.get_system_prompt(user_id)
+    system_prompt = await dependencies.database.get_system_prompt(user_id)
 
     # Получаем индивидуальный лимит пользователя.
     # Если настройки нет, используется стандартный лимит.
-    history_limit = min(await db.get_history_limit(user_id), MAX_CONTEXT_EXCHANGES)
+    history_limit = min(
+        await dependencies.database.get_history_limit(user_id),
+        MAX_CONTEXT_EXCHANGES,
+    )
 
     # limit теперь означает количество полных обменов,
     # а не количество отдельных сообщений.
-    history = await db.get_history(
+    history = await dependencies.database.get_history(
         user_id,
         limit=history_limit,
     )
 
-    messages = await llm_client.fit_messages_to_context(
+    messages = await dependencies.llm_client.fit_messages_to_context(
         system_prompt=system_prompt,
         history=history,
         user_message=user_content,
@@ -53,7 +71,7 @@ async def process_chat(
 
     response_parts = []
 
-    async for token in llm_client.stream(messages):
+    async for token in dependencies.llm_client.stream(messages):
         response_parts.append(token)
 
         if on_update is not None:
@@ -65,7 +83,7 @@ async def process_chat(
         msg = "LLM вернула пустой ответ."
         raise RuntimeError(msg)
 
-    await db.add_exchange(
+    await dependencies.database.add_exchange(
         user_id,
         saved_user_text,
         response,
@@ -73,7 +91,7 @@ async def process_chat(
     )
 
     try:
-        await db.prune_history(user_id)
+        await dependencies.database.prune_history(user_id)
     except Exception:
         logger.warning(
             "History pruning failed for user_id=%s",

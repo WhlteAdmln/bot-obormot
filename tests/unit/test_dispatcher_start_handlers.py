@@ -25,7 +25,6 @@ from bot.handlers.history import basic as history_basic
 from bot.handlers.history import limits as history_limits
 from bot.handlers.prompt import handler as prompt_handler
 from bot.handlers.start import handler as start_handler
-from bot.middlewares import access as access_module
 from bot.middlewares.throttle import ThrottleMiddleware
 from tests.support.settings import make_settings
 from tests.support.telegram import (
@@ -210,7 +209,6 @@ def access_database(
 ) -> _AccessDatabase:
     """Configure an isolated database and open access for dispatcher tests."""
     database = _AccessDatabase()
-    monkeypatch.setattr(access_module, "db", database)
     monkeypatch.setattr(admin_handler, "db", database)
     monkeypatch.setattr(start_handler, "db", database)
     monkeypatch.setattr(history_basic, "db", database)
@@ -218,6 +216,7 @@ def access_database(
     monkeypatch.setattr(prompt_handler, "db", database)
     dispatcher.workflow_data["settings"] = SETTINGS
     dispatcher.workflow_data["llm_client"] = _FakeLLM()
+    dispatcher.workflow_data["database"] = database
     return database
 
 

@@ -103,11 +103,10 @@ def test_periodic_cleanup_uses_existing_policy_and_propagates_cancellation(
     async def stop_after_first_iteration(_delay: object) -> None:
         raise asyncio.CancelledError
 
-    monkeypatch.setattr(image_cleanup, "db", FakeDatabase())
     monkeypatch.setattr(image_cleanup.asyncio, "sleep", stop_after_first_iteration)
 
     with pytest.raises(asyncio.CancelledError):
-        asyncio.run(image_cleanup.periodic_image_cleanup())
+        asyncio.run(image_cleanup.periodic_image_cleanup(FakeDatabase()))
 
     assert calls == [{"retention_days": 30, "orphan_grace_hours": 24}]
     assert image_cleanup.IMAGE_CLEANUP_INTERVAL == 24 * 60 * 60
@@ -135,14 +134,13 @@ def test_periodic_cleanup_continues_after_database_error(
         if sleep_calls == 2:
             raise asyncio.CancelledError
 
-    monkeypatch.setattr(image_cleanup, "db", FakeDatabase())
     monkeypatch.setattr(image_cleanup.asyncio, "sleep", stop_after_retry)
 
     with (
         caplog.at_level(logging.ERROR, logger="bot.main"),
         pytest.raises(asyncio.CancelledError),
     ):
-        asyncio.run(image_cleanup.periodic_image_cleanup())
+        asyncio.run(image_cleanup.periodic_image_cleanup(FakeDatabase()))
 
     assert calls == [
         {"retention_days": 30, "orphan_grace_hours": 24},
@@ -242,7 +240,8 @@ def harness(monkeypatch: pytest.MonkeyPatch) -> _LifecycleHarness:
     """Replace the lifecycle resources with recording fakes."""
     result = _LifecycleHarness()
 
-    async def fake_periodic_cleanup() -> None:
+    async def fake_periodic_cleanup(database: object) -> None:
+        assert database is result.database
         result.calls.append("cleanup.start")
         try:
             await asyncio.Future()

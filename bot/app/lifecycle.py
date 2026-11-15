@@ -38,9 +38,8 @@ async def run_application(
             await llm_client.start()
             logger.info("LLM client started")
 
-            # The legacy cleanup task still uses the module-level database.
             image_cleanup_task = asyncio.create_task(
-                periodic_image_cleanup(),
+                periodic_image_cleanup(database),
                 name="image_cleanup",
             )
             try:

@@ -29,13 +29,13 @@ from bot.services.chat.streaming import (
 )
 from bot.services.chat.streaming.delivery import DeliveryOptions
 from bot.services.chat.streaming.responder import StreamingResponderOptions
-from bot.services.llm import llm_client
 from bot.services.telegram.chat_action import keep_typing
 
 if TYPE_CHECKING:
     from aiogram.types import Message
 
     from bot.config.settings import Settings
+    from bot.services.llm.client import LLMClient
 
 MAX_PENDING_PER_USER = 3
 
@@ -47,6 +47,8 @@ logger = logging.getLogger("bot.handlers.chat")
 async def handle_message(
     message: Message,
     settings: Settings | None = None,
+    *,
+    llm_client: LLMClient,
 ) -> None:
     """Processes an incoming chat message and streams the LLM reply."""
     if settings is None:
@@ -117,6 +119,7 @@ async def handle_message(
                 saved_user_text=prepared.saved_user_text,
                 media=prepared.image_bytes,
                 on_update=responder.on_update,
+                llm_client=llm_client,
             )
 
             await deliver_final_response(
@@ -169,7 +172,6 @@ __all__ = [
     "handle_message",
     "inspect_message",
     "keep_typing",
-    "llm_client",
     "log_incoming_message",
     "logger",
     "message_aggregator",

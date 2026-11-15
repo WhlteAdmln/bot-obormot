@@ -52,6 +52,7 @@ def _create_chat_handler_state() -> SimpleNamespace:
         error_calls=[],
         pipeline=SimpleNamespace(),
         aggregator=_TestAggregator(calls),
+        llm_client=_TestLLM(calls),
     )
 
 
@@ -137,7 +138,6 @@ def _patch_processing_stubs(
 
     state.pipeline.process = lambda _kwargs: None
     monkeypatch.setattr(handler_module, "process_chat", process_chat)
-    monkeypatch.setattr(handler_module, "llm_client", _TestLLM(state.calls))
 
 
 def _patch_reporting_stubs(
@@ -196,7 +196,11 @@ async def test_handler_preserves_order_for_short_non_streamed_response(
 
     state.pipeline.process = process
 
-    await handler_module.handle_message(message, SETTINGS)
+    await handler_module.handle_message(
+        message,
+        llm_client=state.llm_client,
+        settings=SETTINGS,
+    )
 
     assert message.answers == [("короткий ответ", {"parse_mode": "HTML"})]
     assert state.calls[:5] == [
@@ -229,7 +233,11 @@ async def test_handler_streams_long_response_and_finalizes_status(
 
     state.pipeline.process = process
 
-    await handler_module.handle_message(message, SETTINGS)
+    await handler_module.handle_message(
+        message,
+        llm_client=state.llm_client,
+        settings=SETTINGS,
+    )
 
     # First status is edited once during streaming and once for final delivery.
     assert len(state.safe_edits) == 2
@@ -252,7 +260,11 @@ async def test_handler_cancellation_updates_status_and_cleans_typing_task(
     state.pipeline.process = process
 
     with pytest.raises(asyncio.CancelledError):
-        await handler_module.handle_message(message, SETTINGS)
+        await handler_module.handle_message(
+            message,
+            llm_client=state.llm_client,
+            settings=SETTINGS,
+        )
 
     assert state.safe_edits[-1][1] == "⏹ Запрос отменён."
     assert state.typing_started.is_set()
@@ -268,7 +280,11 @@ async def test_handler_returns_early_for_aggregated_continuation(
     message = Message()
     state.aggregator.result = None
 
-    await handler_module.handle_message(message, SETTINGS)
+    await handler_module.handle_message(
+        message,
+        llm_client=state.llm_client,
+        settings=SETTINGS,
+    )
 
     assert state.calls == ["log", "inspect", "aggregate"]
     assert not state.lock_entered.is_set()
@@ -284,7 +300,11 @@ async def test_handler_rejects_user_when_pending_request_limit_is_reached(
     message = Message()
     monkeypatch.setattr(handler_module, "pending_requests", lambda _user_id: 3)
 
-    await handler_module.handle_message(message, SETTINGS)
+    await handler_module.handle_message(
+        message,
+        llm_client=state.llm_client,
+        settings=SETTINGS,
+    )
 
     assert message.answers == [
         ("⏳ Я ещё обрабатываю твои предыдущие сообщения. Подожди немного.", {})
@@ -306,7 +326,11 @@ async def test_handler_routes_processing_error_to_central_error_handler(
 
     state.pipeline.process = process
 
-    await handler_module.handle_message(message, SETTINGS)
+    await handler_module.handle_message(
+        message,
+        llm_client=state.llm_client,
+        settings=SETTINGS,
+    )
 
     assert len(state.error_calls) == 1
     error = state.error_calls[0]
@@ -338,7 +362,11 @@ async def test_handler_preserves_final_answer_after_stream_edit_failure(
 
     state.pipeline.process = process
 
-    await handler_module.handle_message(message, SETTINGS)
+    await handler_module.handle_message(
+        message,
+        llm_client=state.llm_client,
+        settings=SETTINGS,
+    )
 
     # Первый answer создаёт stream-status; fallback отправляет полный ответ.
     assert message.answers == [
@@ -362,7 +390,11 @@ async def test_handler_routes_llm_connection_loss_with_existing_status(
 
     state.pipeline.process = process
 
-    await handler_module.handle_message(message, SETTINGS)
+    await handler_module.handle_message(
+        message,
+        llm_client=state.llm_client,
+        settings=SETTINGS,
+    )
 
     assert len(state.error_calls) == 1
     error = state.error_calls[0]

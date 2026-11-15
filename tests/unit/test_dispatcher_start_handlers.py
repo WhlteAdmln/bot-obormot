@@ -212,12 +212,12 @@ def access_database(
     database = _AccessDatabase()
     monkeypatch.setattr(access_module, "db", database)
     monkeypatch.setattr(admin_handler, "db", database)
-    monkeypatch.setattr(admin_handler, "llm_client", _FakeLLM())
     monkeypatch.setattr(start_handler, "db", database)
     monkeypatch.setattr(history_basic, "db", database)
     monkeypatch.setattr(history_limits, "db", database)
     monkeypatch.setattr(prompt_handler, "db", database)
     dispatcher.workflow_data["settings"] = SETTINGS
+    dispatcher.workflow_data["llm_client"] = _FakeLLM()
     return database
 
 
@@ -1084,11 +1084,7 @@ async def test_health_reports_failed_telegram_database_and_llm(
     dispatcher, bot, session = dispatcher_runtime
     access_database.failed_operation = "health_check"
     monkeypatch.setattr(Bot, "get_me", fail_get_me)
-    monkeypatch.setattr(
-        admin_handler,
-        "llm_client",
-        _FakeLLM((False, "Недоступен")),
-    )
+    dispatcher.workflow_data["llm_client"] = _FakeLLM((False, "Недоступен"))
 
     await dispatcher.feed_update(
         bot,

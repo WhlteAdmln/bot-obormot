@@ -250,6 +250,3 @@ class LLMClient:
             await self.session.close()
 
         self.session = None
-
-
-llm_client = LLMClient()

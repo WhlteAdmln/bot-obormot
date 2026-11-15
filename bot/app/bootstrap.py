@@ -14,6 +14,7 @@ from bot.app.logging_setup import configure_logging
 from bot.app.routers import configure_dispatcher
 from bot.config.env import load_env_file
 from bot.config.settings import Settings, load_settings
+from bot.services.llm.client import LLMClient
 from bot.services.media.safety import configure_pillow_limits
 
 logger = logging.getLogger("bot.main")
@@ -39,9 +40,12 @@ def create_bot(settings: Settings) -> Bot:
     return Bot(token=settings.BOT_TOKEN)
 
 
-def create_dispatcher(settings: Settings) -> Dispatcher:
+def create_dispatcher(
+    settings: Settings,
+    llm_client: LLMClient,
+) -> Dispatcher:
     """Создаёт Dispatcher и подключает к нему middleware и роутеры."""
-    return configure_dispatcher(Dispatcher(), settings)
+    return configure_dispatcher(Dispatcher(), settings, llm_client)
 
 
 async def main() -> None:
@@ -56,5 +60,6 @@ async def main() -> None:
     log_access_mode(settings)
 
     bot = create_bot(settings)
-    dispatcher = create_dispatcher(settings)
-    await run_application(bot, dispatcher, settings)
+    llm_client = LLMClient(settings)
+    dispatcher = create_dispatcher(settings, llm_client)
+    await run_application(bot, dispatcher, settings, llm_client)

@@ -59,10 +59,16 @@ def test_dispatcher_registers_middlewares_and_routers_once_in_original_order(
     )
 
     dispatcher = _FakeRouterDispatcher()
-    configured = app_routers.configure_dispatcher(dispatcher, SETTINGS)
+    llm_client = _FakeLLM([])
+    configured = app_routers.configure_dispatcher(
+        dispatcher,
+        SETTINGS,
+        llm_client,
+    )
 
     assert configured is dispatcher
     assert dispatcher.workflow_data["settings"] is SETTINGS
+    assert dispatcher.workflow_data["llm_client"] is llm_client
     assert len(dispatcher.middleware_calls) == 3
     assert isinstance(dispatcher.middleware_calls[0], _FakeThrottleMiddleware)
     assert isinstance(dispatcher.middleware_calls[1], _FakeAccessMiddleware)
@@ -214,7 +220,6 @@ def harness(monkeypatch: pytest.MonkeyPatch) -> _LifecycleHarness:
             result.calls.append("cleanup.stop")
 
     monkeypatch.setattr(lifecycle, "db", result.db)
-    monkeypatch.setattr(lifecycle, "llm_client", result.llm)
     monkeypatch.setattr(lifecycle, "periodic_image_cleanup", fake_periodic_cleanup)
     return result
 
@@ -223,13 +228,18 @@ def test_lifecycle_preserves_startup_polling_and_shutdown_order(
     harness: _LifecycleHarness,
 ) -> None:
     """Lifecycle configures resources first, then starts and stops them in order."""
-    asyncio.run(lifecycle.run_application(harness.bot, harness.dispatcher, SETTINGS))
+    asyncio.run(
+        lifecycle.run_application(
+            harness.bot,
+            harness.dispatcher,
+            SETTINGS,
+            harness.llm,
+        )
+    )
 
     assert harness.db.settings is SETTINGS
-    assert harness.llm.settings is SETTINGS
     assert harness.calls == [
         "db.configure",
-        "llm.configure",
         "db.connect",
         "llm.start",
         "polling",
@@ -256,12 +266,16 @@ def test_lifecycle_closes_remaining_resources_when_startup_fails(
 
     with pytest.raises(RuntimeError, match="database unavailable"):
         asyncio.run(
-            lifecycle.run_application(harness.bot, harness.dispatcher, SETTINGS)
+            lifecycle.run_application(
+                harness.bot,
+                harness.dispatcher,
+                SETTINGS,
+                harness.llm,
+            )
         )
 
     assert harness.calls == [
         "db.configure",
-        "llm.configure",
         "db.connect",
         "llm.close",
         "db.close",
@@ -282,7 +296,14 @@ def test_lifecycle_continues_closing_after_one_cleanup_error(
 
     monkeypatch.setattr(harness.llm, "close", fail_llm_close)
 
-    asyncio.run(lifecycle.run_application(harness.bot, harness.dispatcher, SETTINGS))
+    asyncio.run(
+        lifecycle.run_application(
+            harness.bot,
+            harness.dispatcher,
+            SETTINGS,
+            harness.llm,
+        )
+    )
 
     assert harness.calls[-3:] == ["llm.close", "db.close", "telegram.close"]
 
@@ -309,7 +330,12 @@ def test_lifecycle_cancels_running_request_and_background_task_on_shutdown(
 
     async def cancel_application() -> None:
         application_task = asyncio.create_task(
-            lifecycle.run_application(harness.bot, harness.dispatcher, SETTINGS)
+            lifecycle.run_application(
+                harness.bot,
+                harness.dispatcher,
+                SETTINGS,
+                harness.llm,
+            )
         )
         await request_started.wait()
         application_task.cancel()
@@ -322,7 +348,6 @@ def test_lifecycle_cancels_running_request_and_background_task_on_shutdown(
     assert request_cancelled.is_set()
     assert harness.calls == [
         "db.configure",
-        "llm.configure",
         "db.connect",
         "llm.start",
         "polling",
@@ -369,30 +394,41 @@ def test_bootstrap_main_loads_env_and_passes_settings_down(
     bot_instance = object()
     dispatcher_instance = object()
     _patch_main_components(monkeypatch, calls)
+    llm_instance = _FakeLLM(calls)
 
     def load_settings(environ: object) -> Settings:
         assert environ is os.environ
         calls.append("settings")
         return SETTINGS
 
+    def create_llm_client(settings: Settings) -> _FakeLLM:
+        calls.append(("llm_client", settings))
+        return llm_instance
+
     def create_bot(settings: Settings) -> object:
         calls.append(("bot", settings))
         return bot_instance
 
-    def create_dispatcher(settings: Settings) -> object:
-        calls.append(("dispatcher", settings))
+    def create_dispatcher(
+        settings: Settings,
+        llm_client: _FakeLLM,
+    ) -> object:
+        calls.append(("dispatcher", settings, llm_client))
         return dispatcher_instance
 
     async def run_application(
         bot: object,
         dispatcher: object,
         settings: Settings,
+        llm_client: _FakeLLM,
     ) -> None:
         assert bot is bot_instance
         assert dispatcher is dispatcher_instance
+        assert llm_client is llm_instance
         calls.append(("run", settings))
 
     monkeypatch.setattr(bootstrap, "load_settings", load_settings)
+    monkeypatch.setattr(bootstrap, "LLMClient", create_llm_client)
     monkeypatch.setattr(bootstrap, "create_bot", create_bot)
     monkeypatch.setattr(bootstrap, "create_dispatcher", create_dispatcher)
     monkeypatch.setattr(bootstrap, "run_application", run_application)
@@ -407,7 +443,8 @@ def test_bootstrap_main_loads_env_and_passes_settings_down(
         "pillow_limits",
         ("access_mode", SETTINGS),
         ("bot", SETTINGS),
-        ("dispatcher", SETTINGS),
+        ("llm_client", SETTINGS),
+        ("dispatcher", SETTINGS, llm_instance),
         ("run", SETTINGS),
     ]
 
@@ -434,15 +471,22 @@ def test_create_dispatcher_passes_settings_to_router_configuration(
     class FakeDispatcher:
         pass
 
-    def configure_dispatcher(dispatcher: object, settings: Settings) -> object:
+    llm_client = _FakeLLM([])
+
+    def configure_dispatcher(
+        dispatcher: object,
+        settings: Settings,
+        configured_llm: _FakeLLM,
+    ) -> object:
         assert isinstance(dispatcher, FakeDispatcher)
         assert settings is SETTINGS
+        assert configured_llm is llm_client
         return dispatcher
 
     monkeypatch.setattr(bootstrap, "Dispatcher", FakeDispatcher)
     monkeypatch.setattr(bootstrap, "configure_dispatcher", configure_dispatcher)
 
-    assert isinstance(bootstrap.create_dispatcher(SETTINGS), FakeDispatcher)
+    assert isinstance(bootstrap.create_dispatcher(SETTINGS, llm_client), FakeDispatcher)
 
 
 def test_main_module_is_a_thin_entrypoint() -> None:

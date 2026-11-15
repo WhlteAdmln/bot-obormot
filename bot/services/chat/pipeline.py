@@ -7,7 +7,7 @@ import logging
 from collections.abc import Awaitable, Callable
 
 from bot.services.database import db
-from bot.services.llm import llm_client
+from bot.services.llm.client import LLMClient
 
 logger = logging.getLogger("bot.services.chat.pipeline")
 
@@ -21,8 +21,10 @@ async def process_chat(
     saved_user_text: str,
     media: list[bytes] | None = None,
     on_update: Callable[[str], Awaitable[None]] | None = None,
+    *,
+    llm_client: LLMClient,
 ) -> str:
-    """Builds the context, streams the LLM reply and saves the full exchange.
+    """Builds the context, streams the LLM reply and saves the exchange.
 
     Формирует контекст с учётом лимита токенов,
     получает ответ от LLM и сохраняет полный обмен в БД.

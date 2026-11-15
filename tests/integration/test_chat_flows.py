@@ -24,20 +24,27 @@ from bot.middlewares import throttle as throttle_middleware
 from bot.services.chat.formatting import format_roleplay
 from bot.services.chat.streaming.settings import MAX_MESSAGE_LENGTH
 from bot.services.database import Database
-from bot.services.llm import llm_client
+from bot.services.llm import LLMClient
 from tests.support.fake_audiodoc import FakeAudiodoc
 from tests.support.fake_llm import FakeLLM, FakeLLMOptions
 from tests.support.settings import make_settings
 from tests.support.telegram import FakeTelegramSession, make_message, make_update
 
 
-async def _reset_llm_client() -> None:
-    """Close the LLM session and clear cached server metadata."""
-    await llm_client.close()
-    llm_client._settings = None
-    llm_client._semaphore = None
-    llm_client._context_size = None
-    llm_client._token_counting_mode = None
+def _create_flow_dispatcher(settings: Settings) -> Dispatcher:
+    """Create a dispatcher with an isolated LLM client."""
+    client = LLMClient(settings)
+    return configure_dispatcher(
+        Dispatcher(storage=MemoryStorage()),
+        settings,
+        client,
+    )
+
+
+async def _close_flow_llm_client(dispatcher: Dispatcher | None) -> None:
+    """Close the LLM client owned by an integration flow."""
+    if dispatcher is not None:
+        await dispatcher.workflow_data["llm_client"].close()
 
 
 def _configure_llm_flow(llm_base_url: str, **overrides: object) -> Settings:
@@ -52,9 +59,7 @@ def _configure_llm_flow(llm_base_url: str, **overrides: object) -> Settings:
         "ALLOWED_USERS": set(),
     }
     options.update(overrides)
-    settings = make_settings(**options)
-    llm_client.configure(settings)
-    return settings
+    return make_settings(**options)
 
 
 def _release_dispatcher(dispatcher: Dispatcher) -> None:
@@ -252,9 +257,7 @@ async def test_text_message_streams_answer_and_persists_exchange(
     user_text = "Объясни, пожалуйста, как работает SQLite."
     first_chunk = " ".join(["streamed"] * 180) + " "
     response = f"{first_chunk}complete"
-
-    await _reset_llm_client()
-
+    dispatcher: Dispatcher | None = None
     try:
         async with FakeLLM(
             options=FakeLLMOptions(chunks=(first_chunk, "complete")),
@@ -281,10 +284,7 @@ async def test_text_message_streams_answer_and_persists_exchange(
                 }
             )
             bot = Bot(token=settings.BOT_TOKEN, session=telegram_session)
-            dispatcher = configure_dispatcher(
-                Dispatcher(storage=MemoryStorage()),
-                settings,
-            )
+            dispatcher = _create_flow_dispatcher(settings)
 
             try:
                 await dispatcher.feed_update(
@@ -325,7 +325,7 @@ async def test_text_message_streams_answer_and_persists_exchange(
                 ("assistant", response),
             ]
     finally:
-        await _reset_llm_client()
+        await _close_flow_llm_client(dispatcher)
 
 
 @pytest.mark.asyncio
@@ -338,9 +338,7 @@ async def test_voice_message_is_transcribed_answered_and_persisted(
     first_chunk = " ".join(["streamed"] * 180) + " "
     response = f"{first_chunk}complete"
     audio_data = b"OggS-fake-voice-data"
-
-    await _reset_llm_client()
-
+    dispatcher: Dispatcher | None = None
     try:
         async with (
             FakeAudiodoc() as audiodoc_server,
@@ -357,10 +355,7 @@ async def test_voice_message_is_transcribed_answered_and_persisted(
 
             telegram_session = _make_voice_telegram_session(user_id, audio_data)
             bot = Bot(token=settings.BOT_TOKEN, session=telegram_session)
-            dispatcher = configure_dispatcher(
-                Dispatcher(storage=MemoryStorage()),
-                settings,
-            )
+            dispatcher = _create_flow_dispatcher(settings)
             voice_message = _make_voice_message(user_id, len(audio_data))
 
             try:
@@ -375,7 +370,7 @@ async def test_voice_message_is_transcribed_answered_and_persisted(
             _assert_voice_delivery(telegram_session, llm_server, response)
             await _assert_voice_history(test_db, user_id, response)
     finally:
-        await _reset_llm_client()
+        await _close_flow_llm_client(dispatcher)
 
 
 @pytest.mark.asyncio
@@ -388,9 +383,7 @@ async def test_pdf_document_is_extracted_answered_and_persisted(
     first_chunk = " ".join(["streamed"] * 180) + " "
     response = f"{first_chunk}complete"
     document_data = b"%PDF-1.7\n% fake PDF integration document\n"
-
-    await _reset_llm_client()
-
+    dispatcher: Dispatcher | None = None
     try:
         async with (
             FakeAudiodoc() as audiodoc_server,
@@ -410,10 +403,7 @@ async def test_pdf_document_is_extracted_answered_and_persisted(
                 document_data,
             )
             bot = Bot(token=settings.BOT_TOKEN, session=telegram_session)
-            dispatcher = configure_dispatcher(
-                Dispatcher(storage=MemoryStorage()),
-                settings,
-            )
+            dispatcher = _create_flow_dispatcher(settings)
             document_message = _make_document_message(
                 user_id,
                 len(document_data),
@@ -464,7 +454,7 @@ async def test_pdf_document_is_extracted_answered_and_persisted(
             )
             assert history[1]["content"] == response
     finally:
-        await _reset_llm_client()
+        await _close_flow_llm_client(dispatcher)
 
 
 def _assert_photo_delivery(
@@ -548,8 +538,7 @@ async def test_photo_message_is_processed_by_vision_and_persisted(
     Image.new("RGB", (2, 2), (24, 48, 96)).save(image_buffer, format="PNG")
     image_data = image_buffer.getvalue()
 
-    await _reset_llm_client()
-
+    dispatcher: Dispatcher | None = None
     try:
         async with FakeLLM(
             options=FakeLLMOptions(chunks=(first_chunk, "complete")),
@@ -600,10 +589,7 @@ async def test_photo_message_is_processed_by_vision_and_persisted(
                 }
             )
             bot = Bot(token=settings.BOT_TOKEN, session=telegram_session)
-            dispatcher = configure_dispatcher(
-                Dispatcher(storage=MemoryStorage()),
-                settings,
-            )
+            dispatcher = _create_flow_dispatcher(settings)
 
             try:
                 await dispatcher.feed_update(
@@ -617,7 +603,7 @@ async def test_photo_message_is_processed_by_vision_and_persisted(
             _assert_photo_delivery(telegram_session, llm_server, response)
             await _assert_photo_history(test_db, user_id, response)
     finally:
-        await _reset_llm_client()
+        await _close_flow_llm_client(dispatcher)
 
 
 @pytest.mark.asyncio
@@ -630,8 +616,7 @@ async def test_blocked_user_is_denied_before_llm_is_called(
     denied_text = "⛔ У тебя нет доступа к этому боту."
 
     assert await test_db.block_user(user_id) is True
-    await _reset_llm_client()
-
+    dispatcher: Dispatcher | None = None
     try:
         async with FakeLLM() as llm_server:
             settings = _configure_llm_flow(
@@ -651,10 +636,7 @@ async def test_blocked_user_is_denied_before_llm_is_called(
                 }
             )
             bot = Bot(token=settings.BOT_TOKEN, session=telegram_session)
-            dispatcher = configure_dispatcher(
-                Dispatcher(storage=MemoryStorage()),
-                settings,
-            )
+            dispatcher = _create_flow_dispatcher(settings)
 
             try:
                 await dispatcher.feed_update(
@@ -684,7 +666,7 @@ async def test_blocked_user_is_denied_before_llm_is_called(
             assert not llm_server.stream_started.is_set()
             assert await test_db.get_history(user_id) == []
     finally:
-        await _reset_llm_client()
+        await _close_flow_llm_client(dispatcher)
 
 
 @pytest.mark.asyncio
@@ -696,9 +678,7 @@ async def test_throttled_user_is_blocked_before_llm_is_called(
     user_id = 712345683
     allowed_questions = [f"Question {index}" for index in range(1, 11)]
     blocked_question = "Question 11"
-
-    await _reset_llm_client()
-
+    dispatcher: Dispatcher | None = None
     try:
         async with FakeLLM() as llm_server:
             settings = _configure_llm_flow(llm_server.base_url)
@@ -731,10 +711,7 @@ async def test_throttled_user_is_blocked_before_llm_is_called(
                 }
             )
             bot = Bot(token=settings.BOT_TOKEN, session=telegram_session)
-            dispatcher = configure_dispatcher(
-                Dispatcher(storage=MemoryStorage()),
-                settings,
-            )
+            dispatcher = _create_flow_dispatcher(settings)
 
             try:
                 for update_id, question in enumerate(
@@ -777,7 +754,7 @@ async def test_throttled_user_is_blocked_before_llm_is_called(
                 )
             ]
     finally:
-        await _reset_llm_client()
+        await _close_flow_llm_client(dispatcher)
 
 
 @pytest.mark.asyncio
@@ -789,9 +766,7 @@ async def test_long_answer_is_split_into_multiple_telegram_messages(
     user_id = 712345684
     user_text = "Напиши очень длинный ответ."
     response = " ".join(["long-answer"] * 1200)
-
-    await _reset_llm_client()
-
+    dispatcher: Dispatcher | None = None
     try:
         async with FakeLLM(
             options=FakeLLMOptions(chunks=(response,)),
@@ -818,10 +793,7 @@ async def test_long_answer_is_split_into_multiple_telegram_messages(
                 }
             )
             bot = Bot(token=settings.BOT_TOKEN, session=telegram_session)
-            dispatcher = configure_dispatcher(
-                Dispatcher(storage=MemoryStorage()),
-                settings,
-            )
+            dispatcher = _create_flow_dispatcher(settings)
 
             try:
                 await dispatcher.feed_update(
@@ -859,7 +831,7 @@ async def test_long_answer_is_split_into_multiple_telegram_messages(
                 ("assistant", response),
             ]
     finally:
-        await _reset_llm_client()
+        await _close_flow_llm_client(dispatcher)
 
 
 @pytest.mark.asyncio
@@ -872,9 +844,7 @@ async def test_llm_connection_failure_is_reported_without_persisting_exchange(
     error_prefix = "🔌 Не удалось связаться с языковой моделью."
     error_suffix = "Проверь доступность AI-сервера."
     expected_error = f"{error_prefix} {error_suffix}"
-
-    await _reset_llm_client()
-
+    dispatcher: Dispatcher | None = None
     try:
         async with FakeLLM() as llm_server:
             settings_overrides = {
@@ -902,10 +872,7 @@ async def test_llm_connection_failure_is_reported_without_persisting_exchange(
                 }
             )
             bot = Bot(token=settings.BOT_TOKEN, session=telegram_session)
-            dispatcher = configure_dispatcher(
-                Dispatcher(storage=MemoryStorage()),
-                settings,
-            )
+            dispatcher = _create_flow_dispatcher(settings)
 
             try:
                 await dispatcher.feed_update(
@@ -938,7 +905,7 @@ async def test_llm_connection_failure_is_reported_without_persisting_exchange(
             )
             assert await test_db.get_history(user_id) == []
     finally:
-        await _reset_llm_client()
+        await _close_flow_llm_client(dispatcher)
 
 
 @pytest.mark.asyncio
@@ -950,9 +917,7 @@ async def test_document_connection_failure_is_reported_without_persisting_exchan
     user_id = 712345686
     expected_error = "🔌 Не удалось связаться с сервисом обработки документов."
     document_data = b"%PDF-1.7\n% unavailable audiodoc integration document\n"
-
-    await _reset_llm_client()
-
+    dispatcher: Dispatcher | None = None
     try:
         async with (
             FakeAudiodoc() as audiodoc_server,
@@ -971,10 +936,7 @@ async def test_document_connection_failure_is_reported_without_persisting_exchan
                 document_data,
             )
             bot = Bot(token=settings.BOT_TOKEN, session=telegram_session)
-            dispatcher = configure_dispatcher(
-                Dispatcher(storage=MemoryStorage()),
-                settings,
-            )
+            dispatcher = _create_flow_dispatcher(settings)
 
             try:
                 await dispatcher.feed_update(
@@ -1014,7 +976,7 @@ async def test_document_connection_failure_is_reported_without_persisting_exchan
             )
             assert await test_db.get_history(user_id) == []
     finally:
-        await _reset_llm_client()
+        await _close_flow_llm_client(dispatcher)
 
 
 def _configure_history_limit_flow(
@@ -1053,10 +1015,7 @@ async def _dispatch_history_limit_message(
         }
     )
     bot = Bot(token=settings.BOT_TOKEN, session=telegram_session)
-    dispatcher = configure_dispatcher(
-        Dispatcher(storage=MemoryStorage()),
-        settings,
-    )
+    dispatcher = _create_flow_dispatcher(settings)
 
     try:
         await dispatcher.feed_update(
@@ -1072,6 +1031,7 @@ async def _dispatch_history_limit_message(
     finally:
         await bot.session.close()
         _release_dispatcher(dispatcher)
+        await _close_flow_llm_client(dispatcher)
 
     return telegram_session
 
@@ -1163,34 +1123,29 @@ async def test_history_limit_restricts_llm_context_and_preserves_history(
     user_text = "Use only the recent conversation."
     response = "History limit respected."
 
-    await _reset_llm_client()
-
-    try:
-        async with FakeLLM(
-            options=FakeLLMOptions(chunks=(response,)),
-        ) as llm_server:
-            settings = _configure_history_limit_flow(
-                monkeypatch,
-                test_db,
-                llm_server,
-            )
-            telegram_session = await _dispatch_history_limit_message(
-                user_id,
-                user_text,
-                settings,
-            )
-            _assert_history_limit_context(
-                llm_server,
-                previous_exchanges,
-                user_text,
-            )
-            _assert_history_limit_delivery(telegram_session, response)
-            await _assert_history_limit_persistence(
-                test_db,
-                user_id,
-                previous_exchanges,
-                user_text,
-                response,
-            )
-    finally:
-        await _reset_llm_client()
+    async with FakeLLM(
+        options=FakeLLMOptions(chunks=(response,)),
+    ) as llm_server:
+        settings = _configure_history_limit_flow(
+            monkeypatch,
+            test_db,
+            llm_server,
+        )
+        telegram_session = await _dispatch_history_limit_message(
+            user_id,
+            user_text,
+            settings,
+        )
+        _assert_history_limit_context(
+            llm_server,
+            previous_exchanges,
+            user_text,
+        )
+        _assert_history_limit_delivery(telegram_session, response)
+        await _assert_history_limit_persistence(
+            test_db,
+            user_id,
+            previous_exchanges,
+            user_text,
+            response,
+        )

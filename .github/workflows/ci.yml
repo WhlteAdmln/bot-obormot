@@ -94,6 +94,7 @@ jobs:
             pytest-randomly \
             pytest-timeout \
             hypothesis==6.170.15 \
+            jsonschema==4.26.0 \
             packaging
 
       - name: Check installed dependencies

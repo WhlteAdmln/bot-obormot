@@ -39,6 +39,9 @@ class FakeLLMOptions:
     include_context_metadata: bool = True
     context_size: int = 8192
     tokenizer_available: bool = True
+    tokenize_status: int = HTTPStatus.OK
+    tokenize_delay: float = 0.0
+    apply_template_status: int = HTTPStatus.OK
     first_token_delay: float = 0.0
     drop_after_chunks: int | None = None
     chunks: tuple[str, ...] = ("Hello", ", world!")
@@ -53,6 +56,9 @@ class FakeLLMOptions:
             raise ValueError(msg)
         if self.first_token_delay < 0:
             msg = "First token delay cannot be negative"
+            raise ValueError(msg)
+        if self.tokenize_delay < 0:
+            msg = "Tokenizer delay cannot be negative"
             raise ValueError(msg)
         if self.drop_after_chunks is not None and self.drop_after_chunks < 1:
             msg = "Drop position must be positive"
@@ -73,6 +79,7 @@ class FakeLLM:
         self.model = model
         self.api_key = api_key
         self.options = options or FakeLLMOptions()
+        self.stream_started = asyncio.Event()
 
         self.app = web.Application()
         self.app.router.add_get("/health", self._health)
@@ -226,6 +233,7 @@ class FakeLLM:
         if will_drop:
             response.force_close()
         await response.prepare(request)
+        self.stream_started.set()
 
         for index, event in enumerate(events, start=1):
             if index == 1 and self.options.first_token_delay:
@@ -255,6 +263,14 @@ class FakeLLM:
                 status=HTTPStatus.NOT_FOUND,
             )
 
+        if self.options.tokenize_delay:
+            await asyncio.sleep(self.options.tokenize_delay)
+        if self.options.tokenize_status != HTTPStatus.OK:
+            return web.json_response(
+                {"error": "Tokenizer request failed"},
+                status=self.options.tokenize_status,
+            )
+
         payload: Any = await request.json()
         content = payload.get("content", "") if isinstance(payload, dict) else ""
         if not isinstance(content, str):
@@ -266,6 +282,11 @@ class FakeLLM:
         error = self._authorization_error(request)
         if error is not None:
             return error
+        if self.options.apply_template_status != HTTPStatus.OK:
+            return web.json_response(
+                {"error": "Template application failed"},
+                status=self.options.apply_template_status,
+            )
 
         payload: Any = await request.json()
         messages = payload.get("messages", []) if isinstance(payload, dict) else []

@@ -9,7 +9,7 @@ import pytest
 
 from bot.config import config
 from bot.errors import LLMUnavailableError
-from bot.services.llm import LLMClient, endpoints, llm_client, messages, session
+from bot.services.llm import LLMClient, endpoints, llm_client, messages
 
 
 def test_llm_package_preserves_public_imports() -> None:
@@ -175,94 +175,33 @@ def test_server_url_removes_trailing_slashes_and_v1(
     assert endpoints.server_url() == "http://localhost:8080"
 
 
-@pytest.mark.asyncio
-async def test_get_session_reuses_open_session_and_recreates_closed_one(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Get session reuses open session and recreates closed one."""
-    created = []
+def test_client_exposes_message_normalization_and_counting_helpers() -> None:
+    """Expose message helpers through the public client methods."""
+    client = LLMClient()
+    source = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "hello"},
+                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,x"}},
+            ],
+        }
+    ]
 
-    class FakeSession:
-        def __init__(self, timeout: object, headers: object | None = None) -> None:
-            self.timeout = timeout
-            self.headers = headers
-            self.closed = False
-            created.append(self)
-
-    monkeypatch.setattr(session.aiohttp, "ClientSession", FakeSession)
-    monkeypatch.setattr(session.aiohttp, "ClientTimeout", lambda total: total)
-    monkeypatch.setattr(config, "LLM_TIMEOUT", 12)
-    monkeypatch.setattr(config, "LLM_API_KEY", "not-needed")
-
-    class Client:
-        session = None
-
-    client = Client()
-    first = await session.get_session(client)
-    second = await session.get_session(client)
-
-    assert first is second
-    assert first.timeout == 12
-    assert first.headers == {}
-    assert len(created) == 1
-
-    first.closed = True
-    third = await session.get_session(client)
-
-    assert third is not first
-    assert len(created) == 2
+    assert client._normalize_content(None) == ""
+    normalized = client.normalize_messages(source)
+    assert client._normalize_messages(source) == normalized
+    prepared = client.prepare_messages_for_count(normalized)
+    assert client._prepare_messages_for_count(normalized) == prepared
+    assert client.count_images(normalized) == 1
+    assert client._count_images(normalized) == 1
 
 
 @pytest.mark.asyncio
-async def test_get_session_sends_bearer_api_key(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Get session sends bearer api key."""
-    created = []
+async def test_close_without_open_session_is_safe() -> None:
+    """Close a client that has never opened an HTTP session."""
+    client = LLMClient()
 
-    class FakeSession:
-        def __init__(self, timeout: object, headers: object | None = None) -> None:
-            self.timeout = timeout
-            self.headers = headers
-            self.closed = False
-            created.append(self)
+    await client.close()
 
-    monkeypatch.setattr(session.aiohttp, "ClientSession", FakeSession)
-    monkeypatch.setattr(session.aiohttp, "ClientTimeout", lambda total: total)
-    monkeypatch.setattr(config, "LLM_TIMEOUT", 12)
-    monkeypatch.setattr(config, "LLM_API_KEY", "secret-api-key")
-
-    class Client:
-        session = None
-
-    client = Client()
-    result = await session.get_session(client)
-
-    assert result.headers == {"Authorization": "Bearer secret-api-key"}
-    assert len(created) == 1
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("api_key", ["", "   ", "not-needed"])
-async def test_get_session_omits_auth_header_without_real_key(
-    monkeypatch: pytest.MonkeyPatch, api_key: str
-) -> None:
-    """Get session omits auth header without real key."""
-
-    class FakeSession:
-        def __init__(self, timeout: object, headers: object | None = None) -> None:
-            self.timeout = timeout
-            self.headers = headers
-            self.closed = False
-
-    monkeypatch.setattr(session.aiohttp, "ClientSession", FakeSession)
-    monkeypatch.setattr(session.aiohttp, "ClientTimeout", lambda total: total)
-    monkeypatch.setattr(config, "LLM_TIMEOUT", 12)
-    monkeypatch.setattr(config, "LLM_API_KEY", api_key)
-
-    class Client:
-        session = None
-
-    result = await session.get_session(Client())
-
-    assert result.headers == {}
+    assert client.session is None

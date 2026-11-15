@@ -3,6 +3,9 @@
 
 """Tests for the fake OpenAI-compatible LLM support server."""
 
+import asyncio
+from contextlib import suppress
+
 import aiohttp
 import pytest
 
@@ -154,3 +157,270 @@ async def test_fake_llm_can_drop_connection_mid_stream(
                 await anext(stream)
         finally:
             await client.close()
+
+
+@pytest.mark.asyncio
+async def test_real_client_session_reuses_and_recreates_closed_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reuse a real HTTP session and recreate it after closure."""
+    async with FakeLLM(api_key=None) as server:
+        _configure_client(monkeypatch, server)
+        client = LLMClient()
+        try:
+            await client.start()
+            first = await client.get_session()
+            assert await client.get_session() is first
+            assert first.timeout.total == 5.0
+
+            await first.close()
+            second = await client.get_session()
+
+            assert second is not first
+            assert not second.closed
+            assert await client.health_check() == (True, "Доступен")
+
+            await client.close()
+            assert second.closed
+            assert client.session is None
+        finally:
+            await client.close()
+
+
+@pytest.mark.parametrize(
+    ("api_key", "expected_header"),
+    [
+        ("secret-api-key", "Bearer secret-api-key"),
+        ("", None),
+        ("   ", None),
+        ("not-needed", None),
+    ],
+)
+@pytest.mark.asyncio
+async def test_real_client_session_configures_auth_header(
+    monkeypatch: pytest.MonkeyPatch,
+    api_key: str,
+    expected_header: str | None,
+) -> None:
+    """Configure the real session authorization header."""
+    async with FakeLLM(api_key=None) as server:
+        _configure_client(monkeypatch, server)
+        monkeypatch.setattr(config, "LLM_API_KEY", api_key)
+        client = LLMClient()
+        try:
+            session = await client.get_session()
+            assert session.headers.get("Authorization") == expected_header
+        finally:
+            await client.close()
+
+
+@pytest.mark.asyncio
+async def test_stream_can_be_cancelled_by_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cancel a pending stream without invalidating the shared session."""
+    options = FakeLLMOptions(first_token_delay=0.1)
+    async with FakeLLM(options=options) as server:
+        _configure_client(monkeypatch, server)
+        client = LLMClient()
+        stream = client.stream([{"role": "user", "content": "hello"}])
+        pending_token = asyncio.create_task(anext(stream))
+
+        try:
+            await asyncio.wait_for(server.stream_started.wait(), timeout=1)
+            pending_token.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await pending_token
+
+            assert await client.health_check() == (True, "Доступен")
+        finally:
+            if not pending_token.done():
+                pending_token.cancel()
+                with suppress(asyncio.CancelledError):
+                    await pending_token
+            await stream.aclose()
+            await client.close()
+
+
+@pytest.mark.asyncio
+async def test_real_client_fits_very_long_history(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Prune old exchanges while preserving the newest history."""
+    async with FakeLLM() as server:
+        _configure_client(monkeypatch, server)
+        monkeypatch.setattr(config, "LLM_MAX_TOKENS", 128)
+        client = LLMClient()
+        history: list[dict[str, str]] = []
+        for index in range(4):
+            history.extend(
+                [
+                    {
+                        "role": "user",
+                        "content": f"question-{index} " + "detail " * 1600,
+                    },
+                    {
+                        "role": "assistant",
+                        "content": f"answer-{index} " + "detail " * 1600,
+                    },
+                ]
+            )
+
+        try:
+            result = await client.fit_messages_to_context(
+                "system prompt",
+                history,
+                "current question",
+            )
+            assert result[1:5] == history[4:]
+            assert result[-1] == {
+                "role": "user",
+                "content": "current question",
+            }
+            assert len(result) < len(history) + 2
+        finally:
+            await client.close()
+
+
+@pytest.mark.asyncio
+async def test_real_client_estimates_message_tokens_when_tokenizer_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Estimate message tokens when the server has no tokenizer."""
+    options = FakeLLMOptions(tokenizer_available=False)
+    async with FakeLLM(options=options) as server:
+        _configure_client(monkeypatch, server)
+        client = LLMClient()
+        try:
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "one two three"},
+                        {"type": "image_url"},
+                    ],
+                }
+            ]
+
+            assert await client.get_token_counting_mode() == "estimate"
+            assert await client.count_tokens(messages) == 13
+        finally:
+            await client.close()
+
+
+@pytest.mark.parametrize(
+    ("options", "operation"),
+    [
+        (FakeLLMOptions(apply_template_status=500), "messages"),
+        (FakeLLMOptions(tokenize_status=500), "messages"),
+        (FakeLLMOptions(tokenize_status=500), "text"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_real_client_maps_tokenizer_http_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    options: FakeLLMOptions,
+    operation: str,
+) -> None:
+    """Map tokenizer endpoint HTTP failures to the public API error."""
+    async with FakeLLM(options=options) as server:
+        _configure_client(monkeypatch, server)
+        monkeypatch.setattr(config, "LLM_TOKEN_COUNTING", "llamacpp")
+        client = LLMClient()
+        try:
+            request = (
+                client.count_tokens([{"role": "user", "content": "hello world"}])
+                if operation == "messages"
+                else client.count_text_tokens("hello world")
+            )
+            with pytest.raises(LLMAPIError) as error:
+                await request
+
+            assert error.value.status == 500
+        finally:
+            await client.close()
+
+
+@pytest.mark.parametrize("operation", ["messages", "text"])
+@pytest.mark.asyncio
+async def test_real_client_maps_tokenizer_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+    operation: str,
+) -> None:
+    """Map tokenizer endpoint timeouts to the public timeout error."""
+    options = FakeLLMOptions(tokenize_delay=0.05)
+    async with FakeLLM(options=options) as server:
+        _configure_client(monkeypatch, server, timeout=0.01)
+        monkeypatch.setattr(config, "LLM_TOKEN_COUNTING", "llamacpp")
+        client = LLMClient()
+        try:
+            request = (
+                client.count_tokens([{"role": "user", "content": "hello world"}])
+                if operation == "messages"
+                else client.count_text_tokens("hello world")
+            )
+            with pytest.raises(LLMTimeoutError):
+                await request
+        finally:
+            await client.close()
+
+
+@pytest.mark.asyncio
+async def test_context_size_uses_single_model_fallback_and_caches_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Use the only model entry when its ID does not match the setting."""
+    async with FakeLLM() as server:
+        _configure_client(monkeypatch, server, context_size=None)
+        monkeypatch.setattr(config, "LLM_MODEL", "configured-model")
+        client = LLMClient()
+        try:
+            assert await client.get_context_size() == 8192
+            assert await client.get_context_size() == 8192
+        finally:
+            await client.close()
+
+
+@pytest.mark.asyncio
+async def test_context_size_fails_when_server_has_no_context_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Require a setting when neither server endpoint reports context size."""
+    options = FakeLLMOptions(include_context_metadata=False)
+    async with FakeLLM(options=options) as server:
+        _configure_client(monkeypatch, server, context_size=None)
+        client = LLMClient()
+        try:
+            with pytest.raises(LLMUnavailableError, match="LLM_CONTEXT_SIZE"):
+                await client.get_context_size()
+        finally:
+            await client.close()
+
+
+@pytest.mark.asyncio
+async def test_real_client_handles_unavailable_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Handle connection failures in context, tokenizer and health requests."""
+    server = FakeLLM(api_key=None)
+    await server.__aenter__()
+    _configure_client(monkeypatch, server)
+    await server.__aexit__(None, None, None)
+    monkeypatch.setattr(config, "LLM_CONTEXT_SIZE", None)
+    client = LLMClient()
+
+    try:
+        with pytest.raises(LLMUnavailableError, match="LLM_CONTEXT_SIZE"):
+            await client.get_context_size()
+
+        assert await client.get_token_counting_mode() == "estimate"
+
+        monkeypatch.setattr(config, "LLM_TOKEN_COUNTING", "llamacpp")
+        with pytest.raises(LLMUnavailableError):
+            await client.count_tokens([{"role": "user", "content": "hello"}])
+        with pytest.raises(LLMUnavailableError):
+            await client.count_text_tokens("hello")
+
+        assert await client.health_check() == (False, "LLM-сервер недоступен")
+    finally:
+        await client.close()

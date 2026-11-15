@@ -10,15 +10,15 @@ import pytest
 
 from bot.config.settings import Settings
 from bot.errors import LLMUnavailableError
-from bot.services.llm import LLMClient, endpoints, llm_client, messages
+from bot.services.llm import LLMClient, endpoints, messages
 
 
-def test_llm_package_preserves_public_imports() -> None:
-    """Llm package preserves public imports."""
-    assert isinstance(llm_client, LLMClient)
-    assert callable(llm_client.count_tokens)
-    assert callable(llm_client.fit_messages_to_context)
-    assert callable(llm_client.stream)
+def test_llm_client_exposes_public_methods() -> None:
+    """LLM client exposes its public methods."""
+    client = LLMClient()
+    assert callable(client.count_tokens)
+    assert callable(client.fit_messages_to_context)
+    assert callable(client.stream)
 
 
 def test_normalize_content_preserves_supported_shapes() -> None:

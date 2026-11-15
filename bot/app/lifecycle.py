@@ -11,7 +11,7 @@ from aiogram import Bot, Dispatcher
 from bot.app.background.image_cleanup import periodic_image_cleanup
 from bot.config.settings import Settings
 from bot.services.database import db
-from bot.services.llm import llm_client
+from bot.services.llm.client import LLMClient
 
 logger = logging.getLogger("bot.main")
 
@@ -20,13 +20,13 @@ async def run_application(
     bot: Bot,
     dispatcher: Dispatcher,
     settings: Settings,
+    llm_client: LLMClient,
 ) -> None:
     """Подключает ресурсы, запускает polling и закрывает их в обратном порядке."""
     image_cleanup_task: asyncio.Task[None] | None = None
 
     try:
         db.configure(settings)
-        llm_client.configure(settings)
 
         # Порядок старта является частью контракта приложения.
         await db.connect()

@@ -13,7 +13,7 @@ from aiogram.types import Message
 
 from bot.config.settings import Settings
 from bot.services.database import db
-from bot.services.llm import llm_client
+from bot.services.llm.client import LLMClient
 from bot.utils.audit import audit
 
 if TYPE_CHECKING:
@@ -62,7 +62,11 @@ async def check_database() -> tuple[bool, str]:
 
 
 @router.message(Command("health"))
-async def cmd_health(message: Message, settings: Settings) -> None:
+async def cmd_health(
+    message: Message,
+    settings: Settings,
+    llm_client: LLMClient,
+) -> None:
     """Показывает состояние основных компонентов бота."""
     if not message.from_user:
         return

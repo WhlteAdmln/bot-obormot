@@ -226,12 +226,12 @@ async def test_chat_pipeline_streams_calls_callback_and_persists_exchange(
         updates.append(text)
 
     monkeypatch.setattr(chat_pipeline, "db", FakeDatabase())
-    monkeypatch.setattr(chat_pipeline, "llm_client", FakeLLM())
 
     result = await chat_pipeline.process_chat(
         user_id=77,
         user_content="вход",
         saved_user_text="сохранённый вход",
+        llm_client=FakeLLM(),
         media=[b"image"],
         on_update=on_update,
     )
@@ -278,9 +278,13 @@ async def test_chat_pipeline_caps_history_limit_at_100(
             yield "ответ"
 
     monkeypatch.setattr(chat_pipeline, "db", FakeDatabase())
-    monkeypatch.setattr(chat_pipeline, "llm_client", FakeLLM())
 
-    result = await chat_pipeline.process_chat(77, "вход", "вход")
+    result = await chat_pipeline.process_chat(
+        77,
+        "вход",
+        "вход",
+        llm_client=FakeLLM(),
+    )
 
     assert result == "ответ"
     assert calls == [(77, 100)]
@@ -320,9 +324,13 @@ async def test_chat_pipeline_keeps_history_limit_below_cap(
             yield "ответ"
 
     monkeypatch.setattr(chat_pipeline, "db", FakeDatabase())
-    monkeypatch.setattr(chat_pipeline, "llm_client", FakeLLM())
 
-    result = await chat_pipeline.process_chat(77, "вход", "вход")
+    result = await chat_pipeline.process_chat(
+        77,
+        "вход",
+        "вход",
+        llm_client=FakeLLM(),
+    )
 
     assert result == "ответ"
     assert calls == [17]
@@ -360,10 +368,14 @@ async def test_chat_pipeline_does_not_persist_empty_response(
                 yield ""
 
     monkeypatch.setattr(chat_pipeline, "db", FakeDatabase())
-    monkeypatch.setattr(chat_pipeline, "llm_client", FakeLLM())
 
     with pytest.raises(RuntimeError, match="пустой ответ"):
-        await chat_pipeline.process_chat(77, "вход", "вход")
+        await chat_pipeline.process_chat(
+            77,
+            "вход",
+            "вход",
+            llm_client=FakeLLM(),
+        )
 
 
 def test_chat_error_catalog_preserves_original_if_elif_priority() -> None:
@@ -632,9 +644,16 @@ async def test_chat_pipeline_returns_response_when_history_pruning_fails(
             yield "ответ"
 
     monkeypatch.setattr(chat_pipeline, "db", FakeDatabase())
-    monkeypatch.setattr(chat_pipeline, "llm_client", FakeLLM())
 
-    assert await chat_pipeline.process_chat(77, "вход", "вход") == "ответ"
+    assert (
+        await chat_pipeline.process_chat(
+            77,
+            "вход",
+            "вход",
+            llm_client=FakeLLM(),
+        )
+        == "ответ"
+    )
 
 
 def test_user_facing_length_errors_use_configured_input_limit() -> None:

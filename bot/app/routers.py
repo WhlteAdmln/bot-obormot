@@ -12,16 +12,20 @@ from bot.middlewares.temporary_messages import (
     TemporaryMessagesCleanupMiddleware,
 )
 from bot.middlewares.throttle import ThrottleMiddleware
+from bot.services.llm.client import LLMClient
 
 
 def configure_dispatcher(
     dispatcher: Dispatcher,
     settings: Settings | None = None,
+    llm_client: LLMClient | None = None,
 ) -> Dispatcher:
     """Подключает middleware и роутеры к уже созданному Dispatcher."""
     if settings is None:
         settings = get_settings()
     dispatcher.workflow_data["settings"] = settings
+    if llm_client is not None:
+        dispatcher.workflow_data["llm_client"] = llm_client
 
     # Сначала ограничиваем частоту событий, затем проверяем доступ
     # и очищаем временные сообщения.

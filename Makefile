@@ -66,7 +66,13 @@ test:
 		--junitxml=junit.xml
 
 cov:
-	$(PYTHON) -m coverage report --show-missing
+	$(PYTHON) -m pytest -q -rs \
+		-m "not integration" \
+		--cov=bot \
+		--cov-branch \
+		--cov-report=term-missing:skip-covered \
+		--cov-report=xml
+	$(PYTHON) scripts/coverage_gaps.py
 
 docs-check:
 	@echo "not enabled yet"

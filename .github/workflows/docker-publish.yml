@@ -13,16 +13,19 @@ on:
         default: false
         type: boolean
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   ci:
     uses: $/.github/workflows/ci.yml
+    permissions:
+      contents: read
 
   publish:
     needs: ci
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     environment: dockerhub
 
     steps:

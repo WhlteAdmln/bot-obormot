@@ -6,10 +6,11 @@
 import logging
 from collections import deque
 from copy import deepcopy
+from dataclasses import replace
 
 import pytest
 
-from bot.config import config
+from bot.config.settings import Settings
 from bot.errors import InputTooLongError, LLMUnavailableError
 from bot.services.llm import LLMClient
 from bot.services.llm import client as client_module
@@ -19,8 +20,15 @@ from bot.services.llm.fitting import fit_messages_to_context
 class FakeFittingClient:
     """Fake fitting client."""
 
-    def __init__(self, context_size: object, token_counts: object) -> None:
+    def __init__(
+        self,
+        context_size: object,
+        token_counts: object,
+        *,
+        settings: Settings | None = None,
+    ) -> None:
         """Initializes the test double."""
+        self.settings = settings if settings is not None else Settings()
         self.context_size = context_size
         self.token_counts = deque(token_counts)
         self.count_calls = []
@@ -254,12 +262,14 @@ async def test_context_fit_log_distinguishes_window_from_available_budget(
 
 
 @pytest.mark.asyncio
-async def test_estimate_mode_uses_larger_safety_margin(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_estimate_mode_uses_larger_safety_margin() -> None:
     """Estimate mode uses larger safety margin."""
-    client = FakeFittingClient(context_size=10_000, token_counts=[6_500])
-    monkeypatch.setattr(config, "LLM_MAX_TOKENS", 2_048)
+    settings = replace(Settings(), LLM_MAX_TOKENS=2_048)
+    client = FakeFittingClient(
+        context_size=10_000,
+        token_counts=[6_500],
+        settings=settings,
+    )
 
     async def estimate_mode() -> str:
         return "estimate"

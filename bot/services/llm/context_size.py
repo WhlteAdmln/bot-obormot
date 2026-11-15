@@ -9,7 +9,7 @@ from typing import Any, Protocol
 
 import aiohttp
 
-from bot.config import config
+from bot.config.settings import Settings
 from bot.errors import LLMUnavailableError
 from bot.utils.text import log_safe
 
@@ -27,6 +27,11 @@ _CONTEXT_FIELDS = (
 
 class ContextSizeClient(Protocol):
     """Минимальный интерфейс клиента для определения размера контекста."""
+
+    @property
+    def settings(self) -> Settings:
+        """Return the client settings."""
+        ...
 
     async def get_session(self) -> aiohttp.ClientSession:
         """Return the shared HTTP session."""
@@ -68,7 +73,7 @@ def _extract_context_size(data: dict[str, Any]) -> int | None:
     return None
 
 
-def _models_payload_context(data: dict[str, Any]) -> int | None:
+def _models_payload_context(data: dict[str, Any], model_name: str) -> int | None:
     models = data.get("data") or data.get("models")
     if not isinstance(models, list) or not models:
         return None
@@ -77,7 +82,7 @@ def _models_payload_context(data: dict[str, Any]) -> int | None:
         (
             item
             for item in models
-            if isinstance(item, dict) and item.get("id") == config.LLM_MODEL
+            if isinstance(item, dict) and item.get("id") == model_name
         ),
         None,
     )
@@ -88,7 +93,8 @@ def _models_payload_context(data: dict[str, Any]) -> int | None:
 
 async def get_context_size(client: ContextSizeClient) -> int:
     """Возвращает контекст: настройка, llama.cpp /props, затем OpenAI /models."""
-    configured_size = config.LLM_CONTEXT_SIZE
+    settings = client.settings
+    configured_size = settings.LLM_CONTEXT_SIZE
     if configured_size is not None:
         logger.info("LLM context size configured: %s tokens", configured_size)
         return configured_size
@@ -99,8 +105,8 @@ async def get_context_size(client: ContextSizeClient) -> int:
     try:
         async with session.get(
             f"{client.get_server_url()}/props",
-            params={"model": config.LLM_MODEL},
-            timeout=aiohttp.ClientTimeout(total=min(5, config.LLM_TIMEOUT)),
+            params={"model": settings.LLM_MODEL},
+            timeout=aiohttp.ClientTimeout(total=min(5, settings.LLM_TIMEOUT)),
         ) as response:
             if response.status == HTTPStatus.OK:
                 data = await _read_json(response)
@@ -125,12 +131,12 @@ async def get_context_size(client: ContextSizeClient) -> int:
     # в карточку модели. Поле не стандартизировано OpenAI API, поэтому это best effort.
     try:
         async with session.get(
-            f"{config.LLM_BASE_URL}/models",
-            timeout=aiohttp.ClientTimeout(total=min(5, config.LLM_TIMEOUT)),
+            f"{settings.LLM_BASE_URL}/models",
+            timeout=aiohttp.ClientTimeout(total=min(5, settings.LLM_TIMEOUT)),
         ) as response:
             if response.status == HTTPStatus.OK:
                 data = await _read_json(response)
-                context_size = _models_payload_context(data or {})
+                context_size = _models_payload_context(data or {}, settings.LLM_MODEL)
                 if context_size is not None:
                     logger.info(
                         "LLM context size detected via /models: %s",

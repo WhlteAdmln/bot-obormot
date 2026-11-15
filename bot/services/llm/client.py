@@ -11,7 +11,7 @@ from typing import Any
 
 import aiohttp
 
-from bot.config import config
+from bot.config.settings import Settings, get_settings
 from bot.services.llm.context_size import get_context_size as fetch_context_size
 from bot.services.llm.endpoints import server_url
 from bot.services.llm.fitting import fit_messages_to_context
@@ -43,13 +43,30 @@ logger = logging.getLogger(__name__)
 class LLMClient:
     """Client that keeps one HTTP session and limits concurrent generations."""
 
-    def __init__(self) -> None:
+    def __init__(self, settings: Settings | None = None) -> None:
         """Creates the client without opening a session."""
         self.session: aiohttp.ClientSession | None = None
-        self.semaphore = asyncio.Semaphore(config.LLM_MAX_CONCURRENT_GENERATIONS)
+        self._settings = settings
+        self._semaphore: asyncio.Semaphore | None = None
         self._context_size: int | None = None
         self._token_counting_mode: str | None = None
         self._token_counting_lock = asyncio.Lock()
+
+    @property
+    def settings(self) -> Settings:
+        """Return the explicitly supplied or process-wide settings."""
+        if self._settings is not None:
+            return self._settings
+        return get_settings()
+
+    @property
+    def semaphore(self) -> asyncio.Semaphore:
+        """Return the generation semaphore, creating it on first use."""
+        if self._semaphore is None:
+            self._semaphore = asyncio.Semaphore(
+                self.settings.LLM_MAX_CONCURRENT_GENERATIONS
+            )
+        return self._semaphore
 
     async def start(self) -> None:
         """Инициализирует HTTP-сессию."""
@@ -64,7 +81,7 @@ class LLMClient:
         return await self._get_session()
 
     def _server_url(self) -> str:
-        return server_url()
+        return server_url(self.settings)
 
     def get_server_url(self) -> str:
         """Return the configured LLM server URL."""
@@ -119,7 +136,7 @@ class LLMClient:
 
     async def get_token_counting_mode(self) -> str:
         """Возвращает выбранный режим подсчёта токенов."""
-        configured_mode = config.LLM_TOKEN_COUNTING
+        configured_mode = self.settings.LLM_TOKEN_COUNTING
         if configured_mode != "auto":
             return configured_mode
 
@@ -199,7 +216,7 @@ class LLMClient:
             # /v1/models — стандартный OpenAI endpoint; HTTP 200 означает,
             # что API доступен, даже если сервер не реализует /health.
             async with session.get(
-                f"{config.LLM_BASE_URL}/models",
+                f"{self.settings.LLM_BASE_URL}/models",
                 timeout=aiohttp.ClientTimeout(total=5),
             ) as response:
                 if response.status == HTTPStatus.OK:

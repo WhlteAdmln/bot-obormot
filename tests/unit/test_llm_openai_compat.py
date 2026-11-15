@@ -5,11 +5,12 @@
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from dataclasses import replace
 
 import pytest
 from aiohttp import web
 
-from bot.config import config
+from bot.config.settings import Settings
 from bot.services.llm import LLMClient
 
 
@@ -28,14 +29,25 @@ async def running_server(app: web.Application) -> AsyncIterator[str]:
         await runner.cleanup()
 
 
+def _with_token_counting(settings: Settings, mode: str) -> Settings:
+    """Return settings with the requested token counting mode."""
+    changes = {"LLM_TOKEN_COUNTING": mode}
+    return replace(settings, **changes)
+
+
 @pytest.fixture
-def configure_openai(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Configure openai."""
-    monkeypatch.setattr(config, "LLM_MODEL", "test-model")
-    monkeypatch.setattr(config, "LLM_API_KEY", "")
-    monkeypatch.setattr(config, "LLM_TOKEN_COUNTING", "auto")
-    monkeypatch.setattr(config, "LLM_CONTEXT_SIZE", 8192)
-    monkeypatch.setattr(config, "LLM_MAX_TOKENS", 128)
+def openai_settings() -> Settings:
+    """Build settings for the OpenAI-compatible test server."""
+    return _with_token_counting(
+        replace(
+            Settings(),
+            LLM_MODEL="test-model",
+            LLM_API_KEY="",
+            LLM_CONTEXT_SIZE=8192,
+            LLM_MAX_TOKENS=128,
+        ),
+        "auto",
+    )
 
 
 def make_openai_only_app() -> tuple[object, ...]:
@@ -81,15 +93,14 @@ def make_openai_only_app() -> tuple[object, ...]:
 
 
 @pytest.mark.asyncio
-@pytest.mark.usefixtures("configure_openai")
 async def test_openai_compatible_server_works_without_llama_endpoints(
-    monkeypatch: pytest.MonkeyPatch,
+    openai_settings: Settings,
 ) -> None:
     """Openai compatible server works without llama endpoints."""
     app, requests = make_openai_only_app()
     async with running_server(app) as base_url:
-        monkeypatch.setattr(config, "LLM_BASE_URL", f"{base_url}/v1")
-        client = LLMClient()
+        settings = replace(openai_settings, LLM_BASE_URL=f"{base_url}/v1")
+        client = LLMClient(settings=settings)
         try:
             assert await client.get_context_size() == 8192
             assert await client.get_token_counting_mode() == "estimate"
@@ -155,14 +166,19 @@ async def test_auto_mode_keeps_llamacpp_tokenization_when_available(
     app.router.add_post("/apply-template", apply_template)
     app.router.add_get("/health", health)
 
-    monkeypatch.setattr(config, "LLM_TOKEN_COUNTING", "auto")
-    monkeypatch.setattr(config, "LLM_CONTEXT_SIZE", None)
-    monkeypatch.setattr(config, "LLM_BASE_URL", "")
-    monkeypatch.setattr(config, "LLM_MODEL", "test-model")
+    settings = _with_token_counting(
+        replace(
+            Settings(),
+            LLM_CONTEXT_SIZE=None,
+            LLM_BASE_URL="",
+            LLM_MODEL="test-model",
+        ),
+        "auto",
+    )
 
     async with running_server(app) as base_url:
-        monkeypatch.setattr(config, "LLM_BASE_URL", f"{base_url}/v1")
-        client = LLMClient()
+        settings = replace(settings, LLM_BASE_URL=f"{base_url}/v1")
+        client = LLMClient(settings=settings)
         monkeypatch.setattr(client, "_server_url", lambda: base_url)
         try:
             assert await client.get_context_size() == 4096

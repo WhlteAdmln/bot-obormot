@@ -11,7 +11,7 @@ from typing import Any, Protocol
 
 import aiohttp
 
-from bot.config import config
+from bot.config.settings import Settings
 from bot.errors import LLMAPIError, LLMTimeoutError, LLMUnavailableError
 from bot.utils.text import log_safe
 
@@ -20,6 +20,11 @@ logger = logging.getLogger(__name__)
 
 class StreamingClient(Protocol):
     """Минимальный интерфейс клиента для потоковой генерации."""
+
+    @property
+    def settings(self) -> Settings:
+        """Return the client settings."""
+        ...
 
     async def get_session(self) -> aiohttp.ClientSession:
         """Return the shared HTTP session."""
@@ -38,15 +43,16 @@ async def stream_unlimited(
     messages: list[dict[str, Any]],
 ) -> AsyncIterator[str]:
     """Получает потоковые фрагменты ответа без управления semaphore."""
-    url = f"{config.LLM_BASE_URL.rstrip('/')}/chat/completions"
+    settings = client.settings
+    url = f"{settings.LLM_BASE_URL.rstrip('/')}/chat/completions"
     normalized_messages = client.normalize_messages(messages)
 
     payload = {
-        "model": config.LLM_MODEL,
+        "model": settings.LLM_MODEL,
         "messages": normalized_messages,
-        "temperature": config.LLM_TEMPERATURE,
-        "top_p": config.LLM_TOP_P,
-        "max_tokens": config.LLM_MAX_TOKENS,
+        "temperature": settings.LLM_TEMPERATURE,
+        "top_p": settings.LLM_TOP_P,
+        "max_tokens": settings.LLM_MAX_TOKENS,
         "stream": True,
     }
 

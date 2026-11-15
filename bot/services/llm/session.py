@@ -7,7 +7,7 @@ from typing import Protocol
 
 import aiohttp
 
-from bot.config import config
+from bot.config.settings import Settings
 
 
 class SessionOwner(Protocol):
@@ -15,10 +15,15 @@ class SessionOwner(Protocol):
 
     session: aiohttp.ClientSession | None
 
+    @property
+    def settings(self) -> Settings:
+        """Return the settings used by the client."""
+        ...
 
-def _auth_headers() -> dict[str, str]:
+
+def _auth_headers(settings: Settings) -> dict[str, str]:
     """Возвращает заголовок авторизации, если ключ задан."""
-    api_key = (config.LLM_API_KEY or "").strip()
+    api_key = (settings.LLM_API_KEY or "").strip()
 
     if not api_key or api_key == "not-needed":
         return {}
@@ -29,10 +34,11 @@ def _auth_headers() -> dict[str, str]:
 async def get_session(client: SessionOwner) -> aiohttp.ClientSession:
     """Возвращает открытую HTTP-сессию, создавая её при необходимости."""
     if client.session is None or client.session.closed:
-        timeout = aiohttp.ClientTimeout(total=config.LLM_TIMEOUT)
+        settings = client.settings
+        timeout = aiohttp.ClientTimeout(total=settings.LLM_TIMEOUT)
         client.session = aiohttp.ClientSession(
             timeout=timeout,
-            headers=_auth_headers(),
+            headers=_auth_headers(settings),
         )
 
     return client.session

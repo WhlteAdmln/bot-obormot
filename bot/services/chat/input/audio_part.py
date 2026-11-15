@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, cast
 
+from bot.config.settings import Settings, get_settings
 from bot.services.audio import transcribe_audio, validate_audio_duration
 from bot.services.telegram.downloader import download_telegram_file
 
@@ -28,16 +29,17 @@ async def prepare_audio(
     duration_validator: Callable[..., object] | None = None,
     downloader: Callable[..., Awaitable[bytes]] | None = None,
     transcriber: Callable[..., Awaitable[str]] | None = None,
+    settings: Settings | None = None,
 ) -> str:
     """Скачивает аудио и возвращает результат распознавания Whisper."""
+    if settings is None:
+        settings = get_settings()
+
     if duration_validator is None:
         duration_validator = validate_audio_duration
 
     if downloader is None:
         downloader = download_telegram_file
-
-    if transcriber is None:
-        transcriber = transcribe_audio
 
     duration_validator(message)
 
@@ -55,10 +57,17 @@ async def prepare_audio(
 
     logger.info("AUDIO: отправляю файл на Whisper")
 
-    transcribed_text = await transcriber(
-        audio_data,
-        cast("str", info.audio_filename),
-    )
+    if transcriber is None:
+        transcribed_text = await transcribe_audio(
+            audio_data,
+            cast("str", info.audio_filename),
+            settings=settings,
+        )
+    else:
+        transcribed_text = await transcriber(
+            audio_data,
+            cast("str", info.audio_filename),
+        )
 
     logger.info("AUDIO: распознано символов: %d", len(transcribed_text))
 

@@ -52,6 +52,17 @@ class LLMClient:
         self._token_counting_mode: str | None = None
         self._token_counting_lock = asyncio.Lock()
 
+    def configure(self, settings: Settings) -> None:
+        """Apply application settings before starting the client."""
+        if self.session is not None and not self.session.closed:
+            msg = "Cannot configure LLM client while its session is open"
+            raise RuntimeError(msg)
+
+        self._settings = settings
+        self._semaphore = None
+        self._context_size = None
+        self._token_counting_mode = None
+
     @property
     def settings(self) -> Settings:
         """Return the explicitly supplied or process-wide settings."""

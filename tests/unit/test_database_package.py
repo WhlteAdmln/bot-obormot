@@ -3,10 +3,8 @@
 
 """Tests for database package."""
 
-from dataclasses import replace
 from pathlib import Path
 
-from bot.config.settings import get_settings
 from bot.services.database import (
     MAX_HISTORY_IMAGES,
     Database,
@@ -32,6 +30,7 @@ from bot.services.database.facade import (
 from bot.services.database.files.image_storage import (
     read_image_as_base64 as canonical_image_reader,
 )
+from tests.support.settings import make_settings
 
 
 def test_database_package_reexports_same_facade_objects() -> None:
@@ -49,7 +48,7 @@ def test_database_images_dir_uses_injected_settings_at_instance_creation(
 ) -> None:
     """Database images dir uses injected settings at instance creation."""
     database_path = tmp_path / "custom" / "history.db"
-    settings = replace(get_settings(), DATABASE_PATH=str(database_path))
+    settings = make_settings(DATABASE_PATH=str(database_path))
 
     database = Database(settings)
 
@@ -61,7 +60,7 @@ def test_database_instance_does_not_create_files_before_connect(
 ) -> None:
     """Database instance does not create files before connect."""
     database_path = tmp_path / "not-created" / "history.db"
-    settings = replace(get_settings(), DATABASE_PATH=str(database_path))
+    settings = make_settings(DATABASE_PATH=str(database_path))
 
     Database(settings)
 

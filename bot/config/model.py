@@ -5,9 +5,8 @@
 
 import os
 from collections.abc import Mapping
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from functools import lru_cache
-from typing import Any, cast
 
 from bot.config.env import (
     get_bool,
@@ -308,44 +307,9 @@ _settings_state = _SettingsState()
 
 def get_settings() -> Settings:
     """Return the process-wide cached settings."""
-    if _settings_state.override is not None:
-        return _settings_state.override
-
     return _load_cached_settings()
 
 
 def reset_settings_cache() -> None:
-    """Clear cached settings and compatibility overrides."""
-    _settings_state.override = None
+    """Clear cached settings."""
     _load_cached_settings.cache_clear()
-
-
-def _set_setting(name: str, value: object) -> None:
-    """Replace one cached field for compatibility with existing test patches."""
-    if name not in Settings.__dataclass_fields__:
-        raise AttributeError(name)
-
-    updated = replace(
-        get_settings(),
-        **cast("Any", {name: value}),
-    )
-    baseline = _load_cached_settings()
-
-    _settings_state.override = None if updated == baseline else updated
-
-
-class _SettingsProxy:
-    """Resolve settings lazily while retaining legacy attribute access."""
-
-    def __getattr__(self, name: str) -> object:
-        return getattr(get_settings(), name)
-
-    def __setattr__(self, name: str, value: object) -> None:
-        _set_setting(name, value)
-
-    def __delattr__(self, name: str) -> None:
-        """Restore a setting to its cached environment value."""
-        _set_setting(name, getattr(_load_cached_settings(), name))
-
-
-config: Settings = cast("Settings", _SettingsProxy())

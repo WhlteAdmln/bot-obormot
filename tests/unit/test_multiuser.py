@@ -5,15 +5,14 @@
 
 import asyncio
 from collections.abc import AsyncIterator
-from dataclasses import replace
 from pathlib import Path
 
 import pytest
 import pytest_asyncio
 
-from bot.config.settings import get_settings
 from bot.errors import DatabaseError
 from bot.services.database import Database
+from tests.support.settings import make_settings
 
 USER_A = 111111111
 USER_B = 222222222
@@ -29,8 +28,7 @@ async def test_db(
     """Создаёт отдельную временную базу для тестов."""
     database_path = tmp_path / "test_database.db"
 
-    settings = replace(
-        get_settings(),
+    settings = make_settings(
         DATABASE_PATH=str(database_path),
         SUPERVISOR_ID=SUPERVISOR_ID,
         ADMIN_IDS=set(),

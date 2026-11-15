@@ -11,8 +11,8 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-from bot.config.settings import get_settings
 from bot.services.database import Database
+from tests.support.settings import make_settings
 
 USER_ID = 111111111
 
@@ -22,8 +22,7 @@ async def test_db(
     tmp_path: Path,
 ) -> AsyncIterator[Database]:
     """Db."""
-    settings = replace(
-        get_settings(),
+    settings = make_settings(
         DATABASE_PATH=str(tmp_path / "history_test.db"),
         SUPERVISOR_ID=999999999,
         ADMIN_IDS=set(),

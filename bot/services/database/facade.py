@@ -8,7 +8,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from bot.config.settings import Settings, get_settings
+from bot.config.settings import Settings
 from bot.errors import DatabaseError
 from bot.services.database.connection import open_connection
 from bot.services.database.decorators import handle_database_errors
@@ -68,6 +68,15 @@ class Database:
 
         # Защищает общее SQLite-соединение от конкурентного использования.
         self._lock = asyncio.Lock()
+
+    def configure(self, settings: Settings) -> None:
+        """Apply application settings before opening the connection."""
+        if self.connection is not None:
+            msg = "Cannot configure database while connected"
+            raise RuntimeError(msg)
+
+        self.settings = settings
+        self.images_dir = Path(settings.DATABASE_PATH).resolve().parent / "images"
 
     @property
     def _conn(self) -> "aiosqlite.Connection":
@@ -360,7 +369,7 @@ class Database:
         return await blocked_users_repository.unblock_user(self._conn, user_id)
 
 
-db = Database(get_settings())
+db = Database(Settings())
 
 __all__ = [
     "MAX_HISTORY_IMAGES",

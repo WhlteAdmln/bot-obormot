@@ -15,10 +15,8 @@ from bot.config.env import (
 from bot.config.paths import PROJECT_ROOT
 from bot.config.prompts import load_default_system_prompt
 from bot.config.settings import (
-    Config,
     ConfigError,
     Settings,
-    config,
     get_settings,
     load_settings,
     reset_settings_cache,
@@ -26,10 +24,8 @@ from bot.config.settings import (
 
 __all__ = [
     "PROJECT_ROOT",
-    "Config",
     "ConfigError",
     "Settings",
-    "config",
     "get_bool",
     "get_float",
     "get_int",

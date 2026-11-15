@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, cast
 
+from bot.config.settings import Settings, get_settings
 from bot.services.chat.input.audio_part import prepare_audio
 from bot.services.chat.input.document_part import prepare_document
 from bot.services.chat.input.media_part import prepare_media
@@ -25,8 +26,12 @@ async def prepare_message(
     message: Message,
     info: MessageInfo,
     text_override: str | None = None,
+    settings: Settings | None = None,
 ) -> PreparedMessage:
     """Скачивает и обрабатывает входящие данные."""
+    if settings is None:
+        settings = get_settings()
+
     image_urls: list[str] | None = None
     image_bytes: list[bytes] | None = None
     transcribed_text: str | None = None
@@ -35,13 +40,15 @@ async def prepare_message(
 
     # Порядок обработки намеренно сохранён: аудио, медиа, документ.
     if info.has_audio:
-        transcribed_text = await prepare_audio(message, info)
+        transcribed_text = await prepare_audio(message, info, settings=settings)
 
     if info.has_media:
         image_urls, image_bytes = await prepare_media(message, info)
 
     if info.has_document:
-        document_text, document_format = await prepare_document(message, info)
+        document_text, document_format = await prepare_document(
+            message, info, settings=settings
+        )
 
     user_content = build_user_content(
         message,

@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
+from bot.config.settings import Settings, get_settings
 from bot.errors import DocumentAPIError, DocumentTooLongError
 from bot.services.documents import process_document
 from bot.services.telegram.downloader import download_telegram_file
@@ -29,13 +30,14 @@ async def prepare_document(
     *,
     downloader: Callable[..., Awaitable[bytes]] | None = None,
     document_processor: Callable[..., Awaitable[dict[str, Any]]] | None = None,
+    settings: Settings | None = None,
 ) -> tuple[str, str]:
     """Скачивает документ и получает извлечённый текст."""
+    if settings is None:
+        settings = get_settings()
+
     if downloader is None:
         downloader = download_telegram_file
-
-    if document_processor is None:
-        document_processor = process_document
 
     # has_document is only set when the message carries a document.
     document = cast("Document", info.document)
@@ -55,10 +57,17 @@ async def prepare_document(
         len(document_data),
     )
 
-    result = await document_processor(
-        document_data,
-        document.file_name or "document",
-    )
+    if document_processor is None:
+        result = await process_document(
+            document_data,
+            document.file_name or "document",
+            settings=settings,
+        )
+    else:
+        result = await document_processor(
+            document_data,
+            document.file_name or "document",
+        )
 
     if result.get("truncated", False) is True:
         raise DocumentTooLongError

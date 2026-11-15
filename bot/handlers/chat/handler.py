@@ -3,12 +3,15 @@
 
 """Telegram handler входящих сообщений чата."""
 
+from __future__ import annotations
+
 import asyncio
 import logging
+from typing import TYPE_CHECKING
 
 from aiogram import Router
-from aiogram.types import Message
 
+from bot.config.settings import get_settings
 from bot.services.chat.aggregation import message_aggregator
 from bot.services.chat.errors.handler import handle_chat_error
 from bot.services.chat.formatting import format_roleplay, split_formatted_message
@@ -29,6 +32,11 @@ from bot.services.chat.streaming.responder import StreamingResponderOptions
 from bot.services.llm import llm_client
 from bot.services.telegram.chat_action import keep_typing
 
+if TYPE_CHECKING:
+    from aiogram.types import Message
+
+    from bot.config.settings import Settings
+
 MAX_PENDING_PER_USER = 3
 
 router = Router()
@@ -36,8 +44,14 @@ logger = logging.getLogger("bot.handlers.chat")
 
 
 @router.message()
-async def handle_message(message: Message) -> None:
+async def handle_message(
+    message: Message,
+    settings: Settings | None = None,
+) -> None:
     """Processes an incoming chat message and streams the LLM reply."""
+    if settings is None:
+        settings = get_settings()
+
     log_incoming_message(message)
 
     info = inspect_message(message)
@@ -92,6 +106,7 @@ async def handle_message(message: Message) -> None:
                 message,
                 info,
                 text_override=aggregated_text,
+                settings=settings,
             )
 
             # Получаем ответ от LLM.

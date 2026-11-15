@@ -15,6 +15,7 @@ import bot.main as main_module
 from bot.app import bootstrap, lifecycle
 from bot.app.background import image_cleanup
 from bot.config.settings import ConfigError, Settings
+from bot.services.chat.aggregation import MessageAggregator
 from tests.support.settings import make_settings
 
 SETTINGS = make_settings()
@@ -60,15 +61,18 @@ def test_dispatcher_registers_middlewares_and_routers_once_in_original_order(
 
     dispatcher = _FakeRouterDispatcher()
     llm_client = _FakeLLM([])
+    message_aggregator = MessageAggregator()
     configured = app_routers.configure_dispatcher(
         dispatcher,
         SETTINGS,
         llm_client,
+        message_aggregator,
     )
 
     assert configured is dispatcher
     assert dispatcher.workflow_data["settings"] is SETTINGS
     assert dispatcher.workflow_data["llm_client"] is llm_client
+    assert dispatcher.workflow_data["message_aggregator"] is message_aggregator
     assert len(dispatcher.middleware_calls) == 3
     assert isinstance(dispatcher.middleware_calls[0], _FakeThrottleMiddleware)
     assert isinstance(dispatcher.middleware_calls[1], _FakeAccessMiddleware)
@@ -393,6 +397,7 @@ def test_bootstrap_main_loads_env_and_passes_settings_down(
     calls: list[object] = []
     bot_instance = object()
     dispatcher_instance = object()
+    aggregator_instance = object()
     _patch_main_components(monkeypatch, calls)
     llm_instance = _FakeLLM(calls)
 
@@ -400,6 +405,10 @@ def test_bootstrap_main_loads_env_and_passes_settings_down(
         assert environ is os.environ
         calls.append("settings")
         return SETTINGS
+
+    def create_message_aggregator() -> object:
+        calls.append("message_aggregator")
+        return aggregator_instance
 
     def create_llm_client(settings: Settings) -> _FakeLLM:
         calls.append(("llm_client", settings))
@@ -412,8 +421,9 @@ def test_bootstrap_main_loads_env_and_passes_settings_down(
     def create_dispatcher(
         settings: Settings,
         llm_client: _FakeLLM,
+        message_aggregator: object,
     ) -> object:
-        calls.append(("dispatcher", settings, llm_client))
+        calls.append(("dispatcher", settings, llm_client, message_aggregator))
         return dispatcher_instance
 
     async def run_application(
@@ -429,6 +439,7 @@ def test_bootstrap_main_loads_env_and_passes_settings_down(
 
     monkeypatch.setattr(bootstrap, "load_settings", load_settings)
     monkeypatch.setattr(bootstrap, "LLMClient", create_llm_client)
+    monkeypatch.setattr(bootstrap, "MessageAggregator", create_message_aggregator)
     monkeypatch.setattr(bootstrap, "create_bot", create_bot)
     monkeypatch.setattr(bootstrap, "create_dispatcher", create_dispatcher)
     monkeypatch.setattr(bootstrap, "run_application", run_application)
@@ -444,7 +455,8 @@ def test_bootstrap_main_loads_env_and_passes_settings_down(
         ("access_mode", SETTINGS),
         ("bot", SETTINGS),
         ("llm_client", SETTINGS),
-        ("dispatcher", SETTINGS, llm_instance),
+        "message_aggregator",
+        ("dispatcher", SETTINGS, llm_instance, aggregator_instance),
         ("run", SETTINGS),
     ]
 
@@ -472,21 +484,27 @@ def test_create_dispatcher_passes_settings_to_router_configuration(
         pass
 
     llm_client = _FakeLLM([])
+    message_aggregator = MessageAggregator()
 
     def configure_dispatcher(
         dispatcher: object,
         settings: Settings,
         configured_llm: _FakeLLM,
+        configured_aggregator: MessageAggregator,
     ) -> object:
         assert isinstance(dispatcher, FakeDispatcher)
         assert settings is SETTINGS
         assert configured_llm is llm_client
+        assert configured_aggregator is message_aggregator
         return dispatcher
 
     monkeypatch.setattr(bootstrap, "Dispatcher", FakeDispatcher)
     monkeypatch.setattr(bootstrap, "configure_dispatcher", configure_dispatcher)
 
-    assert isinstance(bootstrap.create_dispatcher(SETTINGS, llm_client), FakeDispatcher)
+    assert isinstance(
+        bootstrap.create_dispatcher(SETTINGS, llm_client, message_aggregator),
+        FakeDispatcher,
+    )
 
 
 def test_main_module_is_a_thin_entrypoint() -> None:

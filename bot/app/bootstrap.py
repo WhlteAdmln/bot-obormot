@@ -14,6 +14,7 @@ from bot.app.logging_setup import configure_logging
 from bot.app.routers import configure_dispatcher
 from bot.config.env import load_env_file
 from bot.config.settings import Settings, load_settings
+from bot.services.chat.aggregation import MessageAggregator
 from bot.services.llm.client import LLMClient
 from bot.services.media.safety import configure_pillow_limits
 
@@ -43,9 +44,10 @@ def create_bot(settings: Settings) -> Bot:
 def create_dispatcher(
     settings: Settings,
     llm_client: LLMClient,
+    message_aggregator: MessageAggregator,
 ) -> Dispatcher:
     """Создаёт Dispatcher и подключает к нему middleware и роутеры."""
-    return configure_dispatcher(Dispatcher(), settings, llm_client)
+    return configure_dispatcher(Dispatcher(), settings, llm_client, message_aggregator)
 
 
 async def main() -> None:
@@ -61,5 +63,6 @@ async def main() -> None:
 
     bot = create_bot(settings)
     llm_client = LLMClient(settings)
-    dispatcher = create_dispatcher(settings, llm_client)
+    message_aggregator = MessageAggregator()
+    dispatcher = create_dispatcher(settings, llm_client, message_aggregator)
     await run_application(bot, dispatcher, settings, llm_client)

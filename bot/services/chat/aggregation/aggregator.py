@@ -206,6 +206,3 @@ class MessageAggregator:
 
                 if state.future and not state.future.done():
                     state.future.set_result("\n".join(state.parts))
-
-
-message_aggregator = MessageAggregator()

@@ -295,16 +295,6 @@ def _load_cached_settings() -> Settings:
     return load_settings(os.environ)
 
 
-@dataclass(slots=True)
-class _SettingsState:
-    """Hold mutable state behind the settings compatibility proxy."""
-
-    override: Settings | None = None
-
-
-_settings_state = _SettingsState()
-
-
 def get_settings() -> Settings:
     """Return the process-wide cached settings."""
     return _load_cached_settings()

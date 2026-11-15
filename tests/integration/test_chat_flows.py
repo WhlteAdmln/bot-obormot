@@ -877,10 +877,13 @@ async def test_llm_connection_failure_is_reported_without_persisting_exchange(
 
     try:
         async with FakeLLM() as llm_server:
+            settings_overrides = {
+                "LLM_CONTEXT_SIZE": 8192,
+                "LLM_TOKEN_COUNTING": "estimate",
+            }
             settings = _configure_llm_flow(
                 llm_server.base_url,
-                LLM_CONTEXT_SIZE=8192,
-                LLM_TOKEN_COUNTING="estimate",
+                **settings_overrides,
             )
             monkeypatch.setattr(access_middleware, "db", test_db)
             monkeypatch.setattr(chat_pipeline, "db", test_db)

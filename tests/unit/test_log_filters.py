@@ -9,6 +9,7 @@ import logging
 import pytest
 
 from bot.utils.log_filters import SecretsFilter
+from tests.support.settings import make_settings
 
 
 def test_token_is_redacted_from_log_message() -> None:
@@ -90,6 +91,6 @@ def test_logging_setup_attaches_filter_to_root_handlers(
     monkeypatch.setattr(root_logger, "handlers", [handler])
     monkeypatch.setattr(logging, "basicConfig", lambda **_kwargs: None)
 
-    logging_setup.configure_logging()
+    logging_setup.configure_logging(make_settings())
 
     assert any(isinstance(item, SecretsFilter) for item in handler.filters)

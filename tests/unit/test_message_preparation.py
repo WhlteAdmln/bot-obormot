@@ -27,6 +27,7 @@ from bot.services.chat.input import media_part as media_module
 from bot.services.chat.input import prepare as pipeline_module
 from bot.services.chat.input import saved_text as history_module
 from bot.services.chat.input import user_content as content_module
+from tests.support.settings import make_settings
 
 
 def make_message(**overrides: object) -> SimpleNamespace:
@@ -72,6 +73,7 @@ def test_public_api_keeps_original_function_signatures() -> None:
         "message",
         "info",
         "text_override",
+        "settings",
     ]
 
 
@@ -438,6 +440,7 @@ async def test_prepare_audio_preserves_validation_download_and_transcription_ord
             duration_validator=validate,
             downloader=download,
             transcriber=transcribe,
+            settings=make_settings(),
         )
 
     assert result == "Распознано"
@@ -522,6 +525,7 @@ async def test_prepare_document_rejects_empty_extracted_text(
             info,
             downloader=download,
             document_processor=process,
+            settings=make_settings(),
         )
 
     assert r"DOCUMENT: начинаю скачивание: empty.pdf\nERROR forged entry" in caplog.text
@@ -561,6 +565,7 @@ async def test_prepare_document_rejects_truncated_extracted_text() -> None:
             info,
             downloader=download,
             document_processor=process,
+            settings=make_settings(),
         )
 
 
@@ -570,6 +575,7 @@ async def test_prepare_message_preserves_processing_order_and_result(
 ) -> None:
     """Prepare message preserves processing order and result."""
     events = []
+    app_settings = make_settings()
     info = MessageInfo(
         file_id="image-id",
         media_type="image",
@@ -583,7 +589,13 @@ async def test_prepare_message_preserves_processing_order_and_result(
     )
     image_bytes = [b"image-bytes"]
 
-    async def prepare_audio(_message: object, _info: object) -> str:
+    async def prepare_audio(
+        _message: object,
+        _info: object,
+        *,
+        settings: object,
+    ) -> str:
+        assert settings is app_settings
         events.append("audio")
         return "Распознано"
 
@@ -591,7 +603,13 @@ async def test_prepare_message_preserves_processing_order_and_result(
         events.append("media")
         return ["data:image/jpeg;base64,AA=="], image_bytes
 
-    async def prepare_document(_message: object, _info: object) -> tuple[object, ...]:
+    async def prepare_document(
+        _message: object,
+        _info: object,
+        *,
+        settings: object,
+    ) -> tuple[object, ...]:
+        assert settings is app_settings
         events.append("document")
         return "Текст документа", "pdf"
 
@@ -614,7 +632,12 @@ async def test_prepare_message_preserves_processing_order_and_result(
     monkeypatch.setattr(pipeline_module, "build_user_content", build_content)
     monkeypatch.setattr(pipeline_module, "build_saved_user_text", build_history)
 
-    result = await prepare_message(make_message(), info, text_override=None)
+    result = await prepare_message(
+        make_message(),
+        info,
+        text_override=None,
+        settings=app_settings,
+    )
 
     assert events == ["audio", "media", "document", "content", "history"]
     assert result == PreparedMessage(

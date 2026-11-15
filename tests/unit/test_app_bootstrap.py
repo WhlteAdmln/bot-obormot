@@ -10,11 +10,10 @@ from types import SimpleNamespace
 
 import pytest
 
-import bot.app.background.image_cleanup as image_cleanup
-import bot.app.bootstrap as bootstrap
-import bot.app.lifecycle as lifecycle
 import bot.app.routers as app_routers
 import bot.main as main_module
+from bot.app import bootstrap, lifecycle
+from bot.app.background import image_cleanup
 from bot.config.settings import ConfigError, Settings
 from tests.support.settings import make_settings
 

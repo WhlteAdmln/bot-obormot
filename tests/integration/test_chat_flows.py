@@ -22,6 +22,7 @@ from bot.config import config
 from bot.middlewares import access as access_middleware
 from bot.middlewares import throttle as throttle_middleware
 from bot.services.chat.formatting import format_roleplay
+from bot.services.chat.streaming.settings import MAX_MESSAGE_LENGTH
 from bot.services.database import Database
 from bot.services.llm import llm_client
 from tests.support.fake_audiodoc import FakeAudiodoc
@@ -795,6 +796,95 @@ async def test_throttled_user_is_blocked_before_llm_is_called(
                     ("user", question),
                     ("assistant", "Hello, world!"),
                 )
+            ]
+    finally:
+        await _reset_llm_client()
+
+
+@pytest.mark.asyncio
+async def test_long_answer_is_split_into_multiple_telegram_messages(
+    test_db: Database,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Split a long streamed answer into Telegram-sized messages and persist it."""
+    user_id = 712345684
+    user_text = "Напиши очень длинный ответ."
+    response = " ".join(["long-answer"] * 1200)
+
+    await _reset_llm_client()
+
+    try:
+        async with FakeLLM(
+            options=FakeLLMOptions(chunks=(response,)),
+        ) as llm_server:
+            monkeypatch.setattr(
+                config,
+                "LLM_BASE_URL",
+                f"{llm_server.base_url.rstrip('/')}/v1",
+            )
+            monkeypatch.setattr(config, "LLM_API_KEY", "test-key")
+            monkeypatch.setattr(config, "LLM_MODEL", "test-model")
+            monkeypatch.setattr(config, "LLM_CONTEXT_SIZE", None)
+            monkeypatch.setattr(config, "LLM_TOKEN_COUNTING", "auto")
+            monkeypatch.setattr(config, "ALLOW_ALL_USERS", True)
+            monkeypatch.setattr(config, "ALLOWED_USERS", set())
+            monkeypatch.setattr(access_middleware, "db", test_db)
+            monkeypatch.setattr(chat_pipeline, "db", test_db)
+
+            telegram_session = FakeTelegramSession(
+                {
+                    SendChatAction: True,
+                    SendMessage: make_message(
+                        message_id=906,
+                        chat_id=user_id,
+                        user_id=906,
+                        text=None,
+                    ),
+                    EditMessageText: make_message(
+                        message_id=906,
+                        chat_id=user_id,
+                        user_id=906,
+                        text=None,
+                    ),
+                }
+            )
+            bot = Bot(token=config.BOT_TOKEN, session=telegram_session)
+            dispatcher = configure_dispatcher(Dispatcher(storage=MemoryStorage()))
+
+            try:
+                await dispatcher.feed_update(
+                    bot,
+                    make_update(
+                        message=make_message(
+                            user_id=user_id,
+                            chat_id=user_id,
+                            text=user_text,
+                        )
+                    ),
+                )
+            finally:
+                await bot.session.close()
+                _release_dispatcher(dispatcher)
+
+            sent_messages = [
+                request
+                for request in telegram_session.requests
+                if isinstance(request, SendMessage)
+            ]
+            delivered_chunks = [
+                request.text for request in sent_messages if request.text is not None
+            ]
+
+            assert llm_server.stream_started.is_set()
+            assert len(sent_messages) == 4
+            assert len(delivered_chunks) == len(sent_messages)
+            assert all(len(chunk) <= MAX_MESSAGE_LENGTH for chunk in delivered_chunks)
+            assert "".join(delivered_chunks) == format_roleplay(response)
+
+            history = await test_db.get_history(user_id)
+            assert [(item["role"], item["content"]) for item in history] == [
+                ("user", user_text),
+                ("assistant", response),
             ]
     finally:
         await _reset_llm_client()

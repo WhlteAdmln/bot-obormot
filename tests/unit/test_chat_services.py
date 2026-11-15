@@ -645,3 +645,65 @@ def test_user_facing_length_errors_use_configured_input_limit() -> None:
 
     assert expected_limit in input_message.replace(" ", "")
     assert expected_limit in document_message.replace(" ", "")
+
+
+@pytest.mark.asyncio
+async def test_user_lock_releases_after_exception() -> None:
+    """User lock is released when the protected operation fails."""
+    user_id = 303
+
+    async def failing_request() -> None:
+        async with chat_locks.get_user_lock(user_id):
+            assert chat_locks.pending_requests(user_id) == 1
+            msg = "request failed"
+            raise RuntimeError(msg)
+
+    with pytest.raises(RuntimeError, match="request failed"):
+        await failing_request()
+
+    assert chat_locks.pending_requests(user_id) == 0
+    assert user_id not in chat_locks._user_locks
+
+    async with chat_locks.get_user_lock(user_id):
+        assert chat_locks.pending_requests(user_id) == 1
+
+    assert chat_locks.pending_requests(user_id) == 0
+    assert user_id not in chat_locks._user_locks
+
+
+@pytest.mark.asyncio
+async def test_user_lock_cleans_registry_when_waiter_is_cancelled() -> None:
+    """Cancelling a waiting request removes its lock registry entry."""
+    user_id = 304
+    owner_started = asyncio.Event()
+    release_owner = asyncio.Event()
+
+    async def owner() -> None:
+        async with chat_locks.get_user_lock(user_id):
+            owner_started.set()
+            await release_owner.wait()
+
+    async def waiter() -> None:
+        async with chat_locks.get_user_lock(user_id):
+            msg = "The waiter must not acquire the occupied lock."
+            raise AssertionError(msg)
+
+    owner_task = asyncio.create_task(owner())
+    await owner_started.wait()
+
+    waiter_task = asyncio.create_task(waiter())
+    await asyncio.sleep(0)
+
+    assert chat_locks.pending_requests(user_id) == 2
+
+    waiter_task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await waiter_task
+
+    assert chat_locks.pending_requests(user_id) == 1
+
+    release_owner.set()
+    await owner_task
+
+    assert chat_locks.pending_requests(user_id) == 0
+    assert user_id not in chat_locks._user_locks

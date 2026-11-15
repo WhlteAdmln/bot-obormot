@@ -75,7 +75,8 @@ def extract_tgs(data: bytes) -> list[bytes]:
 
     # rlottie — нативный декодер. Импортируем его только после проверки,
     # чтобы некорректные и чрезмерно большие данные до него не доходили.
-    lottie_animation_class = importlib.import_module("rlottie_python").LottieAnimation
+    rlottie_module = importlib.import_module("rlottie_python")
+    lottie_animation_class = rlottie_module.LottieAnimation
 
     with tempfile.TemporaryDirectory() as temp_dir:
         path = Path(temp_dir) / "sticker.tgs"

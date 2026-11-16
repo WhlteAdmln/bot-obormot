@@ -8,9 +8,9 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any, cast
 
+from bot.common.validation import MAX_INPUT_TEXT_LENGTH, validate_input_text
 from bot.errors import DocumentTooLongError
 from bot.services.media import get_user_content
-from bot.services.validation import MAX_INPUT_TEXT_LENGTH, validate_input_text
 
 if TYPE_CHECKING:
     from aiogram.types import Document, Message

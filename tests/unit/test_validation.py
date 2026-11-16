@@ -5,11 +5,11 @@
 
 import pytest
 
-from bot.errors import InputTooLongError
-from bot.services.validation import (
+from bot.common.validation import (
     MAX_INPUT_TEXT_LENGTH,
     validate_input_text,
 )
+from bot.errors import InputTooLongError
 
 
 def test_text_within_limit() -> None:

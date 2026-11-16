@@ -6,7 +6,7 @@
 import html
 import re
 
-from bot.utils.text import utf16_length
+from bot.common.text import utf16_length
 
 _utf16_length = utf16_length
 

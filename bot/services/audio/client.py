@@ -15,6 +15,7 @@ from bot.common.http_limits import (
     MAX_SERVICE_RESPONSE_BYTES,
     read_limited_body,
 )
+from bot.common.text import log_safe
 from bot.errors import (
     AudiodocAPIError,
     AudiodocEmptyAudioError,
@@ -22,7 +23,6 @@ from bot.errors import (
     AudiodocUnavailableError,
 )
 from bot.settings import Settings, get_settings
-from bot.utils.text import log_safe
 
 logger = logging.getLogger(__name__)
 

@@ -9,13 +9,13 @@ import time
 
 from aiogram.types import Message
 
+from bot.common.text import utf16_length
 from bot.common.validation import MAX_INPUT_TEXT_LENGTH
 from bot.services.chat.aggregation.config import (
     MESSAGE_AGGREGATION_WINDOW,
     MESSAGE_LENGTH_THRESHOLD,
 )
 from bot.services.chat.aggregation.state import _AggregationState
-from bot.utils.text import utf16_length
 
 logger = logging.getLogger("bot.services.chat.aggregation.aggregator")
 _utf16_length = utf16_length

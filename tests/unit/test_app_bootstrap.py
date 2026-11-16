@@ -521,7 +521,11 @@ def test_create_dispatcher_passes_settings_to_router_configuration(
     """Create dispatcher hands the same Settings object to the router wiring."""
 
     class FakeDispatcher:
-        pass
+        def __init__(self) -> None:
+            self.outer_middlewares: list[object] = []
+            self.update = SimpleNamespace(
+                outer_middleware=self.outer_middlewares.append
+            )
 
     llm_client = _FakeLLM([])
     message_aggregator = MessageAggregator()
@@ -544,9 +548,14 @@ def test_create_dispatcher_passes_settings_to_router_configuration(
     monkeypatch.setattr(bootstrap, "Dispatcher", FakeDispatcher)
     monkeypatch.setattr(bootstrap, "configure_dispatcher", configure_dispatcher)
 
+    dispatcher = bootstrap.create_dispatcher(
+        SETTINGS, llm_client, message_aggregator, database
+    )
+
+    assert isinstance(dispatcher, FakeDispatcher)
+    assert len(dispatcher.outer_middlewares) == 1
     assert isinstance(
-        bootstrap.create_dispatcher(SETTINGS, llm_client, message_aggregator, database),
-        FakeDispatcher,
+        dispatcher.outer_middlewares[0], bootstrap.CorrelationIdMiddleware
     )
 
 

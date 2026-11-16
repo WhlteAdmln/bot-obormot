@@ -91,13 +91,9 @@ def test_logging_setup_formats_and_populates_correlation_id(
     handler = logging.StreamHandler(stream)
     root_logger = logging.getLogger()
     monkeypatch.setattr(root_logger, "handlers", [handler])
+    monkeypatch.setattr(root_logger, "level", root_logger.level)
 
-    def fake_basic_config(**kwargs: object) -> None:
-        format_string = kwargs["format"]
-        assert isinstance(format_string, str)
-        handler.setFormatter(logging.Formatter(format_string))
-
-    monkeypatch.setattr(logging, "basicConfig", fake_basic_config)
+    monkeypatch.setattr(logging, "basicConfig", lambda **_kwargs: None)
     configure_logging(make_settings())
 
     assert any(isinstance(item, CorrelationIdFilter) for item in handler.filters)
@@ -110,5 +106,5 @@ def test_logging_setup_formats_and_populates_correlation_id(
     handler.handle(_make_record())
 
     output = stream.getvalue()
-    assert " | 123 | test message" in output
-    assert " | - | test message" in output
+    assert " INFO [123] test.correlation: test message" in output
+    assert " INFO [-] test.correlation: test message" in output

@@ -10,19 +10,19 @@ from urllib.parse import urlsplit, urlunsplit
 
 import aiohttp
 
+from bot.common.http_limits import (
+    MAX_ERROR_BODY_BYTES,
+    MAX_SERVICE_RESPONSE_BYTES,
+    read_limited_body,
+)
+from bot.common.text import log_safe
 from bot.errors import (
     AudiodocAPIError,
     AudiodocEmptyAudioError,
     AudiodocTimeoutError,
     AudiodocUnavailableError,
 )
-from bot.services.http_limits import (
-    MAX_ERROR_BODY_BYTES,
-    MAX_SERVICE_RESPONSE_BYTES,
-    read_limited_body,
-)
 from bot.settings import Settings, get_settings
-from bot.utils.text import log_safe
 
 logger = logging.getLogger(__name__)
 

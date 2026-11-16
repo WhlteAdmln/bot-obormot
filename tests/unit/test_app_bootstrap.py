@@ -49,7 +49,7 @@ def test_dispatcher_registers_middlewares_and_routers_once_in_original_order(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Dispatcher registers middlewares and routers once in original order."""
-    router_refs = {name: object() for name in ("start", "admin", "commands", "chat")}
+    router_refs = {name: object() for name in ("start", "admin", "routers", "chat")}
     for name, router in router_refs.items():
         monkeypatch.setattr(app_routers, name, SimpleNamespace(router=router))
     monkeypatch.setattr(app_routers, "ThrottleMiddleware", _FakeThrottleMiddleware)
@@ -84,7 +84,7 @@ def test_dispatcher_registers_middlewares_and_routers_once_in_original_order(
     assert dispatcher.routers == [
         router_refs["start"],
         router_refs["admin"],
-        router_refs["commands"],
+        router_refs["routers"],
         router_refs["chat"],
     ]
 

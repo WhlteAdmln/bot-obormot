@@ -5,7 +5,7 @@
 
 from aiogram import Dispatcher
 
-from bot.handlers import admin, chat, commands, start
+from bot.handlers import admin, chat, routers, start
 from bot.middlewares.access import AccessMiddleware
 from bot.middlewares.temporary_messages import (
     TemporaryMessagesCleanupMiddleware,
@@ -45,7 +45,7 @@ def configure_dispatcher(
     # Порядок роутеров важен: общий chat router должен идти последним.
     dispatcher.include_router(start.router)
     dispatcher.include_router(admin.router)
-    dispatcher.include_router(commands.router)
+    dispatcher.include_router(routers.router)
     dispatcher.include_router(chat.router)
 
     return dispatcher

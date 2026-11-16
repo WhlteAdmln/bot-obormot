@@ -10,6 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from bot.common.validation import MAX_INPUT_TEXT_LENGTH
 from bot.errors import (
     AudiodocAPIError,
     AudiodocEmptyAudioError,
@@ -26,7 +27,6 @@ from bot.services.chat.aggregation.aggregator import MessageAggregator
 from bot.services.chat.errors import catalog, texts
 from bot.services.chat.errors import handler as chat_error_handler
 from bot.services.chat.formatting import format_roleplay, split_formatted_message
-from bot.services.validation import MAX_INPUT_TEXT_LENGTH
 
 
 def _message(text: str | None, user_id: int | None = 1) -> SimpleNamespace:

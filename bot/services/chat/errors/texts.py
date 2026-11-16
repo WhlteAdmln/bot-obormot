@@ -5,8 +5,8 @@
 
 from collections.abc import Callable
 
+from bot.common.validation import MAX_INPUT_TEXT_LENGTH
 from bot.errors import AppError
-from bot.services.validation import MAX_INPUT_TEXT_LENGTH
 
 
 def _formatted_input_limit() -> str:

@@ -5,7 +5,7 @@
 
 from bot.fsm.keys import PROMPT_FLOW_KEY, WELCOME_MESSAGE_KEY
 from bot.fsm.states import PromptStates
-from bot.handlers import admin, chat, commands, fallback, history, prompt, start
+from bot.handlers import admin, chat, fallback, history, prompt, routers, start
 from bot.handlers.admin import handler as admin_handler
 from bot.handlers.admin.handler import cmd_ban, cmd_unban
 from bot.handlers.history import basic as history_basic
@@ -24,7 +24,7 @@ def test_handler_package_routers_are_exported() -> None:
     assert history.limits.router is not None
     assert prompt.router is not None
     assert fallback.router is not None
-    assert commands.router is not None
+    assert routers.router is not None
     assert chat.router is not None
 
 
@@ -39,9 +39,9 @@ def test_fsm_and_middleware_imports_use_canonical_modules() -> None:
     )
 
 
-def test_commands_router_keeps_original_registration_groups_in_order() -> None:
-    """Commands router keeps original registration groups in order."""
-    assert commands.router.sub_routers == [
+def test_routers_module_keeps_original_registration_groups_in_order() -> None:
+    """Routers module keeps original registration groups in order."""
+    assert routers.router.sub_routers == [
         history.basic.router,
         prompt.router,
         history.limits.router,
@@ -51,7 +51,7 @@ def test_commands_router_keeps_original_registration_groups_in_order() -> None:
 
 def test_unknown_command_router_is_last() -> None:
     """Unknown command router is last."""
-    assert commands.router.sub_routers[-1] is fallback.router
+    assert routers.router.sub_routers[-1] is fallback.router
     assert len(fallback.router.message.handlers) == 1
 
 
@@ -70,10 +70,10 @@ def test_ban_commands_are_registered() -> None:
     assert cmd_unban in callbacks
 
 
-def test_commands_package_only_exports_router() -> None:
-    """Commands package only exports router."""
-    assert commands.__all__ == ["router"]
-    assert set(vars(commands).keys()).isdisjoint(
+def test_routers_module_only_exports_router() -> None:
+    """Routers module only exports router."""
+    assert routers.__all__ == ["router"]
+    assert set(vars(routers).keys()).isdisjoint(
         {
             "cmd_history_clear",
             "cmd_history",

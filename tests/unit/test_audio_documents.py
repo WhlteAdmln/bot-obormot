@@ -13,6 +13,7 @@ from typing import Self
 import aiohttp
 import pytest
 
+from bot.common.http_limits import read_limited_body
 from bot.errors import (
     AudiodocAPIError,
     AudiodocEmptyAudioError,
@@ -31,7 +32,6 @@ from bot.services.audio import (
 from bot.services.documents import process_document
 from bot.services.documents.client import MAX_DOCUMENT_TEXT_LENGTH
 from bot.services.documents.response import validate_document_response
-from bot.services.http_limits import read_limited_body
 from bot.settings import get_settings
 from tests.support.settings import make_settings
 

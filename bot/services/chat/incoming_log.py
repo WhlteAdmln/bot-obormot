@@ -7,7 +7,7 @@ import logging
 
 from aiogram.types import Message
 
-from bot.utils.text import log_safe
+from bot.common.text import log_safe
 
 logger = logging.getLogger("bot.services.chat.incoming_log")
 

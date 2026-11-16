@@ -11,10 +11,10 @@ from aiogram import Router
 from aiogram.filters import Command, CommandObject
 from aiogram.types import Message
 
+from bot.services.audit import audit
 from bot.services.database import Database
 from bot.services.llm.client import LLMClient
 from bot.settings import Settings
-from bot.utils.audit import audit
 
 if TYPE_CHECKING:
     from aiogram import Bot

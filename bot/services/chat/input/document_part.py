@@ -8,11 +8,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
+from bot.common.text import log_safe
 from bot.errors import DocumentAPIError, DocumentTooLongError
 from bot.services.documents import process_document
 from bot.services.telegram.downloader import download_telegram_file
 from bot.settings import Settings, get_settings
-from bot.utils.text import log_safe
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable

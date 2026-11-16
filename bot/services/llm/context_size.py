@@ -9,9 +9,9 @@ from typing import Any, Protocol
 
 import aiohttp
 
+from bot.common.text import log_safe
 from bot.errors import LLMUnavailableError
 from bot.settings import Settings
-from bot.utils.text import log_safe
 
 logger = logging.getLogger(__name__)
 

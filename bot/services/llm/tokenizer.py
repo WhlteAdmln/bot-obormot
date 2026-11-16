@@ -10,9 +10,9 @@ from typing import Any, Protocol
 
 import aiohttp
 
+from bot.common.text import log_safe
 from bot.errors import LLMAPIError, LLMTimeoutError, LLMUnavailableError
 from bot.settings import Settings
-from bot.utils.text import log_safe
 
 logger = logging.getLogger(__name__)
 _ESTIMATE_CHARS_PER_TOKEN = 3

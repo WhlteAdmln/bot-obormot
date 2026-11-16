@@ -23,3 +23,8 @@ pre-commit==4.7.0
 
 # Used by scripts/check_lock.py
 packaging==26.3
+
+# Build and wheel packaging tests
+build>=1.2,<2.0
+setuptools==84.2.1
+wheel==0.48.0

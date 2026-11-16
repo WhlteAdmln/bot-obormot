@@ -13,6 +13,7 @@ from bot.app.lifecycle import run_application
 from bot.app.logging_setup import configure_logging
 from bot.app.routers import configure_dispatcher
 from bot.config.env import load_env_file
+from bot.middlewares.correlation_id import CorrelationIdMiddleware
 from bot.services.chat.aggregation import MessageAggregator
 from bot.services.database import Database
 from bot.services.llm.client import LLMClient
@@ -49,8 +50,10 @@ def create_dispatcher(
     database: Database,
 ) -> Dispatcher:
     """Создаёт Dispatcher и подключает к нему middleware и роутеры."""
+    dispatcher = Dispatcher()
+    dispatcher.update.outer_middleware(CorrelationIdMiddleware())
     return configure_dispatcher(
-        Dispatcher(), settings, llm_client, message_aggregator, database
+        dispatcher, settings, llm_client, message_aggregator, database
     )
 
 

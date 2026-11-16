@@ -5,31 +5,43 @@
 
 import logging
 
+from bot.log_context import CorrelationIdFilter
+from bot.log_filters import SecretsFilter
 from bot.settings import Settings
-from bot.utils.log_filters import SecretsFilter
+
+LOG_FORMAT = "%(asctime)s %(levelname)s [%(correlation_id)s] %(name)s: %(message)s"
 
 logger = logging.getLogger("bot.main")
 
 
 def configure_logging(settings: Settings) -> None:
     """Настраивает корневое логирование с конфигурацией приложения."""
+    numeric_level = getattr(logging, str(settings.LOG_LEVEL).upper(), logging.INFO)
+    if not isinstance(numeric_level, int):
+        numeric_level = logging.INFO
+
     logging.basicConfig(
-        level=getattr(logging, settings.LOG_LEVEL),
-        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        level=numeric_level,
+        format=LOG_FORMAT,
     )
 
-    secrets_filter = SecretsFilter(
-        [
+    root = logging.getLogger()
+    root.setLevel(numeric_level)
+
+    secret_filter = SecretsFilter(
+        (
             settings.BOT_TOKEN,
             settings.LLM_API_KEY,
             settings.AUDIODOC_AUDIO_KEY,
             settings.AUDIODOC_DOCUMENT_KEY,
-        ]
+        )
     )
-
-    # Фильтр на обработчиках применяется также к записям сторонних библиотек.
-    for handler in logging.getLogger().handlers:
-        handler.addFilter(secrets_filter)
+    for handler in root.handlers:
+        handler.setFormatter(logging.Formatter(LOG_FORMAT))
+        if not any(isinstance(item, CorrelationIdFilter) for item in handler.filters):
+            handler.addFilter(CorrelationIdFilter())
+        if not any(isinstance(item, SecretsFilter) for item in handler.filters):
+            handler.addFilter(secret_filter)
 
     logger.info("Logging level: %s", settings.LOG_LEVEL)
     for old_name, new_name in settings.deprecated_env_vars:

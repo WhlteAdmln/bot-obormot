@@ -15,9 +15,9 @@ from aiogram.types import (
     Message,
 )
 
-from bot.config.settings import Settings
 from bot.fsm.keys import WELCOME_MESSAGE_KEY
 from bot.services.database import Database
+from bot.settings import Settings
 
 if TYPE_CHECKING:
     from aiogram import Bot

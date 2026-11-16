@@ -56,8 +56,8 @@ def json_body(payload: object) -> bytes:
 
 def test_bot_settings_reexports_get_settings() -> None:
     """Bot settings reexports the shared settings getter."""
-    settings_module = importlib.import_module("bot.config.settings")
-    assert get_settings is settings_module.get_settings
+    model_module = importlib.import_module("bot.config.model")
+    assert get_settings is model_module.get_settings
 
 
 @pytest.mark.asyncio

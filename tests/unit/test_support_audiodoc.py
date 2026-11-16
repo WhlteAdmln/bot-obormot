@@ -9,7 +9,6 @@ from pathlib import Path
 import aiohttp
 import pytest
 
-from bot.config.settings import Settings
 from bot.errors import (
     AudiodocAPIError,
     AudiodocTimeoutError,
@@ -17,6 +16,7 @@ from bot.errors import (
 )
 from bot.services.audio.client import transcribe_audio
 from bot.services.documents.client import process_document
+from bot.settings import Settings
 from tests.support.fake_audiodoc import FakeAudiodoc, FakeResponseOptions
 from tests.support.settings import make_settings
 

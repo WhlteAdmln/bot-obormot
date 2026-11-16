@@ -8,9 +8,9 @@ from dataclasses import replace
 
 import pytest
 
-from bot.config.settings import Settings
 from bot.errors import LLMUnavailableError
 from bot.services.llm import LLMClient, endpoints, messages
+from bot.settings import Settings
 
 
 def test_llm_client_exposes_public_methods() -> None:

@@ -10,11 +10,11 @@ from dataclasses import replace
 
 import pytest
 
-from bot.config.settings import Settings
 from bot.errors import InputTooLongError, LLMUnavailableError
 from bot.services.llm import LLMClient
 from bot.services.llm import client as client_module
 from bot.services.llm.fitting import fit_messages_to_context
+from bot.settings import Settings
 
 
 class FakeFittingClient:

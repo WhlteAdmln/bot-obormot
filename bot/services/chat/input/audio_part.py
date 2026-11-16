@@ -8,9 +8,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, cast
 
-from bot.config.settings import Settings, get_settings
 from bot.services.audio import transcribe_audio, validate_audio_duration
 from bot.services.telegram.downloader import download_telegram_file
+from bot.settings import Settings, get_settings
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable

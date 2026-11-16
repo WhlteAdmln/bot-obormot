@@ -10,9 +10,9 @@ from typing import Self
 
 import pytest
 
-from bot.config.settings import Settings
 from bot.errors import LLMAPIError, LLMUnavailableError
 from bot.services.llm import LLMClient
+from bot.settings import Settings
 
 
 def _with_token_counting(settings: Settings, mode: str) -> Settings:

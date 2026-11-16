@@ -11,7 +11,6 @@ from typing import Any
 
 import aiohttp
 
-from bot.config.settings import Settings, get_settings
 from bot.services.llm.context_size import get_context_size as fetch_context_size
 from bot.services.llm.endpoints import server_url
 from bot.services.llm.fitting import fit_messages_to_context
@@ -36,6 +35,7 @@ from bot.services.llm.tokenizer import (
 from bot.services.llm.tokenizer import (
     get_token_counting_mode as resolve_token_counting_mode,
 )
+from bot.settings import Settings, get_settings
 
 logger = logging.getLogger(__name__)
 

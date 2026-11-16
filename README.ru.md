@@ -100,7 +100,7 @@ cp .env.example .env
 
 ## Конфигурация
 
-Все настройки необязательны, кроме `BOT_TOKEN` и `SUPERVISOR_ID`. Значения по умолчанию соответствуют `bot/config/settings.py` и `.env.example`.
+Все настройки необязательны, кроме `BOT_TOKEN` и `SUPERVISOR_ID`. Значения по умолчанию соответствуют `bot/config/model.py` и `.env.example`.
 
 | Переменная | По умолчанию | Назначение |
 |---|---:|---|

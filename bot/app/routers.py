@@ -5,7 +5,6 @@
 
 from aiogram import Dispatcher
 
-from bot.config.settings import Settings, get_settings
 from bot.handlers import admin, chat, commands, start
 from bot.middlewares.access import AccessMiddleware
 from bot.middlewares.temporary_messages import (
@@ -15,6 +14,7 @@ from bot.middlewares.throttle import ThrottleMiddleware
 from bot.services.chat.aggregation import MessageAggregator
 from bot.services.database import Database
 from bot.services.llm.client import LLMClient
+from bot.settings import Settings, get_settings
 
 
 def configure_dispatcher(

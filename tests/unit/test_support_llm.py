@@ -10,9 +10,9 @@ from dataclasses import replace
 import aiohttp
 import pytest
 
-from bot.config.settings import Settings
 from bot.errors import LLMAPIError, LLMTimeoutError, LLMUnavailableError
 from bot.services.llm import LLMClient
+from bot.settings import Settings
 from tests.support.fake_llm import FakeLLM, FakeLLMOptions
 
 

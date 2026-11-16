@@ -100,7 +100,7 @@ Keep `.env`, API keys, the SQLite database, and user data private. Do not commit
 
 ## Configuration
 
-All settings are optional except `BOT_TOKEN` and `SUPERVISOR_ID`. Defaults below match `bot/config/settings.py` and `.env.example`.
+All settings are optional except `BOT_TOKEN` and `SUPERVISOR_ID`. Defaults below match `bot/config/model.py` and `.env.example`.
 
 | Variable | Default | Purpose |
 |---|---:|---|

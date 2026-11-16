@@ -137,7 +137,7 @@ The daily image cleanup removes media references/images older than 30 days and u
 - `bot/app/logging_setup.py` configures root logging and attaches `SecretsFilter` to root handlers. Telegram token patterns and configured LLM/Whisper/Document Engine secrets are redacted from log messages and exception text.
 - `bot/utils/text.py::log_safe()` escapes CR/LF, replaces non-printable characters, and truncates user-controlled log fields. Audio transcription content is not logged; only the character count is recorded. Service error details are sanitized before logging.
 - `bot/utils/audit.py` writes administrator audit records under the `bot.audit` logger.
-- `bot/config/settings.py` reads environment configuration; `bot/app/bootstrap.py` validates the Telegram token format before creating the Bot.
+- `bot/config/model.py` builds `Settings` from the environment (imported as `bot.settings`); `bot/app/bootstrap.py` validates the Telegram token format before creating the Bot.
 - Startup `umask(0o077)` protects newly created files/directories on Unix-like systems. It does not retroactively change permissions of existing database, image, or `.env` files.
 
 The application still depends on host-level protection, correct `.env` permissions, network isolation for local services, and periodic dependency review with `pip-audit`. Automated tests and log filtering do not replace deployment review or manual Telegram checks.

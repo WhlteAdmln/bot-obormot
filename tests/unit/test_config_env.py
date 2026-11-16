@@ -4,6 +4,7 @@
 """Tests for config env."""
 
 import importlib
+import importlib.util
 import logging
 
 import pytest
@@ -305,7 +306,7 @@ def test_get_settings_is_cached_until_reset() -> None:
 def test_legacy_config_proxy_and_config_alias_are_removed() -> None:
     """The legacy proxy and Config alias are no longer exported."""
     config_module = importlib.import_module("bot.config")
-    settings_module = importlib.import_module("bot.config.settings")
+    settings_module = importlib.import_module("bot.settings")
     model_module = importlib.import_module("bot.config.model")
 
     assert not hasattr(config_module, "config")
@@ -348,6 +349,24 @@ def test_get_optional_int_rejects_invalid_values(
 
 def test_stream_update_interval_is_not_an_environment_setting() -> None:
     """Stream update interval is not an application setting."""
-    settings_class = importlib.import_module("bot.config.settings").Settings
+    settings_class = importlib.import_module("bot.settings").Settings
 
     assert not hasattr(settings_class, "STREAM_UPDATE_INTERVAL")
+
+
+def test_settings_have_a_single_public_import_path() -> None:
+    """Settings are exported from bot.settings only, not from bot.config."""
+    settings_module = importlib.import_module("bot.settings")
+    config_module = importlib.import_module("bot.config")
+    model_module = importlib.import_module("bot.config.model")
+
+    assert importlib.util.find_spec("bot.config.settings") is None
+    for name in (
+        "ConfigError",
+        "Settings",
+        "get_settings",
+        "load_settings",
+        "reset_settings_cache",
+    ):
+        assert getattr(settings_module, name) is getattr(model_module, name)
+        assert not hasattr(config_module, name)

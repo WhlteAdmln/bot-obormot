@@ -12,11 +12,11 @@ import aiohttp
 import pytest
 from jsonschema import Draft202012Validator
 
-from bot.config.settings import Settings
 from bot.errors import AudiodocAPIError, DocumentAPIError
 from bot.services.audio.client import transcribe_audio
 from bot.services.documents.client import process_document
 from bot.services.documents.response import validate_document_response
+from bot.settings import Settings
 from tests.support.fake_audiodoc import FakeAudiodoc, FakeResponseOptions
 from tests.support.settings import make_settings
 

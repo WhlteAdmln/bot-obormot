@@ -17,12 +17,12 @@ from PIL import Image
 
 import bot.app.routers as app_routers
 from bot.app.routers import configure_dispatcher
-from bot.config.settings import Settings
 from bot.middlewares import throttle as throttle_middleware
 from bot.services.chat.formatting import format_roleplay
 from bot.services.chat.streaming.settings import MAX_MESSAGE_LENGTH
 from bot.services.database import Database
 from bot.services.llm import LLMClient
+from bot.settings import Settings
 from tests.support.fake_audiodoc import FakeAudiodoc
 from tests.support.fake_llm import FakeLLM, FakeLLMOptions
 from tests.support.settings import make_settings

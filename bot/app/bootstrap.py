@@ -13,11 +13,11 @@ from bot.app.lifecycle import run_application
 from bot.app.logging_setup import configure_logging
 from bot.app.routers import configure_dispatcher
 from bot.config.env import load_env_file
-from bot.config.settings import Settings, load_settings
 from bot.services.chat.aggregation import MessageAggregator
 from bot.services.database import Database
 from bot.services.llm.client import LLMClient
 from bot.services.media.safety import configure_pillow_limits
+from bot.settings import Settings, load_settings
 
 logger = logging.getLogger("bot.main")
 

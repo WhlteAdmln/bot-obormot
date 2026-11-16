@@ -385,13 +385,10 @@ class Database:
         return await blocked_users_repository.unblock_user(self._conn, user_id)
 
 
-db = Database(Settings())
-
 __all__ = [
     "MAX_HISTORY_IMAGES",
     "MAX_HISTORY_MEDIA_MESSAGES",
     "Database",
-    "db",
     "handle_database_errors",
     "read_image_as_base64",
 ]

@@ -155,7 +155,6 @@ class _LifecycleHarness:
 
     def __init__(self) -> None:
         self.calls: list[str] = []
-        self.db = _FakeDatabase(self.calls)
         self.database = _FakeManagedDatabase(self.calls)
         self.llm = _FakeLLM(self.calls)
         self.bot = _FakeBot(self.calls)
@@ -182,25 +181,9 @@ class _FakeDispatcher:
         await asyncio.sleep(0)
 
 
-class _FakeDatabase:
+class _FakeManagedDatabase:
     def __init__(self, calls: list[str]) -> None:
         self.calls = calls
-        self.settings: Settings | None = None
-
-    def configure(self, settings: Settings) -> None:
-        self.settings = settings
-        self.calls.append("db.configure")
-
-    async def connect(self) -> None:
-        self.calls.append("db.connect")
-
-    async def close(self) -> None:
-        self.calls.append("db.close")
-
-
-class _FakeManagedDatabase(_FakeDatabase):
-    def __init__(self, calls: list[str]) -> None:
-        super().__init__(calls)
         self.fail_on_enter = False
 
     async def __aenter__(self) -> Self:
@@ -248,29 +231,28 @@ def harness(monkeypatch: pytest.MonkeyPatch) -> _LifecycleHarness:
         finally:
             result.calls.append("cleanup.stop")
 
-    monkeypatch.setattr(lifecycle, "db", result.db)
-    monkeypatch.setattr(lifecycle, "periodic_image_cleanup", fake_periodic_cleanup)
+    monkeypatch.setattr(
+        lifecycle,
+        "periodic_image_cleanup",
+        fake_periodic_cleanup,
+    )
     return result
 
 
 def test_lifecycle_preserves_startup_polling_and_shutdown_order(
     harness: _LifecycleHarness,
 ) -> None:
-    """Lifecycle configures resources first, then starts and stops them in order."""
+    """Lifecycle starts and stops resources in the expected order."""
     asyncio.run(
         lifecycle.run_application(
             harness.bot,
             harness.dispatcher,
-            SETTINGS,
             harness.llm,
             harness.database,
         )
     )
 
-    assert harness.db.settings is SETTINGS
     assert harness.calls == [
-        "db.configure",
-        "db.connect",
         "database.connect",
         "llm.start",
         "polling",
@@ -278,48 +260,46 @@ def test_lifecycle_preserves_startup_polling_and_shutdown_order(
         "cleanup.stop",
         "database.close",
         "llm.close",
-        "db.close",
         "telegram.close",
     ]
 
 
-def test_lifecycle_closes_remaining_resources_when_startup_fails(
+def test_lifecycle_closes_database_and_resources_when_llm_startup_fails(
     harness: _LifecycleHarness,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Lifecycle closes remaining resources when startup fails."""
+    """Lifecycle closes the database and remaining resources when LLM startup fails."""
 
-    async def fail_connect() -> None:
-        harness.calls.append("db.connect")
-        msg = "database unavailable"
+    async def fail_start() -> None:
+        harness.calls.append("llm.start")
+        msg = "LLM startup failed"
         raise RuntimeError(msg)
 
-    monkeypatch.setattr(harness.db, "connect", fail_connect)
+    monkeypatch.setattr(harness.llm, "start", fail_start)
 
-    with pytest.raises(RuntimeError, match="database unavailable"):
+    with pytest.raises(RuntimeError, match="LLM startup failed"):
         asyncio.run(
             lifecycle.run_application(
                 harness.bot,
                 harness.dispatcher,
-                SETTINGS,
                 harness.llm,
                 harness.database,
             )
         )
 
     assert harness.calls == [
-        "db.configure",
-        "db.connect",
+        "database.connect",
+        "llm.start",
+        "database.close",
         "llm.close",
-        "db.close",
         "telegram.close",
     ]
 
 
-def test_lifecycle_closes_legacy_resources_when_application_database_fails(
+def test_lifecycle_closes_remaining_resources_when_database_startup_fails(
     harness: _LifecycleHarness,
 ) -> None:
-    """Lifecycle closes legacy resources when the application database fails."""
+    """Lifecycle closes remaining resources when database startup fails."""
     harness.database.fail_on_enter = True
 
     with pytest.raises(RuntimeError, match="application database unavailable"):
@@ -327,18 +307,14 @@ def test_lifecycle_closes_legacy_resources_when_application_database_fails(
             lifecycle.run_application(
                 harness.bot,
                 harness.dispatcher,
-                SETTINGS,
                 harness.llm,
                 harness.database,
             )
         )
 
     assert harness.calls == [
-        "db.configure",
-        "db.connect",
         "database.connect",
         "llm.close",
-        "db.close",
         "telegram.close",
     ]
 
@@ -360,13 +336,12 @@ def test_lifecycle_continues_closing_after_one_cleanup_error(
         lifecycle.run_application(
             harness.bot,
             harness.dispatcher,
-            SETTINGS,
             harness.llm,
             harness.database,
         )
     )
 
-    assert harness.calls[-3:] == ["llm.close", "db.close", "telegram.close"]
+    assert harness.calls[-2:] == ["llm.close", "telegram.close"]
 
 
 def test_lifecycle_cancels_running_request_and_background_task_on_shutdown(
@@ -394,7 +369,6 @@ def test_lifecycle_cancels_running_request_and_background_task_on_shutdown(
             lifecycle.run_application(
                 harness.bot,
                 harness.dispatcher,
-                SETTINGS,
                 harness.llm,
                 harness.database,
             )
@@ -409,8 +383,6 @@ def test_lifecycle_cancels_running_request_and_background_task_on_shutdown(
 
     assert request_cancelled.is_set()
     assert harness.calls == [
-        "db.configure",
-        "db.connect",
         "database.connect",
         "llm.start",
         "polling",
@@ -419,7 +391,6 @@ def test_lifecycle_cancels_running_request_and_background_task_on_shutdown(
         "cleanup.stop",
         "database.close",
         "llm.close",
-        "db.close",
         "telegram.close",
     ]
 
@@ -495,7 +466,6 @@ def test_bootstrap_main_loads_env_and_passes_settings_down(
     async def run_application(
         bot: object,
         dispatcher: object,
-        settings: Settings,
         llm_client: _FakeLLM,
         database: object,
     ) -> None:
@@ -503,7 +473,7 @@ def test_bootstrap_main_loads_env_and_passes_settings_down(
         assert dispatcher is dispatcher_instance
         assert llm_client is llm_instance
         assert database is database_instance
-        calls.append(("run", settings))
+        calls.append("run")
 
     monkeypatch.setattr(bootstrap, "load_settings", load_settings)
     monkeypatch.setattr(bootstrap, "LLMClient", create_llm_client)
@@ -527,7 +497,7 @@ def test_bootstrap_main_loads_env_and_passes_settings_down(
         "message_aggregator",
         ("database", SETTINGS),
         ("dispatcher", SETTINGS, llm_instance, aggregator_instance, database_instance),
-        ("run", SETTINGS),
+        "run",
     ]
 
 

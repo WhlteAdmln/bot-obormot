@@ -70,4 +70,4 @@ async def main() -> None:
     message_aggregator = MessageAggregator()
     database = Database(settings)
     dispatcher = create_dispatcher(settings, llm_client, message_aggregator, database)
-    await run_application(bot, dispatcher, settings, llm_client, database)
+    await run_application(bot, dispatcher, llm_client, database)

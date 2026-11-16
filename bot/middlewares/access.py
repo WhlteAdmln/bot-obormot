@@ -14,8 +14,8 @@ from bot.middlewares.aliases import MiddlewareData, NextHandler
 from bot.services.access import user_has_access
 
 if TYPE_CHECKING:
-    from bot.config.settings import Settings
     from bot.services.database import Database
+    from bot.settings import Settings
 
 # Как часто можно повторять один и тот же отказ одному человеку.
 DENY_NOTICE_INTERVAL = 60.0

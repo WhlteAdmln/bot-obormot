@@ -40,12 +40,7 @@ async def handle_chat_error(
     for rule in CHAT_ERROR_RULES:
         if isinstance(error, rule.error_type):
             _log_rule_error(rule, error, user_id)
-            user_message = (
-                rule.user_message(error)
-                if callable(rule.user_message)
-                else rule.user_message
-            )
-            await report_error(message, status, user_message)
+            await report_error(message, status, texts.user_text(error))
             return
 
     logger.error(
@@ -53,8 +48,4 @@ async def handle_chat_error(
         user_id,
         exc_info=(type(error), error, error.__traceback__),
     )
-    await report_error(
-        message,
-        status,
-        texts.UNEXPECTED_ERROR,
-    )
+    await report_error(message, status, texts.user_text(error))

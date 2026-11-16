@@ -9,7 +9,6 @@ from pathlib import Path
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Self, cast
 
-from bot.config.settings import Settings
 from bot.errors import DatabaseError
 from bot.services.database.connection import open_connection
 from bot.services.database.decorators import handle_database_errors
@@ -45,6 +44,7 @@ from bot.services.database.usecases.history import (
 from bot.services.database.usecases.history import (
     reset_history as reset_history_usecase,
 )
+from bot.settings import Settings
 
 if TYPE_CHECKING:
     import aiosqlite

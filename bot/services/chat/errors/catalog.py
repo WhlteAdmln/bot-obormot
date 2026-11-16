@@ -7,10 +7,14 @@
 специализированные подклассы перед базовыми типами.
 """
 
-from collections.abc import Callable
 from dataclasses import dataclass
 
 from bot.errors import (
+    AudiodocAPIError,
+    AudiodocEmptyAudioError,
+    AudiodocError,
+    AudiodocTimeoutError,
+    AudiodocUnavailableError,
     DatabaseError,
     DocumentAPIError,
     DocumentTimeoutError,
@@ -23,21 +27,18 @@ from bot.errors import (
     MediaError,
     TelegramError,
     TelegramFileTooBigError,
-    WhisperAPIError,
-    WhisperEmptyAudioError,
-    WhisperError,
-    WhisperTimeoutError,
-    WhisperUnavailableError,
 )
-from bot.services.chat.errors import texts
 
 
 @dataclass(frozen=True)
 class ChatErrorRule:
-    """Maps an error type to the user message and the log entry it produces."""
+    """Maps an error type to the log entry it produces.
+
+    The user text is not stored here: it is chosen by the error ``code`` in
+    ``bot.services.chat.errors.texts``.
+    """
 
     error_type: type[Exception]
-    user_message: str | Callable[[Exception], str]
     log_method: str | None = None
     log_template: str | None = None
     log_fields: tuple[str, ...] = ()
@@ -45,67 +46,58 @@ class ChatErrorRule:
 
 
 CHAT_ERROR_RULES: tuple[ChatErrorRule, ...] = (
-    ChatErrorRule(InputTooLongError, texts.input_too_long),
+    ChatErrorRule(InputTooLongError),
     ChatErrorRule(
         TelegramFileTooBigError,
-        texts.TELEGRAM_FILE_TOO_BIG,
         "warning",
         "Telegram file is too big to download, user_id=%s",
         ("user_id",),
     ),
-    ChatErrorRule(DocumentTooLongError, texts.document_too_long),
+    ChatErrorRule(DocumentTooLongError),
     ChatErrorRule(
         DocumentTimeoutError,
-        texts.DOCUMENT_TIMEOUT,
         "warning",
         "Document processing timed out for user_id=%s",
         ("user_id",),
     ),
     ChatErrorRule(
         DocumentUnavailableError,
-        texts.DOCUMENT_UNAVAILABLE,
         "error",
         "Document Engine unavailable for user_id=%s: %s",
         ("user_id", "error"),
     ),
     ChatErrorRule(
         DocumentAPIError,
-        texts.DOCUMENT_API,
         "error",
         "Document Engine API error for user_id=%s: HTTP %s, %s",
         ("user_id", "status", "detail"),
     ),
     ChatErrorRule(
-        WhisperEmptyAudioError,
-        texts.WHISPER_EMPTY_AUDIO,
+        AudiodocEmptyAudioError,
         "info",
         "No speech detected in audio from user_id=%s",
         ("user_id",),
     ),
     ChatErrorRule(
-        WhisperTimeoutError,
-        texts.WHISPER_TIMEOUT,
+        AudiodocTimeoutError,
         "warning",
         "Whisper request timed out for user_id=%s",
         ("user_id",),
     ),
     ChatErrorRule(
-        WhisperUnavailableError,
-        texts.WHISPER_UNAVAILABLE,
+        AudiodocUnavailableError,
         "error",
         "Whisper is unavailable for user_id=%s: %s",
         ("user_id", "error"),
     ),
     ChatErrorRule(
-        WhisperAPIError,
-        texts.WHISPER_API,
+        AudiodocAPIError,
         "error",
         "Whisper API error for user_id=%s: %s",
         ("user_id", "error"),
     ),
     ChatErrorRule(
-        WhisperError,
-        texts.WHISPER_ERROR,
+        AudiodocError,
         "error",
         "Whisper error for user_id=%s",
         ("user_id",),
@@ -113,14 +105,12 @@ CHAT_ERROR_RULES: tuple[ChatErrorRule, ...] = (
     ),
     ChatErrorRule(
         MediaError,
-        lambda error: texts.MEDIA_ERROR_PREFIX + str(error),
         "warning",
         "Media processing failed for user_id=%s: %s",
         ("user_id", "error"),
     ),
     ChatErrorRule(
         TelegramError,
-        texts.TELEGRAM_ERROR,
         "error",
         "Telegram operation failed for user_id=%s",
         ("user_id",),
@@ -128,28 +118,24 @@ CHAT_ERROR_RULES: tuple[ChatErrorRule, ...] = (
     ),
     ChatErrorRule(
         LLMTimeoutError,
-        texts.LLM_TIMEOUT,
         "warning",
         "LLM request timed out for user_id=%s",
         ("user_id",),
     ),
     ChatErrorRule(
         LLMUnavailableError,
-        texts.LLM_UNAVAILABLE,
         "error",
         "LLM is unavailable for user_id=%s: %s",
         ("user_id", "error"),
     ),
     ChatErrorRule(
         LLMAPIError,
-        texts.LLM_API,
         "error",
         "LLM API error for user_id=%s: HTTP %s, %s",
         ("user_id", "status", "detail"),
     ),
     ChatErrorRule(
         DatabaseError,
-        texts.DATABASE_ERROR,
         "error",
         "Database operation failed for user_id=%s",
         ("user_id",),

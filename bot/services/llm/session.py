@@ -7,7 +7,7 @@ from typing import Protocol
 
 import aiohttp
 
-from bot.config.settings import Settings
+from bot.settings import Settings
 
 
 class SessionOwner(Protocol):

@@ -15,8 +15,8 @@ import bot.app.routers as app_routers
 import bot.main as main_module
 from bot.app import bootstrap, lifecycle
 from bot.app.background import image_cleanup
-from bot.config.settings import ConfigError, Settings
 from bot.services.chat.aggregation import MessageAggregator
+from bot.settings import ConfigError, Settings
 from tests.support.settings import make_settings
 
 SETTINGS = make_settings()

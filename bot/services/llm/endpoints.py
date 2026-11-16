@@ -3,7 +3,7 @@
 
 """Построение URL-адресов специальных endpoint-ов LLM-сервера."""
 
-from bot.config.settings import Settings, get_settings
+from bot.settings import Settings, get_settings
 
 
 def server_url(settings: Settings | None = None) -> str:

@@ -7,7 +7,7 @@ from dataclasses import replace
 from typing import Any, cast
 from urllib.parse import urlsplit, urlunsplit
 
-from bot.config.settings import Settings
+from bot.settings import Settings
 
 _LEGACY_SETTING_NAMES = {
     "WHISPER_API_KEY": "AUDIODOC_AUDIO_KEY",

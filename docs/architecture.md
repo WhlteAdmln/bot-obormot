@@ -38,7 +38,7 @@ Root routers: start → admin → commands → chat
 - `bot/app/bootstrap.py` applies `umask(0o077)`, configures logging and secret filtering, enables Pillow limits, logs the access mode, validates `BOT_TOKEN`, creates the Bot/Dispatcher, and configures routers.
 - `bot/app/lifecycle.py` connects SQLite, starts the LLM client, starts the named periodic image-cleanup task, and starts Telegram polling. On shutdown it cancels and awaits cleanup, then closes the LLM client, database connection, and Telegram session.
 - `bot/app/background/image_cleanup.py` invokes image cleanup once per day with a 30-day media-retention period and a 24-hour grace period for orphaned images.
-- `bot/config/__init__.py` loads only `PROJECT_ROOT/.env` before importing the settings object. It does not search parent directories.
+- `bot/config/env.py` provides `load_env_file()`, which loads only `PROJECT_ROOT/.env`; `bot/app/bootstrap.py` calls it before building `Settings`. It does not search parent directories.
 
 ## 3. Telegram layer, access, and administration
 
@@ -89,6 +89,10 @@ Long plain-text messages are combined by `bot/services/chat/aggregation/aggregat
 
 The default system prompt is stored in `prompts/systemPrompt.md`; users may have a personal system prompt. The default prompt explicitly frames document text, speech transcriptions, and captions as data to analyze rather than instructions. Model output is formatted/escaped before being sent to Telegram.
 
+### Error handling
+
+All application errors derive from `AppError` in `bot/errors/`. Every concrete class declares a unique machine-readable `code` and a short English `public_message` that never contains internal details; the string form of an exception carries the detail for logs. The Telegram layer turns an error into a reply in `bot/services/chat/errors/`: `catalog.py` decides only how an error is logged, and `texts.py` is the single place that maps each `code` to the Russian text shown to the user. A code without an entry, or an error that is not an `AppError`, gets the unexpected-error text and is logged with a traceback. The old names `BotServiceError` and `Whisper*Error` remain as deprecated aliases of `AppError` and `Audiodoc*Error` for one release.
+
 ## 5. Media and external services
 
 ### Telegram downloads and local media processing
@@ -109,7 +113,7 @@ The video path requires `ffmpeg` and `ffprobe` on `PATH`.
 
 - `bot/services/audio/client.py` sends audio to [audiodoc](https://github.com/WhlteAdmln/audiodoc) at the configured `/transcribe` URL; `bot/services/documents/client.py` sends documents to its `/process-document` endpoint and validates the returned structure.
 - audiodoc is optional. Audio and document processing are disabled independently when their respective URL is empty.
-- The setting names `WHISPER_*` and `DOCUMENT_*` are historical; both groups connect to the same audiodoc service. `WHISPER_API_KEY` and `DOCUMENT_API_KEY` add separate optional Bearer authorization headers. Use HTTPS when audiodoc is remote; API keys do not encrypt HTTP traffic.
+- The `AUDIODOC_*` settings connect both features to the same audiodoc service: `AUDIODOC_URL` is the base URL, and `AUDIODOC_AUDIO_KEY` and `AUDIODOC_DOCUMENT_KEY` add separate optional Bearer authorization headers. The old `WHISPER_*` and `DOCUMENT_*` names are deprecated and still read when the new name is empty. Use HTTPS when audiodoc is remote; API keys do not encrypt HTTP traffic.
 - Configure the complete endpoint URL, including `/transcribe` or `/process-document`. See the [audiodoc repository](https://github.com/WhlteAdmln/audiodoc) for supported document formats and server configuration.
 - `bot/services/http_limits.py` reads response bodies incrementally in 64 KiB chunks, with a 2 MiB limit for successful service responses and a 2 KiB limit for HTTP error-body reads.
 
@@ -133,7 +137,7 @@ The daily image cleanup removes media references/images older than 30 days and u
 - `bot/app/logging_setup.py` configures root logging and attaches `SecretsFilter` to root handlers. Telegram token patterns and configured LLM/Whisper/Document Engine secrets are redacted from log messages and exception text.
 - `bot/utils/text.py::log_safe()` escapes CR/LF, replaces non-printable characters, and truncates user-controlled log fields. Audio transcription content is not logged; only the character count is recorded. Service error details are sanitized before logging.
 - `bot/utils/audit.py` writes administrator audit records under the `bot.audit` logger.
-- `bot/config/settings.py` reads environment configuration; `bot/app/bootstrap.py` validates the Telegram token format before creating the Bot.
+- `bot/config/model.py` builds `Settings` from the environment (imported as `bot.settings`); `bot/app/bootstrap.py` validates the Telegram token format before creating the Bot.
 - Startup `umask(0o077)` protects newly created files/directories on Unix-like systems. It does not retroactively change permissions of existing database, image, or `.env` files.
 
 The application still depends on host-level protection, correct `.env` permissions, network isolation for local services, and periodic dependency review with `pip-audit`. Automated tests and log filtering do not replace deployment review or manual Telegram checks.

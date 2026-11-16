@@ -3,7 +3,20 @@
 
 """Публичные исключения сервисов бота."""
 
+from bot.errors.audiodoc import (
+    AudiodocAPIError,
+    AudiodocEmptyAudioError,
+    AudiodocError,
+    AudiodocTimeoutError,
+    AudiodocUnavailableError,
+    WhisperAPIError,
+    WhisperEmptyAudioError,
+    WhisperError,
+    WhisperTimeoutError,
+    WhisperUnavailableError,
+)
 from bot.errors.base import (
+    AppError,
     BotServiceError,
     DatabaseError,
     InputTooLongError,
@@ -24,15 +37,14 @@ from bot.errors.llm import (
     LLMUnavailableError,
 )
 from bot.errors.telegram import TelegramError, TelegramFileTooBigError
-from bot.errors.whisper import (
-    WhisperAPIError,
-    WhisperEmptyAudioError,
-    WhisperError,
-    WhisperTimeoutError,
-    WhisperUnavailableError,
-)
 
 __all__ = [
+    "AppError",
+    "AudiodocAPIError",
+    "AudiodocEmptyAudioError",
+    "AudiodocError",
+    "AudiodocTimeoutError",
+    "AudiodocUnavailableError",
     "BotServiceError",
     "DatabaseError",
     "DocumentAPIError",

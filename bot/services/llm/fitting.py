@@ -7,13 +7,13 @@ import logging
 import math
 from typing import Any, Protocol
 
-from bot.config.settings import Settings
 from bot.errors import InputTooLongError, LLMUnavailableError
 from bot.services.llm.constants import (
     CONTEXT_SAFETY_MARGIN,
     ESTIMATE_CONTEXT_SAFETY_FACTOR,
     IMAGE_TOKEN_RESERVE,
 )
+from bot.settings import Settings
 
 logger = logging.getLogger(__name__)
 

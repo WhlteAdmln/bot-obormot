@@ -11,9 +11,9 @@ from aiogram import Router
 from aiogram.filters import Command, CommandObject
 from aiogram.types import Message
 
-from bot.config.settings import Settings
 from bot.services.database import Database
 from bot.services.llm.client import LLMClient
+from bot.settings import Settings
 from bot.utils.audit import audit
 
 if TYPE_CHECKING:

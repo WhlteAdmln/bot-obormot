@@ -9,7 +9,7 @@ For the module map and request flow, see [`docs/architecture.md`](docs/architect
 - Python 3.11 or newer.
 - A Telegram bot token from [@BotFather](https://t.me/BotFather).
 - A running LLM server exposing `POST /v1/chat/completions` with streaming support.
-- Optional [audiodoc](https://github.com/WhlteAdmln/audiodoc) service for audio transcription and document text extraction. The bot's `WHISPER_*` and `DOCUMENT_*` setting names are historical; both groups connect to audiodoc.
+- Optional [audiodoc](https://github.com/WhlteAdmln/audiodoc) service for audio transcription and document text extraction. The bot's `AUDIODOC_*` settings connect to it; the old `WHISPER_*` and `DOCUMENT_*` names still work but are deprecated.
 - `ffmpeg` and `ffprobe` available on `PATH` for video and video-sticker processing.
 
 ## Installation
@@ -100,7 +100,7 @@ Keep `.env`, API keys, the SQLite database, and user data private. Do not commit
 
 ## Configuration
 
-All settings are optional except `BOT_TOKEN` and `SUPERVISOR_ID`. Defaults below match `bot/config/settings.py` and `.env.example`.
+All settings are optional except `BOT_TOKEN` and `SUPERVISOR_ID`. Defaults below match `bot/config/model.py` and `.env.example`.
 
 | Variable | Default | Purpose |
 |---|---:|---|
@@ -123,12 +123,13 @@ All settings are optional except `BOT_TOKEN` and `SUPERVISOR_ID`. Defaults below
 | `LLM_MAX_CONCURRENT_GENERATIONS` | `1` | Maximum concurrent LLM generations. |
 | `MAX_HISTORY_EXCHANGES` | `1000` | Maximum history limit administrators can assign. A normal user's default limit is 30 exchanges. |
 | `MAX_STORED_EXCHANGES` | `2000` | Maximum number of full user/assistant exchanges retained per user (up to 4,000 message rows). Older rows and their managed images are pruned after a successful response. |
-| `WHISPER_API_URL` | empty | Optional audiodoc transcription endpoint. Set the full URL including `/transcribe`; audio processing is unavailable when unset. |
-| `WHISPER_API_KEY` | empty | Optional Bearer token sent to audiodoc for transcription. |
-| `WHISPER_TIMEOUT` | `180` | Whisper request timeout in seconds. |
-| `DOCUMENT_API_URL` | empty | Optional audiodoc document endpoint. Set the full URL including `/process-document`; document processing is unavailable when unset. |
-| `DOCUMENT_API_KEY` | empty | Optional Bearer token sent to audiodoc for document processing. |
-| `DOCUMENT_TIMEOUT` | `300` | Document Engine request timeout in seconds. |
+| `AUDIODOC_URL` | empty | Optional base URL of audiodoc, for example `http://10.8.0.1:8000` (no endpoint path); audio and document processing are unavailable when unset. |
+| `AUDIODOC_AUDIO_KEY` | empty | Optional Bearer token sent to audiodoc for `/transcribe`. |
+| `AUDIODOC_DOCUMENT_KEY` | empty | Optional Bearer token sent to audiodoc for `/process-document`. |
+| `AUDIODOC_AUDIO_TIMEOUT` | `180` | Transcription request timeout in seconds. |
+| `AUDIODOC_DOCUMENT_TIMEOUT` | `300` | Document request timeout in seconds. |
+
+The old names `WHISPER_API_URL`, `WHISPER_API_KEY`, `WHISPER_TIMEOUT`, `DOCUMENT_API_URL`, `DOCUMENT_API_KEY` and `DOCUMENT_TIMEOUT` are still read when the new name is empty. The bot logs one deprecation warning per old name at startup. `WHISPER_API_URL` and `DOCUMENT_API_URL` may be full endpoint URLs; both must resolve to the same base URL.
 
 Some important limits are code constants rather than environment settings:
 
@@ -174,22 +175,21 @@ bot-obormot (machine A)
 Machine B normally hosts both audiodoc and the LLM server.
 ```
 
-The bot must be able to reach the full endpoint URLs. It does not append `/transcribe` or `/process-document` automatically.
+The bot must be able to reach `AUDIODOC_URL`. It appends `/transcribe` and `/process-document` itself, so do not include an endpoint path in the URL.
 
 ### 2. Settings correspondence
 
 | Purpose | `bot-obormot` | `audiodoc` | Notes |
 |---|---|---|---|
-| Transcription URL | `WHISPER_API_URL` | Uvicorn host/port | Full URL, including `/transcribe` |
-| Document URL | `DOCUMENT_API_URL` | Uvicorn host/port | Full URL, including `/process-document` |
-| Transcription key | `WHISPER_API_KEY` | `WHISPER_API_KEY` | Values must match |
-| Document key | `DOCUMENT_API_KEY` | `DOCUMENT_API_KEY` | Values must match and differ from the transcription key |
+| Base URL | `AUDIODOC_URL` | Uvicorn host/port | Base URL without an endpoint path; the bot adds `/transcribe` and `/process-document` |
+| Transcription key | `AUDIODOC_AUDIO_KEY` | `AUDIODOC_AUDIO_KEY` | Values must match |
+| Document key | `AUDIODOC_DOCUMENT_KEY` | `AUDIODOC_DOCUMENT_KEY` | Values must match and differ from the transcription key |
 | Key rotation | One active key | Comma-separated accepted keys | Enables overlap during rotation |
 | Upload field | `file` | `file` | `multipart/form-data` |
 | Transcription response | Reads `text` | `{text, language, duration}` | All three fields are part of the response contract |
 | Document response | Validates `format`, `text`, `characters`; handles `truncated` | `{format, text, characters, truncated}` | `truncated=true` is reported to the user as an oversized document |
 
-`GET /health` is unauthenticated. `GET /ready` and `POST /process-document` use `DOCUMENT_API_KEY`; `POST /transcribe` uses `WHISPER_API_KEY`. Keep the two keys different. In production, keep `ALLOW_UNAUTHENTICATED=false`.
+`GET /health` is unauthenticated. `GET /ready` and `POST /process-document` use `AUDIODOC_DOCUMENT_KEY`; `POST /transcribe` uses `AUDIODOC_AUDIO_KEY`. Keep the two keys different. In production, keep `ALLOW_UNAUTHENTICATED=false`.
 
 ### 3. Effective limits
 
@@ -214,8 +214,8 @@ This is the simplest setup for a local test. Run audiodoc, the LLM server, and t
 `audiodoc/.env`:
 
 ```ini
-WHISPER_API_KEY=REPLACE_WITH_RANDOM_KEY_1
-DOCUMENT_API_KEY=REPLACE_WITH_RANDOM_KEY_2
+AUDIODOC_AUDIO_KEY=REPLACE_WITH_RANDOM_KEY_1
+AUDIODOC_DOCUMENT_KEY=REPLACE_WITH_RANDOM_KEY_2
 ALLOW_UNAUTHENTICATED=false
 ```
 
@@ -229,10 +229,9 @@ uvicorn app:app --host 127.0.0.1 --port 8000
 
 ```ini
 LLM_BASE_URL=http://127.0.0.1:8080/v1
-WHISPER_API_URL=http://127.0.0.1:8000/transcribe
-WHISPER_API_KEY=REPLACE_WITH_RANDOM_KEY_1
-DOCUMENT_API_URL=http://127.0.0.1:8000/process-document
-DOCUMENT_API_KEY=REPLACE_WITH_RANDOM_KEY_2
+AUDIODOC_URL=http://127.0.0.1:8000
+AUDIODOC_AUDIO_KEY=REPLACE_WITH_RANDOM_KEY_1
+AUDIODOC_DOCUMENT_KEY=REPLACE_WITH_RANDOM_KEY_2
 ```
 
 Replace the two key placeholders with different random values. The corresponding values in the bot and audiodoc must match.
@@ -253,10 +252,9 @@ Allow inbound TCP ports `8000` (audiodoc) and `8080` (LLM) only from the bot's V
 
 ```ini
 LLM_BASE_URL=http://10.8.0.1:8080/v1
-WHISPER_API_URL=http://10.8.0.1:8000/transcribe
-WHISPER_API_KEY=REPLACE_WITH_RANDOM_KEY_1
-DOCUMENT_API_URL=http://10.8.0.1:8000/process-document
-DOCUMENT_API_KEY=REPLACE_WITH_RANDOM_KEY_2
+AUDIODOC_URL=http://10.8.0.1:8000
+AUDIODOC_AUDIO_KEY=REPLACE_WITH_RANDOM_KEY_1
+AUDIODOC_DOCUMENT_KEY=REPLACE_WITH_RANDOM_KEY_2
 ```
 
 Use the same two key values in `audiodoc/.env` on machine B. Plain HTTP inside WireGuard is acceptable because the VPN tunnel encrypts traffic between the peers.
@@ -266,8 +264,7 @@ Use the same two key values in `audiodoc/.env` on machine B. Plain HTTP inside W
 Keep Uvicorn bound to loopback on machine B and let nginx terminate TLS. Configure the nginx source-IP allow-list for the bot host and use a certificate trusted by the bot's operating system/Python environment.
 
 ```ini
-WHISPER_API_URL=https://backend.example.internal/transcribe
-DOCUMENT_API_URL=https://backend.example.internal/process-document
+AUDIODOC_URL=https://backend.example.internal
 ```
 
 Keep the same matching Bearer keys as configured in audiodoc. Do not disable certificate verification in the bot. The LLM server must also use a protected channel or private network; do not expose it directly to the internet.
@@ -283,8 +280,8 @@ Run these commands from machine A (the bot host), not only from machine B. That 
 Set keys in the current shell for the test session. Do not paste real keys into tickets, logs, or shared terminal recordings:
 
 ```bash
-export DOCUMENT_API_KEY='your-document-key'
-export WHISPER_API_KEY='your-whisper-key'
+export AUDIODOC_DOCUMENT_KEY='your-document-key'
+export AUDIODOC_AUDIO_KEY='your-audio-key'
 ```
 
 1. Liveness, no key required. After the model loads, expect `loaded: true`:
@@ -297,7 +294,7 @@ curl -fsS http://10.8.0.1:8000/health
 
 ```bash
 curl -fsS http://10.8.0.1:8000/ready \
-  -H "Authorization: Bearer ${DOCUMENT_API_KEY}"
+  -H "Authorization: Bearer ${AUDIODOC_DOCUMENT_KEY}"
 ```
 
 3. Document extraction. Expect `format`, `text`, `characters`, and `truncated`:
@@ -305,7 +302,7 @@ curl -fsS http://10.8.0.1:8000/ready \
 ```bash
 echo 'Example document text.' > /tmp/audiodoc-sample.txt
 curl -fsS \
-  -H "Authorization: Bearer ${DOCUMENT_API_KEY}" \
+  -H "Authorization: Bearer ${AUDIODOC_DOCUMENT_KEY}" \
   -F "file=@/tmp/audiodoc-sample.txt" \
   -F "max_characters=11264" \
   http://10.8.0.1:8000/process-document
@@ -315,7 +312,7 @@ curl -fsS \
 
 ```bash
 curl -fsS \
-  -H "Authorization: Bearer ${WHISPER_API_KEY}" \
+  -H "Authorization: Bearer ${AUDIODOC_AUDIO_KEY}" \
   -F "file=@voice.ogg" \
   http://10.8.0.1:8000/transcribe
 ```
@@ -337,8 +334,8 @@ Do not combine the Whisper and document keys; they protect different endpoints.
 | Symptom | Likely cause | What to check |
 |---|---|---|
 | Bot cannot connect to the service | Wrong host/port, service stopped, firewall blocks traffic, or Uvicorn listens only on loopback | Call `/health` from machine A; inspect `ss -tlnp` and UFW rules on B |
-| HTTP `404` | URL is missing the endpoint path | Include `/transcribe` or `/process-document` in the bot URL |
-| HTTP `401` | Key mismatch or wrong key group | Compare the bot's Whisper key with `WHISPER_API_KEY`, and its document key with `DOCUMENT_API_KEY` without sharing secret values |
+| HTTP `404` | `AUDIODOC_URL` contains an endpoint path or points to the wrong service | Use the base URL only, for example `http://10.8.0.1:8000` |
+| HTTP `401` | Key mismatch or wrong key group | Compare the bot's `AUDIODOC_AUDIO_KEY` and `AUDIODOC_DOCUMENT_KEY` with the same settings in audiodoc without sharing secret values |
 | HTTP `503` | Whisper is not loaded or a bounded queue is full | Check `/health`, service logs, and `Retry-After`; reduce load or tune queue limits carefully |
 | HTTP `413` | Upload exceeds the bot or server limit | Check the 20 MiB bot limit and audiodoc's 25/50 MiB endpoint limits |
 | HTTP `400` for audio | Audio is invalid or longer than the configured server limit | The bot currently rejects audio over 300 seconds; audiodoc defaults to 600 seconds |

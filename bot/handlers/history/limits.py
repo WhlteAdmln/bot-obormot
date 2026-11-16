@@ -9,9 +9,9 @@ from aiogram.filters.command import CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
-from bot.config.settings import Settings
 from bot.handlers.prompt.handler import send_prompt_status
 from bot.services.database import Database
+from bot.settings import Settings
 from bot.utils.audit import audit
 
 router = Router()

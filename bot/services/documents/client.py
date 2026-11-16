@@ -12,7 +12,6 @@ from urllib.parse import urlsplit, urlunsplit
 
 import aiohttp
 
-from bot.config.settings import Settings, get_settings
 from bot.errors import (
     DocumentAPIError,
     DocumentTimeoutError,
@@ -25,6 +24,7 @@ from bot.services.http_limits import (
     read_limited_body,
 )
 from bot.services.validation import MAX_INPUT_TEXT_LENGTH
+from bot.settings import Settings, get_settings
 from bot.utils.text import log_safe
 
 logger = logging.getLogger(__name__)

@@ -14,13 +14,13 @@ import aiohttp
 import pytest
 
 from bot.errors import (
+    AudiodocAPIError,
+    AudiodocEmptyAudioError,
+    AudiodocTimeoutError,
+    AudiodocUnavailableError,
     DocumentAPIError,
     DocumentUnavailableError,
     MediaError,
-    WhisperAPIError,
-    WhisperEmptyAudioError,
-    WhisperTimeoutError,
-    WhisperUnavailableError,
 )
 from bot.services.audio import (
     MAX_AUDIO_DURATION,
@@ -56,8 +56,8 @@ def json_body(payload: object) -> bytes:
 
 def test_bot_settings_reexports_get_settings() -> None:
     """Bot settings reexports the shared settings getter."""
-    settings_module = importlib.import_module("bot.config.settings")
-    assert get_settings is settings_module.get_settings
+    model_module = importlib.import_module("bot.config.model")
+    assert get_settings is model_module.get_settings
 
 
 @pytest.mark.asyncio
@@ -127,7 +127,7 @@ def test_validate_audio_duration_checks_audio_and_video_note() -> None:
 async def test_transcribe_audio_rejects_missing_whisper_url() -> None:
     """Transcribe audio rejects missing audiodoc url."""
     settings = make_settings(AUDIODOC_URL="")
-    with pytest.raises(WhisperUnavailableError, match="not configured"):
+    with pytest.raises(AudiodocUnavailableError, match="not configured"):
         await transcribe_audio(b"audio", settings=settings)
 
 
@@ -271,7 +271,7 @@ async def test_transcribe_audio_rejects_oversized_response(
 
     monkeypatch.setattr(aiohttp, "ClientSession", lambda **_kwargs: Session())
 
-    with pytest.raises(WhisperAPIError, match="response is too large"):
+    with pytest.raises(AudiodocAPIError, match="response is too large"):
         await transcribe_audio(b"audio", settings=settings)
 
 
@@ -313,7 +313,7 @@ async def test_transcribe_audio_preserves_api_empty_and_timeout_errors(
         "ClientSession",
         lambda **_kwargs: Session(Response(503, b"backend unavailable")),
     )
-    with pytest.raises(WhisperAPIError, match="Whisper HTTP 503"):
+    with pytest.raises(AudiodocAPIError, match="Whisper HTTP 503"):
         await transcribe_audio(b"audio", settings=settings)
 
     monkeypatch.setattr(
@@ -321,14 +321,14 @@ async def test_transcribe_audio_preserves_api_empty_and_timeout_errors(
         "ClientSession",
         lambda **_kwargs: Session(Response(body=json_body({"text": "  "}))),
     )
-    with pytest.raises(WhisperEmptyAudioError):
+    with pytest.raises(AudiodocEmptyAudioError):
         await transcribe_audio(b"audio", settings=settings)
 
     def timeout_session(**_kwargs: object) -> None:
         raise TimeoutError
 
     monkeypatch.setattr(aiohttp, "ClientSession", timeout_session)
-    with pytest.raises(WhisperTimeoutError):
+    with pytest.raises(AudiodocTimeoutError):
         await transcribe_audio(b"audio", settings=settings)
 
 

@@ -6,7 +6,7 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# ffmpeg используется для обработки видео и аудио.
+# Install ffmpeg for audio and video processing.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg \
     && rm -rf /var/lib/apt/lists/* \
@@ -14,16 +14,15 @@ RUN apt-get update \
     && useradd --system --uid 10001 --gid bot \
        --create-home --home-dir /home/bot bot
 
-# Runtime-зависимости устанавливаются строго из lock-файла.
-COPY requirements-lock.txt .
+# Install runtime dependencies from package metadata using lock constraints.
+COPY requirements-lock.txt pyproject.toml README.md LICENSE ./
+COPY --chown=bot:bot bot ./bot
 RUN python -m pip install \
         --no-cache-dir \
         --disable-pip-version-check \
-        -r requirements-lock.txt \
+        --constraint requirements-lock.txt \
+        . \
     && python -m pip check
-
-COPY --chown=bot:bot bot ./bot
-COPY --chown=bot:bot prompts ./prompts
 
 RUN install -d -o bot -g bot /app/data
 
@@ -31,4 +30,4 @@ USER bot
 
 VOLUME ["/app/data"]
 
-CMD ["python", "-m", "bot.main"]
+CMD ["bot-obormot"]

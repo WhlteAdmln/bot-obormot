@@ -31,7 +31,7 @@ venv:
 	"$(PYTHON_BOOTSTRAP)" -m venv .venv
 
 install-dev: venv
-	.venv/bin/python -m pip install -r requirements-dev.txt
+	.venv/bin/python -m pip install -e ".[dev]" -c requirements-lock.txt
 
 lint:
 	$(PYTHON) -m ruff check .

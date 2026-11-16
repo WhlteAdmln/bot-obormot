@@ -83,12 +83,8 @@ root_package = "bot"
 name = "Handlers depend only on supported application layers"
 type = "forbidden"
 source_modules = ["bot.handlers"]
-forbidden_modules = ["bot.app", "bot.middlewares", "bot.utils"]
+forbidden_modules = ["bot.app", "bot.middlewares"]
 allow_indirect_imports = true
-ignore_imports = [
-    "bot.handlers.admin.handler -> bot.utils.audit",
-    "bot.handlers.history.limits -> bot.utils.audit",
-]
 
 [[tool.importlinter.contracts]]
 name = "Services do not depend on handlers or middlewares"
@@ -106,7 +102,6 @@ forbidden_modules = [
     "bot.middlewares",
     "bot.services",
     "bot.fsm",
-    "bot.utils",
 ]
 
 [[tool.importlinter.contracts]]
@@ -119,7 +114,6 @@ forbidden_modules = [
     "bot.middlewares",
     "bot.services",
     "bot.fsm",
-    "bot.utils",
 ]
 
 [[tool.importlinter.contracts]]

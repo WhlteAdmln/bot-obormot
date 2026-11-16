@@ -9,7 +9,6 @@ import logging
 import pytest
 
 from bot.log_filters import SecretsFilter
-from bot.utils.log_filters import SecretsFilter as LegacySecretsFilter
 from tests.support.settings import make_settings
 
 
@@ -113,11 +112,6 @@ def test_bearer_tokens_are_redacted(message: str) -> None:
     assert log_filter.filter(record) is True
     assert "secret-value" not in record.getMessage()
     assert "[REDACTED]" in record.getMessage()
-
-
-def test_legacy_filter_import_remains_compatible() -> None:
-    """The old import path resolves to the vendored filter."""
-    assert LegacySecretsFilter is SecretsFilter
 
 
 def test_logging_setup_redacts_every_configured_secret(

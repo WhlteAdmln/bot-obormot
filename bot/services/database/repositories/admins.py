@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Репозиторий обычных администраторов (без Supervisor)."""
+"""Repository for regular administrators (excluding the supervisor)."""
 
 import aiosqlite
 

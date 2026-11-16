@@ -7,7 +7,7 @@ from bot.services.media.animation.limits import MAX_FRAMES
 
 
 def sample_frame_indices(total_frames: int) -> list[int]:
-    """Возвращает равномерно распределённые индексы кадров."""
+    """Return evenly distributed frame indices."""
     if total_frames <= 0:
         msg = "Animation does not contain frames"
         raise ValueError(msg)

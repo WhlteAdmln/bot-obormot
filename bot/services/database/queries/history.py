@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""SQL-запросы для чтения истории диалогов."""
+"""SQL queries for reading conversation history."""
 
 HISTORY_WITH_MEDIA = """
     WITH ordered_messages AS (

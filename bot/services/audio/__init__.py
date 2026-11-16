@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Совместимый публичный API обработки аудио."""
+"""Compatible public API for audio processing."""
 
 from bot.services.audio.client import transcribe_audio
 from bot.services.audio.message import get_audio_info

@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Репозиторий блокировок пользователей."""
+"""Repository for user blocks."""
 
 import aiosqlite
 

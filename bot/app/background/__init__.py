@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Фоновые задачи приложения."""
+"""Background application tasks."""
 
 from bot.app.background.image_cleanup import (
     IMAGE_CLEANUP_INTERVAL,

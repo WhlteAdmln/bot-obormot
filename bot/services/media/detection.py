@@ -35,7 +35,7 @@ def _document_media_info(document: Document) -> tuple[str, str] | None:
 
 
 def get_media_info(message: Message) -> tuple[str | None, str | None]:
-    """Определяет тип и file_id входящего медиа."""
+    """Determine the type and file ID of incoming media."""
     if message.photo:
         return message.photo[-1].file_id, "image"
 

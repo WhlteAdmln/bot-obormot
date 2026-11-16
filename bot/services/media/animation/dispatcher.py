@@ -20,7 +20,7 @@ def dispatch_extraction(
     tgs_extractor: FrameExtractor = extract_tgs,
     video_extractor: FrameExtractor = extract_video,
 ) -> list[bytes]:
-    """Выбирает декодер по формату анимации."""
+    """Select the decoder based on the animation format."""
     if media_type == "gif":
         return gif_extractor(data)
 

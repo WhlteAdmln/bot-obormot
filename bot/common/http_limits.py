@@ -1,11 +1,11 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Чтение HTTP-ответов с ограничением размера."""
+"""Read HTTP response bodies with a size limit."""
 
 import aiohttp
 
-MAX_SERVICE_RESPONSE_BYTES = 2 * 1024 * 1024  # 2 МБ
+MAX_SERVICE_RESPONSE_BYTES = 2 * 1024 * 1024  # 2 MB
 MAX_ERROR_BODY_BYTES = 2048
 
 
@@ -13,7 +13,7 @@ async def read_limited_body(
     response: aiohttp.ClientResponse,
     limit: int,
 ) -> bytes | None:
-    """Возвращает тело ответа или None, если оно больше limit байт."""
+    """Return the response body, or None if it exceeds the byte limit."""
     if response.content_length is not None and response.content_length > limit:
         return None
 

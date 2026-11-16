@@ -12,7 +12,7 @@ _user_locks: dict[int, tuple[asyncio.Lock, int]] = {}
 
 @asynccontextmanager
 async def get_user_lock(user_id: int) -> AsyncIterator[None]:
-    """Блокирует обработку сообщений пользователя и очищает неиспользуемый lock."""
+    """Serialize user message processing and clean up unused locks."""
     entry = _user_locks.get(user_id)
 
     if entry is None:
@@ -44,6 +44,6 @@ async def get_user_lock(user_id: int) -> AsyncIterator[None]:
 
 
 def pending_requests(user_id: int) -> int:
-    """Число запросов пользователя, выполняющихся или ожидающих lock."""
+    """Return the number of active or waiting requests for a user."""
     entry = _user_locks.get(user_id)
     return entry[1] if entry else 0

@@ -11,6 +11,7 @@ from typing import Any
 
 import aiohttp
 
+from bot.services.llm import texts
 from bot.services.llm.context_size import get_context_size as fetch_context_size
 from bot.services.llm.endpoints import server_url
 from bot.services.llm.fitting import fit_messages_to_context
@@ -80,7 +81,7 @@ class LLMClient:
         return self._semaphore
 
     async def start(self) -> None:
-        """Инициализирует HTTP-сессию."""
+        """Initialize the HTTP session."""
         await self._get_session()
         logger.info("LLM client initialized")
 
@@ -116,7 +117,7 @@ class LLMClient:
         return self._normalize_messages(messages)
 
     async def get_context_size(self) -> int:
-        """Получает размер контекста активной модели."""
+        """Get the context size of the active model."""
         context_size = self._context_size
         if context_size is None:
             context_size = await fetch_context_size(self)
@@ -146,7 +147,7 @@ class LLMClient:
         return count_message_images(messages)
 
     async def get_token_counting_mode(self) -> str:
-        """Возвращает выбранный режим подсчёта токенов."""
+        """Return the selected token counting mode."""
         configured_mode = self.settings.LLM_TOKEN_COUNTING
         if configured_mode != "auto":
             return configured_mode
@@ -166,11 +167,11 @@ class LLMClient:
         self,
         messages: list[dict[str, Any]],
     ) -> int:
-        """Считает токены через llama.cpp или консервативную оценку."""
+        """Count tokens using llama.cpp or a conservative estimate."""
         return await tokenize_messages(self, messages)
 
     async def count_text_tokens(self, text: str) -> int:
-        """Считает количество токенов обычного текста."""
+        """Count tokens in plain text."""
         return await tokenize_text(self, text)
 
     async def fit_messages_to_context(
@@ -179,7 +180,7 @@ class LLMClient:
         history: list[dict[str, Any]],
         user_message: object,
     ) -> list[dict[str, Any]]:
-        """Подбирает максимально возможную историю под контекст модели."""
+        """Fit the largest possible history into the model context."""
         return await fit_messages_to_context(
             self,
             system_prompt,
@@ -200,12 +201,12 @@ class LLMClient:
         self,
         messages: list[dict[str, Any]],
     ) -> AsyncIterator[str]:
-        """Делегирует потоковую генерацию отдельному модулю."""
+        """Delegate streaming generation to a separate module."""
         async for chunk in stream_unlimited(self, messages):
             yield chunk
 
     async def health_check(self) -> tuple[bool, str]:
-        """Проверяет LLM-сервер через /health или стандартный /models."""
+        """Check the LLM server using /health or the standard /models endpoint."""
         try:
             session = await self._get_session()
 
@@ -220,32 +221,34 @@ class LLMClient:
                         except (aiohttp.ClientError, ValueError, TypeError):
                             data = None
                         if isinstance(data, dict) and data.get("status") == "ok":
-                            return True, "Доступен"
+                            return True, texts.HEALTH_AVAILABLE
             except (TimeoutError, aiohttp.ClientError):
                 logger.debug("Optional LLM /health endpoint unavailable", exc_info=True)
 
-            # /v1/models — стандартный OpenAI endpoint; HTTP 200 означает,
-            # что API доступен, даже если сервер не реализует /health.
+            # /v1/models is the standard OpenAI endpoint; HTTP 200 means
+            # the API is available even if the server does not implement /health.
             async with session.get(
                 f"{self.settings.LLM_BASE_URL}/models",
                 timeout=aiohttp.ClientTimeout(total=5),
             ) as response:
                 if response.status == HTTPStatus.OK:
-                    return True, "Доступен"
-                return False, f"HTTP {response.status}: LLM API недоступен"
+                    return True, texts.HEALTH_AVAILABLE
+                return False, texts.HEALTH_API_UNAVAILABLE.format(
+                    status=response.status
+                )
 
         except TimeoutError:
-            return False, "Тайм-аут при обращении к LLM-серверу"
+            return False, texts.HEALTH_TIMEOUT
 
         except aiohttp.ClientError:
-            return False, "LLM-сервер недоступен"
+            return False, texts.HEALTH_SERVER_UNAVAILABLE
 
         except Exception:
             logger.exception("LLM health check failed")
-            return False, "Ошибка проверки LLM-сервера"
+            return False, texts.HEALTH_CHECK_ERROR
 
     async def close(self) -> None:
-        """Закрывает HTTP-сессию."""
+        """Close the HTTP session."""
         if self.session and not self.session.closed:
             await self.session.close()
 

@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Безопасная проверка и извлечение кадров Telegram TGS."""
+"""Safely validate and extract frames from Telegram TGS stickers."""
 
 import importlib
 import json
@@ -12,46 +12,53 @@ from pathlib import Path
 from bot.errors import MediaError
 from bot.services.media.animation.jpeg import image_to_bytes
 from bot.services.media.animation.sampling import sample_frame_indices
+from bot.services.media.texts import (
+    TGS_INVALID_CONTENT,
+    TGS_INVALID_FILE,
+    TGS_INVALID_SIZE,
+    TGS_TOO_LARGE_AFTER_DECOMPRESSION,
+    TGS_TOO_LARGE_OR_EMPTY,
+)
 
-# Telegram ограничивает размер TGS; оставляем запас на допустимые стикеры.
+# Telegram limits TGS file size; leave room for valid stickers.
 MAX_TGS_COMPRESSED = 256 * 1024
 MAX_TGS_JSON = 4 * 1024 * 1024
 MAX_TGS_SIDE = 1024
 
 
 def validate_tgs(data: bytes) -> None:
-    """Проверяет gzip, размер JSON и холст до передачи данных в rlottie."""
+    """Validate gzip, JSON size, and canvas before passing data to rlottie."""
     if not data or len(data) > MAX_TGS_COMPRESSED:
-        msg = "Стикер слишком большой или пустой."
+        msg = TGS_TOO_LARGE_OR_EMPTY
         raise MediaError(msg)
 
     decompressor = zlib.decompressobj(wbits=31)  # 31 = gzip
 
     try:
-        # +1 позволяет отличить ровно допустимый размер от превышения лимита,
-        # не распаковывая весь потенциально огромный поток.
+        # +1 distinguishes the exact size limit from an oversized payload
+        # without decompressing the entire potentially huge stream.
         raw = decompressor.decompress(data, MAX_TGS_JSON + 1)
     except zlib.error as error:
-        msg = "Некорректный файл стикера."
+        msg = TGS_INVALID_FILE
         raise MediaError(msg) from error
 
     if len(raw) > MAX_TGS_JSON or decompressor.unconsumed_tail:
-        msg = "Стикер слишком большой после распаковки."
+        msg = TGS_TOO_LARGE_AFTER_DECOMPRESSION
         raise MediaError(msg)
 
     if not decompressor.eof:
-        msg = "Некорректный файл стикера."
+        msg = TGS_INVALID_FILE
         raise MediaError(msg)
 
-    # Не принимаем дополнительные данные и несколько склеенных gzip-потоков.
+    # Reject trailing data and concatenated gzip streams.
     if decompressor.unused_data:
-        msg = "Некорректный файл стикера."
+        msg = TGS_INVALID_FILE
         raise MediaError(msg)
 
     try:
         document = json.loads(raw)
     except (ValueError, UnicodeDecodeError, RecursionError) as error:
-        msg = "Некорректное содержимое стикера."
+        msg = TGS_INVALID_CONTENT
         raise MediaError(msg) from error
 
     width = document.get("w") if isinstance(document, dict) else None
@@ -65,16 +72,16 @@ def validate_tgs(data: bytes) -> None:
     )
 
     if not valid_size:
-        msg = "Недопустимый размер анимации стикера."
+        msg = TGS_INVALID_SIZE
         raise MediaError(msg)
 
 
 def extract_tgs(data: bytes) -> list[bytes]:
-    """Проверяет TGS и извлекает равномерно распределённые кадры."""
+    """Validate TGS and extract evenly distributed frames."""
     validate_tgs(data)
 
-    # rlottie — нативный декодер. Импортируем его только после проверки,
-    # чтобы некорректные и чрезмерно большие данные до него не доходили.
+    # rlottie is a native decoder. Import it only after validation so
+    # malformed and oversized data never reaches it.
     rlottie_module = importlib.import_module("rlottie_python")
     lottie_animation_class = rlottie_module.LottieAnimation
 

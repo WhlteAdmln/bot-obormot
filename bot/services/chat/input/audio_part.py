@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Подготовка аудио и получение распознанного текста."""
+"""Prepare audio and retrieve its transcription."""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ async def prepare_audio(
     transcriber: Callable[..., Awaitable[str]] | None = None,
     settings: Settings | None = None,
 ) -> str:
-    """Скачивает аудио и возвращает результат распознавания Whisper."""
+    """Download audio and return the Whisper transcription."""
     if settings is None:
         settings = get_settings()
 
@@ -43,7 +43,7 @@ async def prepare_audio(
 
     duration_validator(message)
 
-    logger.info("AUDIO: начинаю скачивание из Telegram")
+    logger.info("AUDIO: starting download from Telegram")
 
     audio_data = await downloader(
         message,
@@ -51,11 +51,11 @@ async def prepare_audio(
     )
 
     logger.info(
-        "AUDIO: файл скачан, размер: %s байт",
+        "AUDIO: file downloaded, size: %s bytes",
         len(audio_data),
     )
 
-    logger.info("AUDIO: отправляю файл на Whisper")
+    logger.info("AUDIO: sending file to Whisper")
 
     if transcriber is None:
         transcribed_text = await transcribe_audio(
@@ -69,6 +69,6 @@ async def prepare_audio(
             cast("str", info.audio_filename),
         )
 
-    logger.info("AUDIO: распознано символов: %d", len(transcribed_text))
+    logger.info("AUDIO: recognized %d characters", len(transcribed_text))
 
     return transcribed_text

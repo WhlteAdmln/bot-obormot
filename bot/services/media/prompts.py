@@ -5,20 +5,22 @@
 
 from aiogram.types import Message
 
+from bot.services.media.texts import (
+    ANIMATION_MEDIA_PROMPT,
+    IMAGE_MEDIA_PROMPT,
+    STICKER_MEDIA_PROMPT,
+)
+
 
 def get_media_prompt(message: Message, media_type: str | None) -> str:
-    """Формирует текстовую часть мультимодального запроса."""
+    """Build the text portion of a multimodal request."""
     if message.caption:
         return message.caption
 
     if media_type in ("tgs", "webm", "gif", "mp4"):
-        return (
-            "Посмотри на последовательность кадров этой анимации. "
-            "Опиши, что происходит, какие движения и эмоции "
-            "ты замечаешь."
-        )
+        return ANIMATION_MEDIA_PROMPT
 
     if message.sticker:
-        return "Посмотри на стикер и опиши его."
+        return STICKER_MEDIA_PROMPT
 
-    return "Посмотри на изображение и опиши, что на нём изображено."
+    return IMAGE_MEDIA_PROMPT

@@ -14,6 +14,7 @@ from aiogram.types import Message
 
 from bot.fsm.keys import PROMPT_FLOW_KEY, PROMPT_STATUS_MESSAGE_KEY
 from bot.fsm.states import PromptStates
+from bot.handlers.prompt import texts
 from bot.services.database import Database
 
 if TYPE_CHECKING:
@@ -26,15 +27,15 @@ MAX_DISPLAY_LENGTH = 3500
 
 
 def format_prompt(prompt: str) -> str:
-    """Ограничивает длину промпта при отображении в Telegram."""
+    """Limit the displayed prompt length for Telegram."""
     if len(prompt) > MAX_DISPLAY_LENGTH:
-        return prompt[:MAX_DISPLAY_LENGTH] + "\n\n... (промпт сокращён при отображении)"
+        return prompt[:MAX_DISPLAY_LENGTH] + texts.PROMPT_TRUNCATION_SUFFIX
 
     return prompt
 
 
 async def track_message(state: FSMContext, message: Message) -> None:
-    """Запоминает ID сообщения, относящегося к настройке промпта."""
+    """Track the ID of a message related to prompt configuration."""
     data = await state.get_data()
     message_ids = data.get(PROMPT_FLOW_KEY, [])
 
@@ -49,7 +50,7 @@ async def delete_prompt_messages(
     state: FSMContext,
     extra_message_ids: list[int] | None = None,
 ) -> None:
-    """Удаляет сообщения процесса настройки промпта."""
+    """Delete messages associated with the prompt setup flow."""
     data = await state.get_data()
     message_ids = set(data.get(PROMPT_FLOW_KEY, []))
 
@@ -68,7 +69,7 @@ async def delete_prompt_messages(
             )
         except TelegramAPIError:
             logger.warning(
-                "Не удалось удалить сообщение %s в чате %s",
+                "Could not delete message %s in chat %s",
                 message_id,
                 message.chat.id,
                 exc_info=True,
@@ -80,7 +81,7 @@ async def send_prompt_status(
     state: FSMContext,
     text: str,
 ) -> None:
-    """Отправляет временное уведомление и запоминает его ID."""
+    """Send a temporary notification and store its ID."""
     response = await message.answer(text)
 
     data: dict[str, Any] = {PROMPT_STATUS_MESSAGE_KEY: response.message_id}
@@ -88,7 +89,7 @@ async def send_prompt_status(
 
 
 async def show_prompt(message: Message, state: FSMContext, database: Database) -> None:
-    """Показывает текущий системный промпт."""
+    """Display the current system prompt."""
     await state.clear()
     await track_message(state, message)
 
@@ -99,16 +100,17 @@ async def show_prompt(message: Message, state: FSMContext, database: Database) -
     user_prompt = await database.get_user_system_prompt(user_id)
     current_prompt = await database.get_system_prompt(user_id)
 
-    source = "👤 Персональный" if user_prompt is not None else "📄 Стандартный"
+    source = (
+        texts.PERSONAL_PROMPT_SOURCE
+        if user_prompt is not None
+        else texts.DEFAULT_PROMPT_SOURCE
+    )
 
     response = await message.answer(
-        "Текущий системный промпт\n"
-        f"Источник: {source}\n\n"
-        f"{format_prompt(current_prompt)}\n\n"
-        "Изменить:\n"
-        "/prompt_set\n\n"
-        "Сбросить персональный промпт:\n"
-        "/prompt_reset"
+        texts.PROMPT_DISPLAY_TEMPLATE.format(
+            source=source,
+            prompt=format_prompt(current_prompt),
+        )
     )
 
     await track_message(state, response)
@@ -127,9 +129,7 @@ async def cmd_prompt_set(message: Message, state: FSMContext) -> None:
     await state.set_state(PromptStates.waiting_for_prompt)
 
     response = await message.answer(
-        "✍️ Отправь следующим сообщением новый системный промпт.\n\n"
-        f"Максимальная длина — {MAX_SYSTEM_PROMPT_LENGTH} символов.\n"
-        "Для отмены используй /cancel."
+        texts.PROMPT_INPUT_TEMPLATE.format(max_length=MAX_SYSTEM_PROMPT_LENGTH)
     )
 
     await track_message(state, response)
@@ -152,7 +152,7 @@ async def save_prompt(message: Message, state: FSMContext, database: Database) -
         await send_prompt_status(
             message,
             state,
-            "Промпт не может быть пустым. Попробуй ещё раз.",
+            texts.PROMPT_EMPTY_ERROR,
         )
         return
 
@@ -161,7 +161,7 @@ async def save_prompt(message: Message, state: FSMContext, database: Database) -
         await send_prompt_status(
             message,
             state,
-            f"Промпт слишком длинный. Максимум {MAX_SYSTEM_PROMPT_LENGTH} символов.",
+            texts.PROMPT_TOO_LONG_ERROR.format(max_length=MAX_SYSTEM_PROMPT_LENGTH),
         )
         return
 
@@ -173,16 +173,11 @@ async def save_prompt(message: Message, state: FSMContext, database: Database) -
         extra_message_ids=[message.message_id],
     )
 
-    await send_prompt_status(
-        message,
-        state,
-        "✅ Персональный системный промпт сохранён.\n\n"
-        "Теперь он используется только в твоём чате.",
-    )
+    await send_prompt_status(message, state, texts.PROMPT_SAVED)
 
 
 async def reset_prompt(message: Message, state: FSMContext, database: Database) -> None:
-    """Сбрасывает персональный промпт и очищает технические сообщения."""
+    """Reset the personal prompt and clear technical messages."""
     if message.from_user is None:
         return
 
@@ -202,15 +197,14 @@ async def reset_prompt(message: Message, state: FSMContext, database: Database) 
         await send_prompt_status(
             message,
             state,
-            "ℹ️ У тебя уже используется стандартный системный промпт.",
+            texts.PROMPT_RESET_ALREADY_DEFAULT,
         )
         return
 
     await send_prompt_status(
         message,
         state,
-        "🔄 Персональный системный промпт удалён.\n"
-        "Теперь используется стандартный промпт.",
+        texts.PROMPT_RESET_DONE,
     )
 
 
@@ -234,5 +228,5 @@ async def cmd_cancel(message: Message, state: FSMContext) -> None:
     await send_prompt_status(
         message,
         state,
-        "❎ Ввод системного промпта отменён.",
+        texts.PROMPT_CANCELLED,
     )

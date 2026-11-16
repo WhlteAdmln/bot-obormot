@@ -445,7 +445,7 @@ async def test_prepare_audio_preserves_validation_download_and_transcription_ord
 
     assert result == "Распознано"
     assert "Распознано" not in caplog.text
-    assert "AUDIO: распознано символов: 10" in caplog.text
+    assert "AUDIO: recognized 10 characters" in caplog.text
     assert "Recognized audio text" not in caplog.text
     assert events == [
         "validate",
@@ -528,7 +528,7 @@ async def test_prepare_document_rejects_empty_extracted_text(
             settings=make_settings(),
         )
 
-    assert r"DOCUMENT: начинаю скачивание: empty.pdf\nERROR forged entry" in caplog.text
+    assert r"DOCUMENT: starting download: empty.pdf\nERROR forged entry" in caplog.text
     assert "\nERROR forged entry" not in caplog.text
 
 

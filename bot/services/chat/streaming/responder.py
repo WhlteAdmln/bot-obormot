@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Состояние и обновление промежуточного Telegram-ответа."""
+"""Manage the state and updates of an intermediate Telegram response."""
 
 import asyncio
 import logging
@@ -17,6 +17,7 @@ from bot.services.chat.streaming.settings import (
     STREAM_TOKEN_THRESHOLD,
     STREAM_UPDATE_INTERVAL,
 )
+from bot.services.chat.streaming.texts import REQUEST_CANCELLED_TEXT
 
 logger = logging.getLogger("bot.handlers.chat")
 
@@ -43,10 +44,10 @@ _DEFAULT_STREAMING_RESPONDER_OPTIONS: StreamingResponderOptions = (
 
 
 class StreamingResponder:
-    """Управляет промежуточным сообщением во время генерации LLM.
+    """Manage the intermediate message during LLM generation.
 
-    Состояние явно хранится в атрибутах вместо локальных переменных
-    замыкания и пяти `nonlocal`.
+    State is explicitly stored in attributes instead of closure-local
+    variables and five ``nonlocal`` declarations.
     """
 
     def __init__(
@@ -58,7 +59,7 @@ class StreamingResponder:
         *,
         options: StreamingResponderOptions = _DEFAULT_STREAMING_RESPONDER_OPTIONS,
     ) -> None:
-        """Stores the dependencies and the initial streaming state."""
+        """Store the dependencies and the initial streaming state."""
         self.message = message
         self.user_id = user_id
         self.count_text_tokens = count_text_tokens
@@ -76,19 +77,19 @@ class StreamingResponder:
         self.last_displayed_text: str | None = None
 
     async def on_update(self, current_text: str) -> None:
-        """Обновляет промежуточный ответ, если выполнены исходные пороги."""
+        """Update the intermediate response when the original thresholds are met."""
         if self.streaming_failed:
             return
 
         now = asyncio.get_running_loop().time()
 
-        # Пока сообщение не создано, проверяем порог независимо от
-        # интервала обновления Telegram.
+        # Before the message is created, check the threshold independently
+        # of the Telegram update interval.
         if self.status is None:
             if len(current_text) < self.next_token_check_chars:
                 return
 
-            # Следующая проверка после дополнительных символов.
+            # Schedule the next check after additional characters.
             self.next_token_check_chars = len(current_text) + 128
 
             try:
@@ -107,14 +108,14 @@ class StreamingResponder:
             await self._start_streaming_display(current_text)
             return
 
-        # После создания сообщения обновляем его не чаще исходного интервала.
+        # After creation, update the message no more often than the original interval.
         if now - self.last_update < self.update_interval:
             return
 
         await self._update_streaming_display(current_text)
 
     async def _start_streaming_display(self, current_text: str) -> None:
-        """Creates the initial streaming message."""
+        """Create the initial streaming message."""
         try:
             formatted_text = self.formatter(current_text)
             chunks = self.splitter(
@@ -142,7 +143,7 @@ class StreamingResponder:
             )
 
     async def _update_streaming_display(self, current_text: str) -> None:
-        """Updates the existing streaming message."""
+        """Update the existing streaming message."""
         try:
             formatted_text = self.formatter(current_text)
             chunks = self.splitter(
@@ -170,7 +171,7 @@ class StreamingResponder:
             )
 
     async def cancel(self) -> None:
-        """Отмечает промежуточное сообщение как отменённое."""
+        """Mark the intermediate message as cancelled."""
         if self.status is None:
             return
 
@@ -178,7 +179,7 @@ class StreamingResponder:
             await asyncio.shield(
                 self.safe_edit(
                     self.status,
-                    "⏹ Запрос отменён.",
+                    REQUEST_CANCELLED_TEXT,
                 )
             )
 

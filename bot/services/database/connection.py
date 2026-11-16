@@ -1,13 +1,13 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Создание и настройка SQLite-соединения."""
+"""Create and configure SQLite connections."""
 
 import aiosqlite
 
 
 async def open_connection(database_path: str) -> aiosqlite.Connection:
-    """Открывает SQLite-соединение с настройками приложения."""
+    """Open a SQLite connection with application settings."""
     connection = await aiosqlite.connect(
         database_path,
         timeout=5.0,
@@ -15,7 +15,7 @@ async def open_connection(database_path: str) -> aiosqlite.Connection:
 
     connection.row_factory = aiosqlite.Row
 
-    # Настройки SQLite.
+    # SQLite settings.
     await connection.execute("PRAGMA foreign_keys = ON")
     await connection.execute("PRAGMA busy_timeout = 5000")
     await connection.execute("PRAGMA journal_mode = WAL")

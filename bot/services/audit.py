@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Журнал аудита административных действий."""
+"""Audit logging for administrative actions."""
 
 import logging
 
@@ -14,7 +14,7 @@ def audit(
     target_id: int | None = None,
     result: str = "ok",
 ) -> None:
-    """Пишет одну понятную строку о действии администратора."""
+    """Log one structured line describing an administrative action."""
     audit_logger.info(
         "AUDIT action=%s actor=%s target=%s result=%s",
         action,

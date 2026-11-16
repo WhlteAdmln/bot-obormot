@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Объединение последовательных текстовых сообщений."""
+"""Aggregate consecutive text messages."""
 
 from bot.services.chat.aggregation.aggregator import MessageAggregator
 from bot.services.chat.aggregation.config import (

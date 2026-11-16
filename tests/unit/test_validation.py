@@ -30,8 +30,12 @@ def test_text_exceeding_limit() -> None:
     """Text exceeding limit."""
     text = "А" * (MAX_INPUT_TEXT_LENGTH + 1)
 
-    with pytest.raises(InputTooLongError):
+    with pytest.raises(InputTooLongError) as error:
         validate_input_text(text)
+
+    assert str(error.value) == (
+        f"Сообщение слишком длинное (максимум {MAX_INPUT_TEXT_LENGTH} символов)."
+    )
 
 
 def test_empty_text() -> None:

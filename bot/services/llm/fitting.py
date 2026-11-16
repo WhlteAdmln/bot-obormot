@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Подбор истории сообщений под доступное контекстное окно LLM."""
+"""Fit message history into the available LLM context window."""
 
 import logging
 import math
@@ -22,7 +22,7 @@ _PINNED_MESSAGES = 2
 
 
 class FittingClient(Protocol):
-    """Минимальный интерфейс клиента, необходимый для fitting истории."""
+    """Minimal client interface required for fitting message history."""
 
     @property
     def settings(self) -> Settings:
@@ -57,7 +57,7 @@ async def fit_messages_to_context(
     history: list[dict[str, Any]],
     user_message: object,
 ) -> list[dict[str, Any]]:
-    """Подбирает максимально возможную историю под контекст модели."""
+    """Fit the largest possible history into the model context."""
     context_size = await client.get_context_size()
     counting_mode = await client.get_token_counting_mode()
     safety_margin = CONTEXT_SAFETY_MARGIN
@@ -66,7 +66,7 @@ async def fit_messages_to_context(
 
     history = list(history)
 
-    # История должна начинаться с пользовательского сообщения.
+    # History must start with a user message.
     while history and history[0].get("role") != "user":
         history.pop(0)
 
@@ -79,7 +79,7 @@ async def fit_messages_to_context(
     messages = client.normalize_messages(messages)
 
     while True:
-        # Число изображений меняется при удалении старых обменов.
+        # The number of images changes when older exchanges are removed.
         image_count = client.count_images(messages)
 
         image_reserved_tokens = IMAGE_TOKEN_RESERVE * image_count
@@ -90,7 +90,7 @@ async def fit_messages_to_context(
         available_tokens = context_size - reserved_tokens
 
         if available_tokens <= 0:
-            msg = "Недостаточно места в контексте для запроса."
+            msg = "Not enough context space for the request."
             raise InputTooLongError(msg)
 
         token_count = await client.count_tokens(messages)
@@ -113,21 +113,21 @@ async def fit_messages_to_context(
             )
             return messages
 
-        # В списке остаются только system и текущий user:
-        # даже они не помещаются в доступный контекст.
+        # Only the system prompt and current user message remain;
+        # even these do not fit into the available context.
         if len(messages) <= _PINNED_MESSAGES:
-            msg = "Сообщение слишком большое для контекста модели."
+            msg = "Message is too large for the model context."
             raise InputTooLongError(msg)
 
-        # История должна быть организована парами user/assistant.
+        # History must be organized in user/assistant pairs.
         if messages[1].get("role") != "user":
             msg = "Invalid history: expected a user message"
             raise LLMUnavailableError(msg)
 
-        # Удаляем старейшее пользовательское сообщение.
+        # Remove the oldest user message.
         messages.pop(1)
 
-        # Удаляем следующий за ним ответ ассистента, если он есть.
+        # Remove the following assistant response, if present.
         if len(messages) > _PINNED_MESSAGES and messages[1].get("role") == "assistant":
             messages.pop(1)
 

@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Координация подготовки текста, медиа, аудио и документов."""
+"""Coordinate preparation of text, media, audio, and documents."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ async def prepare_message(
     text_override: str | None = None,
     settings: Settings | None = None,
 ) -> PreparedMessage:
-    """Скачивает и обрабатывает входящие данные."""
+    """Download and process incoming content."""
     if settings is None:
         settings = get_settings()
 
@@ -38,7 +38,7 @@ async def prepare_message(
     document_text: str | None = None
     document_format: str | None = None
 
-    # Порядок обработки намеренно сохранён: аудио, медиа, документ.
+    # The processing order is intentional: audio, media, then document.
     if info.has_audio:
         transcribed_text = await prepare_audio(message, info, settings=settings)
 

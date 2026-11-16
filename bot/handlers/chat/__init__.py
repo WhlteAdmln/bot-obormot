@@ -1,9 +1,9 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Роутер обработки входящих сообщений чата.
+"""Router for handling incoming chat messages.
 
-Публичные имена старого модуля bot.handlers.chat сохранены для совместимости.
+Public names from the legacy bot.handlers.chat module are preserved for compatibility.
 """
 
 from bot.handlers.chat.handler import (

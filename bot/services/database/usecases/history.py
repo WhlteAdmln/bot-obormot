@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Сценарии чтения и сброса истории диалога."""
+"""Use cases for reading and resetting conversation history."""
 
 import asyncio
 import base64
@@ -100,7 +100,7 @@ async def get_history(
     read_image_as_base64: ImageReader,
     logger: logging.Logger,
 ) -> list[dict[str, Any]]:
-    """Собирает обмены для LLM; max_images ограничивает медиа-сообщения."""
+    """Build exchanges for the LLM; max_images limits media messages."""
     max_images = max(0, max_images)
     exchange_limit = -1 if limit is None else max(0, limit)
     rows = await messages.fetch_history_rows(
@@ -177,7 +177,7 @@ async def reset_history(
     logger: logging.Logger,
     images_dir: Path | None = None,
 ) -> None:
-    """Удаляет историю пользователя и связанные файлы изображений."""
+    """Delete the user's history and associated image files."""
     rows = await messages.fetch_user_media_paths(connection, user_id)
     await messages.delete_user_messages(connection, user_id)
 

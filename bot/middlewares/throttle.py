@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Ограничение частоты входящих событий от одного пользователя."""
+"""Limit the rate of incoming events from each user."""
 
 import time
 from collections import OrderedDict
@@ -14,7 +14,7 @@ from bot.middlewares.aliases import MiddlewareData, NextHandler
 
 
 class ThrottleMiddleware(BaseMiddleware):
-    """Отбрасывает сообщения, если пользователь шлёт их слишком часто."""
+    """Drop messages when a user sends them too frequently."""
 
     def __init__(
         self,
@@ -38,8 +38,8 @@ class ThrottleMiddleware(BaseMiddleware):
         self.window = window_seconds
         self.max_tracked_users = max_tracked_users
         self._clock = clock or time.monotonic
-        # OrderedDict ограничивает память и вытесняет давно неактивных
-        # пользователей при появлении новых идентификаторов.
+        # OrderedDict bounds memory and evicts inactive users when new
+        # identifiers appear.
         self._events: OrderedDict[int, list[float]] = OrderedDict()
 
     async def __call__(

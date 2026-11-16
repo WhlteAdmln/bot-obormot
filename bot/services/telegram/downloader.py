@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Загрузка файлов через Telegram Bot API."""
+"""Download files through the Telegram Bot API."""
 
 import asyncio
 import io
@@ -16,16 +16,20 @@ if TYPE_CHECKING:
 
 from bot.errors import MediaError, TelegramError, TelegramFileTooBigError
 from bot.services.telegram.constants import MAX_CONCURRENT_DOWNLOADS, MAX_MEDIA_SIZE
+from bot.services.telegram.texts import (
+    TELEGRAM_FILE_SIZE_UNKNOWN,
+    TELEGRAM_FILE_TOO_LARGE,
+)
 
-# Не допускаем одновременного накопления большого числа файлов в памяти.
+# Prevent too many large files from accumulating in memory at once.
 _download_slots = asyncio.Semaphore(MAX_CONCURRENT_DOWNLOADS)
 
-# Сохраняем прежнее имя логгера, чтобы не менять маршрутизацию логов.
+# Preserve the previous logger name to avoid changing log routing.
 logger = logging.getLogger("bot.services.media")
 
 
 class _LimitedBytesIO(io.BytesIO):
-    """Буфер, который не позволяет записать больше заданного числа байт."""
+    """A buffer that prevents writes beyond the configured byte limit."""
 
     def __init__(self, limit: int) -> None:
         super().__init__()
@@ -34,14 +38,14 @@ class _LimitedBytesIO(io.BytesIO):
     def write(self, data: object) -> int:
         view = memoryview(cast("bytes | bytearray | memoryview", data))
         if view.nbytes > self._limit - self.tell():
-            msg = "Файл слишком большой (максимум 20 МБ)."
+            msg = TELEGRAM_FILE_TOO_LARGE
             raise MediaError(msg)
 
         return super().write(view)
 
 
 async def download_telegram_file(message: Message, file_id: str) -> bytes:
-    """Скачивает файл из Telegram с ограничением размера 20 МБ."""
+    """Download a file from Telegram with a 20 MB size limit."""
     try:
         bot = cast("Bot", message.bot)
         telegram_file = await bot.get_file(file_id)
@@ -52,11 +56,11 @@ async def download_telegram_file(message: Message, file_id: str) -> bytes:
             or isinstance(file_size, bool)
             or file_size <= 0
         ):
-            msg = "Не удалось определить размер файла."
+            msg = TELEGRAM_FILE_SIZE_UNKNOWN
             raise MediaError(msg)
 
         if file_size > MAX_MEDIA_SIZE:
-            msg = "Файл слишком большой (максимум 20 МБ)."
+            msg = TELEGRAM_FILE_TOO_LARGE
             raise MediaError(msg)
 
         async with _download_slots:
@@ -82,7 +86,7 @@ async def download_telegram_file(message: Message, file_id: str) -> bytes:
         raise TelegramError(msg) from error
 
     if len(data) > MAX_MEDIA_SIZE:
-        msg = "Файл слишком большой (максимум 20 МБ)."
+        msg = TELEGRAM_FILE_TOO_LARGE
         raise MediaError(msg)
 
     return data

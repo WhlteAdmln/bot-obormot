@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Telegram handler входящих сообщений чата."""
+"""Telegram handler for incoming chat messages."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 from aiogram import Router
 
+from bot.handlers.chat.texts import PENDING_REQUESTS_MESSAGE
 from bot.services.chat.errors.handler import handle_chat_error
 from bot.services.chat.formatting import format_roleplay, split_formatted_message
 from bot.services.chat.incoming_log import log_incoming_message
@@ -74,8 +75,8 @@ async def handle_message(
 
     aggregated_text: str | None = None
 
-    # Объединяем только обычные текстовые сообщения.
-    # Медиа, аудио и документы остаются без изменений.
+    # Aggregate only ordinary text messages.
+    # Media, audio, and documents remain unchanged.
     if (
         info.has_text
         and not info.has_media
@@ -84,15 +85,13 @@ async def handle_message(
     ):
         aggregated_text = await message_aggregator.collect(message)
 
-        # Это продолжение предыдущей части.
-        # Его обработает handler первого сообщения.
+        # This is a continuation of the previous part.
+        # It will be handled by the handler for the first message.
         if aggregated_text is None:
             return
 
     if pending_requests(user_id) >= MAX_PENDING_PER_USER:
-        await message.answer(
-            "⏳ Я ещё обрабатываю твои предыдущие сообщения. Подожди немного."
-        )
+        await message.answer(PENDING_REQUESTS_MESSAGE)
         return
 
     async with get_user_lock(user_id):
@@ -109,7 +108,7 @@ async def handle_message(
         typing_task = asyncio.create_task(keep_typing(message))
 
         try:
-            # Подготавливаем текст, аудио, изображения и документы.
+            # Prepare text, audio, images, and documents.
             prepared = await prepare_message(
                 message,
                 info,
@@ -117,8 +116,8 @@ async def handle_message(
                 settings=settings,
             )
 
-            # Получаем ответ от LLM.
-            # Полный ответ сохраняется в БД внутри process_chat.
+            # Get the response from the LLM.
+            # The full response is saved to the database inside process_chat.
             response = await process_chat(
                 user_id=user_id,
                 user_content=prepared.user_content,

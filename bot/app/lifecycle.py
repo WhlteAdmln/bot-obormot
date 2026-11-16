@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Запуск ресурсов приложения, polling и корректное завершение."""
+"""Start application resources, run polling, and shut down cleanly."""
 
 import asyncio
 import logging
@@ -21,7 +21,7 @@ async def run_application(
     llm_client: LLMClient,
     database: Database,
 ) -> None:
-    """Подключает ресурсы, запускает polling и закрывает их в обратном порядке."""
+    """Start polling and close resources in reverse order."""
     image_cleanup_task: asyncio.Task[None] | None = None
 
     try:

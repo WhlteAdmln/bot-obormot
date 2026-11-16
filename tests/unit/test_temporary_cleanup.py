@@ -108,7 +108,7 @@ async def test_delete_status_message(
     delete_mock.assert_awaited_once_with(
         event,
         500,
-        "временное уведомление",
+        "temporary notification",
     )
     assert state.data[PROMPT_STATUS_MESSAGE_KEY] is None
     handler.assert_awaited_once()
@@ -137,7 +137,7 @@ async def test_delete_welcome_message(
     delete_mock.assert_awaited_once_with(
         event,
         600,
-        "приветствие start",
+        "start welcome message",
     )
     assert state.data[WELCOME_MESSAGE_KEY] is None
     handler.assert_awaited_once()
@@ -171,12 +171,12 @@ async def test_delete_status_and_welcome(
     assert delete_mock.await_args_list[0].args == (
         event,
         500,
-        "временное уведомление",
+        "temporary notification",
     )
     assert delete_mock.await_args_list[1].args == (
         event,
         600,
-        "приветствие start",
+        "start welcome message",
     )
 
     assert state.data[PROMPT_STATUS_MESSAGE_KEY] is None
@@ -213,7 +213,7 @@ async def test_command_after_status_is_not_deleted(
     cleanup_mock.assert_awaited_once_with(
         event,
         500,
-        "временное уведомление",
+        "temporary notification",
     )
     user_message_delete.assert_not_awaited()
     handler.assert_awaited_once()
@@ -312,12 +312,12 @@ async def test_delete_prompt_flow_messages(
     assert delete_mock.await_args_list[0].args == (
         event,
         301,
-        "сообщение процесса настройки промпта",
+        "prompt setup flow message",
     )
     assert delete_mock.await_args_list[1].args == (
         event,
         300,
-        "сообщение процесса настройки промпта",
+        "prompt setup flow message",
     )
     assert state.data[PROMPT_FLOW_KEY] == []
 
@@ -377,12 +377,12 @@ async def test_delete_unknown_command_and_response(
     assert delete_mock.await_args_list[0].args == (
         event,
         700,
-        "неизвестную команду",
+        "unknown command",
     )
     assert delete_mock.await_args_list[1].args == (
         event,
         701,
-        "ответ на неизвестную команду",
+        "unknown command response",
     )
 
     assert state.data[UNKNOWN_COMMAND_MESSAGE_KEY] is None
@@ -459,7 +459,7 @@ async def test_pending_messages_are_deleted_when_handler_raises(
     delete_mock.assert_awaited_once_with(
         event,
         800,
-        "временное уведомление",
+        "temporary notification",
     )
     assert state.data[PROMPT_STATUS_MESSAGE_KEY] is None
     handler.assert_awaited_once()

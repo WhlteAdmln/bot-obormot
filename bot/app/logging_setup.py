@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Настройка логирования приложения."""
+"""Configure application logging."""
 
 import logging
 
@@ -15,7 +15,7 @@ logger = logging.getLogger("bot.main")
 
 
 def configure_logging(settings: Settings) -> None:
-    """Настраивает корневое логирование с конфигурацией приложения."""
+    """Configure root logging using application settings."""
     numeric_level = getattr(logging, str(settings.LOG_LEVEL).upper(), logging.INFO)
     if not isinstance(numeric_level, int):
         numeric_level = logging.INFO

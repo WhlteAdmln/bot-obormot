@@ -634,7 +634,7 @@ def test_create_bot_rejects_invalid_token(
     """Create bot rejects invalid token."""
     settings = make_settings(BOT_TOKEN=token)
 
-    with pytest.raises(RuntimeError, match="BOT_TOKEN имеет неверный формат"):
+    with pytest.raises(RuntimeError, match="BOT_TOKEN has an invalid format"):
         bootstrap.create_bot(settings)
 
     assert created_tokens == []

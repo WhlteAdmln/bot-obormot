@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Совместимый публичный интерфейс конфигурации."""
+"""Public compatibility interface for configuration."""
 
 from bot.config.env import (
     get_bool,

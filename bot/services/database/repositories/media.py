@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Репозиторий ссылок на медиафайлы в SQLite."""
+"""SQLite repository for media file references."""
 
 import sqlite3
 from collections.abc import Iterable

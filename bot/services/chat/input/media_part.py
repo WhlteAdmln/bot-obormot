@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Подготовка фото, стикеров и анимаций для мультимодального запроса."""
+"""Prepare photos, stickers, and animations for multimodal requests."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ async def prepare_media(
     *,
     media_processor: Callable[..., Awaitable[list[str]]] | None = None,
 ) -> tuple[list[str], list[bytes]]:
-    """Обрабатывает Telegram-медиа и декодирует полученные Data URL."""
+    """Process Telegram media and decode the resulting Data URLs."""
     if media_processor is None:
         media_processor = process_media
 

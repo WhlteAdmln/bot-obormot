@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Декораторы для операций с базой данных."""
+"""Decorators for database operations."""
 
 import asyncio
 import logging
@@ -13,7 +13,7 @@ import aiosqlite
 
 from bot.errors import DatabaseError
 
-# Прежнее имя логгера сохраняется, чтобы не менять маршрутизацию логов.
+# Keep the previous logger name to preserve log routing.
 logger = logging.getLogger("bot.services.database.facade")
 
 _P = ParamSpec("_P")
@@ -30,7 +30,7 @@ _S = TypeVar("_S", bound=_LockOwner)
 
 
 async def _rollback_quietly(connection: aiosqlite.Connection | None) -> None:
-    """Сбрасывает незавершённую транзакцию, не скрывая исходную ошибку."""
+    """Roll back an unfinished transaction without hiding the original error."""
     if connection is None:
         return
 
@@ -43,7 +43,7 @@ async def _rollback_quietly(connection: aiosqlite.Connection | None) -> None:
 def handle_database_errors(
     func: Callable[Concatenate[_S, _P], Coroutine[Any, Any, _R]],
 ) -> Callable[Concatenate[_S, _P], Coroutine[Any, Any, _R]]:
-    """Сериализует операции с SQLite и преобразует ошибки БД."""
+    """Serialize SQLite operations and convert database errors."""
 
     @wraps(func)
     async def wrapper(self: _S, *args: _P.args, **kwargs: _P.kwargs) -> _R:

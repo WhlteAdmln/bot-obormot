@@ -171,7 +171,7 @@ async def test_fitting_rejects_context_smaller_than_reserved_tokens() -> None:
     """Fitting rejects context smaller than reserved tokens."""
     client = FakeFittingClient(context_size=2_000, token_counts=[])
 
-    with pytest.raises(InputTooLongError, match="Недостаточно места"):
+    with pytest.raises(InputTooLongError, match="Not enough context space"):
         await fit_messages_to_context(client, "system", [], "question")
 
     assert client.count_calls == []
@@ -182,7 +182,7 @@ async def test_fitting_rejects_current_message_that_does_not_fit() -> None:
     """Fitting rejects current message that does not fit."""
     client = FakeFittingClient(context_size=10_000, token_counts=[8_000])
 
-    with pytest.raises(InputTooLongError, match="слишком большое"):
+    with pytest.raises(InputTooLongError, match="Message is too large"):
         await fit_messages_to_context(client, "system", [], "question")
 
     assert len(client.count_calls) == 1

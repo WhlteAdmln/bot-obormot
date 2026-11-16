@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Пользовательские сообщения для ошибок обработки чата."""
+"""User-facing messages for chat processing errors."""
 
 from collections.abc import Callable
 

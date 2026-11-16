@@ -9,7 +9,7 @@ from bot.errors import DocumentAPIError
 
 
 def validate_document_response(result: object) -> dict[str, Any]:
-    """Проверяет структуру ответа Document Engine без преобразования данных."""
+    """Validate the Document Engine response structure without transforming data."""
     if not isinstance(result, dict):
         raise DocumentAPIError(
             502,

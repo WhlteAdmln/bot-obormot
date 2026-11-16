@@ -1,10 +1,10 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Сборка кадров анимации в одно изображение для Vision-модели.
+"""Combine animation frames into a single image for a Vision model.
 
-Контактный лист позволяет модели увидеть кадры как единую
-последовательность, а не как независимые изображения.
+The contact sheet lets the model see frames as a single sequence
+rather than as independent images.
 """
 
 import io
@@ -22,10 +22,10 @@ IMAGE_PADDING = 12
 
 
 def build_contact_sheet(frames: list[bytes]) -> bytes:
-    """Объединяет до MAX_FRAMES изображений в один нумерованный JPEG.
+    """Combine up to MAX_FRAMES images into a single numbered JPEG.
 
-    Порядок кадров сохраняется: слева направо, затем сверху вниз.
-    Одно изображение возвращается без перекодирования.
+    Frame order is preserved: left to right, then top to bottom.
+    A single image is returned without re-encoding.
     """
     if not frames:
         msg = "Cannot build a contact sheet without frames"

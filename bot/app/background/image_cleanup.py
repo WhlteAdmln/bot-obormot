@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Периодическая фоновая очистка старых и осиротевших изображений."""
+"""Periodically clean up old and orphaned images."""
 
 import asyncio
 import logging
@@ -13,7 +13,7 @@ IMAGE_CLEANUP_INTERVAL = 24 * 60 * 60
 
 
 async def periodic_image_cleanup(database: Database) -> None:
-    """Выполняет очистку изображений раз в сутки."""
+    """Clean up images periodically."""
     while True:
         try:
             result = await database.cleanup_old_images(

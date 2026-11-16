@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Репозиторий индивидуальных лимитов истории."""
+"""Repository for individual history limits."""
 
 import aiosqlite
 

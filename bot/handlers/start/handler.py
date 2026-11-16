@@ -16,6 +16,7 @@ from aiogram.types import (
 )
 
 from bot.fsm.keys import WELCOME_MESSAGE_KEY
+from bot.handlers.start import texts
 from bot.services.database import Database
 from bot.settings import Settings
 
@@ -39,10 +40,10 @@ async def cmd_start(
 
     user_id = message.from_user.id
 
-    # Supervisor всегда имеет доступ к административным функциям.
+    # The supervisor always has access to administrative features.
     is_admin = user_id == settings.SUPERVISOR_ID
 
-    # Проверяем обычных администраторов через SQLite.
+    # Check regular administrators against SQLite.
     if not is_admin:
         try:
             admin_ids = await database.get_admin_ids()
@@ -52,17 +53,32 @@ async def cmd_start(
             logger.exception("Could not load administrators for the /start menu")
             is_admin = False
 
-    # Формируем индивидуальное меню команд Telegram.
+    # Build a per-user Telegram command menu.
     commands = [
-        BotCommand(command="start", description="Показать справку"),
-        BotCommand(command="history", description="Показать лимит истории"),
-        BotCommand(command="history_limit", description="Изменить лимит истории"),
-        BotCommand(command="history_clear", description="Очистить историю диалога"),
-        BotCommand(command="forget_me", description="Удалить все свои данные"),
-        BotCommand(command="prompt", description="Показать системный промпт"),
-        BotCommand(command="prompt_set", description="Установить системный промпт"),
-        BotCommand(command="prompt_reset", description="Сбросить системный промпт"),
-        BotCommand(command="cancel", description="Отменить ввод промпта"),
+        BotCommand(command="start", description=texts.START_COMMAND_DESCRIPTION),
+        BotCommand(command="history", description=texts.HISTORY_COMMAND_DESCRIPTION),
+        BotCommand(
+            command="history_limit",
+            description=texts.HISTORY_LIMIT_COMMAND_DESCRIPTION,
+        ),
+        BotCommand(
+            command="history_clear",
+            description=texts.HISTORY_CLEAR_COMMAND_DESCRIPTION,
+        ),
+        BotCommand(
+            command="forget_me",
+            description=texts.FORGET_ME_COMMAND_DESCRIPTION,
+        ),
+        BotCommand(command="prompt", description=texts.PROMPT_COMMAND_DESCRIPTION),
+        BotCommand(
+            command="prompt_set",
+            description=texts.PROMPT_SET_COMMAND_DESCRIPTION,
+        ),
+        BotCommand(
+            command="prompt_reset",
+            description=texts.PROMPT_RESET_COMMAND_DESCRIPTION,
+        ),
+        BotCommand(command="cancel", description=texts.CANCEL_COMMAND_DESCRIPTION),
     ]
 
     if is_admin:
@@ -70,38 +86,38 @@ async def cmd_start(
             [
                 BotCommand(
                     command="health",
-                    description="Проверить состояние бота",
+                    description=texts.HEALTH_COMMAND_DESCRIPTION,
                 ),
                 BotCommand(
                     command="ban",
-                    description="Заблокировать пользователя",
+                    description=texts.BAN_COMMAND_DESCRIPTION,
                 ),
                 BotCommand(
                     command="unban",
-                    description="Снять блокировку пользователя",
+                    description=texts.UNBAN_COMMAND_DESCRIPTION,
                 ),
             ]
         )
 
-    # Управление администраторами доступно только Supervisor.
+    # Administrator management is available only to the supervisor.
     if user_id == settings.SUPERVISOR_ID:
         commands.extend(
             [
                 BotCommand(
                     command="admin",
-                    description="Панель управления",
+                    description=texts.ADMIN_COMMAND_DESCRIPTION,
                 ),
                 BotCommand(
                     command="admins",
-                    description="Список администраторов",
+                    description=texts.ADMINS_COMMAND_DESCRIPTION,
                 ),
                 BotCommand(
                     command="admin_add",
-                    description="Добавить администратора",
+                    description=texts.ADMIN_ADD_COMMAND_DESCRIPTION,
                 ),
                 BotCommand(
                     command="admin_remove",
-                    description="Удалить администратора",
+                    description=texts.ADMIN_REMOVE_COMMAND_DESCRIPTION,
                 ),
             ]
         )
@@ -112,54 +128,18 @@ async def cmd_start(
         scope=BotCommandScopeChat(chat_id=message.chat.id),
     )
 
-    text = (
-        "Привет! 👋 Я бот для работы с LLM в формате чата.\n\n"
-        "📋 Мои команды:\n"
-        "/start — показать справку\n"
-        "/history — показать текущий лимит истории\n"
-        "/history_limit ЧИСЛО — изменить свой лимит\n"
-        "/history_clear — очистить историю диалога\n\n"
-        "/forget_me — удалить все свои данные\n\n"
-        "🧠 Системный промпт:\n"
-        "/prompt — показать текущий промпт\n"
-        "/prompt_set — установить персональный промпт\n"
-        "/prompt_reset — сбросить персональный промпт\n"
-        "/cancel — отменить ввод промпта\n\n"
-    )
+    text = texts.WELCOME_MESSAGE
 
     if is_admin:
-        text += (
-            "🩺 Состояние бота:\n"
-            "/health — проверить состояние компонентов\n\n"
-            "📚 Управление историей:\n"
-            f"/history_limit ЧИСЛО — изменить свой лимит "
-            f"(до {settings.MAX_HISTORY_EXCHANGES})\n"
-            "/history_limit ID ЧИСЛО — изменить лимит пользователя\n"
-            "/ban ID — заблокировать пользователя\n"
-            "/unban ID — снять блокировку пользователя\n\n"
+        text += texts.ADMIN_HELP_MESSAGE.format(
+            max_history_exchanges=settings.MAX_HISTORY_EXCHANGES,
         )
 
-    # Блок управления администраторами видит только Supervisor.
+    # Only the supervisor can see administrator management commands.
     if user_id == settings.SUPERVISOR_ID:
-        text += (
-            "🛠 Управление администраторами:\n"
-            "/admin — панель управления\n"
-            "/admins — список администраторов\n"
-            "/admin_add ID — добавить администратора\n"
-            "/admin_remove ID — удалить администратора\n\n"
-        )
+        text += texts.SUPERVISOR_HELP_MESSAGE
 
-    text += (
-        "✨ Что я умею:\n"
-        "💬 Общаться с помощью локальной языковой модели.\n"
-        "🎤 Распознавать голосовые сообщения и аудио.\n"
-        "🖼 Анализировать фотографии и изображения.\n"
-        "🎬 Анализировать видео.\n"
-        "🎞 Обрабатывать GIF и анимированные стикеры.\n"
-        "📄 Читать документы PDF, DOCX, XLSX, PPTX и другие форматы.\n"
-        "🔍 Распознавать текст в сканированных документах.\n\n"
-        "Чтобы начать, просто напиши мне 😉"
-    )
+    text += texts.CAPABILITIES_MESSAGE
 
     response = await message.answer(text)
 

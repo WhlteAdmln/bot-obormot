@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Единственное место регистрации middleware и корневых роутеров."""
+"""Register application middleware and root routers."""
 
 from aiogram import Dispatcher
 
@@ -24,7 +24,7 @@ def configure_dispatcher(
     message_aggregator: MessageAggregator | None = None,
     database: Database | None = None,
 ) -> Dispatcher:
-    """Подключает middleware и роутеры к уже созданному Dispatcher."""
+    """Attach middleware and routers to the configured Dispatcher."""
     if settings is None:
         settings = get_settings()
     dispatcher.workflow_data["settings"] = settings
@@ -36,13 +36,13 @@ def configure_dispatcher(
     if database is not None:
         dispatcher.workflow_data["database"] = database
 
-    # Сначала ограничиваем частоту событий, затем проверяем доступ
-    # и очищаем временные сообщения.
+    # Apply throttling first, then check access
+    # and clean up temporary messages.
     dispatcher.message.middleware(ThrottleMiddleware())
     dispatcher.message.middleware(AccessMiddleware())
     dispatcher.message.middleware(TemporaryMessagesCleanupMiddleware())
 
-    # Порядок роутеров важен: общий chat router должен идти последним.
+    # Router order matters: the general chat router must be last.
     dispatcher.include_router(start.router)
     dispatcher.include_router(admin.router)
     dispatcher.include_router(routers.router)

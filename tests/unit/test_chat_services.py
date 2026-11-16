@@ -76,7 +76,7 @@ def test_splitter_does_not_split_single_character_larger_than_limit() -> None:
 
 def test_splitter_rejects_non_positive_limit() -> None:
     """Splitter rejects non positive limit."""
-    with pytest.raises(ValueError, match="max_length"):
+    with pytest.raises(ValueError, match=r"^max_length must be greater than zero\.$"):
         split_formatted_message("text", max_length=0)
 
 
@@ -362,7 +362,7 @@ async def test_chat_pipeline_does_not_persist_empty_response() -> None:
             if False:
                 yield ""
 
-    with pytest.raises(RuntimeError, match="пустой ответ"):
+    with pytest.raises(RuntimeError, match="empty response"):
         await chat_pipeline.process_chat(
             77,
             "вход",

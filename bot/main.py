@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Тонкая точка входа; реализация находится в :mod:`bot.app`."""
+"""Thin entry point; implementation lives in :mod:`bot.app`."""
 
 import asyncio
 from contextlib import suppress

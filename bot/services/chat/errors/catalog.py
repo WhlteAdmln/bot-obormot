@@ -1,10 +1,10 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Упорядоченный каталог правил обработки ошибок чата.
+"""Ordered catalog of chat error handling rules.
 
-Порядок элементов повторяет исходную последовательность elif, включая
-специализированные подклассы перед базовыми типами.
+The item order matches the original ``elif`` sequence, including specialized
+subclasses before their base classes.
 """
 
 from dataclasses import dataclass

@@ -13,7 +13,7 @@ logger = logging.getLogger("bot.services.chat.reporting")
 
 
 async def safe_edit(message: Message, text: str) -> None:
-    """Безопасно редактирует сообщение."""
+    """Safely edit a message."""
     try:
         await message.edit_text(
             text,
@@ -29,7 +29,7 @@ async def report_error(
     status: Message | None,
     text: str,
 ) -> None:
-    """Безопасно сообщает пользователю об ошибке."""
+    """Safely report an error to the user."""
     if status is None:
         try:
             await message.answer(text)

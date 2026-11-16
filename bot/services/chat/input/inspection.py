@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Определение типов и наличия содержимого Telegram-сообщения."""
+"""Detect the content types and presence of Telegram message content."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ def inspect_message(
     media_info_getter: Callable[[Message], tuple[str | None, str | None]] | None = None,
     audio_info_getter: Callable[[Message], tuple[str | None, str | None]] | None = None,
 ) -> MessageInfo:
-    """Определяет типы содержимого входящего сообщения."""
+    """Detect the content types of an incoming message."""
     if media_info_getter is None:
         media_info_getter = get_media_info
 
@@ -35,8 +35,8 @@ def inspect_message(
 
     document = message.document
 
-    # Изображения, отправленные как документы,
-    # направляем в существующий Vision Engine.
+    # Route images sent as documents
+    # through the existing Vision Engine.
     if document and not file_id:
         filename = (document.file_name or "").lower()
         mime_type = (document.mime_type or "").lower()

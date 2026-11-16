@@ -11,7 +11,7 @@ from bot.services.media.animation.limits import MAX_DIMENSION
 
 
 def image_to_bytes(image: Image.Image) -> bytes:
-    """Преобразует кадр в JPEG."""
+    """Convert a frame to JPEG."""
     image = image.convert("RGBA")
     image.thumbnail((MAX_DIMENSION, MAX_DIMENSION))
 

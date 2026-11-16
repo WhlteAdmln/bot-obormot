@@ -22,28 +22,28 @@ class AppError(Exception):
 
 
 class ValidationError(AppError):
-    """Ошибка проверки входных данных."""
+    """Input validation failed."""
 
     code: ClassVar[str] = "validation_error"
     public_message: ClassVar[str] = "Invalid input"
 
 
 class InputTooLongError(ValidationError):
-    """Пользовательское сообщение превышает допустимую длину."""
+    """The user message exceeds the maximum allowed length."""
 
     code: ClassVar[str] = "input_too_long"
     public_message: ClassVar[str] = "Input is too long"
 
 
 class DatabaseError(AppError):
-    """Ошибка SQLite или операций с базой данных."""
+    """A SQLite or database operation failed."""
 
     code: ClassVar[str] = "database_error"
     public_message: ClassVar[str] = "Database operation failed"
 
 
 class MediaError(AppError):
-    """Ошибка обработки или хранения медиафайлов."""
+    """Media processing or storage failed."""
 
     code: ClassVar[str] = "media_error"
     public_message: ClassVar[str] = "Media processing failed"

@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Настройки отображения потокового ответа в Telegram."""
+"""Configuration for displaying streaming responses in Telegram."""
 
 STREAM_TOKEN_THRESHOLD = 150
 STREAM_UPDATE_INTERVAL = 0.8

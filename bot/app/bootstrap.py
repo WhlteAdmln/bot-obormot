@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Создание Telegram Bot/Dispatcher и запуск приложения."""
+"""Create the Telegram Bot/Dispatcher and start the application."""
 
 import logging
 import os
@@ -24,7 +24,7 @@ logger = logging.getLogger("bot.main")
 
 
 def log_access_mode(settings: Settings) -> None:
-    """Пишет в лог, кто может пользоваться ботом."""
+    """Log who can access the bot."""
     if settings.ALLOW_ALL_USERS:
         logger.warning("ACCESS MODE: open to everyone (ALLOW_ALL_USERS=true)")
     elif settings.ALLOWED_USERS:
@@ -36,9 +36,9 @@ def log_access_mode(settings: Settings) -> None:
 
 
 def create_bot(settings: Settings) -> Bot:
-    """Создаёт Telegram Bot после проверки обязательного токена."""
+    """Create a Telegram Bot after validating its required token."""
     if not re.fullmatch(r"\d{5,}:[A-Za-z0-9\_-]{30,}", settings.BOT_TOKEN):
-        msg = "BOT_TOKEN имеет неверный формат. Проверьте .env"
+        msg = "BOT_TOKEN has an invalid format. Check .env"
         raise RuntimeError(msg)
     return Bot(token=settings.BOT_TOKEN)
 
@@ -49,7 +49,7 @@ def create_dispatcher(
     message_aggregator: MessageAggregator,
     database: Database,
 ) -> Dispatcher:
-    """Создаёт Dispatcher и подключает к нему middleware и роутеры."""
+    """Create a Dispatcher and attach middleware and routers."""
     dispatcher = Dispatcher()
     dispatcher.update.outer_middleware(CorrelationIdMiddleware())
     return configure_dispatcher(
@@ -58,7 +58,7 @@ def create_dispatcher(
 
 
 async def main() -> None:
-    """Точка сборки приложения."""
+    """Run the application entry point."""
     os.umask(0o077)
 
     load_env_file()

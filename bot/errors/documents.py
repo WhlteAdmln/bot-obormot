@@ -9,28 +9,28 @@ from bot.errors.base import AppError
 
 
 class DocumentError(AppError):
-    """Ошибка обработки документов."""
+    """Document processing failed."""
 
     code: ClassVar[str] = "document_error"
     public_message: ClassVar[str] = "Document processing failed"
 
 
 class DocumentUnavailableError(DocumentError):
-    """Document Engine недоступен."""
+    """Document Engine is unavailable."""
 
     code: ClassVar[str] = "document_unavailable"
     public_message: ClassVar[str] = "Document Engine is unavailable"
 
 
 class DocumentTimeoutError(DocumentError):
-    """Истекло время ожидания Document Engine."""
+    """Timed out while waiting for Document Engine."""
 
     code: ClassVar[str] = "document_timeout"
     public_message: ClassVar[str] = "Document Engine timed out"
 
 
 class DocumentAPIError(DocumentError):
-    """Document Engine вернул ошибку API."""
+    """Document Engine returned an API error."""
 
     code: ClassVar[str] = "document_api_error"
     public_message: ClassVar[str] = "Document Engine returned an error"
@@ -43,7 +43,7 @@ class DocumentAPIError(DocumentError):
 
 
 class DocumentTooLongError(DocumentError):
-    """Извлечённый текст превышает допустимую длину."""
+    """The extracted text exceeds the maximum allowed length."""
 
     code: ClassVar[str] = "document_too_long"
     public_message: ClassVar[str] = "Document text is too long"

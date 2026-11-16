@@ -1,10 +1,10 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Пороги и интервалы сборки последовательных сообщений."""
+"""Thresholds and timing settings for message aggregation."""
 
-# Порог длины первой части, после которого запускаем сборщик.
+# Minimum first-part length required to start aggregation.
 MESSAGE_LENGTH_THRESHOLD = 3000
 
-# Максимальное время ожидания следующей части.
+# Maximum wait time for the next message part.
 MESSAGE_AGGREGATION_WINDOW = 3.0

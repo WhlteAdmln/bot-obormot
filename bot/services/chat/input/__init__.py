@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Сервис подготовки входящих сообщений для chat pipeline."""
+"""Input message preparation service for the chat pipeline."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 
 def inspect_message(message: Message) -> MessageInfo:
-    """Публичная функция определения сообщения с прежней сигнатурой."""
+    """Public message inspection function with the original signature."""
     return _inspect_message(message)
 
 

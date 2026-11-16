@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Извлечение кадров из анимаций и видео."""
+"""Extract frames from animations and videos."""
 
 import logging
 
@@ -24,7 +24,7 @@ from bot.services.media.animation.video import extract_video
 
 logger = logging.getLogger("bot.services.media.animation")
 
-# Сохраняем прежние внутренние имена на старом пути импорта.
+# Preserve the previous internal names at the legacy import path.
 _image_to_bytes = image_to_bytes
 _extract_gif = extract_gif
 _extract_tgs = extract_tgs
@@ -32,7 +32,7 @@ _extract_webm = extract_video
 
 
 def _extract_frames(data: bytes, media_type: str) -> list[bytes]:
-    """Совместимый диспетчер, сохраняющий прежние точки подмены декодеров."""
+    """Compatibility dispatcher that preserves the legacy decoder patch points."""
     return dispatch_extraction(
         data,
         media_type,
@@ -58,7 +58,7 @@ async def extract_animation_frames(
     data: bytes,
     media_type: str,
 ) -> list[bytes]:
-    """Извлекает кадры и преобразует ошибки обработки в MediaError."""
+    """Extract frames and convert processing errors to MediaError."""
     try:
         return await _extract_with_limit(data, media_type)
 

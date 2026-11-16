@@ -26,7 +26,7 @@ class ChatPipelineDependencies:
     database: Database
 
 
-# Более длинная история создаёт лишние запросы при подгонке контекста.
+# Longer histories create additional requests during context fitting.
 MAX_CONTEXT_EXCHANGES = 100
 
 
@@ -41,23 +41,22 @@ async def process_chat(
 ) -> str:
     """Builds the context, streams the LLM reply and saves the exchange.
 
-    Формирует контекст с учётом лимита токенов,
-    получает ответ от LLM и сохраняет полный обмен в БД.
+    Fit the context to the token limit, retrieve the LLM response, and save
+    the complete exchange to the database.
 
-    on_update — необязательный callback для передачи
-    накопленного текста во время генерации.
+    ``on_update`` is an optional callback that receives the accumulated text
+    during generation.
     """
     system_prompt = await dependencies.database.get_system_prompt(user_id)
 
-    # Получаем индивидуальный лимит пользователя.
-    # Если настройки нет, используется стандартный лимит.
+    # Retrieve the user's individual history limit.
+    # Use the default limit when no setting is available.
     history_limit = min(
         await dependencies.database.get_history_limit(user_id),
         MAX_CONTEXT_EXCHANGES,
     )
 
-    # limit теперь означает количество полных обменов,
-    # а не количество отдельных сообщений.
+    # The limit now represents complete exchanges rather than individual messages.
     history = await dependencies.database.get_history(
         user_id,
         limit=history_limit,
@@ -80,7 +79,7 @@ async def process_chat(
     response = "".join(response_parts).strip()
 
     if not response:
-        msg = "LLM вернула пустой ответ."
+        msg = "LLM returned an empty response."
         raise RuntimeError(msg)
 
     await dependencies.database.add_exchange(

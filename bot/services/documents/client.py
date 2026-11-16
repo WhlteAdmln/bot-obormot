@@ -17,6 +17,7 @@ from bot.common.http_limits import (
     MAX_SERVICE_RESPONSE_BYTES,
     read_limited_body,
 )
+from bot.common.text import log_safe
 from bot.common.validation import MAX_INPUT_TEXT_LENGTH
 from bot.errors import (
     DocumentAPIError,
@@ -25,7 +26,6 @@ from bot.errors import (
 )
 from bot.services.documents.response import validate_document_response
 from bot.settings import Settings, get_settings
-from bot.utils.text import log_safe
 
 logger = logging.getLogger(__name__)
 

@@ -1,14 +1,14 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Loading of the default system prompt from the prompts directory."""
+"""Loading of the default system prompt from package resources."""
 
-from bot.config.paths import PROJECT_ROOT
+from importlib.resources import files
 
 
 def load_default_system_prompt() -> str:
     """Reads the default system prompt file and returns its stripped text."""
-    prompt_path = PROJECT_ROOT / "prompts" / "systemPrompt.md"
+    prompt_path = files("bot").joinpath("prompts", "systemPrompt.md")
 
     try:
         prompt = prompt_path.read_text(encoding="utf-8").strip()

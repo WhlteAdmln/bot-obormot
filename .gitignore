@@ -28,3 +28,4 @@ data/
 
 # Build artifacts
 dist/
+build/

@@ -17,7 +17,7 @@ ARCHIVE="dist/${NAME}.zip"
 
 FILES=(
 	bot
-	prompts
+	pyproject.toml
 	requirements.txt
 	requirements-lock.txt
 	.env.example

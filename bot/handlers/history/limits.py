@@ -9,6 +9,7 @@ from aiogram.filters.command import CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
+from bot.handlers.history import texts
 from bot.handlers.prompt.handler import send_prompt_status
 from bot.services.audit import audit
 from bot.services.database import Database
@@ -25,7 +26,7 @@ async def is_history_admin(
     settings: Settings,
     database: Database,
 ) -> bool:
-    """Проверяет права Supervisor или администратора."""
+    """Check whether the user is the supervisor or an administrator."""
     if user_id == settings.SUPERVISOR_ID:
         return True
 
@@ -53,7 +54,7 @@ async def _set_own_limit(
         await send_prompt_status(
             message,
             state,
-            "⚠️ Укажи целое число.\nПример: /history_limit 20",
+            texts.OWN_LIMIT_INTEGER_REQUIRED,
         )
         return
 
@@ -67,7 +68,7 @@ async def _set_own_limit(
         await send_prompt_status(
             message,
             state,
-            f"⚠️ Допустимый лимит: от 1 до {maximum}.",
+            texts.HISTORY_LIMIT_RANGE.format(maximum=maximum),
         )
         return
 
@@ -76,7 +77,7 @@ async def _set_own_limit(
     await send_prompt_status(
         message,
         state,
-        f"✅ Твой лимит истории установлен: {exchange_limit} полных обменов.",
+        texts.OWN_LIMIT_UPDATED.format(exchange_limit=exchange_limit),
     )
 
 
@@ -99,7 +100,7 @@ async def _set_user_limit(
         await send_prompt_status(
             message,
             state,
-            "⛔ Назначать лимиты другим пользователям могут только администраторы.",
+            texts.TARGET_LIMIT_ADMIN_REQUIRED,
         )
         return
 
@@ -110,7 +111,7 @@ async def _set_user_limit(
         await send_prompt_status(
             message,
             state,
-            "⚠️ Укажи корректный ID пользователя и целое число лимита.",
+            texts.TARGET_LIMIT_ARGUMENTS_INVALID,
         )
         return
 
@@ -118,7 +119,7 @@ async def _set_user_limit(
         await send_prompt_status(
             message,
             state,
-            "⚠️ ID пользователя должен быть положительным.",
+            texts.TARGET_USER_ID_POSITIVE_REQUIRED,
         )
         return
 
@@ -126,7 +127,7 @@ async def _set_user_limit(
         await send_prompt_status(
             message,
             state,
-            f"⚠️ Допустимый лимит: от 1 до {settings.MAX_HISTORY_EXCHANGES}.",
+            texts.HISTORY_LIMIT_RANGE.format(maximum=settings.MAX_HISTORY_EXCHANGES),
         )
         return
 
@@ -141,8 +142,7 @@ async def _set_user_limit(
     await send_prompt_status(
         message,
         state,
-        f"✅ Для пользователя {target_user_id} установлен лимит "
-        f"{exchange_limit} полных обменов.",
+        texts.TARGET_LIMIT_UPDATED % (target_user_id, exchange_limit),
     )
 
 
@@ -163,20 +163,16 @@ async def cmd_history_limit(
 
     is_admin = await is_history_admin(user_id, settings, database)
 
-    # Без аргументов — показать инструкцию.
+    # No arguments: show usage instructions.
     if not args:
         await send_prompt_status(
             message,
             state,
-            "Использование:\n"
-            "/history — показать текущий лимит\n"
-            "/history_limit 20 — установить свой лимит\n"
-            "/history_limit ID 100 — установить лимит другому пользователю "
-            "(только администратор).",
+            texts.HISTORY_LIMIT_USAGE,
         )
         return
 
-    # Один аргумент — установить лимит самому себе.
+    # One argument: set the sender's limit.
     if len(args) == 1:
         await _set_own_limit(
             message,
@@ -188,7 +184,7 @@ async def cmd_history_limit(
         )
         return
 
-    # Два аргумента — назначение лимита другому пользователю.
+    # Two arguments: set another user's limit.
     if len(args) == _ARGS_WITH_TARGET_USER:
         await _set_user_limit(
             message,
@@ -203,6 +199,5 @@ async def cmd_history_limit(
     await send_prompt_status(
         message,
         state,
-        "⚠️ Слишком много аргументов.\n"
-        "Пример: /history_limit 20 или /history_limit ID 100.",
+        texts.HISTORY_LIMIT_TOO_MANY_ARGUMENTS,
     )

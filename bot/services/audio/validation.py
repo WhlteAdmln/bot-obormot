@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from bot.errors import MediaError
+from bot.services.audio.texts import AUDIO_DURATION_EXCEEDED
 
 if TYPE_CHECKING:
     from aiogram.types import Message
@@ -17,7 +18,7 @@ MAX_AUDIO_DURATION = 300
 
 
 def validate_audio_duration(message: Message) -> None:
-    """Проверяет длительность входящего аудио."""
+    """Validate the duration of an incoming audio message."""
     duration = None
 
     if message.voice:
@@ -28,5 +29,4 @@ def validate_audio_duration(message: Message) -> None:
         duration = message.video_note.duration
 
     if duration is not None and duration > MAX_AUDIO_DURATION:
-        msg = "Аудиофайл слишком длинный (максимум 5 минут)."
-        raise MediaError(msg)
+        raise MediaError(AUDIO_DURATION_EXCEEDED)

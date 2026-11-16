@@ -22,19 +22,18 @@ _utf16_length = utf16_length
 
 
 class MessageAggregator:
-    """Объединяет последовательные текстовые сообщения одного пользователя."""
+    """Aggregate consecutive text messages from one user."""
 
     def __init__(self) -> None:
-        """Creates empty per-user aggregation state."""
+        """Create empty per-user aggregation state."""
         self._states: dict[int, _AggregationState] = {}
         self._lock = asyncio.Lock()
         self._tasks: set[asyncio.Task[None]] = set()
 
     async def collect(self, message: Message) -> str | None:
-        """Returns the collected text, or None for a continuation part.
+        """Return collected text or None for a continuation part.
 
-        Возвращает готовый текст либо None, если сообщение
-        принято как продолжение предыдущего.
+        Return None when the message is accepted as a continuation.
         """
         text = message.text
 
@@ -66,9 +65,9 @@ class MessageAggregator:
                 if is_continuation:
                     collected = sum(len(part) for part in state.parts)
 
-                    # Дальнейшие части не принимаем, если накопленный текст
-                    # уже превысил допустимую длину. Итоговая валидация
-                    # сообщит пользователю об ошибке длины.
+                    # Reject further parts if the accumulated text has already
+                    # exceeded the allowed length. Final validation will notify
+                    # the user about the length error.
                     if collected > MAX_INPUT_TEXT_LENGTH:
                         return None
 
@@ -86,8 +85,8 @@ class MessageAggregator:
 
                     return None
 
-                # Время ожидания истекло.
-                # Завершаем предыдущую сборку.
+                # The wait window has expired.
+                # Complete the previous aggregation.
                 self._states.pop(user_id, None)
 
                 if state.future and not state.future.done():
@@ -101,7 +100,7 @@ class MessageAggregator:
                     part_length,
                 )
 
-            # Короткие самостоятельные сообщения не задерживаем.
+            # Do not delay short standalone messages.
             if part_length < MESSAGE_LENGTH_THRESHOLD:
                 logger.debug(
                     "Message aggregation: threshold not reached, "
@@ -140,7 +139,7 @@ class MessageAggregator:
             self._tasks.add(task)
             task.add_done_callback(self._tasks.discard)
 
-        # Отмена обработчика не отменяет общий Future.
+        # Cancelling the handler does not cancel the shared future.
         return await asyncio.shield(future)
 
     async def _wait_for_continuation(
@@ -148,7 +147,7 @@ class MessageAggregator:
         user_id: int,
         state: _AggregationState,
     ) -> None:
-        """Ожидает продолжение и завершает сборку после таймаута."""
+        """Wait for continuation and finalize aggregation after the timeout."""
         try:
             while True:
                 async with self._lock:
@@ -178,8 +177,8 @@ class MessageAggregator:
 
                         return
 
-                    # Очищаем событие под блокировкой,
-                    # чтобы не потерять сигнал от следующей части.
+                    # Clear the event while holding the lock
+                    # to avoid missing a signal from the next part.
                     state.event.clear()
 
                 try:

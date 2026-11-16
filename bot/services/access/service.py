@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Оркестрация проверок доступа."""
+"""Orchestration of access checks."""
 
 from typing import Protocol
 
@@ -30,7 +30,7 @@ async def user_has_access(
     database: AccessDatabase,
     allow_all: bool = False,
 ) -> bool:
-    """Определяет доступ. Пустой allowlist не открывает доступ автоматически."""
+    """Determine access; an empty allowlist does not grant access automatically."""
     if is_supervisor(user_id, supervisor_id):
         return True
 

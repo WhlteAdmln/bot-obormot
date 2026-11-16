@@ -54,7 +54,7 @@ async def transcribe_audio(
     *,
     settings: Settings | None = None,
 ) -> str:
-    """Отправляет аудио в Whisper и возвращает распознанный текст."""
+    """Send audio to Whisper and return the transcribed text."""
     if settings is None:
         settings = get_settings()
 

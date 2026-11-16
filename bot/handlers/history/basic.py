@@ -8,6 +8,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
+from bot.handlers.history import texts
 from bot.handlers.prompt.handler import send_prompt_status
 from bot.services.database import Database
 from bot.settings import Settings
@@ -28,7 +29,7 @@ async def cmd_history_clear(
     await send_prompt_status(
         message,
         state,
-        "🧹 История диалога очищена.",
+        texts.HISTORY_CLEARED,
     )
 
 
@@ -36,7 +37,7 @@ async def cmd_history_clear(
 async def cmd_forget_me(
     message: Message, state: FSMContext, database: Database
 ) -> None:
-    """Полностью удаляет сохранённые данные пользователя."""
+    """Delete all stored data belonging to the user."""
     if message.from_user is None:
         return
 
@@ -45,14 +46,14 @@ async def cmd_forget_me(
     await send_prompt_status(
         message,
         state,
-        "🧹 Все твои данные удалены.",
+        texts.USER_DATA_DELETED,
     )
 
 
 async def show_history_limit(
     message: Message, state: FSMContext, settings: Settings, database: Database
 ) -> None:
-    """Показывает текущий лимит истории временным сообщением."""
+    """Show the current history limit in a temporary message."""
     if message.from_user is None:
         return
 
@@ -62,8 +63,10 @@ async def show_history_limit(
     await send_prompt_status(
         message,
         state,
-        f"📚 Твой лимит истории: {current_limit} полных обменов.\n"
-        f"Стандартный лимит: {settings.DEFAULT_HISTORY_EXCHANGES}.",
+        texts.HISTORY_LIMIT_STATUS.format(
+            current_limit=current_limit,
+            default_limit=settings.DEFAULT_HISTORY_EXCHANGES,
+        ),
     )
 
 

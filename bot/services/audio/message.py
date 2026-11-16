@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 
 def get_audio_info(message: Message) -> tuple[str | None, str | None]:
-    """Определяет тип голосового или аудиосообщения."""
+    """Identify the type of voice or audio message."""
     if message.voice:
         return message.voice.file_id, "voice.ogg"
 

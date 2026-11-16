@@ -12,7 +12,7 @@ from aiogram.filters import Command, CommandObject
 from aiogram.types import Message
 
 from bot.config.settings import Settings
-from bot.services.database import db
+from bot.services.database import Database
 from bot.services.llm.client import LLMClient
 from bot.utils.audit import audit
 
@@ -49,10 +49,10 @@ async def check_telegram(message: Message) -> tuple[bool, str]:
     return True, "Доступен"
 
 
-async def check_database() -> tuple[bool, str]:
+async def check_database(database: Database) -> tuple[bool, str]:
     """Проверяет доступность SQLite."""
     try:
-        await db.health_check()
+        await database.health_check()
 
     except Exception:
         logger.exception("Database health check failed")
@@ -66,6 +66,7 @@ async def cmd_health(
     message: Message,
     settings: Settings,
     llm_client: LLMClient,
+    database: Database,
 ) -> None:
     """Показывает состояние основных компонентов бота."""
     if not message.from_user:
@@ -77,7 +78,7 @@ async def cmd_health(
     # Остальные администраторы проверяются по SQLite.
     if not is_supervisor(message, settings):
         try:
-            admin_ids = await db.get_admin_ids()
+            admin_ids = await database.get_admin_ids()
 
         except Exception:
             logger.exception("Could not verify admin permissions for /health")
@@ -94,7 +95,7 @@ async def cmd_health(
     # Выполняем проверки параллельно.
     telegram_result, database_result, llm_result = await asyncio.gather(
         check_telegram(message),
-        check_database(),
+        check_database(database),
         llm_client.health_check(),
     )
 
@@ -121,14 +122,18 @@ async def cmd_health(
 
 
 @router.message(Command("admin"))
-async def cmd_admin(message: Message, settings: Settings) -> None:
+async def cmd_admin(
+    message: Message,
+    settings: Settings,
+    database: Database,
+) -> None:
     """Shows the admin panel summary to the supervisor."""
     if not is_supervisor(message, settings):
         _audit_denied(message)
         await message.answer("⛔ Доступ запрещён.")
         return
 
-    admin_ids = await db.get_admin_ids()
+    admin_ids = await database.get_admin_ids()
 
     await message.answer(
         "🛠 Панель управления\n\n"
@@ -143,14 +148,18 @@ async def cmd_admin(message: Message, settings: Settings) -> None:
 
 
 @router.message(Command("admins"))
-async def cmd_admins(message: Message, settings: Settings) -> None:
+async def cmd_admins(
+    message: Message,
+    settings: Settings,
+    database: Database,
+) -> None:
     """Lists the supervisor and regular administrators."""
     if not is_supervisor(message, settings):
         _audit_denied(message)
         await message.answer("⛔ Доступ запрещён.")
         return
 
-    admin_ids = sorted(await db.get_admin_ids())
+    admin_ids = sorted(await database.get_admin_ids())
 
     text = f"👥 Список администраторов\n\n👑 Supervisor: {settings.SUPERVISOR_ID}\n"
 
@@ -168,6 +177,7 @@ async def cmd_admin_add(
     message: Message,
     command: CommandObject,
     settings: Settings,
+    database: Database,
 ) -> None:
     """Adds an administrator by Telegram ID (supervisor only)."""
     if not is_supervisor(message, settings) or message.from_user is None:
@@ -197,7 +207,7 @@ async def cmd_admin_add(
         await message.answer("ℹ️ Этот пользователь уже является Supervisor.")
         return
 
-    added = await db.add_admin(user_id)
+    added = await database.add_admin(user_id)
     audit(
         "admin_add",
         message.from_user.id,
@@ -218,6 +228,7 @@ async def cmd_admin_remove(
     message: Message,
     command: CommandObject,
     settings: Settings,
+    database: Database,
 ) -> None:
     """Removes an administrator by Telegram ID (supervisor only)."""
     if not is_supervisor(message, settings) or message.from_user is None:
@@ -247,7 +258,7 @@ async def cmd_admin_remove(
         await message.answer("⛔ Нельзя удалить Supervisor.")
         return
 
-    removed = await db.remove_admin(user_id)
+    removed = await database.remove_admin(user_id)
     audit(
         "admin_remove",
         message.from_user.id,
@@ -265,11 +276,15 @@ async def cmd_admin_remove(
         )
 
 
-async def is_admin_or_supervisor(user_id: int, settings: Settings) -> bool:
+async def is_admin_or_supervisor(
+    user_id: int,
+    settings: Settings,
+    database: Database,
+) -> bool:
     """Проверяет право управлять блокировками пользователей."""
     if user_id == settings.SUPERVISOR_ID:
         return True
-    return user_id in await db.get_admin_ids()
+    return user_id in await database.get_admin_ids()
 
 
 def _parse_target_id(command: CommandObject) -> int | None:
@@ -281,13 +296,18 @@ def _parse_target_id(command: CommandObject) -> int | None:
 
 
 @router.message(Command("ban"))
-async def cmd_ban(message: Message, command: CommandObject, settings: Settings) -> None:
+async def cmd_ban(
+    message: Message,
+    command: CommandObject,
+    settings: Settings,
+    database: Database,
+) -> None:
     """Блокирует пользователя до отдельной команды /unban."""
     if message.from_user is None:
         return
 
     actor_id = message.from_user.id
-    if not await is_admin_or_supervisor(actor_id, settings):
+    if not await is_admin_or_supervisor(actor_id, settings, database):
         _audit_denied(message)
         await message.answer("⛔ Доступ запрещён.")
         return
@@ -297,14 +317,17 @@ async def cmd_ban(message: Message, command: CommandObject, settings: Settings) 
         await message.answer("Укажи положительный Telegram ID. Пример: /ban 123456789")
         return
 
-    if target_id == settings.SUPERVISOR_ID or target_id in await db.get_admin_ids():
+    if (
+        target_id == settings.SUPERVISOR_ID
+        or target_id in await database.get_admin_ids()
+    ):
         await message.answer(
             "⛔ Этого пользователя заблокировать нельзя. "
             "Сначала сними права администратора."
         )
         return
 
-    changed = await db.block_user(target_id)
+    changed = await database.block_user(target_id)
     audit("ban", actor_id, target_id, "blocked" if changed else "already")
     await message.answer(
         f"✅ Пользователь {target_id} заблокирован."
@@ -315,14 +338,17 @@ async def cmd_ban(message: Message, command: CommandObject, settings: Settings) 
 
 @router.message(Command("unban"))
 async def cmd_unban(
-    message: Message, command: CommandObject, settings: Settings
+    message: Message,
+    command: CommandObject,
+    settings: Settings,
+    database: Database,
 ) -> None:
     """Снимает блокировку с пользователя."""
     if message.from_user is None:
         return
 
     actor_id = message.from_user.id
-    if not await is_admin_or_supervisor(actor_id, settings):
+    if not await is_admin_or_supervisor(actor_id, settings, database):
         _audit_denied(message)
         await message.answer("⛔ Доступ запрещён.")
         return
@@ -334,7 +360,7 @@ async def cmd_unban(
         )
         return
 
-    changed = await db.unblock_user(target_id)
+    changed = await database.unblock_user(target_id)
     audit("unban", actor_id, target_id, "unblocked" if changed else "not_found")
     await message.answer(
         f"✅ Блокировка пользователя {target_id} снята."

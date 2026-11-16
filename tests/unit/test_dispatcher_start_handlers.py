@@ -20,8 +20,6 @@ from aiogram.methods import (
 from aiogram.types import User
 
 from bot.app.routers import configure_dispatcher
-from bot.handlers.admin import handler as admin_handler
-from bot.handlers.history import limits as history_limits
 from bot.middlewares.throttle import ThrottleMiddleware
 from tests.support.settings import make_settings
 from tests.support.telegram import (
@@ -211,13 +209,10 @@ def _reset_throttle(dispatcher: Dispatcher) -> None:
 
 @pytest.fixture
 def access_database(
-    monkeypatch: pytest.MonkeyPatch,
     dispatcher: Dispatcher,
 ) -> _AccessDatabase:
     """Configure an isolated database and open access for dispatcher tests."""
     database = _AccessDatabase()
-    monkeypatch.setattr(admin_handler, "db", database)
-    monkeypatch.setattr(history_limits, "db", database)
     dispatcher.workflow_data["settings"] = SETTINGS
     dispatcher.workflow_data["llm_client"] = _FakeLLM()
     dispatcher.workflow_data["database"] = database

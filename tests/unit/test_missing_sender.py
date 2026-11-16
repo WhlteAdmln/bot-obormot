@@ -60,6 +60,7 @@ async def test_history_limit_command_ignores_messages_without_sender() -> None:
         SimpleNamespace(),
         SimpleNamespace(args="5"),
         make_settings(),
+        SimpleNamespace(),
     )
 
     message.answer.assert_not_awaited()

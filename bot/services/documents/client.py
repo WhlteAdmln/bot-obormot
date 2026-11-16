@@ -12,17 +12,17 @@ from urllib.parse import urlsplit, urlunsplit
 
 import aiohttp
 
+from bot.common.http_limits import (
+    MAX_ERROR_BODY_BYTES,
+    MAX_SERVICE_RESPONSE_BYTES,
+    read_limited_body,
+)
 from bot.errors import (
     DocumentAPIError,
     DocumentTimeoutError,
     DocumentUnavailableError,
 )
 from bot.services.documents.response import validate_document_response
-from bot.services.http_limits import (
-    MAX_ERROR_BODY_BYTES,
-    MAX_SERVICE_RESPONSE_BYTES,
-    read_limited_body,
-)
 from bot.services.validation import MAX_INPUT_TEXT_LENGTH
 from bot.settings import Settings, get_settings
 from bot.utils.text import log_safe

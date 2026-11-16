@@ -9,17 +9,18 @@ from unittest.mock import AsyncMock
 import pytest
 
 from bot.handlers.start.handler import cmd_start
-from bot.services.database import db
+from bot.services.database import Database
 from tests.support.settings import make_settings
 
 
 @pytest.mark.asyncio
 async def test_start_help_and_command_menu_include_forget_me(
     monkeypatch: pytest.MonkeyPatch,
+    test_db: Database,
 ) -> None:
     """Start help and command menu include forget me."""
     settings = make_settings(SUPERVISOR_ID=999999999)
-    monkeypatch.setattr(db, "get_admin_ids", AsyncMock(return_value=set()))
+    monkeypatch.setattr(test_db, "get_admin_ids", AsyncMock(return_value=set()))
 
     user_id = 123456789
     response = SimpleNamespace(message_id=42)
@@ -33,7 +34,7 @@ async def test_start_help_and_command_menu_include_forget_me(
     )
     state = SimpleNamespace(update_data=AsyncMock())
 
-    await cmd_start(message, state, settings)
+    await cmd_start(message, state, settings, test_db)
 
     commands = set_my_commands.await_args.kwargs["commands"]
     assert any(command.command == "forget_me" for command in commands)
@@ -43,11 +44,12 @@ async def test_start_help_and_command_menu_include_forget_me(
 @pytest.mark.asyncio
 async def test_start_adds_ban_commands_for_admins(
     monkeypatch: pytest.MonkeyPatch,
+    test_db: Database,
 ) -> None:
     """Start adds ban commands for admins."""
     settings = make_settings(SUPERVISOR_ID=999999999)
     admin_id = 111111111
-    monkeypatch.setattr(db, "get_admin_ids", AsyncMock(return_value={admin_id}))
+    monkeypatch.setattr(test_db, "get_admin_ids", AsyncMock(return_value={admin_id}))
 
     response = SimpleNamespace(message_id=42)
     answer = AsyncMock(return_value=response)
@@ -60,7 +62,7 @@ async def test_start_adds_ban_commands_for_admins(
     )
     state = SimpleNamespace(update_data=AsyncMock())
 
-    await cmd_start(message, state, settings)
+    await cmd_start(message, state, settings, test_db)
 
     commands = {
         command.command for command in set_my_commands.await_args.kwargs["commands"]

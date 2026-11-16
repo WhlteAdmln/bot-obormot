@@ -473,7 +473,6 @@ async def test_supervisor_cannot_be_blocked(
 )
 @pytest.mark.asyncio
 async def test_access_matrix(
-    monkeypatch: pytest.MonkeyPatch,
     role: str,
     allow_all_mode: str,
     allowlist_mode: str,
@@ -500,7 +499,6 @@ async def test_access_matrix(
         ALLOWED_USERS=allowed_users,
         ALLOW_ALL_USERS=allow_all,
     )
-    monkeypatch.setattr(admin_handler, "db", database)
 
     async def handler(_event: object, _data: object) -> str:
         return "allowed"
@@ -527,7 +525,11 @@ async def test_access_matrix(
     if command_class == "ordinary":
         command_allowed = True
     elif command_class == "admin":
-        command_allowed = await admin_handler.is_admin_or_supervisor(user_id, settings)
+        command_allowed = await admin_handler.is_admin_or_supervisor(
+            user_id,
+            settings,
+            database,
+        )
     else:
         command_allowed = admin_handler.is_supervisor(
             SimpleNamespace(from_user=SimpleNamespace(id=user_id)),

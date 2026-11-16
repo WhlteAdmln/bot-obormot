@@ -39,12 +39,13 @@ async def test_handlers_ignore_messages_without_sender(
     message = SimpleNamespace(from_user=None, text="prompt", answer=AsyncMock())
 
     state = SimpleNamespace()
+    database = SimpleNamespace()
     settings = make_settings()
 
     if handler in (cmd_start, show_history_limit):
-        await handler(message, state, settings)
+        await handler(message, state, settings, database)
     else:
-        await handler(message, state)
+        await handler(message, state, database)
 
     message.answer.assert_not_awaited()
 
@@ -59,6 +60,7 @@ async def test_history_limit_command_ignores_messages_without_sender() -> None:
         SimpleNamespace(),
         SimpleNamespace(args="5"),
         make_settings(),
+        SimpleNamespace(),
     )
 
     message.answer.assert_not_awaited()

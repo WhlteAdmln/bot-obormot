@@ -11,7 +11,7 @@ from aiogram.types import Message
 
 from bot.config.settings import Settings
 from bot.handlers.prompt.handler import send_prompt_status
-from bot.services.database import db
+from bot.services.database import Database
 from bot.utils.audit import audit
 
 router = Router()
@@ -20,12 +20,16 @@ router = Router()
 _ARGS_WITH_TARGET_USER = 2
 
 
-async def is_history_admin(user_id: int, settings: Settings) -> bool:
+async def is_history_admin(
+    user_id: int,
+    settings: Settings,
+    database: Database,
+) -> bool:
     """Проверяет права Supervisor или администратора."""
     if user_id == settings.SUPERVISOR_ID:
         return True
 
-    return user_id in await db.get_admin_ids()
+    return user_id in await database.get_admin_ids()
 
 
 async def _set_own_limit(
@@ -35,6 +39,7 @@ async def _set_own_limit(
     *,
     is_admin: bool,
     settings: Settings,
+    database: Database,
 ) -> None:
     """Sets the history limit of the sender."""
     if message.from_user is None:
@@ -66,7 +71,7 @@ async def _set_own_limit(
         )
         return
 
-    await db.set_history_limit(user_id, exchange_limit)
+    await database.set_history_limit(user_id, exchange_limit)
 
     await send_prompt_status(
         message,
@@ -82,6 +87,7 @@ async def _set_user_limit(
     *,
     is_admin: bool,
     settings: Settings,
+    database: Database,
 ) -> None:
     """Sets the history limit of another user (administrators only)."""
     if message.from_user is None:
@@ -124,7 +130,7 @@ async def _set_user_limit(
         )
         return
 
-    await db.set_history_limit(target_user_id, exchange_limit)
+    await database.set_history_limit(target_user_id, exchange_limit)
     audit(
         "history_limit_set",
         user_id,
@@ -146,6 +152,7 @@ async def cmd_history_limit(
     state: FSMContext,
     command: CommandObject,
     settings: Settings,
+    database: Database,
 ) -> None:
     """Shows usage or sets the history limit of the sender or of another user."""
     if message.from_user is None:
@@ -154,7 +161,7 @@ async def cmd_history_limit(
     user_id = message.from_user.id
     args = (command.args or "").split()
 
-    is_admin = await is_history_admin(user_id, settings)
+    is_admin = await is_history_admin(user_id, settings, database)
 
     # Без аргументов — показать инструкцию.
     if not args:
@@ -177,6 +184,7 @@ async def cmd_history_limit(
             args[0],
             is_admin=is_admin,
             settings=settings,
+            database=database,
         )
         return
 
@@ -188,6 +196,7 @@ async def cmd_history_limit(
             args,
             is_admin=is_admin,
             settings=settings,
+            database=database,
         )
         return
 

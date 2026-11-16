@@ -10,18 +10,20 @@ from aiogram.types import Message
 
 from bot.config.settings import Settings
 from bot.handlers.prompt.handler import send_prompt_status
-from bot.services.database import db
+from bot.services.database import Database
 
 router = Router()
 
 
 @router.message(Command("history_clear"))
-async def cmd_history_clear(message: Message, state: FSMContext) -> None:
+async def cmd_history_clear(
+    message: Message, state: FSMContext, database: Database
+) -> None:
     """Clears the dialog history of the user."""
     if message.from_user is None:
         return
 
-    await db.reset_history(message.from_user.id)
+    await database.reset_history(message.from_user.id)
 
     await send_prompt_status(
         message,
@@ -31,12 +33,14 @@ async def cmd_history_clear(message: Message, state: FSMContext) -> None:
 
 
 @router.message(Command("forget_me"))
-async def cmd_forget_me(message: Message, state: FSMContext) -> None:
+async def cmd_forget_me(
+    message: Message, state: FSMContext, database: Database
+) -> None:
     """Полностью удаляет сохранённые данные пользователя."""
     if message.from_user is None:
         return
 
-    await db.forget_user(message.from_user.id)
+    await database.forget_user(message.from_user.id)
 
     await send_prompt_status(
         message,
@@ -46,14 +50,14 @@ async def cmd_forget_me(message: Message, state: FSMContext) -> None:
 
 
 async def show_history_limit(
-    message: Message, state: FSMContext, settings: Settings
+    message: Message, state: FSMContext, settings: Settings, database: Database
 ) -> None:
     """Показывает текущий лимит истории временным сообщением."""
     if message.from_user is None:
         return
 
     user_id = message.from_user.id
-    current_limit = await db.get_history_limit(user_id)
+    current_limit = await database.get_history_limit(user_id)
 
     await send_prompt_status(
         message,
@@ -64,6 +68,11 @@ async def show_history_limit(
 
 
 @router.message(Command("history"))
-async def cmd_history(message: Message, state: FSMContext, settings: Settings) -> None:
+async def cmd_history(
+    message: Message,
+    state: FSMContext,
+    settings: Settings,
+    database: Database,
+) -> None:
     """Shows the current history limit of the user."""
-    await show_history_limit(message, state, settings)
+    await show_history_limit(message, state, settings, database)

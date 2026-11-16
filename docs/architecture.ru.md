@@ -38,7 +38,7 @@ TemporaryMessagesCleanupMiddleware
 - `bot/app/bootstrap.py` устанавливает `umask(0o077)`, настраивает логирование и фильтр секретов, включает лимиты Pillow, записывает режим доступа, проверяет `BOT_TOKEN`, создаёт Bot/Dispatcher и подключает роутеры.
 - `bot/app/lifecycle.py` подключает SQLite, запускает LLM-клиент, создаёт именованную фоновую задачу периодической очистки изображений и запускает Telegram polling. При завершении задача очистки отменяется и дожидается остановки; затем закрываются LLM-клиент, соединение БД и Telegram-сессия.
 - `bot/app/background/image_cleanup.py` вызывает очистку раз в сутки с периодом хранения медиа 30 дней и защитным периодом 24 часа для осиротевших изображений.
-- `bot/config/__init__.py` загружает только `PROJECT_ROOT/.env` до импорта объекта настроек. Поиск `.env` в родительских каталогах не выполняется.
+- `bot/config/env.py` содержит `load_env_file()`, которая загружает только `PROJECT_ROOT/.env`; `bot/app/bootstrap.py` вызывает её перед построением `Settings`. Поиск `.env` в родительских каталогах не выполняется.
 
 ## 3. Telegram-слой, доступ и администрирование
 
@@ -113,7 +113,7 @@ TemporaryMessagesCleanupMiddleware
 
 - `bot/services/audio/client.py` отправляет аудио в [audiodoc](https://github.com/WhlteAdmln/audiodoc) по настроенному URL `/transcribe`; `bot/services/documents/client.py` отправляет документы в его эндпоинт `/process-document` и проверяет структуру ответа.
 - audiodoc — необязательный сервис. Обработка аудио и документов включается независимо: соответствующая функция отключена, если её URL не задан.
-- Имена настроек `WHISPER_*` и `DOCUMENT_*` исторические; обе группы подключаются к одному сервису audiodoc. `WHISPER_API_KEY` и `DOCUMENT_API_KEY` добавляют отдельные необязательные Bearer-заголовки. Для удалённого audiodoc используйте HTTPS: API-ключ не шифрует HTTP-трафик.
+- Настройки `AUDIODOC_*` подключают обе функции к одному сервису audiodoc: `AUDIODOC_URL` — базовый URL, а `AUDIODOC_AUDIO_KEY` и `AUDIODOC_DOCUMENT_KEY` добавляют отдельные необязательные Bearer-заголовки. Старые имена `WHISPER_*` и `DOCUMENT_*` устарели и читаются, если новое имя пусто. Для удалённого audiodoc используйте HTTPS: API-ключ не шифрует HTTP-трафик.
 - В настройках бота указывайте полный URL вместе с `/transcribe` или `/process-document`. Поддерживаемые форматы документов и настройки сервера описаны в [репозитории audiodoc](https://github.com/WhlteAdmln/audiodoc).
 - `bot/services/http_limits.py` читает ответы потоково чанками по 64 КиБ: успешное тело ограничено 2 МиБ, чтение тела HTTP-ошибки — 2 КиБ.
 

@@ -38,7 +38,7 @@ Root routers: start → admin → commands → chat
 - `bot/app/bootstrap.py` applies `umask(0o077)`, configures logging and secret filtering, enables Pillow limits, logs the access mode, validates `BOT_TOKEN`, creates the Bot/Dispatcher, and configures routers.
 - `bot/app/lifecycle.py` connects SQLite, starts the LLM client, starts the named periodic image-cleanup task, and starts Telegram polling. On shutdown it cancels and awaits cleanup, then closes the LLM client, database connection, and Telegram session.
 - `bot/app/background/image_cleanup.py` invokes image cleanup once per day with a 30-day media-retention period and a 24-hour grace period for orphaned images.
-- `bot/config/__init__.py` loads only `PROJECT_ROOT/.env` before importing the settings object. It does not search parent directories.
+- `bot/config/env.py` provides `load_env_file()`, which loads only `PROJECT_ROOT/.env`; `bot/app/bootstrap.py` calls it before building `Settings`. It does not search parent directories.
 
 ## 3. Telegram layer, access, and administration
 
@@ -113,7 +113,7 @@ The video path requires `ffmpeg` and `ffprobe` on `PATH`.
 
 - `bot/services/audio/client.py` sends audio to [audiodoc](https://github.com/WhlteAdmln/audiodoc) at the configured `/transcribe` URL; `bot/services/documents/client.py` sends documents to its `/process-document` endpoint and validates the returned structure.
 - audiodoc is optional. Audio and document processing are disabled independently when their respective URL is empty.
-- The setting names `WHISPER_*` and `DOCUMENT_*` are historical; both groups connect to the same audiodoc service. `WHISPER_API_KEY` and `DOCUMENT_API_KEY` add separate optional Bearer authorization headers. Use HTTPS when audiodoc is remote; API keys do not encrypt HTTP traffic.
+- The `AUDIODOC_*` settings connect both features to the same audiodoc service: `AUDIODOC_URL` is the base URL, and `AUDIODOC_AUDIO_KEY` and `AUDIODOC_DOCUMENT_KEY` add separate optional Bearer authorization headers. The old `WHISPER_*` and `DOCUMENT_*` names are deprecated and still read when the new name is empty. Use HTTPS when audiodoc is remote; API keys do not encrypt HTTP traffic.
 - Configure the complete endpoint URL, including `/transcribe` or `/process-document`. See the [audiodoc repository](https://github.com/WhlteAdmln/audiodoc) for supported document formats and server configuration.
 - `bot/services/http_limits.py` reads response bodies incrementally in 64 KiB chunks, with a 2 MiB limit for successful service responses and a 2 KiB limit for HTTP error-body reads.
 

@@ -11,9 +11,9 @@ import pytest
 
 from bot.config.settings import Settings
 from bot.errors import (
-    WhisperAPIError,
-    WhisperTimeoutError,
-    WhisperUnavailableError,
+    AudiodocAPIError,
+    AudiodocTimeoutError,
+    AudiodocUnavailableError,
 )
 from bot.services.audio.client import transcribe_audio
 from bot.services.documents.client import process_document
@@ -101,7 +101,7 @@ async def test_fake_audiodoc_can_return_configured_http_errors(
                 assert response.headers["Retry-After"] == "17"
                 await response.read()
 
-        with pytest.raises(WhisperAPIError, match=f"Whisper HTTP {status}"):
+        with pytest.raises(AudiodocAPIError, match=f"Whisper HTTP {status}"):
             await transcribe_audio(b"audio", settings=settings)
 
 
@@ -115,7 +115,7 @@ async def test_fake_audiodoc_can_return_invalid_json() -> None:
             FakeResponseOptions(invalid_json=True),
         )
 
-        with pytest.raises(WhisperAPIError, match="invalid JSON"):
+        with pytest.raises(AudiodocAPIError, match="invalid JSON"):
             await transcribe_audio(b"audio", settings=settings)
 
 
@@ -129,7 +129,7 @@ async def test_fake_audiodoc_can_delay_a_response() -> None:
             FakeResponseOptions(delay=0.05),
         )
 
-        with pytest.raises(WhisperTimeoutError, match="timed out"):
+        with pytest.raises(AudiodocTimeoutError, match="timed out"):
             await transcribe_audio(b"audio", settings=settings)
 
 
@@ -143,5 +143,5 @@ async def test_fake_audiodoc_can_truncate_a_response() -> None:
             FakeResponseOptions(truncated_body=True),
         )
 
-        with pytest.raises(WhisperUnavailableError, match="connection error"):
+        with pytest.raises(AudiodocUnavailableError, match="connection error"):
             await transcribe_audio(b"audio", settings=settings)

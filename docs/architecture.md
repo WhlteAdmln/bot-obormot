@@ -89,6 +89,10 @@ Long plain-text messages are combined by `bot/services/chat/aggregation/aggregat
 
 The default system prompt is stored in `prompts/systemPrompt.md`; users may have a personal system prompt. The default prompt explicitly frames document text, speech transcriptions, and captions as data to analyze rather than instructions. Model output is formatted/escaped before being sent to Telegram.
 
+### Error handling
+
+All application errors derive from `AppError` in `bot/errors/`. Every concrete class declares a unique machine-readable `code` and a short English `public_message` that never contains internal details; the string form of an exception carries the detail for logs. The Telegram layer turns an error into a reply in `bot/services/chat/errors/`: `catalog.py` decides only how an error is logged, and `texts.py` is the single place that maps each `code` to the Russian text shown to the user. A code without an entry, or an error that is not an `AppError`, gets the unexpected-error text and is logged with a traceback. The old names `BotServiceError` and `Whisper*Error` remain as deprecated aliases of `AppError` and `Audiodoc*Error` for one release.
+
 ## 5. Media and external services
 
 ### Telegram downloads and local media processing

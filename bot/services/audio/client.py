@@ -12,10 +12,10 @@ import aiohttp
 
 from bot.config.settings import Settings, get_settings
 from bot.errors import (
-    WhisperAPIError,
-    WhisperEmptyAudioError,
-    WhisperTimeoutError,
-    WhisperUnavailableError,
+    AudiodocAPIError,
+    AudiodocEmptyAudioError,
+    AudiodocTimeoutError,
+    AudiodocUnavailableError,
 )
 from bot.services.http_limits import (
     MAX_ERROR_BODY_BYTES,
@@ -37,13 +37,13 @@ def _extract_text(result: object) -> str:
     """Returns the transcribed text from the Whisper response or raises."""
     if not isinstance(result, dict):
         msg = "Whisper returned an unexpected response"
-        raise WhisperAPIError(msg)
+        raise AudiodocAPIError(msg)
 
     text = str(result.get("text", "")).strip()
 
     if not text:
         msg = "No speech detected in audio"
-        raise WhisperEmptyAudioError(msg)
+        raise AudiodocEmptyAudioError(msg)
 
     return text
 
@@ -60,7 +60,7 @@ async def transcribe_audio(
 
     if not settings.AUDIODOC_URL:
         msg = "AUDIODOC_URL is not configured"
-        raise WhisperUnavailableError(msg)
+        raise AudiodocUnavailableError(msg)
 
     # The filename is also embedded in a multipart header. Normalize it before
     # handing it to aiohttp so CR/LF and other control characters cannot break
@@ -103,19 +103,19 @@ async def transcribe_audio(
                 body = await read_limited_body(response, MAX_ERROR_BODY_BYTES)
                 detail = (body or b"").decode("utf-8", errors="replace")
                 msg = f"Whisper HTTP {response.status}: {detail[:1000]}"
-                raise WhisperAPIError(msg)
+                raise AudiodocAPIError(msg)
 
             body = await read_limited_body(response, MAX_SERVICE_RESPONSE_BYTES)
 
             if body is None:
                 msg = "Whisper response is too large"
-                raise WhisperAPIError(msg)
+                raise AudiodocAPIError(msg)
 
             try:
                 result = json.loads(body)
             except ValueError as error:
                 msg = "Whisper returned invalid JSON"
-                raise WhisperAPIError(msg) from error
+                raise AudiodocAPIError(msg) from error
 
         text = _extract_text(result)
 
@@ -123,11 +123,11 @@ async def transcribe_audio(
 
     except TimeoutError as error:
         msg = "Whisper request timed out"
-        raise WhisperTimeoutError(msg) from error
+        raise AudiodocTimeoutError(msg) from error
 
     except aiohttp.ClientError as error:
         msg = f"Whisper connection error: {error}"
-        raise WhisperUnavailableError(msg) from error
+        raise AudiodocUnavailableError(msg) from error
 
     else:
         return text

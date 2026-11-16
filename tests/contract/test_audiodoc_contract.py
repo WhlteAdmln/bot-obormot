@@ -13,7 +13,7 @@ import pytest
 from jsonschema import Draft202012Validator
 
 from bot.config.settings import Settings
-from bot.errors import DocumentAPIError, WhisperAPIError
+from bot.errors import AudiodocAPIError, DocumentAPIError
 from bot.services.audio.client import transcribe_audio
 from bot.services.documents.client import process_document
 from bot.services.documents.response import validate_document_response
@@ -260,7 +260,7 @@ async def test_bot_handles_every_documented_audiodoc_error_status(
         server.set_behavior(endpoint, FakeResponseOptions(status=status))
 
         if endpoint == "transcribe":
-            with pytest.raises(WhisperAPIError, match=f"Whisper HTTP {status}"):
+            with pytest.raises(AudiodocAPIError, match=f"Whisper HTTP {status}"):
                 await transcribe_audio(b"audio", "voice.ogg", settings=settings)
         else:
             with pytest.raises(DocumentAPIError) as error:

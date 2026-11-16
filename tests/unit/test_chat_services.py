@@ -11,12 +11,12 @@ from types import SimpleNamespace
 import pytest
 
 from bot.errors import (
+    AudiodocAPIError,
+    AudiodocEmptyAudioError,
+    AudiodocError,
     DocumentAPIError,
     LLMAPIError,
     MediaError,
-    WhisperAPIError,
-    WhisperEmptyAudioError,
-    WhisperError,
 )
 from bot.services.chat import incoming_log, reporting
 from bot.services.chat import locks as chat_locks
@@ -383,11 +383,11 @@ def test_chat_error_catalog_preserves_original_if_elif_priority() -> None:
         "DocumentTimeoutError",
         "DocumentUnavailableError",
         "DocumentAPIError",
-        "WhisperEmptyAudioError",
-        "WhisperTimeoutError",
-        "WhisperUnavailableError",
-        "WhisperAPIError",
-        "WhisperError",
+        "AudiodocEmptyAudioError",
+        "AudiodocTimeoutError",
+        "AudiodocUnavailableError",
+        "AudiodocAPIError",
+        "AudiodocError",
         "MediaError",
         "TelegramError",
         "LLMTimeoutError",
@@ -415,7 +415,7 @@ async def test_chat_error_handler_uses_specific_subclass_rule(
         message,
         status,
         88,
-        WhisperEmptyAudioError(),
+        AudiodocEmptyAudioError(),
     )
 
     assert captured == [
@@ -432,11 +432,13 @@ async def test_chat_error_handler_uses_specific_subclass_rule(
         next(
             rule
             for rule in catalog.CHAT_ERROR_RULES
-            if rule.error_type is WhisperEmptyAudioError
+            if rule.error_type is AudiodocEmptyAudioError
         )
     ) < catalog.CHAT_ERROR_RULES.index(
         next(
-            rule for rule in catalog.CHAT_ERROR_RULES if rule.error_type is WhisperError
+            rule
+            for rule in catalog.CHAT_ERROR_RULES
+            if rule.error_type is AudiodocError
         )
     )
 
@@ -467,11 +469,11 @@ async def test_chat_error_handler_preserves_api_error_log_fields(
 
 
 @pytest.mark.asyncio
-async def test_chat_error_handler_sanitizes_whisper_and_llm_error_bodies(
+async def test_chat_error_handler_sanitizes_audiodoc_and_llm_error_bodies(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Chat error handler sanitizes whisper and llm error bodies."""
+    """Chat error handler sanitizes audiodoc and llm error bodies."""
 
     async def fake_report(_message: object, _status: object, _text: str) -> None:
         return None
@@ -480,7 +482,7 @@ async def test_chat_error_handler_sanitizes_whisper_and_llm_error_bodies(
 
     with caplog.at_level(logging.ERROR, logger=chat_error_handler.logger.name):
         await chat_error_handler.handle_chat_error(
-            object(), None, 909, WhisperAPIError("sensitive\nwhisper response")
+            object(), None, 909, AudiodocAPIError("sensitive\nwhisper response")
         )
         await chat_error_handler.handle_chat_error(
             object(), None, 909, LLMAPIError(503, "sensitive\nllm response")

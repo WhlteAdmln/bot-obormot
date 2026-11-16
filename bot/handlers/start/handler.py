@@ -17,7 +17,7 @@ from aiogram.types import (
 
 from bot.config.settings import Settings
 from bot.fsm.keys import WELCOME_MESSAGE_KEY
-from bot.services.database import db
+from bot.services.database import Database
 
 if TYPE_CHECKING:
     from aiogram import Bot
@@ -27,7 +27,12 @@ logger = logging.getLogger("bot.handlers.start")
 
 
 @router.message(Command("start"))
-async def cmd_start(message: Message, state: FSMContext, settings: Settings) -> None:
+async def cmd_start(
+    message: Message,
+    state: FSMContext,
+    settings: Settings,
+    database: Database,
+) -> None:
     """Registers the command menu for the user and sends the welcome message."""
     if message.from_user is None:
         return
@@ -40,7 +45,7 @@ async def cmd_start(message: Message, state: FSMContext, settings: Settings) -> 
     # Проверяем обычных администраторов через SQLite.
     if not is_admin:
         try:
-            admin_ids = await db.get_admin_ids()
+            admin_ids = await database.get_admin_ids()
             is_admin = user_id in admin_ids
 
         except Exception:

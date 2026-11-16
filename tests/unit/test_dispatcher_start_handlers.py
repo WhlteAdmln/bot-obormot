@@ -21,10 +21,7 @@ from aiogram.types import User
 
 from bot.app.routers import configure_dispatcher
 from bot.handlers.admin import handler as admin_handler
-from bot.handlers.history import basic as history_basic
 from bot.handlers.history import limits as history_limits
-from bot.handlers.prompt import handler as prompt_handler
-from bot.handlers.start import handler as start_handler
 from bot.middlewares.throttle import ThrottleMiddleware
 from tests.support.settings import make_settings
 from tests.support.telegram import (
@@ -183,8 +180,18 @@ class _FakeLLM:
 class _FailingAdminDatabase:
     """Simulate an administrator lookup failure in the start handler."""
 
+    def __init__(self) -> None:
+        self.admin_lookup_calls = 0
+
+    async def get_blocked_ids(self) -> set[int]:
+        """Return no blocked users for the access middleware."""
+        return set()
+
     async def get_admin_ids(self) -> set[int]:
         """Raise an error when administrator IDs are requested."""
+        self.admin_lookup_calls += 1
+        if self.admin_lookup_calls == 1:
+            return set()
         msg = "database unavailable"
         raise RuntimeError(msg)
 
@@ -210,10 +217,7 @@ def access_database(
     """Configure an isolated database and open access for dispatcher tests."""
     database = _AccessDatabase()
     monkeypatch.setattr(admin_handler, "db", database)
-    monkeypatch.setattr(start_handler, "db", database)
-    monkeypatch.setattr(history_basic, "db", database)
     monkeypatch.setattr(history_limits, "db", database)
-    monkeypatch.setattr(prompt_handler, "db", database)
     dispatcher.workflow_data["settings"] = SETTINGS
     dispatcher.workflow_data["llm_client"] = _FakeLLM()
     dispatcher.workflow_data["database"] = database
@@ -335,11 +339,10 @@ async def test_start_routes_users_and_builds_their_command_menu(
 @pytest.mark.usefixtures("access_database")
 async def test_start_falls_back_to_regular_menu_when_database_fails(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A failed administrator lookup does not prevent the welcome response."""
     dispatcher, bot, session = dispatcher_runtime
-    monkeypatch.setattr(start_handler, "db", _FailingAdminDatabase())
+    dispatcher.workflow_data["database"] = _FailingAdminDatabase()
 
     await dispatcher.feed_update(
         bot,

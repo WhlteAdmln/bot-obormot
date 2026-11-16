@@ -14,7 +14,7 @@ from aiogram.types import Message
 
 from bot.fsm.keys import PROMPT_FLOW_KEY, PROMPT_STATUS_MESSAGE_KEY
 from bot.fsm.states import PromptStates
-from bot.services.database import db
+from bot.services.database import Database
 
 if TYPE_CHECKING:
     from aiogram import Bot
@@ -87,7 +87,7 @@ async def send_prompt_status(
     await state.update_data(**data)
 
 
-async def show_prompt(message: Message, state: FSMContext) -> None:
+async def show_prompt(message: Message, state: FSMContext, database: Database) -> None:
     """Показывает текущий системный промпт."""
     await state.clear()
     await track_message(state, message)
@@ -96,8 +96,8 @@ async def show_prompt(message: Message, state: FSMContext) -> None:
         return
 
     user_id = message.from_user.id
-    user_prompt = await db.get_user_system_prompt(user_id)
-    current_prompt = await db.get_system_prompt(user_id)
+    user_prompt = await database.get_user_system_prompt(user_id)
+    current_prompt = await database.get_system_prompt(user_id)
 
     source = "👤 Персональный" if user_prompt is not None else "📄 Стандартный"
 
@@ -115,9 +115,9 @@ async def show_prompt(message: Message, state: FSMContext) -> None:
 
 
 @router.message(Command("prompt"))
-async def cmd_prompt(message: Message, state: FSMContext) -> None:
+async def cmd_prompt(message: Message, state: FSMContext, database: Database) -> None:
     """Shows the current system prompt."""
-    await show_prompt(message, state)
+    await show_prompt(message, state, database)
 
 
 @router.message(Command("prompt_set"))
@@ -140,7 +140,7 @@ async def cmd_prompt_set(message: Message, state: FSMContext) -> None:
     F.text,
     ~F.text.startswith("/"),
 )
-async def save_prompt(message: Message, state: FSMContext) -> None:
+async def save_prompt(message: Message, state: FSMContext, database: Database) -> None:
     """Validates and saves the personal system prompt sent by the user."""
     if message.text is None or message.from_user is None:
         return
@@ -165,7 +165,7 @@ async def save_prompt(message: Message, state: FSMContext) -> None:
         )
         return
 
-    await db.set_system_prompt(message.from_user.id, prompt)
+    await database.set_system_prompt(message.from_user.id, prompt)
 
     await delete_prompt_messages(
         message,
@@ -181,16 +181,16 @@ async def save_prompt(message: Message, state: FSMContext) -> None:
     )
 
 
-async def reset_prompt(message: Message, state: FSMContext) -> None:
+async def reset_prompt(message: Message, state: FSMContext, database: Database) -> None:
     """Сбрасывает персональный промпт и очищает технические сообщения."""
     if message.from_user is None:
         return
 
     user_id = message.from_user.id
-    user_prompt = await db.get_user_system_prompt(user_id)
+    user_prompt = await database.get_user_system_prompt(user_id)
 
     if user_prompt is not None:
-        await db.delete_system_prompt(user_id)
+        await database.delete_system_prompt(user_id)
 
     await delete_prompt_messages(
         message,
@@ -215,9 +215,11 @@ async def reset_prompt(message: Message, state: FSMContext) -> None:
 
 
 @router.message(Command("prompt_reset"))
-async def cmd_prompt_reset(message: Message, state: FSMContext) -> None:
+async def cmd_prompt_reset(
+    message: Message, state: FSMContext, database: Database
+) -> None:
     """Resets the personal system prompt to the default one."""
-    await reset_prompt(message, state)
+    await reset_prompt(message, state, database)
 
 
 @router.message(Command("cancel"), PromptStates.waiting_for_prompt)

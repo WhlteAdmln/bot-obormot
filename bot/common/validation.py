@@ -3,13 +3,14 @@
 
 """Validation of user-provided text."""
 
+from bot.common.texts import INPUT_TOO_LONG_MESSAGE
 from bot.errors import InputTooLongError
 
 MAX_INPUT_TEXT_LENGTH = 12288
 
 
 def validate_input_text(text: str) -> None:
-    """Проверяет максимальную длину пользовательского текста."""
+    """Validate the maximum length of user-provided text."""
     if len(text) > MAX_INPUT_TEXT_LENGTH:
-        msg = f"Сообщение слишком длинное (максимум {MAX_INPUT_TEXT_LENGTH} символов)."
+        msg = INPUT_TOO_LONG_MESSAGE.format(max_length=MAX_INPUT_TEXT_LENGTH)
         raise InputTooLongError(msg)

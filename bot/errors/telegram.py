@@ -9,14 +9,14 @@ from bot.errors.base import AppError
 
 
 class TelegramError(AppError):
-    """Ошибка взаимодействия с Telegram."""
+    """An error occurred while interacting with Telegram."""
 
     code: ClassVar[str] = "telegram_error"
     public_message: ClassVar[str] = "Telegram operation failed"
 
 
 class TelegramFileTooBigError(TelegramError):
-    """Telegram не позволяет скачать файл из-за его размера."""
+    """Telegram does not allow downloading a file because of its size."""
 
     code: ClassVar[str] = "telegram_file_too_big"
     public_message: ClassVar[str] = "Telegram file is too big to download"

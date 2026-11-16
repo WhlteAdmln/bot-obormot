@@ -9,28 +9,28 @@ from bot.errors.base import AppError
 
 
 class LLMError(AppError):
-    """Ошибка взаимодействия с LLM."""
+    """An error occurred while interacting with the LLM."""
 
     code: ClassVar[str] = "llm_error"
     public_message: ClassVar[str] = "LLM request failed"
 
 
 class LLMUnavailableError(LLMError):
-    """LLM недоступна или не удалось установить соединение."""
+    """The LLM is unavailable or the connection could not be established."""
 
     code: ClassVar[str] = "llm_unavailable"
     public_message: ClassVar[str] = "LLM server is unavailable"
 
 
 class LLMTimeoutError(LLMError):
-    """Истекло время ожидания ответа LLM."""
+    """Timed out while waiting for an LLM response."""
 
     code: ClassVar[str] = "llm_timeout"
     public_message: ClassVar[str] = "LLM server timed out"
 
 
 class LLMAPIError(LLMError):
-    """LLM вернула ошибку API."""
+    """The LLM returned an API error."""
 
     code: ClassVar[str] = "llm_api_error"
     public_message: ClassVar[str] = "LLM server returned an error"

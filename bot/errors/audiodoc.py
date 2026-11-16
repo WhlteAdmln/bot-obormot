@@ -9,35 +9,35 @@ from bot.errors.base import AppError
 
 
 class AudiodocError(AppError):
-    """Ошибка распознавания аудио сервисом audiodoc."""
+    """Audio recognition failed in the audiodoc service."""
 
     code: ClassVar[str] = "audiodoc_error"
     public_message: ClassVar[str] = "Audio transcription failed"
 
 
 class AudiodocEmptyAudioError(AudiodocError):
-    """В аудио не удалось распознать речь."""
+    """No speech could be recognized in the audio."""
 
     code: ClassVar[str] = "audiodoc_empty_audio"
     public_message: ClassVar[str] = "No speech detected in audio"
 
 
 class AudiodocUnavailableError(AudiodocError):
-    """Сервис распознавания аудио недоступен."""
+    """The audio transcription service is unavailable."""
 
     code: ClassVar[str] = "audiodoc_unavailable"
     public_message: ClassVar[str] = "Audio transcription service is unavailable"
 
 
 class AudiodocTimeoutError(AudiodocError):
-    """Истекло время ожидания сервиса распознавания аудио."""
+    """Timed out while waiting for the audio transcription service."""
 
     code: ClassVar[str] = "audiodoc_timeout"
     public_message: ClassVar[str] = "Audio transcription timed out"
 
 
 class AudiodocAPIError(AudiodocError):
-    """Сервис распознавания аудио вернул ошибку API."""
+    """The audio transcription service returned an API error."""
 
     code: ClassVar[str] = "audiodoc_api_error"
     public_message: ClassVar[str] = "Audio transcription service returned an error"

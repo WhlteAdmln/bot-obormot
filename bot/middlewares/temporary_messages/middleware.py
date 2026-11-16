@@ -28,7 +28,7 @@ logger = logging.getLogger("bot.middlewares.temporary_messages.middleware")
 
 
 class TemporaryMessagesCleanupMiddleware(BaseMiddleware):
-    """Удаляет временные технические сообщения при следующем сообщении пользователя."""
+    """Delete temporary service messages when the user sends another message."""
 
     async def __call__(
         self,
@@ -56,13 +56,13 @@ class TemporaryMessagesCleanupMiddleware(BaseMiddleware):
             await state.get_state() == PromptStates.waiting_for_prompt.state
         )
 
-        # Во время ввода нового промпта сохраняем сообщения процесса.
-        # В остальных случаях очищаем результат /prompt и сообщения настройки.
+        # Preserve process messages while the user enters a new prompt.
+        # Otherwise, clear the /prompt result and setup messages.
         prompt_flow_ids: list[int] = []
         if not waiting_for_prompt:
             prompt_flow_ids = state_data.get(PROMPT_FLOW_KEY, [])
 
-        # Сначала удаляем ID из FSM, чтобы не пытаться удалить их повторно.
+        # Remove IDs from FSM first to avoid attempting to delete them again.
         updates: dict[str, Any] = {
             PROMPT_STATUS_MESSAGE_KEY: None,
             WELCOME_MESSAGE_KEY: None,
@@ -75,43 +75,43 @@ class TemporaryMessagesCleanupMiddleware(BaseMiddleware):
 
         await state.update_data(**updates)
 
-        # Удаляем временное уведомление.
+        # Delete the temporary notification.
         if status_message_id:
             await self._delete_message(
                 event,
                 status_message_id,
-                "временное уведомление",
+                "temporary notification",
             )
 
-        # Удаляем приветствие /start.
+        # Delete the /start welcome message.
         if welcome_message_id:
             await self._delete_message(
                 event,
                 welcome_message_id,
-                "приветствие start",
+                "start welcome message",
             )
 
-        # Удаляем команду и ответ на неизвестную команду.
+        # Delete the unknown command and its response.
         if unknown_command_id:
             await self._delete_message(
                 event,
                 unknown_command_id,
-                "неизвестную команду",
+                "unknown command",
             )
 
         if unknown_status_id:
             await self._delete_message(
                 event,
                 unknown_status_id,
-                "ответ на неизвестную команду",
+                "unknown command response",
             )
 
-        # Удаляем сообщения просмотра промпта или завершённого процесса настройки.
+        # Delete prompt viewing messages or messages from a completed setup flow.
         for message_id in sorted(set(prompt_flow_ids), reverse=True):
             await self._delete_message(
                 event,
                 message_id,
-                "сообщение процесса настройки промпта",
+                "prompt setup flow message",
             )
 
         return await handler(event, data)
@@ -130,7 +130,7 @@ class TemporaryMessagesCleanupMiddleware(BaseMiddleware):
             )
         except TelegramAPIError:
             logger.warning(
-                "Не удалось удалить %s %s в чате %s",
+                "Failed to delete %s %s in chat %s",
                 description,
                 message_id,
                 event.chat.id,

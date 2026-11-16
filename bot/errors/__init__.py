@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Публичные исключения сервисов бота."""
+"""Public exceptions raised by bot services."""
 
 from bot.errors.audiodoc import (
     AudiodocAPIError,

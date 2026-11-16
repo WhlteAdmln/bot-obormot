@@ -13,11 +13,11 @@ def load_default_system_prompt() -> str:
     try:
         prompt = prompt_path.read_text(encoding="utf-8").strip()
     except FileNotFoundError as error:
-        msg = f"Файл системного промпта не найден: {prompt_path}"
+        msg = f"System prompt file not found: {prompt_path}"
         raise RuntimeError(msg) from error
 
     if not prompt:
-        msg = f"Файл системного промпта пуст: {prompt_path}"
+        msg = f"System prompt file is empty: {prompt_path}"
         raise ValueError(msg)
 
     return prompt

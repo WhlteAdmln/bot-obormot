@@ -11,15 +11,16 @@ from aiogram.enums import ChatType
 from aiogram.types import TelegramObject
 
 from bot.middlewares.aliases import MiddlewareData, NextHandler
+from bot.middlewares.texts import ACCESS_DENIED_MESSAGE
 from bot.services.access import user_has_access
 
 if TYPE_CHECKING:
     from bot.services.database import Database
     from bot.settings import Settings
 
-# Как часто можно повторять один и тот же отказ одному человеку.
+# Minimum interval between denial notices sent to the same user.
 DENY_NOTICE_INTERVAL = 60.0
-# Предел размера таблицы «кому уже отказали» (защита памяти от спама).
+# Maximum size of the denied-user table to prevent excessive memory use.
 MAX_TRACKED_DENIED = 5000
 
 
@@ -39,13 +40,13 @@ class AccessMiddleware(BaseMiddleware):
         """Passes the event on only when the sender is allowed to use the bot."""
         user = data.get("event_from_user")
 
-        # Нет отправителя: не обрабатываем событие.
+        # Do not process events without a sender.
         if user is None:
             return None
 
-        # Бот работает только в личных чатах.
-        # История и системный промпт привязаны к пользователю, а не к чату,
-        # поэтому в группе они могли бы раскрыться посторонним.
+        # The bot operates only in private chats.
+        # History and the system prompt belong to the user, not the chat,
+        # so processing group messages could expose them to other people.
         chat = data.get("event_chat")
 
         if chat is not None and chat.type != ChatType.PRIVATE:
@@ -80,4 +81,4 @@ class AccessMiddleware(BaseMiddleware):
         self._last_denied_notice[user_id] = now
 
         if hasattr(event, "answer"):
-            await event.answer("⛔ У тебя нет доступа к этому боту.")
+            await event.answer(ACCESS_DENIED_MESSAGE)

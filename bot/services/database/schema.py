@@ -1,13 +1,13 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Создание таблиц и индексов SQLite."""
+"""Create SQLite tables and indexes."""
 
 import aiosqlite
 
 
 async def create_schema(connection: aiosqlite.Connection) -> None:
-    """Создаёт структуру БД, если она ещё не существует."""
+    """Create the database schema if it does not already exist."""
     await connection.execute("""
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,8 +38,8 @@ async def create_schema(connection: aiosqlite.Connection) -> None:
         )
     """)
 
-    # Обычные администраторы.
-    # Supervisor в этой таблице не хранится.
+    # Regular administrators.
+    # The supervisor is not stored in this table.
     await connection.execute("""
         CREATE TABLE IF NOT EXISTS admins (
             user_id INTEGER PRIMARY KEY,
@@ -47,7 +47,7 @@ async def create_schema(connection: aiosqlite.Connection) -> None:
         )
     """)
 
-    # История выполненных миграций.
+    # Migration history.
     await connection.execute("""
         CREATE TABLE IF NOT EXISTS app_migrations (
             name TEXT PRIMARY KEY,

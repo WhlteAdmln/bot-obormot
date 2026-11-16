@@ -13,7 +13,7 @@ logger = logging.getLogger("bot.services.chat.incoming_log")
 
 
 def log_incoming_message(message: Message) -> None:
-    """Записывает информацию о входящем сообщении."""
+    """Log information about an incoming message."""
     logger.info(
         "INCOMING MESSAGE: type=%s, animation=%s, video=%s, "
         "document=%s, sticker=%s, photo=%s",

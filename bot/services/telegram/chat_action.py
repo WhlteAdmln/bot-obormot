@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Вспомогательные действия Telegram во время обработки запроса."""
+"""Telegram chat actions used while processing requests."""
 
 import asyncio
 from typing import TYPE_CHECKING, cast
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 async def keep_typing(message: Message) -> None:
-    """Поддерживает статус «печатает...» во время обработки сообщения."""
+    """Keep the typing status active while processing a message."""
     bot = cast("Bot", message.bot)
     async with ChatActionSender.typing(
         bot=bot,

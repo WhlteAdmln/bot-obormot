@@ -104,17 +104,14 @@ def split_formatted_message(
 ) -> list[str]:
     """Splits Telegram HTML into parts without breaking tags or entities.
 
-    Разбивает Telegram HTML на части, не разрывая HTML-теги
-    и символьные сущности.
-
-    Открытые теги закрываются в конце части и повторно
-    открываются в начале следующей.
+    Open tags are closed at the end of each part and reopened at the start
+    of the next part.
     """
     if not text:
         return []
 
     if max_length < 1:
-        msg = "max_length должен быть больше нуля."
+        msg = "max_length must be greater than zero."
         raise ValueError(msg)
 
     return _FormattedMessageSplitter(text, max_length).split()

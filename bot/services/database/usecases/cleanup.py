@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Сценарий очистки старых и осиротевших изображений."""
+"""Cleanup of old and orphaned images."""
 
 import asyncio
 import logging
@@ -23,10 +23,10 @@ from bot.services.database.repositories import media as media_repository
 
 def _validate_cleanup_options(retention_days: int, orphan_grace_hours: int) -> None:
     if retention_days < 1:
-        msg = "retention_days должен быть не меньше 1."
+        msg = "retention_days must be at least 1."
         raise ValueError(msg)
     if orphan_grace_hours < 1:
-        msg = "orphan_grace_hours должен быть не меньше 1."
+        msg = "orphan_grace_hours must be at least 1."
         raise ValueError(msg)
 
 
@@ -132,9 +132,9 @@ async def cleanup_old_images(
     logger: logging.Logger,
     delete_image_file: Callable[[Path], None] = delete_image,
 ) -> dict[str, int]:
-    """Удаляет старые изображения и файлы без ссылок в БД.
+    """Delete old images and files without database references.
 
-    Текстовые сообщения сохраняются, а файлы вне images_dir не затрагиваются.
+    Text messages are preserved, and files outside images_dir are left untouched.
     """
     _validate_cleanup_options(retention_days, orphan_grace_hours)
     old_paths, referenced_paths, resolved_images_dir = await _load_cleanup_targets(

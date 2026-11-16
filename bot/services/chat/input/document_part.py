@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Скачивание и извлечение текста из документов."""
+"""Download documents and extract their text."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ async def prepare_document(
     document_processor: Callable[..., Awaitable[dict[str, Any]]] | None = None,
     settings: Settings | None = None,
 ) -> tuple[str, str]:
-    """Скачивает документ и получает извлечённый текст."""
+    """Download a document and retrieve its extracted text."""
     if settings is None:
         settings = get_settings()
 
@@ -43,7 +43,7 @@ async def prepare_document(
     document = cast("Document", info.document)
 
     logger.info(
-        "DOCUMENT: начинаю скачивание: %s",
+        "DOCUMENT: starting download: %s",
         log_safe(document.file_name),
     )
 
@@ -53,7 +53,7 @@ async def prepare_document(
     )
 
     logger.info(
-        "DOCUMENT: файл скачан, размер: %s байт",
+        "DOCUMENT: file downloaded, size: %s bytes",
         len(document_data),
     )
 
@@ -82,7 +82,7 @@ async def prepare_document(
         )
 
     logger.info(
-        "DOCUMENT: обработка завершена, формат=%s, символов=%s",
+        "DOCUMENT: processing completed, format=%s, characters=%s",
         document_format,
         len(document_text),
     )

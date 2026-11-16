@@ -21,6 +21,10 @@ from bot.services.media.animation.limits import (
     MAX_VIDEO_PIXELS,
     PROCESS_TIMEOUT,
 )
+from bot.services.media.texts import (
+    UNSUPPORTED_VIDEO_FORMAT,
+    VIDEO_RESOLUTION_TOO_LARGE,
+)
 
 # Minimum number of header bytes needed to see the MP4 "ftyp" marker.
 _MIN_MP4_HEAD_LENGTH = 8
@@ -40,18 +44,18 @@ def _command_environment(name: str) -> dict[str, str]:
 
 
 def _check_container(data: bytes) -> None:
-    """Отклоняет данные, которые не похожи на контейнер WEBM или MP4."""
+    """Reject data that does not resemble a WEBM or MP4 container."""
     head = data[:12]
     is_webm = head[:4] == b"\x1a\x45\xdf\xa3"
     is_mp4 = len(head) >= _MIN_MP4_HEAD_LENGTH and head[4:8] == b"ftyp"
 
     if not (is_webm or is_mp4):
-        msg = "Неподдерживаемый формат видео."
+        msg = UNSUPPORTED_VIDEO_FORMAT
         raise MediaError(msg)
 
 
 def _probe_dimensions(working_directory: Path) -> tuple[int, int]:
-    """Определяет размер первого видеопотока без разрешения сетевых протоколов."""
+    """Determine first-stream dimensions without enabling network protocols."""
     result = subprocess.run(
         [
             "/usr/bin/env",
@@ -96,7 +100,7 @@ def _probe_dimensions(working_directory: Path) -> tuple[int, int]:
 
 
 def extract_video(data: bytes) -> list[bytes]:
-    """Извлекает ограниченное число кадров из WEBM или MP4."""
+    """Extract a limited number of frames from a WEBM or MP4 video."""
     _check_container(data)
 
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -145,7 +149,7 @@ def extract_video(data: bytes) -> list[bytes]:
         width, height = _probe_dimensions(working_directory)
 
         if width * height > MAX_VIDEO_PIXELS:
-            msg = "Разрешение исходного видео слишком большое."
+            msg = VIDEO_RESOLUTION_TOO_LARGE
             raise MediaError(msg)
 
         duration = min(duration, MAX_DURATION)

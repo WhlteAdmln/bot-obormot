@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Нормализация сообщений и подготовка мультимодального содержимого."""
+"""Normalize messages and prepare multimodal content."""
 
 import json
 import re
@@ -27,7 +27,7 @@ _CONTROL_RE = re.compile(
 
 
 def neutralize_control_tokens(text: str) -> str:
-    """Вставляет невидимый символ, чтобы служебная строка стала обычным текстом."""
+    """Insert an invisible character to turn control strings into plain text."""
     return _CONTROL_RE.sub(
         lambda match: match.group(0).replace("<", "<\u200b").replace("[", "[\u200b"),
         text,
@@ -59,7 +59,7 @@ def _neutralize_content(content: object) -> object:
 
 
 def normalize_content(content: object) -> str | list[Any]:
-    """Приводит content к допустимому формату API: строка или список частей."""
+    """Convert content to a valid API format: a string or a list of parts."""
     if content is None:
         return ""
 
@@ -82,7 +82,7 @@ def normalize_content(content: object) -> str | list[Any]:
 
 
 def normalize_messages(messages: Sequence[object]) -> list[dict[str, Any]]:
-    """Проверяет структуру сообщений перед отправкой в API."""
+    """Validate message structures before sending them to the API."""
     normalized: list[dict[str, Any]] = []
 
     for index, message in enumerate(messages):
@@ -108,7 +108,7 @@ def normalize_messages(messages: Sequence[object]) -> list[dict[str, Any]]:
 def prepare_messages_for_count(
     messages: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Убирает base64-данные изображений при подсчёте текстовых токенов."""
+    """Remove image base64 data when counting text tokens."""
     prepared = []
 
     for message in messages:
@@ -141,7 +141,7 @@ def prepare_messages_for_count(
 
 
 def count_images(messages: list[dict[str, Any]]) -> int:
-    """Считает image_url-части во всех сообщениях."""
+    """Count image_url parts across all messages."""
     count = 0
 
     for message in messages:

@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Получение и кеширование размера контекстного окна модели."""
+"""Retrieve and cache the model context window size."""
 
 import logging
 from http import HTTPStatus
@@ -26,7 +26,7 @@ _CONTEXT_FIELDS = (
 
 
 class ContextSizeClient(Protocol):
-    """Минимальный интерфейс клиента для определения размера контекста."""
+    """Minimal client interface for determining the context size."""
 
     @property
     def settings(self) -> Settings:
@@ -57,7 +57,7 @@ def _positive_int(value: object) -> int | None:
 
 
 def _extract_context_size(data: dict[str, Any]) -> int | None:
-    """Извлекает известные поля контекста из ответа сервера."""
+    """Extract known context fields from the server response."""
     for field in _CONTEXT_FIELDS:
         value = _positive_int(data.get(field))
         if value is not None:
@@ -92,7 +92,7 @@ def _models_payload_context(data: dict[str, Any], model_name: str) -> int | None
 
 
 async def get_context_size(client: ContextSizeClient) -> int:
-    """Возвращает контекст: настройка, llama.cpp /props, затем OpenAI /models."""
+    """Return the context size from settings, llama.cpp /props, or OpenAI /models."""
     settings = client.settings
     configured_size = settings.LLM_CONTEXT_SIZE
     if configured_size is not None:
@@ -101,7 +101,7 @@ async def get_context_size(client: ContextSizeClient) -> int:
 
     session = await client.get_session()
 
-    # /props — необязательное расширение llama.cpp, а не обязательная часть API.
+    # /props is an optional llama.cpp extension, not a required part of the API.
     try:
         async with session.get(
             f"{client.get_server_url()}/props",
@@ -127,8 +127,9 @@ async def get_context_size(client: ContextSizeClient) -> int:
     except (TimeoutError, aiohttp.ClientError) as error:
         logger.debug("Optional /props endpoint unavailable: %s", type(error).__name__)
 
-    # Некоторые серверы (например, отдельные сборки vLLM) добавляют max_model_len
-    # в карточку модели. Поле не стандартизировано OpenAI API, поэтому это best effort.
+    # Some servers, such as certain vLLM builds, add max_model_len
+    # to the model card. This field is not standardized by the OpenAI API,
+    # so this lookup is best effort.
     try:
         async with session.get(
             f"{settings.LLM_BASE_URL}/models",
@@ -154,5 +155,5 @@ async def get_context_size(client: ContextSizeClient) -> int:
             type(error).__name__,
         )
 
-    msg = "Не удалось определить размер контекста. Задайте LLM_CONTEXT_SIZE в .env"
+    msg = "Could not determine the context size. Set LLM_CONTEXT_SIZE in .env"
     raise LLMUnavailableError(msg)

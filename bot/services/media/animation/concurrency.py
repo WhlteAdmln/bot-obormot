@@ -17,7 +17,7 @@ async def extract_with_limit(
     extractor: Callable[[bytes, str], list[bytes]],
     semaphore: asyncio.Semaphore | None = None,
 ) -> list[bytes]:
-    """Ограничивает число одновременно выполняемых обработок анимаций."""
+    """Limit the number of concurrently processed animations."""
     active_semaphore = semaphore or _animation_semaphore
 
     async with active_semaphore:
@@ -27,9 +27,9 @@ async def extract_with_limit(
             return await asyncio.shield(task)
 
         except asyncio.CancelledError:
-            # Отмена await не останавливает уже запущенный поток.
-            # Дожидаемся его завершения, чтобы не освободить семафор
-            # раньше фактического завершения обработки.
+            # Cancelling the await does not stop the already running thread.
+            # Wait for it to finish so the semaphore is not released
+            # before processing has actually completed.
             try:
                 await task
             finally:

@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Сборка содержимого входящего сообщения для LLM."""
+"""Build incoming message content for the LLM."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from bot.common.validation import MAX_INPUT_TEXT_LENGTH, validate_input_text
 from bot.errors import DocumentTooLongError
+from bot.services.chat.input import texts
 from bot.services.media import get_user_content
 
 if TYPE_CHECKING:
@@ -27,15 +28,16 @@ def build_user_content(
     image_urls: list[str] | None,
     document_text: str | None,
 ) -> str | list[dict[str, Any]] | None:
-    """Формирует текстовое или мультимодальное содержимое для LLM."""
+    """Build text or multimodal content for the LLM."""
     user_content: str | list[dict[str, Any]] | None
 
     if info.has_audio:
         user_content = transcribed_text
 
         if message.caption:
-            user_content = (
-                f"{message.caption}\n\n[Распознанная речь]: {transcribed_text}"
+            user_content = texts.RECOGNIZED_SPEECH_TEMPLATE.format(
+                caption=message.caption,
+                transcribed_text=transcribed_text,
             )
 
     elif info.has_media:
@@ -51,7 +53,10 @@ def build_user_content(
         raw_name = document.file_name or "document"
         safe_name = re.sub(r"[\r\n\[\]]+", " ", raw_name)[:100]
 
-        user_content = f"[Содержимое документа: {safe_name}]\n\n{document_text}"
+        user_content = texts.DOCUMENT_CONTENT_TEMPLATE.format(
+            filename=safe_name,
+            document_text=document_text,
+        )
 
         if message.caption:
             user_content = f"{message.caption}\n\n{user_content}"

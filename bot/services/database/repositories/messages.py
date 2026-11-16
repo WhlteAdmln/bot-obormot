@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Репозиторий сообщений и выборок истории."""
+"""Repository for messages and history queries."""
 
 import sqlite3
 from collections.abc import Iterable
@@ -17,7 +17,7 @@ async def add_message(
     role: str,
     content: str,
 ) -> None:
-    """Добавляет отдельное сообщение и фиксирует изменение."""
+    """Add an individual message and commit the change."""
     await connection.execute(
         """
         INSERT INTO messages(user_id, role, content)
@@ -34,7 +34,7 @@ async def fetch_history_rows(
     exchange_limit: int,
     max_images: int,
 ) -> Iterable[sqlite3.Row]:
-    """Возвращает строки полных обменов и связанные изображения."""
+    """Return rows for complete exchanges and their associated images."""
     cursor = await connection.execute(
         HISTORY_WITH_MEDIA,
         (user_id, exchange_limit, max_images),
@@ -46,7 +46,7 @@ async def fetch_user_media_paths(
     connection: aiosqlite.Connection,
     user_id: int,
 ) -> Iterable[sqlite3.Row]:
-    """Возвращает пути изображений, связанных с сообщениями пользователя."""
+    """Return image paths associated with the user's messages."""
     cursor = await connection.execute(
         """
         SELECT mm.file_path
@@ -63,7 +63,7 @@ async def delete_user_messages(
     connection: aiosqlite.Connection,
     user_id: int,
 ) -> None:
-    """Удаляет сообщения пользователя и фиксирует изменение."""
+    """Delete the user's messages and commit the change."""
     await connection.execute(
         "DELETE FROM messages WHERE user_id = ?",
         (user_id,),
@@ -76,7 +76,7 @@ async def prune_user_history(
     user_id: int,
     keep_last_messages: int,
 ) -> list[str]:
-    """Удаляет самые старые сообщения пользователя. Возвращает пути их картинок."""
+    """Delete the user's oldest messages and return their image paths."""
     cursor = await connection.execute(
         """
         SELECT mm.file_path

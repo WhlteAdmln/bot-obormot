@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Финальная доставка полного ответа Telegram-пользователю."""
+"""Final delivery of the complete response to the Telegram user."""
 
 import logging
 from collections.abc import Awaitable, Callable
@@ -41,7 +41,7 @@ async def deliver_final_response(
     *,
     options: DeliveryOptions = _DEFAULT_DELIVERY_OPTIONS,
 ) -> None:
-    """Форматирует и доставляет итоговый ответ с прежним fallback-поведением."""
+    """Format and deliver the final response with the existing fallback behavior."""
     formatted_response = options.formatter(response)
     response_chunks = options.splitter(
         formatted_response,
@@ -51,7 +51,7 @@ async def deliver_final_response(
     if not response_chunks:
         return
 
-    # Если streaming не запускался, отправляем ответ целиком.
+    # Send the complete response when streaming was not started.
     if status is None:
         for chunk in response_chunks:
             await message.answer(
@@ -60,14 +60,14 @@ async def deliver_final_response(
             )
         return
 
-    # Обновляем последнее потоковое сообщение окончательным текстом.
+    # Replace the last streaming message with the final text.
     try:
         await safe_edit(
             status,
             response_chunks[0],
         )
 
-        # Остальные части отправляем отдельными сообщениями.
+        # Send the remaining chunks as separate messages.
         for chunk in response_chunks[1:]:
             await message.answer(
                 chunk,
@@ -82,7 +82,7 @@ async def deliver_final_response(
             exc_info=True,
         )
 
-        # Резервный вариант: отправляем полный ответ.
+        # Fallback: send the complete response.
         for chunk in response_chunks:
             await message.answer(
                 chunk,

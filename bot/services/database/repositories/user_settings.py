@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Репозиторий персональных системных промптов."""
+"""Repository for personal system prompts."""
 
 import aiosqlite
 

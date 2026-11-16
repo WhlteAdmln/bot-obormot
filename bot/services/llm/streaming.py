@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Потоковая генерация через OpenAI-compatible API."""
+"""Stream generation through the OpenAI-compatible API."""
 
 import json
 import logging
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 class StreamingClient(Protocol):
-    """Минимальный интерфейс клиента для потоковой генерации."""
+    """Minimal client interface for streaming generation."""
 
     @property
     def settings(self) -> Settings:
@@ -42,7 +42,7 @@ async def stream_unlimited(
     client: StreamingClient,
     messages: list[dict[str, Any]],
 ) -> AsyncIterator[str]:
-    """Получает потоковые фрагменты ответа без управления semaphore."""
+    """Yield response chunks without semaphore management."""
     settings = client.settings
     url = f"{settings.LLM_BASE_URL.rstrip('/')}/chat/completions"
     normalized_messages = client.normalize_messages(messages)

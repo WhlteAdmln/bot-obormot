@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Логирование ошибок чата и отправка ответа пользователю."""
+"""Log chat errors and send a response to the user."""
 
 import logging
 
@@ -36,7 +36,7 @@ def _log_rule_error(rule: ChatErrorRule, error: Exception, user_id: int) -> None
 async def handle_chat_error(
     message: Message, status: Message | None, user_id: int, error: Exception
 ) -> None:
-    """Логирует ошибку обработки сообщения и уведомляет пользователя."""
+    """Log a message-processing error and notify the user."""
     for rule in CHAT_ERROR_RULES:
         if isinstance(error, rule.error_type):
             _log_rule_error(rule, error, user_id)

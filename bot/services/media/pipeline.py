@@ -44,14 +44,14 @@ _DEFAULT_MEDIA_PIPELINE_OPTIONS: MediaPipelineOptions = MediaPipelineOptions()
 
 
 async def _run_limited(func: Callable[..., _T], *args: object) -> _T:
-    """Выполняет тяжёлую обработку изображения не более чем в N потоках."""
+    """Run CPU-intensive image processing in at most N threads."""
     async with _image_jobs:
         task = asyncio.create_task(asyncio.to_thread(func, *args))
 
         try:
             return await asyncio.shield(task)
         except asyncio.CancelledError:
-            # Поток нельзя отменить: не освобождаем слот, пока он работает.
+            # A thread cannot be cancelled; keep the slot occupied while it runs.
             try:
                 await task
             finally:
@@ -72,7 +72,7 @@ async def process_media(
     *,
     options: MediaPipelineOptions = _DEFAULT_MEDIA_PIPELINE_OPTIONS,
 ) -> list[str]:
-    """Скачивает и преобразует медиа в изображения для LLM."""
+    """Download and convert media into images for the LLM."""
     data = await options.downloader(message, file_id)
     verify_declared_type(data, media_type)
 
@@ -83,8 +83,8 @@ async def process_media(
         frames = await options.animation_extractor(data, media_type)
         _ensure_frames(frames)
 
-        # Передаём Vision-модели один монтаж с нумерованными кадрами,
-        # а не несколько независимых image_url-частей.
+        # Send the Vision model one contact sheet with numbered frames,
+        # rather than several independent image_url parts.
         contact_sheet = await _run_limited(options.contact_sheet_builder, frames)
         prepared_image = await _run_limited(options.image_preparer, contact_sheet)
 

@@ -10,18 +10,16 @@ from PIL import Image, ImageOps
 
 from bot.errors import MediaError
 from bot.services.media.limits import MAX_IMAGE_DIMENSION, MAX_IMAGE_PIXELS
+from bot.services.media.texts import IMAGE_RESOLUTION_TOO_LARGE
 
 
 def prepare_image(image_data: bytes) -> str:
-    """Преобразует изображение в JPEG Base64."""
+    """Convert an image to Base64-encoded JPEG."""
     with Image.open(io.BytesIO(image_data)) as source:
         width, height = source.size
 
         if width * height > MAX_IMAGE_PIXELS:
-            msg = (
-                "Изображение имеет слишком большое разрешение "
-                "(максимум 40 миллионов пикселей)."
-            )
+            msg = IMAGE_RESOLUTION_TOO_LARGE
             raise MediaError(msg)
 
         image = ImageOps.exif_transpose(source)

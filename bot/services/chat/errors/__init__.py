@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Обработка и доставка сообщений об ошибках."""
+"""Chat error handling and delivery."""
 
 from bot.services.chat.errors.handler import handle_chat_error
 

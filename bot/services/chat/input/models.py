@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Модели данных для подготовки входящего сообщения."""
+"""Data models for incoming message preparation."""
 
 from __future__ import annotations
 

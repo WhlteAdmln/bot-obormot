@@ -102,10 +102,10 @@ async def test_set_and_delete_history_limit(test_db: Database) -> None:
 @pytest.mark.asyncio
 async def test_history_limit_rejects_invalid_values(test_db: Database) -> None:
     """History limit rejects invalid values."""
-    with pytest.raises(ValueError, match="Недопустимый лимит истории"):
+    with pytest.raises(ValueError, match="Invalid history limit"):
         await test_db.set_history_limit(USER_ID, 0)
 
-    with pytest.raises(ValueError, match="Недопустимый лимит истории"):
+    with pytest.raises(ValueError, match="Invalid history limit"):
         await test_db.set_history_limit(
             USER_ID,
             test_db.settings.MAX_HISTORY_EXCHANGES + 1,

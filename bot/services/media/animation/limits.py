@@ -9,4 +9,4 @@ MAX_DURATION = 30
 PROCESS_TIMEOUT = 30
 MAX_CONCURRENT_ANIMATIONS = 2
 
-MAX_VIDEO_PIXELS = 3840 * 2160  # Максимум 4K по числу пикселей исходного кадра
+MAX_VIDEO_PIXELS = 3840 * 2160  # Maximum 4K pixel count for the original frame.

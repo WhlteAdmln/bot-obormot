@@ -1,9 +1,13 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Определение фактического типа медиа по сигнатуре содержимого."""
+"""Detect the actual media type from the content signature."""
 
 from bot.errors import MediaError
+from bot.services.media.texts import (
+    MEDIA_TYPE_MISMATCH,
+    UNSUPPORTED_OR_DAMAGED_MEDIA_FILE,
+)
 
 VIDEO_TYPES = {"webm", "mp4", "video"}
 # Length of the ISO BMFF header (size + "ftyp" + brand) and of the RIFF header.
@@ -11,11 +15,11 @@ _MIN_HEADER_LENGTH = 12
 
 
 def sniff_media_type(data: bytes) -> str | None:
-    """Определяет поддерживаемый тип медиа по сигнатуре в начале файла."""
+    """Detect a supported media type from the file's leading signature."""
     if data[:6] in (b"GIF87a", b"GIF89a"):
         return "gif"
 
-    # TGS — gzip-сжатый JSON. Полную проверку потока выполняет validate_tgs.
+    # TGS is gzip-compressed JSON. validate_tgs performs full stream validation.
     if data[:2] == b"\x1f\x8b":
         return "tgs"
 
@@ -42,15 +46,15 @@ def sniff_media_type(data: bytes) -> str | None:
 
 
 def verify_declared_type(data: bytes, declared: str) -> None:
-    """Отклоняет файл, сигнатура которого не соответствует заявленному типу."""
+    """Reject a file whose signature does not match its declared media type."""
     actual = sniff_media_type(data)
 
     if actual is None:
-        msg = "Неподдерживаемый или повреждённый файл."
+        msg = UNSUPPORTED_OR_DAMAGED_MEDIA_FILE
         raise MediaError(msg)
 
     same_video_family = declared in VIDEO_TYPES and actual in VIDEO_TYPES
 
     if actual != declared and not same_video_family:
-        msg = "Тип файла не совпадает с его содержимым."
+        msg = MEDIA_TYPE_MISMATCH
         raise MediaError(msg)

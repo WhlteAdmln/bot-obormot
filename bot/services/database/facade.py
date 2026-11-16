@@ -51,9 +51,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Максимум медиа-сообщений в истории; все кадры сообщения загружаются вместе.
+# Maximum number of media messages in history; all frames are loaded together.
 MAX_HISTORY_MEDIA_MESSAGES = 3
-# Старое имя оставлено для совместимости с публичными импортами.
+# Keep the old name for compatibility with public imports.
 MAX_HISTORY_IMAGES = MAX_HISTORY_MEDIA_MESSAGES
 
 
@@ -67,7 +67,7 @@ class Database:
 
         self.images_dir = Path(settings.DATABASE_PATH).resolve().parent / "images"
 
-        # Защищает общее SQLite-соединение от конкурентного использования.
+        # Protect the shared SQLite connection from concurrent access.
         self._lock = asyncio.Lock()
 
     async def __aenter__(self) -> Self:
@@ -101,7 +101,7 @@ class Database:
 
     @handle_database_errors
     async def connect(self) -> None:
-        """Создаёт подключение, таблицы и выполняет миграции."""
+        """Create the connection, tables, and run migrations."""
         Path(self.settings.DATABASE_PATH).parent.mkdir(
             parents=True,
             exist_ok=True,
@@ -124,14 +124,14 @@ class Database:
 
     @handle_database_errors
     async def close(self) -> None:
-        """Закрывает соединение с базой данных."""
+        """Close the database connection."""
         if self.connection:
             await self.connection.close()
             self.connection = None
 
     @handle_database_errors
     async def health_check(self) -> bool:
-        """Проверяет доступность SQLite."""
+        """Check SQLite availability."""
         if self.connection is None:
             msg = "Database connection is not initialized"
             raise DatabaseError(msg)
@@ -148,7 +148,7 @@ class Database:
         role: str,
         content: str,
     ) -> None:
-        """Добавляет отдельное сообщение в историю."""
+        """Add an individual message to history."""
         await messages_repository.add_message(
             self._conn,
             user_id,
@@ -163,7 +163,7 @@ class Database:
         assistant_text: str,
         media: list[bytes] | None = None,
     ) -> None:
-        """Атомарно сохраняет обмен сообщениями и изображения."""
+        """Atomically save a message exchange and its images."""
         await exchange_usecase.add_exchange(
             exchange_usecase.ExchangeContext(
                 connection=self._conn,
@@ -179,7 +179,7 @@ class Database:
 
     @handle_database_errors
     async def prune_history(self, user_id: int) -> None:
-        """Ограничивает число хранимых сообщений пользователя."""
+        """Limit the number of stored messages for a user."""
         paths = await messages_repository.prune_user_history(
             self._conn,
             user_id,
@@ -198,7 +198,7 @@ class Database:
         limit: int | None = None,
         max_images: int = MAX_HISTORY_MEDIA_MESSAGES,
     ) -> list[dict[str, Any]]:
-        """Загружает последние полные обмены пользователя."""
+        """Load the most recent complete exchanges for a user."""
         return await get_history_usecase(
             self._conn,
             user_id,
@@ -214,7 +214,7 @@ class Database:
         retention_days: int = 30,
         orphan_grace_hours: int = 24,
     ) -> dict[str, int]:
-        """Удаляет старые изображения и файлы, не связанные с БД."""
+        """Delete old images and files that are not associated with the database."""
         return await cleanup_old_images_usecase(
             self._conn,
             self.images_dir,
@@ -226,7 +226,7 @@ class Database:
 
     @handle_database_errors
     async def reset_history(self, user_id: int) -> None:
-        """Удаляет историю пользователя и связанные изображения."""
+        """Delete a user's history and associated images."""
         await reset_history_usecase(
             self._conn,
             user_id,
@@ -237,9 +237,9 @@ class Database:
 
     @handle_database_errors
     async def forget_user(self, user_id: int) -> None:
-        """Удаляет историю, персональный промпт и индивидуальный лимит пользователя."""
-        # Вызываем use case и репозитории напрямую: вложенные методы фасада
-        # повторно захватили бы тот же asyncio.Lock.
+        """Delete a user's history, personal prompt, and individual limit."""
+        # Call the use case and repositories directly because nested facade
+        # methods would attempt to acquire the same asyncio.Lock again.
         await reset_history_usecase(
             self._conn,
             user_id,
@@ -258,7 +258,7 @@ class Database:
 
     @handle_database_errors
     async def get_system_prompt(self, user_id: int) -> str:
-        """Возвращает персональный промпт или стандартный системный промпт."""
+        """Return the personal prompt or the default system prompt."""
         prompt = await user_settings_repository.get_system_prompt(
             self._conn,
             user_id,
@@ -267,7 +267,7 @@ class Database:
 
     @handle_database_errors
     async def get_user_system_prompt(self, user_id: int) -> str | None:
-        """Возвращает персональный промпт пользователя или None."""
+        """Return the user's personal prompt or None."""
         return await user_settings_repository.get_system_prompt(
             self._conn,
             user_id,
@@ -275,7 +275,7 @@ class Database:
 
     @handle_database_errors
     async def delete_system_prompt(self, user_id: int) -> None:
-        """Удаляет персональный системный промпт пользователя."""
+        """Delete the user's personal system prompt."""
         await user_settings_repository.delete_system_prompt(
             self._conn,
             user_id,
@@ -287,7 +287,7 @@ class Database:
         user_id: int,
         prompt: str,
     ) -> None:
-        """Сохраняет персональный системный промпт пользователя."""
+        """Save the user's personal system prompt."""
         await user_settings_repository.set_system_prompt(
             self._conn,
             user_id,
@@ -296,7 +296,7 @@ class Database:
 
     @handle_database_errors
     async def get_history_limit(self, user_id: int) -> int:
-        """Возвращает индивидуальный лимит или стандартное значение."""
+        """Return the individual history limit or the default value."""
         exchange_limit = await history_limits_repository.get_history_limit(
             self._conn,
             user_id,
@@ -313,9 +313,9 @@ class Database:
         user_id: int,
         exchange_limit: int,
     ) -> None:
-        """Устанавливает индивидуальный лимит истории."""
+        """Set the individual history limit."""
         if not 1 <= exchange_limit <= self.settings.MAX_HISTORY_EXCHANGES:
-            msg = "Недопустимый лимит истории."
+            msg = "Invalid history limit."
             raise ValueError(msg)
 
         await history_limits_repository.set_history_limit(
@@ -326,24 +326,24 @@ class Database:
 
     @handle_database_errors
     async def delete_history_limit(self, user_id: int) -> None:
-        """Удаляет индивидуальный лимит истории."""
+        """Delete the individual history limit."""
         await history_limits_repository.delete_history_limit(
             self._conn,
             user_id,
         )
 
     # --------------------------------------------------
-    # Управление администраторами
+    # Administrator management
     # --------------------------------------------------
 
     @handle_database_errors
     async def get_admin_ids(self) -> set[int]:
-        """Возвращает ID обычных администраторов из SQLite."""
+        """Return the IDs of regular administrators from SQLite."""
         return await admins_repository.get_admin_ids(self._conn)
 
     @handle_database_errors
     async def add_admin(self, user_id: int) -> bool:
-        """Добавляет обычного администратора."""
+        """Add a regular administrator."""
         if user_id == self.settings.SUPERVISOR_ID:
             return False
 
@@ -354,7 +354,7 @@ class Database:
 
     @handle_database_errors
     async def remove_admin(self, user_id: int) -> bool:
-        """Удаляет обычного администратора."""
+        """Remove a regular administrator."""
         if user_id == self.settings.SUPERVISOR_ID:
             return False
 
@@ -364,24 +364,24 @@ class Database:
         )
 
     # --------------------------------------------------
-    # Блокировка пользователей
+    # User blocking
     # --------------------------------------------------
 
     @handle_database_errors
     async def get_blocked_ids(self) -> set[int]:
-        """Возвращает ID заблокированных пользователей."""
+        """Return the IDs of blocked users."""
         return await blocked_users_repository.get_blocked_ids(self._conn)
 
     @handle_database_errors
     async def block_user(self, user_id: int) -> bool:
-        """Блокирует пользователя, кроме Supervisor."""
+        """Block a user, except for the supervisor."""
         if user_id == self.settings.SUPERVISOR_ID:
             return False
         return await blocked_users_repository.block_user(self._conn, user_id)
 
     @handle_database_errors
     async def unblock_user(self, user_id: int) -> bool:
-        """Снимает блокировку с пользователя."""
+        """Unblock a user."""
         return await blocked_users_repository.unblock_user(self._conn, user_id)
 
 

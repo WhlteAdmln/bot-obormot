@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Подсчёт токенов: llama.cpp или консервативная оценка."""
+"""Token counting: llama.cpp or a conservative estimate."""
 
 import logging
 import math
@@ -109,14 +109,14 @@ def _text_from_content(content: object) -> str:
 
 
 def estimate_text_tokens(text: str) -> int:
-    """Консервативно оценивает токены текста без обращения к серверу."""
+    """Estimate text tokens conservatively without querying the server."""
     if not text:
         return 0
     return math.ceil(len(text) / _ESTIMATE_CHARS_PER_TOKEN)
 
 
 def estimate_message_tokens(messages: list[dict[str, Any]]) -> int:
-    """Оценивает текстовые токены сообщений и служебные затраты на сообщение."""
+    """Estimate message text tokens and per-message overhead."""
     return sum(
         estimate_text_tokens(_text_from_content(message.get("content")))
         + _ESTIMATE_MESSAGE_OVERHEAD
@@ -198,7 +198,7 @@ async def count_tokens(
     client: TokenizerClient,
     messages: list[dict[str, Any]],
 ) -> int:
-    """Считает токены сообщений выбранным backend-ом."""
+    """Count message tokens using the selected backend."""
     mode = await client.get_token_counting_mode()
     if mode == "estimate":
         normalized_messages = client.normalize_messages(messages)
@@ -215,7 +215,7 @@ async def count_tokens(
 
 
 async def count_text_tokens(client: TokenizerClient, text: str) -> int:
-    """Считает токены обычного текста."""
+    """Count tokens in plain text."""
     if not text:
         return 0
 

@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Создание и повторное использование HTTP-сессии LLM-клиента."""
+"""Create and reuse the LLM client's HTTP session."""
 
 from typing import Protocol
 
@@ -22,7 +22,7 @@ class SessionOwner(Protocol):
 
 
 def _auth_headers(settings: Settings) -> dict[str, str]:
-    """Возвращает заголовок авторизации, если ключ задан."""
+    """Return the authorization header when an API key is configured."""
     api_key = (settings.LLM_API_KEY or "").strip()
 
     if not api_key or api_key == "not-needed":
@@ -32,7 +32,7 @@ def _auth_headers(settings: Settings) -> dict[str, str]:
 
 
 async def get_session(client: SessionOwner) -> aiohttp.ClientSession:
-    """Возвращает открытую HTTP-сессию, создавая её при необходимости."""
+    """Return the open HTTP session, creating it when necessary."""
     if client.session is None or client.session.closed:
         settings = client.settings
         timeout = aiohttp.ClientTimeout(total=settings.LLM_TIMEOUT)

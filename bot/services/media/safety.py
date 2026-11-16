@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Проверки размеров изображений до их декодирования."""
+"""Image size checks before decoding."""
 
 import warnings
 
@@ -9,18 +9,19 @@ from PIL import Image
 
 from bot.errors import MediaError
 from bot.services.media.limits import MAX_IMAGE_PIXELS
+from bot.services.media.texts import IMAGE_TOO_LARGE
 
 
 def check_image_size(image: Image.Image, max_pixels: int) -> None:
-    """Отклоняет изображение, если заявленный размер слишком велик."""
+    """Reject an image if its declared dimensions exceed the limit."""
     width, height = image.size
 
     if width <= 0 or height <= 0 or width * height > max_pixels:
-        msg = "Изображение слишком большое по размеру."
+        msg = IMAGE_TOO_LARGE
         raise MediaError(msg)
 
 
 def configure_pillow_limits() -> None:
-    """Включает встроенную защиту Pillow от decompression bombs."""
+    """Enable Pillow's built-in protection against decompression bombs."""
     Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
     warnings.simplefilter("error", Image.DecompressionBombWarning)

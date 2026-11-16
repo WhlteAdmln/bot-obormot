@@ -47,7 +47,7 @@ async def process_document(
     *,
     settings: Settings | None = None,
 ) -> dict[str, Any]:
-    """Отправляет документ в Document Engine и возвращает результат."""
+    """Send a document to the Document Engine and return the result."""
     if settings is None:
         settings = get_settings()
 

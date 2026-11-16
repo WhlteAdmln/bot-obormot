@@ -7,13 +7,13 @@ import html
 
 
 def _render_segment(text: str) -> str:
-    """Преобразует ролевую разметку в безопасный Telegram HTML.
+    """Convert roleplay markup to safe Telegram HTML.
 
-    *текст*   -> курсив
-    **текст** -> жирный
-    ~текст~   -> блок мыслей
+    *text*   -> italic
+    **text** -> bold
+    ~text~   -> thought block
 
-    Незакрытые маркеры остаются обычным текстом.
+    Unclosed markers are kept as plain text.
     """
     markers = {
         "**": "b",
@@ -27,14 +27,14 @@ def _render_segment(text: str) -> str:
     while i < len(text):
         marker = None
 
-        # Двойная звёздочка проверяется раньше одинарной.
+        # Check double asterisks before single asterisks.
         for candidate in ("**", "*", "~"):
             if text.startswith(candidate, i):
                 marker = candidate
                 break
 
         if marker is None:
-            # Собираем обычный текст до следующего маркера.
+            # Collect plain text up to the next marker.
             next_positions = [
                 pos for symbol in markers if (pos := text.find(symbol, i)) != -1
             ]
@@ -48,7 +48,7 @@ def _render_segment(text: str) -> str:
         closing = text.find(marker, i + len(marker))
 
         if closing == -1 or closing == i + len(marker):
-            # Незакрытый или пустой маркер показываем буквально.
+            # Display an unclosed or empty marker literally.
             result.append(html.escape(marker, quote=False))
             i += len(marker)
             continue
@@ -69,7 +69,7 @@ def _render_segment(text: str) -> str:
 
 
 def format_roleplay(text: str) -> str:
-    """Преобразует ответ персонажа в Telegram HTML."""
+    """Format a character response as Telegram HTML."""
     if not text:
         return ""
 

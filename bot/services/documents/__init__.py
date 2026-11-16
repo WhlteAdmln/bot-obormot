@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Совместимый публичный API обработки документов."""
+"""Compatible public API for document processing."""
 
 from bot.services.documents.client import process_document
 

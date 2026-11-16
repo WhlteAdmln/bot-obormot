@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Совместимый фасад для обработки Telegram-медиа."""
+"""Compatible facade for processing Telegram media."""
 
 import logging
 
@@ -25,7 +25,7 @@ async def process_media(
     media_type: str,
     file_id: str,
 ) -> list[str]:
-    """Скачивает и обрабатывает медиа через отдельный pipeline."""
+    """Download and process media through a dedicated pipeline."""
     return await _pipeline.process_media(
         message,
         media_type,

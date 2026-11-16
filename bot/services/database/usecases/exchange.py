@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Сценарий атомарного сохранения обмена сообщениями и изображений."""
+"""Use case for atomically saving message exchanges and images."""
 
 import asyncio
 import logging
@@ -104,10 +104,10 @@ async def add_exchange(
     assistant_text: str,
     media: list[bytes] | None,
 ) -> None:
-    """Атомарно сохраняет пару сообщений и связанные изображения.
+    """Atomically save a pair of messages and their associated images.
 
-    Блокировка передаётся фасадом и захватывается только на уровне сценария
-    транзакции; репозитории не управляют конкурентным доступом к соединению.
+    The lock is passed by the facade and acquired only at the transaction
+    use-case level; repositories do not manage concurrent connection access.
     """
     saved_files: list[Path] = []
 

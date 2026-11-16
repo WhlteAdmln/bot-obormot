@@ -5,10 +5,11 @@
 
 from pathlib import Path
 
+import bot.services.database as database_package
+import bot.services.database.facade as facade_module
 from bot.services.database import (
     MAX_HISTORY_IMAGES,
     Database,
-    db,
     handle_database_errors,
     read_image_as_base64,
 )
@@ -17,9 +18,6 @@ from bot.services.database.decorators import (
 )
 from bot.services.database.facade import (
     Database as FacadeDatabase,
-)
-from bot.services.database.facade import (
-    db as facade_db,
 )
 from bot.services.database.facade import (
     handle_database_errors as facade_decorator,
@@ -33,11 +31,11 @@ from bot.services.database.files.image_storage import (
 from tests.support.settings import make_settings
 
 
-def test_database_package_reexports_same_facade_objects() -> None:
-    """Database package reexports same facade objects."""
+def test_database_package_reexports_facade_api_without_global_instance() -> None:
+    """Database package reexports the facade API without a global instance."""
     assert Database is FacadeDatabase
-    assert db is facade_db
-    assert isinstance(db, Database)
+    assert not hasattr(database_package, "db")
+    assert not hasattr(facade_module, "db")
     assert MAX_HISTORY_IMAGES == 3
     assert callable(handle_database_errors)
     assert callable(read_image_as_base64)

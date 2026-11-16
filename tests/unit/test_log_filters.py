@@ -8,7 +8,8 @@ import logging
 
 import pytest
 
-from bot.utils.log_filters import SecretsFilter
+from bot.log_filters import SecretsFilter
+from bot.utils.log_filters import SecretsFilter as LegacySecretsFilter
 from tests.support.settings import make_settings
 
 
@@ -94,3 +95,70 @@ def test_logging_setup_attaches_filter_to_root_handlers(
     logging_setup.configure_logging(make_settings())
 
     assert any(isinstance(item, SecretsFilter) for item in handler.filters)
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Authorization: Bearer first-secret-value",
+        "authorization=Bearer second-secret-value",
+        "Bearer third-secret-value",
+    ],
+)
+def test_bearer_tokens_are_redacted(message: str) -> None:
+    """Bearer values are redacted with or without an authorization prefix."""
+    log_filter = SecretsFilter([])
+    record = logging.LogRecord("t", logging.ERROR, "f", 1, message, (), None)
+
+    assert log_filter.filter(record) is True
+    assert "secret-value" not in record.getMessage()
+    assert "[REDACTED]" in record.getMessage()
+
+
+def test_legacy_filter_import_remains_compatible() -> None:
+    """The old import path resolves to the vendored filter."""
+    assert LegacySecretsFilter is SecretsFilter
+
+
+def test_logging_setup_redacts_every_configured_secret(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Logging setup redacts every secret supplied by application settings."""
+    logging_setup = importlib.import_module("bot.app.logging_setup")
+    secrets = [
+        "bot-token-secret-value",
+        "llm-api-key-secret-value",
+        "audiodoc-audio-secret",
+        "audiodoc-document-secret",
+    ]
+    settings = make_settings(
+        BOT_TOKEN=secrets[0],
+        LLM_API_KEY=secrets[1],
+        AUDIODOC_AUDIO_KEY=secrets[2],
+        AUDIODOC_DOCUMENT_KEY=secrets[3],
+    )
+
+    handler = logging.StreamHandler()
+    root_logger = logging.getLogger()
+    monkeypatch.setattr(root_logger, "handlers", [handler])
+    monkeypatch.setattr(logging, "basicConfig", lambda **_kwargs: None)
+
+    logging_setup.configure_logging(settings)
+
+    secrets_filter = next(
+        item for item in handler.filters if isinstance(item, SecretsFilter)
+    )
+    record = logging.LogRecord(
+        "t",
+        logging.ERROR,
+        "f",
+        1,
+        "Configured secrets: %s",
+        (" ".join(secrets),),
+        None,
+    )
+
+    assert secrets_filter.filter(record) is True
+    cleaned_message = record.getMessage()
+    assert all(secret not in cleaned_message for secret in secrets)
+    assert cleaned_message.count("[REDACTED]") == len(secrets)

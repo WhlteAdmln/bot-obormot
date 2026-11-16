@@ -5,8 +5,8 @@
 
 import logging
 
+from bot.log_filters import SecretsFilter
 from bot.settings import Settings
-from bot.utils.log_filters import SecretsFilter
 
 logger = logging.getLogger("bot.main")
 

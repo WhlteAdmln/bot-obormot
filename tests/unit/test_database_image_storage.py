@@ -7,7 +7,7 @@ import base64
 import uuid
 from pathlib import Path
 
-from bot.services.database.files.image_storage import (
+from bot_obormot.services.database.files.image_storage import (
     delete_image,
     is_managed_image,
     list_image_files,

@@ -11,12 +11,12 @@ from typing import Self
 
 import pytest
 
-import bot.app.routers as app_routers
-import bot.main as main_module
-from bot.app import bootstrap, lifecycle
-from bot.app.background import image_cleanup
-from bot.services.chat.aggregation import MessageAggregator
-from bot.settings import ConfigError, Settings
+import bot_obormot.app.routers as app_routers
+import bot_obormot.main as main_module
+from bot_obormot.app import bootstrap, lifecycle
+from bot_obormot.app.background import image_cleanup
+from bot_obormot.services.chat.aggregation import MessageAggregator
+from bot_obormot.settings import ConfigError, Settings
 from tests.support.settings import make_settings
 
 SETTINGS = make_settings()
@@ -137,7 +137,7 @@ def test_periodic_cleanup_continues_after_database_error(
     monkeypatch.setattr(image_cleanup.asyncio, "sleep", stop_after_retry)
 
     with (
-        caplog.at_level(logging.ERROR, logger="bot.main"),
+        caplog.at_level(logging.ERROR, logger="bot_obormot.main"),
         pytest.raises(asyncio.CancelledError),
     ):
         asyncio.run(image_cleanup.periodic_image_cleanup(FakeDatabase()))
@@ -403,7 +403,9 @@ def _patch_main_components(
     monkeypatch.setattr(
         bootstrap.os, "umask", lambda mask: calls.append(("umask", mask))
     )
-    monkeypatch.setattr(bootstrap, "load_env_file", lambda: calls.append("env"))
+    monkeypatch.setattr(
+        bootstrap, "load_env_file", lambda _env_file=None: calls.append("env")
+    )
     monkeypatch.setattr(
         bootstrap,
         "configure_logging",
@@ -593,7 +595,7 @@ def test_log_access_mode_reports_configured_mode(
     """Log access mode reports configured mode."""
     settings = make_settings(ALLOW_ALL_USERS=allow_all, ALLOWED_USERS=allowed_users)
 
-    with caplog.at_level(logging.DEBUG, logger="bot.main"):
+    with caplog.at_level(logging.DEBUG, logger="bot_obormot.main"):
         bootstrap.log_access_mode(settings)
 
     assert any(

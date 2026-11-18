@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-from bot.services.database import Database
+from bot_obormot.services.database import Database
 from tests.support.settings import make_settings
 
 USER_ID = 111111111

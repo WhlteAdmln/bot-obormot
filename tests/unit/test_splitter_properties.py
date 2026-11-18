@@ -10,7 +10,10 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from bot.services.chat.formatting import format_roleplay, split_formatted_message
+from bot_obormot.services.chat.formatting import (
+    format_roleplay,
+    split_formatted_message,
+)
 
 _TAG_PATTERN = re.compile(r"<(?P<closing>/)?(?P<name>b|i|blockquote)>")
 _ENTITY_PATTERN = re.compile(r"&(?:#[0-9]+|#x[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]+);")

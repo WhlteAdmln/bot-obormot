@@ -8,9 +8,9 @@ from dataclasses import replace
 
 import pytest
 
-from bot.errors import LLMUnavailableError
-from bot.services.llm import LLMClient, endpoints, messages
-from bot.settings import Settings
+from bot_obormot.errors import LLMUnavailableError
+from bot_obormot.services.llm import LLMClient, endpoints, messages
+from bot_obormot.settings import Settings
 
 
 def test_llm_client_exposes_public_methods() -> None:
@@ -189,7 +189,7 @@ def test_client_resolves_process_settings_lazily(
         calls += 1
         return settings
 
-    monkeypatch.setattr("bot.services.llm.client.get_settings", load_settings)
+    monkeypatch.setattr("bot_obormot.services.llm.client.get_settings", load_settings)
     client = LLMClient()
 
     assert calls == 0

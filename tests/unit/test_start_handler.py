@@ -8,8 +8,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from bot.handlers.start.handler import cmd_start
-from bot.services.database import Database
+from bot_obormot.handlers.start.handler import cmd_start
+from bot_obormot.services.database import Database
 from tests.support.settings import make_settings
 
 

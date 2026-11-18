@@ -20,18 +20,18 @@ from types import SimpleNamespace
 import pytest
 from PIL import Image
 
-from bot.errors import MediaError
-from bot.services import media
-from bot.services.media import animation
-from bot.services.media import pipeline as media_pipeline
-from bot.services.media.animation import tgs, video
-from bot.services.media.animation.gif import extract_gif
-from bot.services.media.animation.limits import MAX_FRAMES
-from bot.services.media.animation.sampling import sample_frame_indices
-from bot.services.media.contact_sheet import build_contact_sheet
-from bot.services.media.limits import MAX_IMAGE_PIXELS
-from bot.services.media.safety import check_image_size, configure_pillow_limits
-from bot.services.media.sniff import sniff_media_type, verify_declared_type
+from bot_obormot.errors import MediaError
+from bot_obormot.services import media
+from bot_obormot.services.media import animation
+from bot_obormot.services.media import pipeline as media_pipeline
+from bot_obormot.services.media.animation import tgs, video
+from bot_obormot.services.media.animation.gif import extract_gif
+from bot_obormot.services.media.animation.limits import MAX_FRAMES
+from bot_obormot.services.media.animation.sampling import sample_frame_indices
+from bot_obormot.services.media.contact_sheet import build_contact_sheet
+from bot_obormot.services.media.limits import MAX_IMAGE_PIXELS
+from bot_obormot.services.media.safety import check_image_size, configure_pillow_limits
+from bot_obormot.services.media.sniff import sniff_media_type, verify_declared_type
 
 
 def make_message(**values: object) -> SimpleNamespace:
@@ -334,7 +334,7 @@ def test_gif_frame_count_limit_is_enforced(monkeypatch: pytest.MonkeyPatch) -> N
         duration=50,
         loop=0,
     )
-    monkeypatch.setattr("bot.services.media.animation.gif.MAX_GIF_FRAMES", 2)
+    monkeypatch.setattr("bot_obormot.services.media.animation.gif.MAX_GIF_FRAMES", 2)
 
     with pytest.raises(MediaError, match="слишком много кадров"):
         extract_gif(source.getvalue())

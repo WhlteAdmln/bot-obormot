@@ -13,10 +13,10 @@ from pathlib import Path
 import aiosqlite
 import pytest
 
-from bot.errors import DatabaseError, MediaError
-from bot.services.database import Database
-from bot.services.database.usecases import cleanup as cleanup_usecase
-from bot.services.database.usecases import exchange as exchange_usecase
+from bot_obormot.errors import DatabaseError, MediaError
+from bot_obormot.services.database import Database
+from bot_obormot.services.database.usecases import cleanup as cleanup_usecase
+from bot_obormot.services.database.usecases import exchange as exchange_usecase
 
 USER_ID = 616161
 

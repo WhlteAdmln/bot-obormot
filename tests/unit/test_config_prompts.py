@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from bot.config import prompts
+from bot_obormot.config import prompts
 
 
 def test_load_default_system_prompt_reports_missing_file_in_english(

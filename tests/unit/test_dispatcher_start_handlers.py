@@ -19,8 +19,8 @@ from aiogram.methods import (
 )
 from aiogram.types import User
 
-from bot.app.routers import configure_dispatcher
-from bot.middlewares.throttle import ThrottleMiddleware
+from bot_obormot.app.routers import configure_dispatcher
+from bot_obormot.middlewares.throttle import ThrottleMiddleware
 from tests.support.settings import make_settings
 from tests.support.telegram import (
     FakeTelegramSession,

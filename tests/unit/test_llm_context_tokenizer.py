@@ -10,9 +10,9 @@ from typing import Self
 
 import pytest
 
-from bot.errors import LLMAPIError, LLMUnavailableError
-from bot.services.llm import LLMClient
-from bot.settings import Settings
+from bot_obormot.errors import LLMAPIError, LLMUnavailableError
+from bot_obormot.services.llm import LLMClient
+from bot_obormot.settings import Settings
 
 
 def _with_token_counting(settings: Settings, mode: str) -> Settings:
@@ -314,7 +314,7 @@ async def test_context_size_logs_sanitized_error_detail(
     client = make_client(monkeypatch, fake_session)
 
     with (
-        caplog.at_level(logging.DEBUG, logger="bot.services.llm.context_size"),
+        caplog.at_level(logging.DEBUG, logger="bot_obormot.services.llm.context_size"),
         pytest.raises(LLMUnavailableError, match="LLM_CONTEXT_SIZE"),
     ):
         await client.get_context_size()
@@ -333,7 +333,7 @@ async def test_count_text_tokens_logs_sanitized_error_detail(
     client = make_client(monkeypatch, fake_session)
 
     with (
-        caplog.at_level(logging.ERROR, logger="bot.services.llm.tokenizer"),
+        caplog.at_level(logging.ERROR, logger="bot_obormot.services.llm.tokenizer"),
         pytest.raises(LLMAPIError) as error,
     ):
         await client.count_text_tokens("private request")

@@ -1,33 +1,65 @@
-FROM python:3.12-slim
+ARG PYTHON_IMAGE=python:3.12-slim
 
-ENV PYTHONUNBUFFERED=1 \
+# Stage 1: build wheels. The compiler is needed only for the optional `tgs` extra.
+FROM ${PYTHON_IMAGE} AS builder
+
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends build-essential cmake \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+COPY pyproject.toml requirements-lock.txt README.md LICENSE ./
+COPY bot_obormot ./bot_obormot
+COPY bot ./bot
+
+RUN python -m pip wheel \
+    --no-cache-dir \
+    --wheel-dir=/wheels \
+    --requirement requirements-lock.txt \
+    && python -m pip wheel \
+        --no-cache-dir \
+        --no-deps \
+        --wheel-dir=/wheels \
+        .
+
+# Stage 2: runtime image without a compiler.
+FROM ${PYTHON_IMAGE} AS runtime
+
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends ca-certificates ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /wheels /wheels
+COPY --from=builder /build/requirements-lock.txt /tmp/requirements-lock.txt
+
+RUN python -m pip install \
+    --no-cache-dir \
+    --no-index \
+    --find-links=/wheels \
+    --requirement /tmp/requirements-lock.txt \
+    bot-obormot \
+    && rm -rf /wheels /tmp/requirements-lock.txt
+
+RUN groupadd --system --gid 10001 bot-obormot \
+    && useradd --system --uid 10001 --gid bot-obormot \
+        --create-home --home-dir /home/bot-obormot \
+        --shell /usr/sbin/nologin bot-obormot \
+    && install -d -o bot-obormot -g bot-obormot /data
+
+ENV BOT_OBORMOT_HOME=/data \
+    DATABASE_PATH=/data/bot.db \
     PYTHONDONTWRITEBYTECODE=1 \
-    DATABASE_PATH=/app/data/bot.db
+    PYTHONUNBUFFERED=1
+
+LABEL org.opencontainers.image.source="https://github.com/WhlteAdmln/bot-obormot"
 
 WORKDIR /app
+VOLUME ["/data"]
 
-# Install ffmpeg for audio and video processing.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg \
-    && rm -rf /var/lib/apt/lists/* \
-    && groupadd --system --gid 10001 bot \
-    && useradd --system --uid 10001 --gid bot \
-       --create-home --home-dir /home/bot bot
+USER bot-obormot:bot-obormot
 
-# Install runtime dependencies from package metadata using lock constraints.
-COPY requirements-lock.txt pyproject.toml README.md LICENSE ./
-COPY --chown=bot:bot bot ./bot
-RUN python -m pip install \
-        --no-cache-dir \
-        --disable-pip-version-check \
-        --constraint requirements-lock.txt \
-        . \
-    && python -m pip check
+HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 \
+    CMD ["bot-obormot", "doctor", "--offline", "--quiet"]
 
-RUN install -d -o bot -g bot /app/data
-
-USER bot
-
-VOLUME ["/app/data"]
-
-CMD ["bot-obormot"]
+CMD ["bot-obormot", "run"]

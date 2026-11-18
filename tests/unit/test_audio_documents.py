@@ -13,8 +13,8 @@ from typing import Self
 import aiohttp
 import pytest
 
-from bot.common.http_limits import read_limited_body
-from bot.errors import (
+from bot_obormot.common.http_limits import read_limited_body
+from bot_obormot.errors import (
     AudiodocAPIError,
     AudiodocEmptyAudioError,
     AudiodocTimeoutError,
@@ -23,16 +23,16 @@ from bot.errors import (
     DocumentUnavailableError,
     MediaError,
 )
-from bot.services.audio import (
+from bot_obormot.services.audio import (
     MAX_AUDIO_DURATION,
     get_audio_info,
     transcribe_audio,
     validate_audio_duration,
 )
-from bot.services.documents import process_document
-from bot.services.documents.client import MAX_DOCUMENT_TEXT_LENGTH
-from bot.services.documents.response import validate_document_response
-from bot.settings import get_settings
+from bot_obormot.services.documents import process_document
+from bot_obormot.services.documents.client import MAX_DOCUMENT_TEXT_LENGTH
+from bot_obormot.services.documents.response import validate_document_response
+from bot_obormot.settings import get_settings
 from tests.support.settings import make_settings
 
 
@@ -56,7 +56,7 @@ def json_body(payload: object) -> bytes:
 
 def test_bot_settings_reexports_get_settings() -> None:
     """Bot settings reexports the shared settings getter."""
-    model_module = importlib.import_module("bot.config.model")
+    model_module = importlib.import_module("bot_obormot.config.model")
     assert get_settings is model_module.get_settings
 
 
@@ -173,7 +173,7 @@ async def test_transcribe_audio_posts_multipart_and_strips_result(
     )
     monkeypatch.setattr(aiohttp, "ClientSession", Session)
 
-    with caplog.at_level(logging.INFO, logger="bot.services.audio.client"):
+    with caplog.at_level(logging.INFO, logger="bot_obormot.services.audio.client"):
         result = await transcribe_audio(
             b"audio-bytes",
             "voice\nERROR forged.ogg",
@@ -186,7 +186,7 @@ async def test_transcribe_audio_posts_multipart_and_strips_result(
     assert "token=private" not in caplog.text
     assert r"filename=voice\nERROR forged.ogg" in caplog.text
     assert "\nERROR forged.ogg" not in caplog.text
-    assert caplog.text.count("Whisper transcription received: 18 chars") == 1
+    assert caplog.text.count("audiodoc transcription received: 18 chars") == 1
     assert calls["timeout"].total == 37
     assert calls["headers"] == {}
     assert isinstance(calls["data"], aiohttp.FormData)
@@ -243,7 +243,7 @@ async def test_transcribe_audio_rejects_oversized_response(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Transcribe audio rejects oversized response."""
-    audio_client = importlib.import_module("bot.services.audio.client")
+    audio_client = importlib.import_module("bot_obormot.services.audio.client")
 
     settings = make_settings(AUDIODOC_URL="http://whisper.test")
     monkeypatch.setattr(audio_client, "MAX_SERVICE_RESPONSE_BYTES", 10)
@@ -313,7 +313,7 @@ async def test_transcribe_audio_preserves_api_empty_and_timeout_errors(
         "ClientSession",
         lambda **_kwargs: Session(Response(503, b"backend unavailable")),
     )
-    with pytest.raises(AudiodocAPIError, match="Whisper HTTP 503"):
+    with pytest.raises(AudiodocAPIError, match="audiodoc HTTP 503"):
         await transcribe_audio(b"audio", settings=settings)
 
     monkeypatch.setattr(
@@ -425,7 +425,7 @@ async def test_process_document_preserves_filename_sanitization_and_response(
     )
     monkeypatch.setattr(aiohttp, "ClientSession", Session)
 
-    with caplog.at_level(logging.INFO, logger="bot.services.documents.client"):
+    with caplog.at_level(logging.INFO, logger="bot_obormot.services.documents.client"):
         result = await process_document(
             b"document-bytes",
             "../../report\nERROR forged.pdf",
@@ -502,7 +502,7 @@ async def test_process_document_rejects_oversized_response(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Process document rejects oversized response."""
-    documents_client = importlib.import_module("bot.services.documents.client")
+    documents_client = importlib.import_module("bot_obormot.services.documents.client")
 
     settings = make_settings(AUDIODOC_URL="http://documents.test")
     monkeypatch.setattr(documents_client, "MAX_SERVICE_RESPONSE_BYTES", 10)
@@ -600,7 +600,9 @@ async def test_process_document_maps_timeout_and_connection_errors(
         raise TimeoutError
 
     monkeypatch.setattr(aiohttp, "ClientSession", timeout_session)
-    document_timeout_error = importlib.import_module("bot.errors").DocumentTimeoutError
+    document_timeout_error = importlib.import_module(
+        "bot_obormot.errors"
+    ).DocumentTimeoutError
 
     with pytest.raises(document_timeout_error, match="timed out"):
         await process_document(b"data", "file.pdf", settings=settings)

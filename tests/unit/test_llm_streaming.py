@@ -10,10 +10,10 @@ from typing import Self
 import aiohttp
 import pytest
 
-from bot.errors import LLMAPIError, LLMTimeoutError, LLMUnavailableError
-from bot.services.llm import LLMClient
-from bot.services.llm import client as client_module
-from bot.services.llm.streaming import stream_unlimited
+from bot_obormot.errors import LLMAPIError, LLMTimeoutError, LLMUnavailableError
+from bot_obormot.services.llm import LLMClient
+from bot_obormot.services.llm import client as client_module
+from bot_obormot.services.llm.streaming import stream_unlimited
 from tests.support.settings import make_settings
 
 
@@ -150,7 +150,7 @@ async def test_stream_unlimited_raises_api_error_with_response_details(
     monkeypatch.setattr(client, "_get_session", get_session)
 
     with (
-        caplog.at_level(logging.ERROR, logger="bot.services.llm.streaming"),
+        caplog.at_level(logging.ERROR, logger="bot_obormot.services.llm.streaming"),
         pytest.raises(LLMAPIError) as error,
     ):
         await collect(stream_unlimited(client, []))

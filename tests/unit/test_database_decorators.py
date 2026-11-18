@@ -8,9 +8,9 @@ import asyncio
 import aiosqlite
 import pytest
 
-from bot.errors import DatabaseError
-from bot.services.database import Database
-from bot.services.database.decorators import handle_database_errors
+from bot_obormot.errors import DatabaseError
+from bot_obormot.services.database import Database
+from bot_obormot.services.database.decorators import handle_database_errors
 
 
 class DummyDatabase:

@@ -8,7 +8,7 @@ import logging
 
 import pytest
 
-from bot.log_filters import SecretsFilter
+from bot_obormot.log_filters import SecretsFilter
 from tests.support.settings import make_settings
 
 
@@ -84,7 +84,7 @@ def test_logging_setup_attaches_filter_to_root_handlers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Logging setup attaches filter to root handlers."""
-    logging_setup = importlib.import_module("bot.app.logging_setup")
+    logging_setup = importlib.import_module("bot_obormot.app.logging_setup")
 
     handler = logging.StreamHandler()
     root_logger = logging.getLogger()
@@ -118,7 +118,7 @@ def test_logging_setup_redacts_every_configured_secret(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Logging setup redacts every secret supplied by application settings."""
-    logging_setup = importlib.import_module("bot.app.logging_setup")
+    logging_setup = importlib.import_module("bot_obormot.app.logging_setup")
     secrets = [
         "bot-token-secret-value",
         "llm-api-key-secret-value",

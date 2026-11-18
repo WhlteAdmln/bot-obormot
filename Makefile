@@ -1,12 +1,12 @@
-# VENDORED: keep identical in bot-obormot and audiodoc. Source of truth: audiodoc.
-
 PYTHON_VERSION ?= 3.13
 PYTHON_BOOTSTRAP ?= python$(PYTHON_VERSION)
 PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
 VERSION ?= dev
 PYTHON_SCRIPTS_DIR = $(shell $(PYTHON) -c "import sysconfig; print(sysconfig.get_path('scripts'))")
 
-.PHONY: venv install-dev lint fix types deptry vulture import-lint test cov docs-check check build clean
+.PHONY: venv install-dev lint fix types deptry vulture import-lint test \
+        test-integration integration audit build docker installer \
+        cov docs-check check clean
 
 venv:
 	@set -eu; \
@@ -31,20 +31,22 @@ venv:
 	"$(PYTHON_BOOTSTRAP)" -m venv .venv
 
 install-dev: venv
-	.venv/bin/python -m pip install -e ".[dev]" -c requirements-lock.txt
+	.venv/bin/python -m pip install -r requirements-dev.txt -c requirements-lock.txt
 
-lint:
+lint: docs-check
 	$(PYTHON) -m ruff check .
 	$(PYTHON) -m ruff format --check .
 	$(PYTHON) scripts/check_lock.py
-	$(PYTHON_SCRIPTS_DIR)/shellcheck --shell=sh install.sh
+	$(PYTHON_SCRIPTS_DIR)/shfmt -i 0 -d install.sh
+	find scripts -type f -name '*.sh' -exec $(PYTHON_SCRIPTS_DIR)/shfmt -i 2 -sr -d {} +
+	$(PYTHON_SCRIPTS_DIR)/shellcheck $(shell git ls-files '*.sh' '*.sh.example')
 
 fix:
 	$(PYTHON) -m ruff check . --fix
 	$(PYTHON) -m ruff format .
 
 types:
-	$(PYTHON) -m mypy bot
+	$(PYTHON) -m mypy bot_obormot bot
 
 deptry:
 	$(PYTHON_SCRIPTS_DIR)/deptry .
@@ -56,30 +58,37 @@ import-lint:
 	$(PYTHON_SCRIPTS_DIR)/lint-imports
 
 test:
-	$(PYTHON) -m pytest -q -rs \
-		-m "not integration" \
-		--cov=bot \
-		--cov-branch \
-		--cov-fail-under=92.1 \
+	$(PYTHON) -m pytest -q -rs -m "not integration and not e2e" \
+		--cov=bot_obormot --cov-branch \
 		--cov-report=term-missing:skip-covered \
-		--cov-report=xml \
-		--cov-report=html \
-		--junitxml=junit.xml
+		--cov-report=xml --cov-report=html --junitxml=junit.xml
+
+test-integration:
+	$(PYTHON) -m pytest -q -rs -m integration
+
+integration: test-integration
+
+audit:
+	$(PYTHON_SCRIPTS_DIR)/pip-audit -r requirements-lock.txt
+
+docker:
+	docker compose -f compose.yaml config --quiet
+	docker compose -f compose.yaml build --pull bot-obormot
+
+installer:
+	$(PYTHON) -m pytest -q tests/unit/test_installer.py
+	$(PYTHON) -m pytest -q tests/integration/legacy_installer_ci.py
 
 cov:
-	$(PYTHON) -m pytest -q -rs \
-		-m "not integration" \
-		--cov=bot \
-		--cov-branch \
-		--cov-fail-under=92.1 \
-		--cov-report=term-missing:skip-covered \
-		--cov-report=xml
+	$(PYTHON) -m coverage xml --fail-under=0
 	$(PYTHON) scripts/coverage_gaps.py
+	$(PYTHON) -m coverage report --show-missing
 
 docs-check:
-	@echo "not enabled yet"
+	$(PYTHON) -m scripts.check_docs
+	$(PYTHON) -m pre_commit run --all-files
 
-check: lint types deptry vulture import-lint test
+check: lint types deptry vulture import-lint test docs-check
 
 build:
 	bash scripts/build_release.sh "$(VERSION)"

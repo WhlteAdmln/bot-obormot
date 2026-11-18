@@ -4,116 +4,195 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Версия без v, например 0.1.1"
+        description: "Release version without the leading v (for example, 0.1.0)"
         required: true
         type: string
-      prerelease:
-        description: "Пометить релиз как prerelease для --nightly"
-        required: false
-        default: false
+      dry_run:
+        description: "Build and upload release assets without creating a draft release or publishing the container image"
+        required: true
         type: boolean
+        default: true
+      prerelease:
+        description: "Mark the release as a prerelease (installable with --nightly)"
+        required: true
+        type: boolean
+        default: false
 
 permissions: {}
 
+concurrency:
+  group: release-${{ inputs.version }}
+  cancel-in-progress: false
+
 jobs:
   ci:
-    uses: $/.github/workflows/ci.yml
+    name: Full CI
     permissions:
       contents: read
+      packages: write
+    uses: $/.github/workflows/ci.yml
 
   release:
+    name: Build and prepare draft release
     needs: ci
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
+      packages: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.0.0
         with:
           python-version: "3.12"
 
-      - name: Validate release version
+      - name: Install build frontend
+        run: python -m pip install --disable-pip-version-check "build>=1.2,<2.0"
+
+      - name: Validate release request
         env:
-          VERSION: ${{ inputs.version }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          GITHUB_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
 
           if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
-            echo "::error::Релиз разрешён только из main"
+            echo "Releases must be created from the main branch." >&2
             exit 1
           fi
 
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$ ]]; then
-            echo "::error::Неверный формат версии"
+          if [[ ! "$RELEASE_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*))?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+            echo "Invalid version: use semantic versioning without a leading v (for example, 0.1.0 or 0.2.0-rc.1)." >&2
             exit 1
           fi
 
-          python - "$VERSION" <<'PY'
-          import re
-          import sys
-          import tomllib
-          from pathlib import Path
-
-          version = sys.argv[1]
-
-          with Path("pyproject.toml").open("rb") as file:
-              project = tomllib.load(file)
-
-          configured_version = project["project"]["version"]
-          if configured_version != version:
-              raise SystemExit(
-                  f"Версия {version} не совпадает с pyproject.toml "
-                  f"({configured_version})"
-              )
-
-          changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
-          pattern = re.compile(
-              rf"^## \[{re.escape(version)}\](?:\s|$)",
-              re.MULTILINE,
-          )
-
-          if not pattern.search(changelog):
-              raise SystemExit(
-                  f"В CHANGELOG.md отсутствует запись для {version}"
-              )
-          PY
-
-          if git show-ref --tags --verify --quiet "refs/tags/v${VERSION}"; then
-            echo "::error::Тег v${VERSION} уже существует"
+          tag="v${RELEASE_VERSION}"
+          project_version="$(python -c 'import tomllib; from pathlib import Path; print(tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"])')"
+          if [[ "$project_version" != "$RELEASE_VERSION" ]]; then
+            echo "pyproject.toml version (${project_version}) does not match requested release (${RELEASE_VERSION})." >&2
             exit 1
           fi
 
-      - name: Build release archive
+          auth_header="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 | tr -d '\n')"
+          if GIT_CONFIG_COUNT=1 \
+            GIT_CONFIG_KEY_0="http.https://github.com/.extraheader" \
+            GIT_CONFIG_VALUE_0="$auth_header" \
+            git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+            echo "Tag ${tag} already exists; refusing to overwrite it." >&2
+            exit 1
+          else
+            status=$?
+            if [[ "$status" -ne 2 ]]; then
+              echo "Unable to check whether tag ${tag} already exists (git ls-remote exited with ${status})." >&2
+              exit "$status"
+            fi
+          fi
+
+          echo "Validated release ${tag} from ${GITHUB_SHA}."
+
+      - name: Extract release notes from CHANGELOG
         env:
-          VERSION: ${{ inputs.version }}
-        run: bash scripts/build_release.sh "$VERSION"
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          python scripts/release_notes.py \
+            "$RELEASE_VERSION" \
+            CHANGELOG.md \
+            "$RUNNER_TEMP/release-notes.md"
 
-      - name: Create GitHub Release
+      - name: Build source distribution and wheel
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: bash scripts/build_release.sh "$RELEASE_VERSION"
+
+      - name: Verify release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          sdists=(dist/bot_obormot-*.tar.gz)
+          wheels=(dist/bot_obormot-*.whl)
+          if [[ ${#sdists[@]} -ne 1 ]]; then
+            echo "Expected exactly one source distribution in dist/, found ${#sdists[@]}." >&2
+            exit 1
+          fi
+          if [[ ${#wheels[@]} -ne 1 ]]; then
+            echo "Expected exactly one bot_obormot wheel in dist/, found ${#wheels[@]}." >&2
+            exit 1
+          fi
+          test -s dist/constraints.txt
+          test -s dist/SHA256SUMS
+          (cd dist && sha256sum --check --status SHA256SUMS)
+
+      - name: Generate build provenance attestation
+        id: attest
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.whl
+            dist/constraints.txt
+            dist/SHA256SUMS
+
+      - name: Add provenance bundle to release assets
+        env:
+          PROVENANCE_BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: cp "$PROVENANCE_BUNDLE" dist/build-provenance.sigstore.json
+
+      - name: Upload release assets as workflow artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-assets-${{ inputs.version }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Log in to GHCR
+        if: inputs.dry_run == false
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          printf '%s' "${GITHUB_TOKEN}" | docker login ghcr.io \
+            --username "${GITHUB_ACTOR}" \
+            --password-stdin
+
+      - name: Build and publish versioned Docker image
+        if: inputs.dry_run == false
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/$(printf '%s' "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+          docker build --pull --tag "${image}:${RELEASE_VERSION}" .
+          docker push "${image}:${RELEASE_VERSION}"
+
+      - name: Create draft GitHub release
+        if: inputs.dry_run == false
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ inputs.version }}
+          RELEASE_VERSION: ${{ inputs.version }}
           PRERELEASE: ${{ inputs.prerelease }}
         shell: bash
         run: |
           set -euo pipefail
 
+          tag="v${RELEASE_VERSION}"
           args=(
+            --title "bot-obormot ${RELEASE_VERSION}"
+            --notes-file "$RUNNER_TEMP/release-notes.md"
+            --draft
             --target "$GITHUB_SHA"
-            --title "v${VERSION}"
-            --generate-notes
           )
-
           if [[ "$PRERELEASE" == "true" ]]; then
             args+=(--prerelease)
           fi
-
-          gh release create "v${VERSION}" \
-            "dist/bot-obormot-${VERSION}.zip" \
-            dist/SHA256SUMS \
-            "${args[@]}"
+          gh release create "$tag" dist/* "${args[@]}"

@@ -1,0 +1,17 @@
+[Unit]
+Description=bot-obormot Telegram bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/alice/bot-obormot
+Environment="BOT_OBORMOT_HOME=/home/alice/bot-obormot"
+Environment=PYTHONUNBUFFERED=1
+ExecStart="/home/alice/bot-obormot/.venv/bin/bot-obormot" run
+Restart=on-failure
+RestartSec=5
+UMask=0077
+
+[Install]
+WantedBy=default.target

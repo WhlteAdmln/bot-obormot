@@ -1,0 +1,9 @@
+# Temporary workaround for actionlint v1.7.12.
+# Remove after actionlint supports GitHub's $/ self-repository syntax.
+paths:
+  .github/workflows/docker-publish.yml:
+    ignore:
+      - 'reusable workflow call "\$/\.github/workflows/ci\.yml" at "uses" is not following the format'
+  .github/workflows/release.yml:
+    ignore:
+      - 'reusable workflow call "\$/\.github/workflows/ci\.yml" at "uses" is not following the format'

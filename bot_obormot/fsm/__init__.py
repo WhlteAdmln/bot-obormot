@@ -1,0 +1,22 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""FSM state definitions and storage keys."""
+
+from bot_obormot.fsm.keys import (
+    PROMPT_FLOW_KEY,
+    PROMPT_STATUS_MESSAGE_KEY,
+    UNKNOWN_COMMAND_MESSAGE_KEY,
+    UNKNOWN_COMMAND_STATUS_MESSAGE_KEY,
+    WELCOME_MESSAGE_KEY,
+)
+from bot_obormot.fsm.states import PromptStates
+
+__all__ = [
+    "PROMPT_FLOW_KEY",
+    "PROMPT_STATUS_MESSAGE_KEY",
+    "UNKNOWN_COMMAND_MESSAGE_KEY",
+    "UNKNOWN_COMMAND_STATUS_MESSAGE_KEY",
+    "WELCOME_MESSAGE_KEY",
+    "PromptStates",
+]

@@ -10,11 +10,11 @@ from dataclasses import replace
 
 import pytest
 
-from bot.errors import InputTooLongError, LLMUnavailableError
-from bot.services.llm import LLMClient
-from bot.services.llm import client as client_module
-from bot.services.llm.fitting import fit_messages_to_context
-from bot.settings import Settings
+from bot_obormot.errors import InputTooLongError, LLMUnavailableError
+from bot_obormot.services.llm import LLMClient
+from bot_obormot.services.llm import client as client_module
+from bot_obormot.services.llm.fitting import fit_messages_to_context
+from bot_obormot.settings import Settings
 
 
 class FakeFittingClient:
@@ -253,7 +253,7 @@ async def test_context_fit_log_distinguishes_window_from_available_budget(
         ],
     ]
 
-    caplog.set_level(logging.INFO, logger="bot.services.llm.fitting")
+    caplog.set_level(logging.INFO, logger="bot_obormot.services.llm.fitting")
     await fit_messages_to_context(client, "system", [], content)
 
     assert f"input_budget={expected_budget}" in caplog.text

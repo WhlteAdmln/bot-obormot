@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-from bot.services.database import Database
+from bot_obormot.services.database import Database
 from tests.support.settings import make_settings
 
 _TEST_MARKERS = {"unit", "integration", "contract", "e2e"}

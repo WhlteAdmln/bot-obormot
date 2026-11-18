@@ -22,8 +22,8 @@ repos:
       - id: codespell
         args: ["--config=.codespell"]
 
-  - repo: https://github.com/kjanat/actionlint
-    rev: v1.17.1
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
     hooks:
       - id: actionlint
 
@@ -52,40 +52,4 @@ repos:
   - repo: https://github.com/python-jsonschema/check-jsonschema
     rev: 0.39.0
     hooks:
-      - id: check-dependabot
       - id: check-github-workflows
-
-  - repo: https://github.com/scop/pre-commit-shfmt
-    rev: v3.14.1-1
-    hooks:
-      - id: shfmt
-        args: ["-d", "-i", "0"]
-
-  - repo: local
-    hooks:
-      - id: ruff
-        name: Ruff check
-        entry: python -m ruff check .
-        language: system
-        types: [python]
-        pass_filenames: false
-
-      - id: ruff-format
-        name: Ruff format check
-        entry: python -m ruff format --check .
-        language: system
-        types: [python]
-        pass_filenames: false
-
-      - id: check-lock
-        name: Check runtime requirements lock
-        entry: python scripts/check_lock.py
-        language: system
-        files: ^(requirements\.txt|requirements-lock\.txt|scripts/check_lock\.py)$
-        pass_filenames: false
-
-      - id: shellcheck
-        name: ShellCheck
-        entry: shellcheck
-        language: system
-        types: [shell]

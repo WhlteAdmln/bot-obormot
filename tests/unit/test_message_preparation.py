@@ -12,21 +12,21 @@ from types import SimpleNamespace
 
 import pytest
 
-from bot.errors import DocumentAPIError, DocumentTooLongError
-from bot.services.chat import input as chat_input
-from bot.services.chat.input import (
+from bot_obormot.errors import DocumentAPIError, DocumentTooLongError
+from bot_obormot.services.chat import input as chat_input
+from bot_obormot.services.chat.input import (
     MessageInfo,
     PreparedMessage,
     inspect_message,
     prepare_message,
 )
-from bot.services.chat.input import audio_part as audio_module
-from bot.services.chat.input import document_part as documents_module
-from bot.services.chat.input import inspection as inspection_module
-from bot.services.chat.input import media_part as media_module
-from bot.services.chat.input import prepare as pipeline_module
-from bot.services.chat.input import saved_text as history_module
-from bot.services.chat.input import user_content as content_module
+from bot_obormot.services.chat.input import audio_part as audio_module
+from bot_obormot.services.chat.input import document_part as documents_module
+from bot_obormot.services.chat.input import inspection as inspection_module
+from bot_obormot.services.chat.input import media_part as media_module
+from bot_obormot.services.chat.input import prepare as pipeline_module
+from bot_obormot.services.chat.input import saved_text as history_module
+from bot_obormot.services.chat.input import user_content as content_module
 from tests.support.settings import make_settings
 
 

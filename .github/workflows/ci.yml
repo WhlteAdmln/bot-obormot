@@ -239,6 +239,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends shellcheck ffmpeg
           python -m pip install \
+            --constraint requirements-lock.txt \
+            -r requirements.txt \
             pytest==9.2.0 \
             pytest-asyncio==1.4.1.post1 \
             pytest-timeout==2.4.0 \

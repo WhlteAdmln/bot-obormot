@@ -77,6 +77,17 @@ def test_makefile_defines_every_target_used_by_ci() -> None:
     assert "check: lint types deptry vulture import-lint test docs-check" in makefile
 
 
+def test_installer_smoke_test_installs_locked_runtime_dependencies() -> None:
+    """Installer smoke tests use the project's locked runtime dependencies."""
+    text = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
+    installer_step = text.split(
+        "      - name: Install installer smoke-test tools\n", maxsplit=1
+    )[1].split("\n      - name:", maxsplit=1)[0]
+
+    assert "--constraint requirements-lock.txt" in installer_step
+    assert "-r requirements.txt" in installer_step
+
+
 def test_ci_build_job_verifies_release_assets_and_metadata() -> None:
     """The build job checks both distributions, checksums and the wheel."""
     text = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")

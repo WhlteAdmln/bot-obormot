@@ -5,8 +5,8 @@
 
 import pytest
 
-import bot.errors as errors_package
-from bot.errors import (
+import bot_obormot.errors as errors_package
+from bot_obormot.errors import (
     AppError,
     AudiodocAPIError,
     AudiodocEmptyAudioError,
@@ -35,18 +35,21 @@ from bot.errors import (
     WhisperTimeoutError,
     WhisperUnavailableError,
 )
-from bot.services.chat.errors import catalog, texts
-from bot.services.chat.errors import handler as chat_error_handler
+from bot_obormot.services.chat.errors import catalog, texts
+from bot_obormot.services.chat.errors import handler as chat_error_handler
 
 
 def _app_error_classes() -> list[type[AppError]]:
-    """Returns every error class declared in the ``bot.errors`` package."""
+    """Returns every error class declared in the ``bot_obormot.errors`` package."""
     found: list[type[AppError]] = [AppError]
     queue: list[type[AppError]] = [AppError]
     while queue:
         current = queue.pop()
         for subclass in current.__subclasses__():
-            if subclass.__module__.startswith("bot.errors") and subclass not in found:
+            if (
+                subclass.__module__.startswith("bot_obormot.errors")
+                and subclass not in found
+            ):
                 found.append(subclass)
                 queue.append(subclass)
     return found

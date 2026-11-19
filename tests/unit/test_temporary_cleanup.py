@@ -9,15 +9,17 @@ from unittest.mock import AsyncMock
 import pytest
 from aiogram.types import Chat, Message, Update, User
 
-from bot.fsm.keys import (
+from bot_obormot.fsm.keys import (
     PROMPT_FLOW_KEY,
     PROMPT_STATUS_MESSAGE_KEY,
     UNKNOWN_COMMAND_MESSAGE_KEY,
     UNKNOWN_COMMAND_STATUS_MESSAGE_KEY,
     WELCOME_MESSAGE_KEY,
 )
-from bot.fsm.states import PromptStates
-from bot.middlewares.temporary_messages import TemporaryMessagesCleanupMiddleware
+from bot_obormot.fsm.states import PromptStates
+from bot_obormot.middlewares.temporary_messages import (
+    TemporaryMessagesCleanupMiddleware,
+)
 
 USER_ID = 111111111
 CHAT_ID = 111111111

@@ -1,10 +1,11 @@
+# VENDORED: keep identical in bot-obormot and audiodoc. Source of truth: audiodoc.
 [build-system]
 requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "bot-obormot"
-version = "0.1.1"
+version = "0.2.0"
 requires-python = ">=3.11"
 readme = "README.md"
 license = "MIT"
@@ -43,6 +44,7 @@ dev = [
     "vulture==2.16",
     "mypy==2.4.1",
     "pip-audit==2.10.1",
+    "shfmt-py==4.0.0",
     "shellcheck-py==0.11.0.1",
     "pre-commit==4.7.0",
     "packaging==26.3",
@@ -52,13 +54,13 @@ dev = [
 ]
 
 [project.scripts]
-bot-obormot = "bot.cli:main"
+bot-obormot = "bot_obormot.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["bot*"]
+include = ["bot_obormot*", "bot"]
 
 [tool.setuptools.package-data]
-bot = ["prompts/*.md"]
+bot_obormot = ["prompts/*.md", "templates/env.example"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
@@ -74,21 +76,36 @@ markers = [
 ]
 
 [tool.mypy]
+mypy_path = "typings"
 python_version = "3.11"
 strict = true
 warn_unreachable = true
 enable_error_code = ["ignore-without-code", "redundant-expr"]
 
+# odfpy does not provide type information.
+[[tool.mypy.overrides]]
+module = ["odf", "odf.*"]
+ignore_missing_imports = true
+
 [tool.ruff]
 line-length = 88
 target-version = "py311"
-extend-exclude = ["data", "tmp", "models"]
-namespace-packages = ["scripts", "tests/contract"]
+extend-exclude = ["data", "tmp", "models", "build"]
+namespace-packages = ["scripts", "tests/contract", "tests/integration", "tests/unit"]
 
 [tool.ruff.lint]
 select = ["ALL"]
 allowed-confusables = ["×", "А", "В", "Е", "К", "Н", "О", "С", "У", "а", "б", "г", "е", "о", "р", "с", "у", "х", "ℹ"]
-ignore = ["COM812", "ISC001", "D203", "D213", "TD002", "TD003", "FIX002", "FBT"]
+ignore = [
+    "COM812",
+    "ISC001",
+    "D203",
+    "D213",
+    "TD002",
+    "TD003",
+    "FIX002",
+    "FBT",
+]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -102,11 +119,12 @@ max-statements = 40
 max-branches = 12
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["PLR2004", "S101", "SLF001"]
+"tests/*" = ["S101", "PLR2004", "ANN", "D", "SLF001", "ARG"]
+
 
 [tool.coverage.run]
 branch = true
-source = ["bot"]
+source = ["bot_obormot"]
 
 [tool.coverage.report]
 show_missing = true
@@ -116,58 +134,58 @@ exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError", '\.\.\.']
 
 [tool.deptry]
 optional_dependencies_dev_groups = ["dev"]
-known_first_party = ["bot"]
+known_first_party = ["bot_obormot", "bot"]
 extend_exclude = ["scripts"]
 
 [tool.deptry.per_rule_ignores]
 DEP002 = ["rlottie-python"]
 
 [tool.vulture]
-paths = ["bot", "scripts/vulture_whitelist.py"]
+paths = ["bot_obormot", "scripts/vulture_whitelist.py"]
 min_confidence = 80
 
 [tool.importlinter]
-root_package = "bot"
+root_package = "bot_obormot"
 
 [[tool.importlinter.contracts]]
 name = "Handlers depend only on supported application layers"
 type = "forbidden"
-source_modules = ["bot.handlers"]
-forbidden_modules = ["bot.app", "bot.middlewares"]
+source_modules = ["bot_obormot.handlers"]
+forbidden_modules = ["bot_obormot.app", "bot_obormot.middlewares"]
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
 name = "Services do not depend on handlers or middlewares"
 type = "forbidden"
-source_modules = ["bot.services"]
-forbidden_modules = ["bot.handlers", "bot.middlewares"]
+source_modules = ["bot_obormot.services"]
+forbidden_modules = ["bot_obormot.handlers", "bot_obormot.middlewares"]
 
 [[tool.importlinter.contracts]]
 name = "Config is independent of application packages"
 type = "forbidden"
-source_modules = ["bot.config"]
+source_modules = ["bot_obormot.config"]
 forbidden_modules = [
-    "bot.app",
-    "bot.handlers",
-    "bot.middlewares",
-    "bot.services",
-    "bot.fsm",
+    "bot_obormot.app",
+    "bot_obormot.handlers",
+    "bot_obormot.middlewares",
+    "bot_obormot.services",
+    "bot_obormot.fsm",
 ]
 
 [[tool.importlinter.contracts]]
 name = "Errors are independent of application packages"
 type = "forbidden"
-source_modules = ["bot.errors"]
+source_modules = ["bot_obormot.errors"]
 forbidden_modules = [
-    "bot.app",
-    "bot.handlers",
-    "bot.middlewares",
-    "bot.services",
-    "bot.fsm",
+    "bot_obormot.app",
+    "bot_obormot.handlers",
+    "bot_obormot.middlewares",
+    "bot_obormot.services",
+    "bot_obormot.fsm",
 ]
 
 [[tool.importlinter.contracts]]
 name = "Database does not depend on LLM services"
 type = "forbidden"
-source_modules = ["bot.services.database"]
-forbidden_modules = ["bot.services.llm"]
+source_modules = ["bot_obormot.services.database"]
+forbidden_modules = ["bot_obormot.services.llm"]

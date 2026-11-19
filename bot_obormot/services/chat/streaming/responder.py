@@ -1,0 +1,202 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Manage the state and updates of an intermediate Telegram response."""
+
+import asyncio
+import logging
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
+from typing import Any
+
+from aiogram.types import Message
+
+from bot_obormot.services.chat.formatting import (
+    format_roleplay,
+    split_formatted_message,
+)
+from bot_obormot.services.chat.streaming.settings import (
+    MAX_MESSAGE_LENGTH,
+    STREAM_TOKEN_THRESHOLD,
+    STREAM_UPDATE_INTERVAL,
+)
+from bot_obormot.services.chat.streaming.texts import REQUEST_CANCELLED_TEXT
+
+logger = logging.getLogger("bot_obormot.handlers.chat")
+
+TokenCounter = Callable[[str], Awaitable[int]]
+SafeEdit = Callable[[Any, str], Awaitable[None]]
+Formatter = Callable[[str], str]
+Splitter = Callable[..., list[str]]
+
+
+@dataclass(frozen=True)
+class StreamingResponderOptions:
+    """Configuration for streaming display thresholds and formatting."""
+
+    formatter: Formatter = format_roleplay
+    splitter: Splitter = split_formatted_message
+    token_threshold: int = STREAM_TOKEN_THRESHOLD
+    update_interval: float = STREAM_UPDATE_INTERVAL
+    max_message_length: int = MAX_MESSAGE_LENGTH
+
+
+_DEFAULT_STREAMING_RESPONDER_OPTIONS: StreamingResponderOptions = (
+    StreamingResponderOptions()
+)
+
+
+class StreamingResponder:
+    """Manage the intermediate message during LLM generation.
+
+    State is explicitly stored in attributes instead of closure-local
+    variables and five ``nonlocal`` declarations.
+    """
+
+    def __init__(
+        self,
+        message: Message,
+        user_id: int,
+        count_text_tokens: TokenCounter,
+        safe_edit: SafeEdit,
+        *,
+        options: StreamingResponderOptions = _DEFAULT_STREAMING_RESPONDER_OPTIONS,
+    ) -> None:
+        """Store the dependencies and the initial streaming state."""
+        self.message = message
+        self.user_id = user_id
+        self.count_text_tokens = count_text_tokens
+        self.safe_edit = safe_edit
+        self.formatter = options.formatter
+        self.splitter = options.splitter
+        self.token_threshold = options.token_threshold
+        self.update_interval = options.update_interval
+        self.max_message_length = options.max_message_length
+
+        self.status: Message | None = None
+        self.streaming_failed = False
+        self.last_update = 0.0
+        self.next_token_check_chars = 300
+        self.last_displayed_text: str | None = None
+
+    async def on_update(self, current_text: str) -> None:
+        """Update the intermediate response when the original thresholds are met."""
+        if self.streaming_failed:
+            return
+
+        now = asyncio.get_running_loop().time()
+
+        # Before the message is created, check the threshold independently
+        # of the Telegram update interval.
+        if self.status is None:
+            if len(current_text) < self.next_token_check_chars:
+                return
+
+            # Schedule the next check after additional characters.
+            self.next_token_check_chars = len(current_text) + 128
+
+            try:
+                token_count = await self.count_text_tokens(current_text)
+            except Exception:
+                logger.warning(
+                    "Could not count streaming tokens for user_id=%s",
+                    self.user_id,
+                    exc_info=True,
+                )
+                return
+
+            if token_count <= self.token_threshold:
+                return
+
+            await self._start_streaming_display(current_text)
+            return
+
+        # After creation, update the message no more often than the original interval.
+        if now - self.last_update < self.update_interval:
+            return
+
+        await self._update_streaming_display(current_text)
+
+    async def _start_streaming_display(self, current_text: str) -> None:
+        """Create the initial streaming message."""
+        try:
+            formatted_text = self.formatter(current_text)
+            chunks = self.splitter(
+                formatted_text,
+                max_length=self.max_message_length,
+            )
+
+            if not chunks:
+                return
+
+            self.status = await self.message.answer(
+                chunks[0],
+                parse_mode="HTML",
+            )
+
+            self.last_displayed_text = chunks[0]
+            self.last_update = asyncio.get_running_loop().time()
+
+        except Exception:
+            self.streaming_failed = True
+            logger.warning(
+                "Could not start streaming display for user_id=%s",
+                self.user_id,
+                exc_info=True,
+            )
+
+    async def _update_streaming_display(self, current_text: str) -> None:
+        """Update the existing streaming message."""
+        try:
+            formatted_text = self.formatter(current_text)
+            chunks = self.splitter(
+                formatted_text,
+                max_length=self.max_message_length,
+            )
+
+            if not chunks:
+                return
+
+            first_chunk = chunks[0]
+
+            if first_chunk != self.last_displayed_text:
+                await self.safe_edit(self.status, first_chunk)
+                self.last_displayed_text = first_chunk
+
+            self.last_update = asyncio.get_running_loop().time()
+
+        except Exception:
+            self.streaming_failed = True
+            logger.warning(
+                "Streaming message update failed for user_id=%s",
+                self.user_id,
+                exc_info=True,
+            )
+
+    async def cancel(self) -> None:
+        """Mark the intermediate message as cancelled."""
+        if self.status is None:
+            return
+
+        try:
+            await asyncio.shield(
+                self.safe_edit(
+                    self.status,
+                    REQUEST_CANCELLED_TEXT,
+                )
+            )
+
+        except asyncio.CancelledError:
+            logger.debug(
+                "Status update was cancelled",
+                exc_info=True,
+            )
+
+        except Exception:
+            logger.debug(
+                "Could not update status after cancellation",
+                exc_info=True,
+            )
+
+
+__all__ = ["StreamingResponder", "StreamingResponderOptions"]

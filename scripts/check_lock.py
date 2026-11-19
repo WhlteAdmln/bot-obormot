@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
+# VENDORED: keep identical in bot-obormot and audiodoc. Source of truth: audiodoc.
 # Copyright (c) 2026 Nikolai Zelensky
-# SPDX-License-Identifier: MIT
-
 """Check that every direct runtime requirement is pinned compatibly in the lock."""
 
 from __future__ import annotations
@@ -133,7 +131,7 @@ def check_lock(project_path: Path, lock_path: Path) -> list[str]:
 
 
 def main() -> int:
-    """Run the lock consistency check and return the process exit code."""
+    """Run the lock consistency check."""
     root = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--project", type=Path, default=root / "pyproject.toml")

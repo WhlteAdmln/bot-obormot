@@ -15,14 +15,14 @@ from aiogram.types import Document, Message, PhotoSize, Voice
 from aiogram.types import File as TelegramFile
 from PIL import Image
 
-import bot.app.routers as app_routers
-from bot.app.routers import configure_dispatcher
-from bot.middlewares import throttle as throttle_middleware
-from bot.services.chat.formatting import format_roleplay
-from bot.services.chat.streaming.settings import MAX_MESSAGE_LENGTH
-from bot.services.database import Database
-from bot.services.llm import LLMClient
-from bot.settings import Settings
+import bot_obormot.app.routers as app_routers
+from bot_obormot.app.routers import configure_dispatcher
+from bot_obormot.middlewares import throttle as throttle_middleware
+from bot_obormot.services.chat.formatting import format_roleplay
+from bot_obormot.services.chat.streaming.settings import MAX_MESSAGE_LENGTH
+from bot_obormot.services.database import Database
+from bot_obormot.services.llm import LLMClient
+from bot_obormot.settings import Settings
 from tests.support.fake_audiodoc import FakeAudiodoc
 from tests.support.fake_llm import FakeLLM, FakeLLMOptions
 from tests.support.settings import make_settings

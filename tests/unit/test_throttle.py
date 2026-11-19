@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from bot.middlewares import throttle as throttle_module
+from bot_obormot.middlewares import throttle as throttle_module
 
 
 @pytest.mark.asyncio

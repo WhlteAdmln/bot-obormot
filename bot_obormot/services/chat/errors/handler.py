@@ -1,0 +1,51 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Log chat errors and send a response to the user."""
+
+import logging
+
+from aiogram.types import Message
+
+from bot_obormot.common.text import log_safe
+from bot_obormot.services.chat.errors import texts
+from bot_obormot.services.chat.errors.catalog import CHAT_ERROR_RULES, ChatErrorRule
+from bot_obormot.services.chat.reporting import report_error
+
+logger = logging.getLogger("bot_obormot.services.chat.errors.handler")
+
+
+def _log_rule_error(rule: ChatErrorRule, error: Exception, user_id: int) -> None:
+    if rule.log_method is None or rule.log_template is None:
+        return
+
+    values = {
+        "user_id": user_id,
+        "error": log_safe(error, 300),
+        "status": getattr(error, "status", None),
+        "detail": log_safe(getattr(error, "detail", None), 300),
+    }
+    args = tuple(values[field] for field in rule.log_fields)
+    kwargs = {}
+    if rule.traceback:
+        kwargs["exc_info"] = (type(error), error, error.__traceback__)
+
+    getattr(logger, rule.log_method)(rule.log_template, *args, **kwargs)
+
+
+async def handle_chat_error(
+    message: Message, status: Message | None, user_id: int, error: Exception
+) -> None:
+    """Log a message-processing error and notify the user."""
+    for rule in CHAT_ERROR_RULES:
+        if isinstance(error, rule.error_type):
+            _log_rule_error(rule, error, user_id)
+            await report_error(message, status, texts.user_text(error))
+            return
+
+    logger.error(
+        "Unexpected error in handle_message for user_id=%s",
+        user_id,
+        exc_info=(type(error), error, error.__traceback__),
+    )
+    await report_error(message, status, texts.user_text(error))

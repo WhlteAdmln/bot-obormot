@@ -1,0 +1,342 @@
+# Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Tests for the bot-obormot command-line interface."""
+
+import runpy
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+from bot_obormot import cli
+from bot_obormot.doctor import DiagnosticCheck
+from bot_obormot.settings import ConfigError
+
+VALID_TOKEN = "123456789:" + "A" * 35
+ENV_EXAMPLE = Path(__file__).resolve().parents[2] / ".env.example"
+
+
+@pytest.fixture
+def home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    """Isolate the process environment and point the app home at a temp dir."""
+    home_dir = tmp_path / "home"
+    monkeypatch.setattr(
+        cli.os,
+        "environ",
+        {"BOT_OBORMOT_HOME": str(home_dir), "HOME": str(tmp_path)},
+    )
+    monkeypatch.setattr(Path, "cwd", classmethod(lambda _cls: tmp_path / "cwd"))
+    return home_dir
+
+
+def test_version_prints_the_installed_version(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """``version`` prints the package version."""
+    monkeypatch.setattr(cli, "package_version", lambda _name: "9.8.7")
+
+    assert cli.main(["version"]) == 0
+    assert capsys.readouterr().out == "bot-obormot 9.8.7\n"
+
+
+def test_missing_command_is_a_usage_error(capsys: pytest.CaptureFixture[str]) -> None:
+    """A missing subcommand exits with status 2."""
+    with pytest.raises(SystemExit) as exit_info:
+        cli.main([])
+
+    assert exit_info.value.code == 2
+    assert "usage" in capsys.readouterr().err.lower()
+
+
+def test_run_starts_the_bot_with_the_env_file(
+    monkeypatch: pytest.MonkeyPatch, home: Path
+) -> None:
+    """``run`` forwards ``--env-file`` to the application entry point."""
+    _ = home
+    received: list[Path | None] = []
+
+    async def fake_run_bot(env_file: Path | None = None) -> None:
+        received.append(env_file)
+
+    monkeypatch.setattr(cli, "run_bot", fake_run_bot)
+
+    assert cli.main(["run", "--env-file", "custom.env"]) == 0
+    assert cli.main(["run"]) == 0
+    assert received == [Path("custom.env"), None]
+
+
+def test_run_reports_configuration_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    home: Path,
+) -> None:
+    """Invalid settings end ``run`` with a usage error, not a traceback."""
+    _ = home
+
+    async def failing_run_bot(env_file: Path | None = None) -> None:
+        _ = env_file
+        raise ConfigError(["SUPERVISOR_ID must be an integer"])
+
+    monkeypatch.setattr(cli, "run_bot", failing_run_bot)
+
+    with pytest.raises(SystemExit) as exit_info:
+        cli.main(["run"])
+
+    assert exit_info.value.code == 2
+    assert "SUPERVISOR_ID" in capsys.readouterr().err
+
+
+def test_python_dash_m_runs_the_cli(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """``python -m bot_obormot`` behaves like the console script."""
+    monkeypatch.setattr(cli, "package_version", lambda _name: "1.2.3")
+    monkeypatch.setattr(sys, "argv", ["bot_obormot", "version"])
+
+    with pytest.raises(SystemExit) as exit_info:
+        runpy.run_module("bot_obormot", run_name="__main__")
+
+    assert exit_info.value.code == 0
+    assert "bot-obormot 1.2.3" in capsys.readouterr().out
+
+
+def test_config_check_shows_template_placeholder_errors(
+    capsys: pytest.CaptureFixture[str], home: Path
+) -> None:
+    """The example file fails with the expected placeholder problems."""
+    _ = home
+
+    assert cli.main(["config", "check", "--env-file", str(ENV_EXAMPLE)]) == 1
+
+    output = capsys.readouterr().out
+    assert "Configuration has problems:" in output
+    assert "SUPERVISOR_ID" in output
+    assert "BOT_TOKEN" in output
+    assert "REPLACE_WITH_NUMERIC_TELEGRAM_ID" not in output
+
+
+def test_config_check_never_prints_secrets(
+    capsys: pytest.CaptureFixture[str], home: Path
+) -> None:
+    """Problem lines name the setting but not its value."""
+    _ = home
+    cli.os.environ.update(
+        {"BOT_TOKEN": VALID_TOKEN, "SUPERVISOR_ID": "top-secret", "LLM_TIMEOUT": "0"}
+    )
+
+    assert cli.main(["config", "check"]) == 1
+
+    output = capsys.readouterr().out
+    assert "SUPERVISOR_ID" in output
+    assert "top-secret" not in output
+    assert VALID_TOKEN not in output
+
+
+def test_config_check_accepts_a_valid_configuration(
+    capsys: pytest.CaptureFixture[str], home: Path
+) -> None:
+    """A complete configuration passes."""
+    home.mkdir()
+    (home / ".env").write_text(
+        f"BOT_TOKEN={VALID_TOKEN}\nSUPERVISOR_ID=42\n", encoding="utf-8"
+    )
+
+    assert cli.main(["config", "check"]) == 0
+    assert capsys.readouterr().out == "Configuration is valid.\n"
+
+
+def test_init_creates_the_file_and_prints_next_steps(
+    capsys: pytest.CaptureFixture[str], home: Path
+) -> None:
+    """``init`` writes a protected .env and prints three next steps."""
+    assert cli.main(["init", "--token", VALID_TOKEN, "--supervisor", "7"]) == 0
+
+    env_path = home / ".env"
+    assert env_path.stat().st_mode & 0o777 == 0o600
+    assert "SUPERVISOR_ID=7" in env_path.read_text(encoding="utf-8")
+    output = capsys.readouterr().out
+    assert f"Created configuration: {env_path}" in output
+    assert "  1. " in output
+    assert "  2. " in output
+    assert "  3. " in output
+
+
+def test_init_refuses_to_overwrite_without_force(
+    capsys: pytest.CaptureFixture[str], home: Path
+) -> None:
+    """An existing file is kept; ``--force`` replaces it."""
+    home.mkdir()
+    (home / ".env").write_text("OLD=1\n", encoding="utf-8")
+
+    with pytest.raises(SystemExit) as exit_info:
+        cli.main(["init"])
+
+    assert exit_info.value.code == 2
+    assert "--force" in capsys.readouterr().err
+    assert (home / ".env").read_text(encoding="utf-8") == "OLD=1\n"
+
+    assert cli.main(["init", "--force"]) == 0
+    assert "OLD=1" not in (home / ".env").read_text(encoding="utf-8")
+
+
+def test_init_rejects_an_invalid_token(
+    capsys: pytest.CaptureFixture[str], home: Path
+) -> None:
+    """A malformed token is reported and no file is created."""
+    with pytest.raises(SystemExit) as exit_info:
+        cli.main(["init", "--token", "bad"])
+
+    assert exit_info.value.code == 2
+    assert "token" in capsys.readouterr().err
+    assert not (home / ".env").exists()
+
+
+def test_doctor_prints_all_lines_and_fails_on_fail(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    home: Path,
+) -> None:
+    """The exit status is 1 when any check fails."""
+    _ = home
+    checks = [
+        DiagnosticCheck("Python", "OK", "fine"),
+        DiagnosticCheck("ffmpeg", "WARN", "missing"),
+        DiagnosticCheck("Settings", "FAIL", "broken"),
+    ]
+    offline_values: list[bool] = []
+
+    def fake_collect(
+        _environ: object, *, offline: bool = False
+    ) -> list[DiagnosticCheck]:
+        offline_values.append(offline)
+        return checks
+
+    monkeypatch.setattr(cli, "collect_doctor_checks", fake_collect)
+
+    assert cli.main(["doctor", "--offline"]) == 1
+    assert offline_values == [True]
+    assert capsys.readouterr().out.splitlines() == [
+        "OK   Python: fine",
+        "WARN ffmpeg: missing",
+        "FAIL Settings: broken",
+    ]
+
+
+def test_doctor_quiet_hides_ok_lines_and_succeeds_without_failures(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    home: Path,
+) -> None:
+    """``--quiet`` prints only warnings and failures."""
+    _ = home
+    monkeypatch.setattr(
+        cli,
+        "collect_doctor_checks",
+        lambda *_args, **_kwargs: [
+            DiagnosticCheck("Python", "OK", "fine"),
+            DiagnosticCheck("ffmpeg", "WARN", "missing"),
+        ],
+    )
+
+    assert cli.main(["doctor", "--quiet"]) == 0
+    assert capsys.readouterr().out == "WARN ffmpeg: missing\n"
+
+
+def test_service_install_print_only_prints_the_unit(
+    capsys: pytest.CaptureFixture[str], home: Path
+) -> None:
+    """``--print`` renders the unit and writes nothing."""
+    assert cli.main(["service", "install", "--print"]) == 0
+
+    output = capsys.readouterr().out
+    assert f'ExecStart="{home}/.venv/bin/bot-obormot" run' in output
+    assert "BOT_OBORMOT_HOME" in output
+    assert not (home / ".config").exists()
+
+
+def test_service_install_writes_the_user_unit_and_prints_commands(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    home: Path,
+    tmp_path: Path,
+) -> None:
+    """The default install writes a user unit and never starts the service."""
+    _ = home
+    monkeypatch.setattr(Path, "home", classmethod(lambda _cls: tmp_path / "user"))
+
+    assert cli.main(["service", "install"]) == 0
+
+    unit = tmp_path / "user" / ".config" / "systemd" / "user" / "bot-obormot.service"
+    assert unit.is_file()
+    output = capsys.readouterr().out
+    assert "was not enabled or started" in output
+    assert "systemctl --user daemon-reload" in output
+    assert "systemctl --user enable --now bot-obormot.service" in output
+
+    with pytest.raises(SystemExit) as exit_info:
+        cli.main(["service", "install"])
+    assert exit_info.value.code == 2
+
+
+def test_service_uninstall_removes_the_unit_and_prints_commands(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    home: Path,
+    tmp_path: Path,
+) -> None:
+    """Uninstall removes the file but leaves the running service alone."""
+    _ = home
+    monkeypatch.setattr(Path, "home", classmethod(lambda _cls: tmp_path / "user"))
+    assert cli.main(["service", "uninstall"]) == 0
+    assert "No systemd unit is installed." in capsys.readouterr().out
+
+    cli.main(["service", "install"])
+    capsys.readouterr()
+
+    assert cli.main(["service", "uninstall"]) == 0
+    output = capsys.readouterr().out
+    assert "was not stopped" in output
+    assert "disable --now bot-obormot.service" in output
+
+
+def test_service_status_runs_a_read_only_systemctl_command(
+    monkeypatch: pytest.MonkeyPatch, home: Path
+) -> None:
+    """Status only calls ``systemctl status`` and returns its exit code."""
+    _ = home
+    commands: list[list[str]] = []
+
+    def fake_run(
+        command: list[str], *, check: bool
+    ) -> subprocess.CompletedProcess[str]:
+        assert check is False
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 3)
+
+    monkeypatch.setattr(cli.shutil, "which", lambda _name: "/usr/bin/systemctl")
+    monkeypatch.setattr(cli.subprocess, "run", fake_run)
+
+    assert cli.main(["service", "status"]) == 3
+    assert cli.main(["service", "status", "--system"]) == 3
+    assert commands == [
+        ["/usr/bin/systemctl", "--user", "status", "--no-pager", "bot-obormot.service"],
+        ["/usr/bin/systemctl", "status", "--no-pager", "bot-obormot.service"],
+    ]
+
+
+def test_service_status_without_systemctl_is_an_error(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    home: Path,
+) -> None:
+    """A system without systemd gets a clear message."""
+    _ = home
+    monkeypatch.setattr(cli.shutil, "which", lambda _name: None)
+
+    with pytest.raises(SystemExit) as exit_info:
+        cli.main(["service", "status"])
+
+    assert exit_info.value.code == 2
+    assert "systemctl" in capsys.readouterr().err

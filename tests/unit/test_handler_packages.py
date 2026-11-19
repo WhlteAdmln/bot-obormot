@@ -3,17 +3,19 @@
 
 """Tests for handler packages."""
 
-from bot.fsm.keys import PROMPT_FLOW_KEY, WELCOME_MESSAGE_KEY
-from bot.fsm.states import PromptStates
-from bot.handlers import admin, chat, fallback, history, prompt, routers, start
-from bot.handlers.admin import handler as admin_handler
-from bot.handlers.admin.handler import cmd_ban, cmd_unban
-from bot.handlers.history import basic as history_basic
-from bot.handlers.history import limits as history_limits
-from bot.handlers.history.basic import cmd_forget_me
-from bot.handlers.start import handler as start_handler
-from bot.middlewares import access as access_middleware
-from bot.middlewares.temporary_messages import TemporaryMessagesCleanupMiddleware
+from bot_obormot.fsm.keys import PROMPT_FLOW_KEY, WELCOME_MESSAGE_KEY
+from bot_obormot.fsm.states import PromptStates
+from bot_obormot.handlers import admin, chat, fallback, history, prompt, routers, start
+from bot_obormot.handlers.admin import handler as admin_handler
+from bot_obormot.handlers.admin.handler import cmd_ban, cmd_unban
+from bot_obormot.handlers.history import basic as history_basic
+from bot_obormot.handlers.history import limits as history_limits
+from bot_obormot.handlers.history.basic import cmd_forget_me
+from bot_obormot.handlers.start import handler as start_handler
+from bot_obormot.middlewares import access as access_middleware
+from bot_obormot.middlewares.temporary_messages import (
+    TemporaryMessagesCleanupMiddleware,
+)
 
 
 def test_handler_package_routers_are_exported() -> None:
@@ -35,7 +37,7 @@ def test_fsm_and_middleware_imports_use_canonical_modules() -> None:
     assert WELCOME_MESSAGE_KEY == "start_welcome_message_id"
     assert (
         TemporaryMessagesCleanupMiddleware.__module__
-        == "bot.middlewares.temporary_messages.middleware"
+        == "bot_obormot.middlewares.temporary_messages.middleware"
     )
 
 

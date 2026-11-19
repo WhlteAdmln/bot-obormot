@@ -12,11 +12,11 @@ from types import SimpleNamespace
 import pytest
 from PIL import Image
 
-from bot.errors import MediaError
-from bot.services.media import content as media_content
-from bot.services.media import images as media_images
-from bot.services.media.animation.concurrency import extract_with_limit
-from bot.services.media.detection import get_media_info
+from bot_obormot.errors import MediaError
+from bot_obormot.services.media import content as media_content
+from bot_obormot.services.media import images as media_images
+from bot_obormot.services.media.animation.concurrency import extract_with_limit
+from bot_obormot.services.media.detection import get_media_info
 
 
 def make_media_message(**overrides: object) -> SimpleNamespace:

@@ -3,7 +3,7 @@
 
 """Tests for text utils."""
 
-from bot.common.text import log_safe, utf16_length
+from bot_obormot.common.text import log_safe, utf16_length
 
 
 def test_log_safe_escapes_line_breaks_and_truncates_values() -> None:

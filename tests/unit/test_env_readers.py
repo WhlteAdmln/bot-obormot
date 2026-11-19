@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from bot import env_readers
+from bot_obormot import env_readers
 
 
 def test_home_directory_and_relative_paths(
@@ -19,10 +19,12 @@ def test_home_directory_and_relative_paths(
     user_home = tmp_path / "user"
 
     assert (
-        env_readers.get_home_dir({"AUDIODOC_HOME": "custom", "HOME": str(user_home)})
+        env_readers.get_home_dir({"BOT_OBORMOT_HOME": "custom", "HOME": str(user_home)})
         == tmp_path / "custom"
     )
-    assert env_readers.get_home_dir({"HOME": str(user_home)}) == user_home / "audiodoc"
+    assert env_readers.get_home_dir({"HOME": str(user_home)}) == (
+        user_home / "bot-obormot"
+    )
     assert env_readers.resolve_home_path("data/file.db", user_home) == (
         user_home / "data/file.db"
     )

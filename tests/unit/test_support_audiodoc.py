@@ -9,14 +9,14 @@ from pathlib import Path
 import aiohttp
 import pytest
 
-from bot.errors import (
+from bot_obormot.errors import (
     AudiodocAPIError,
     AudiodocTimeoutError,
     AudiodocUnavailableError,
 )
-from bot.services.audio.client import transcribe_audio
-from bot.services.documents.client import process_document
-from bot.settings import Settings
+from bot_obormot.services.audio.client import transcribe_audio
+from bot_obormot.services.documents.client import process_document
+from bot_obormot.settings import Settings
 from tests.support.fake_audiodoc import FakeAudiodoc, FakeResponseOptions
 from tests.support.settings import make_settings
 
@@ -101,7 +101,7 @@ async def test_fake_audiodoc_can_return_configured_http_errors(
                 assert response.headers["Retry-After"] == "17"
                 await response.read()
 
-        with pytest.raises(AudiodocAPIError, match=f"Whisper HTTP {status}"):
+        with pytest.raises(AudiodocAPIError, match=f"audiodoc HTTP {status}"):
             await transcribe_audio(b"audio", settings=settings)
 
 

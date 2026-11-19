@@ -5,27 +5,27 @@
 
 from pathlib import Path
 
-import bot.services.database as database_package
-import bot.services.database.facade as facade_module
-from bot.services.database import (
+import bot_obormot.services.database as database_package
+import bot_obormot.services.database.facade as facade_module
+from bot_obormot.services.database import (
     MAX_HISTORY_IMAGES,
     Database,
     handle_database_errors,
     read_image_as_base64,
 )
-from bot.services.database.decorators import (
+from bot_obormot.services.database.decorators import (
     handle_database_errors as canonical_decorator,
 )
-from bot.services.database.facade import (
+from bot_obormot.services.database.facade import (
     Database as FacadeDatabase,
 )
-from bot.services.database.facade import (
+from bot_obormot.services.database.facade import (
     handle_database_errors as facade_decorator,
 )
-from bot.services.database.facade import (
+from bot_obormot.services.database.facade import (
     read_image_as_base64 as facade_image_reader,
 )
-from bot.services.database.files.image_storage import (
+from bot_obormot.services.database.files.image_storage import (
     read_image_as_base64 as canonical_image_reader,
 )
 from tests.support.settings import make_settings

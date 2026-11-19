@@ -9,15 +9,15 @@ from types import SimpleNamespace
 
 import pytest
 
-from bot.services.chat.streaming.delivery import (
+from bot_obormot.services.chat.streaming.delivery import (
     DeliveryOptions,
     deliver_final_response,
 )
-from bot.services.chat.streaming.responder import (
+from bot_obormot.services.chat.streaming.responder import (
     StreamingResponder,
     StreamingResponderOptions,
 )
-from bot.services.chat.streaming.settings import (
+from bot_obormot.services.chat.streaming.settings import (
     MAX_MESSAGE_LENGTH,
     STREAM_TOKEN_THRESHOLD,
     STREAM_UPDATE_INTERVAL,
@@ -183,7 +183,7 @@ async def test_responder_count_failure_does_not_disable_future_streaming(
         return 151
 
     responder = _responder(message, count=count)
-    with caplog.at_level(logging.WARNING, logger="bot.handlers.chat"):
+    with caplog.at_level(logging.WARNING, logger="bot_obormot.handlers.chat"):
         await responder.on_update("a" * 300)
         assert responder.streaming_failed is False
         await responder.on_update("b" * 427)
@@ -206,7 +206,7 @@ async def test_responder_disables_streaming_after_initial_send_failure(
             raise RuntimeError(msg)
 
     responder = _responder(BrokenMessage())
-    with caplog.at_level(logging.WARNING, logger="bot.handlers.chat"):
+    with caplog.at_level(logging.WARNING, logger="bot_obormot.handlers.chat"):
         await responder.on_update("x" * 300)
         await responder.on_update("y" * 500)
 
@@ -228,7 +228,7 @@ async def test_responder_disables_streaming_after_edit_failure(
     responder = _responder(safe_edit=broken_edit)
     await responder.on_update("x" * 300)
 
-    with caplog.at_level(logging.WARNING, logger="bot.handlers.chat"):
+    with caplog.at_level(logging.WARNING, logger="bot_obormot.handlers.chat"):
         await responder.on_update("y" * 500)
         await responder.on_update("z" * 700)
 
@@ -322,7 +322,7 @@ async def test_delivery_falls_back_to_all_chunks_when_status_edit_fails(
         msg = "edit failed"
         raise RuntimeError(msg)
 
-    with caplog.at_level(logging.WARNING, logger="bot.handlers.chat"):
+    with caplog.at_level(logging.WARNING, logger="bot_obormot.handlers.chat"):
         await deliver_final_response(
             message=message,
             response="abcdef",

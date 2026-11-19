@@ -13,15 +13,15 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from bot.services.database import Database
-from bot.services.database.repositories import (
+from bot_obormot.services.database import Database
+from bot_obormot.services.database.repositories import (
     admins,
     history_limits,
     media,
     messages,
     user_settings,
 )
-from bot.services.database.usecases import history as history_usecase
+from bot_obormot.services.database.usecases import history as history_usecase
 
 USER_ID = 515151
 

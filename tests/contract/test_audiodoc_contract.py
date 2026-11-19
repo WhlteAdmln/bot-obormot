@@ -12,11 +12,11 @@ import aiohttp
 import pytest
 from jsonschema import Draft202012Validator
 
-from bot.errors import AudiodocAPIError, DocumentAPIError
-from bot.services.audio.client import transcribe_audio
-from bot.services.documents.client import process_document
-from bot.services.documents.response import validate_document_response
-from bot.settings import Settings
+from bot_obormot.errors import AudiodocAPIError, DocumentAPIError
+from bot_obormot.services.audio.client import transcribe_audio
+from bot_obormot.services.documents.client import process_document
+from bot_obormot.services.documents.response import validate_document_response
+from bot_obormot.settings import Settings
 from tests.support.fake_audiodoc import FakeAudiodoc, FakeResponseOptions
 from tests.support.settings import make_settings
 
@@ -260,7 +260,7 @@ async def test_bot_handles_every_documented_audiodoc_error_status(
         server.set_behavior(endpoint, FakeResponseOptions(status=status))
 
         if endpoint == "transcribe":
-            with pytest.raises(AudiodocAPIError, match=f"Whisper HTTP {status}"):
+            with pytest.raises(AudiodocAPIError, match=f"audiodoc HTTP {status}"):
                 await transcribe_audio(b"audio", "voice.ogg", settings=settings)
         else:
             with pytest.raises(DocumentAPIError) as error:

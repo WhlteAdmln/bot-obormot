@@ -10,8 +10,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from bot.common.validation import MAX_INPUT_TEXT_LENGTH
-from bot.errors import (
+from bot_obormot.common.validation import MAX_INPUT_TEXT_LENGTH
+from bot_obormot.errors import (
     AudiodocAPIError,
     AudiodocEmptyAudioError,
     AudiodocError,
@@ -19,14 +19,17 @@ from bot.errors import (
     LLMAPIError,
     MediaError,
 )
-from bot.services.chat import incoming_log, reporting
-from bot.services.chat import locks as chat_locks
-from bot.services.chat import pipeline as chat_pipeline
-from bot.services.chat.aggregation import aggregator as aggregator_module
-from bot.services.chat.aggregation.aggregator import MessageAggregator
-from bot.services.chat.errors import catalog, texts
-from bot.services.chat.errors import handler as chat_error_handler
-from bot.services.chat.formatting import format_roleplay, split_formatted_message
+from bot_obormot.services.chat import incoming_log, reporting
+from bot_obormot.services.chat import locks as chat_locks
+from bot_obormot.services.chat import pipeline as chat_pipeline
+from bot_obormot.services.chat.aggregation import aggregator as aggregator_module
+from bot_obormot.services.chat.aggregation.aggregator import MessageAggregator
+from bot_obormot.services.chat.errors import catalog, texts
+from bot_obormot.services.chat.errors import handler as chat_error_handler
+from bot_obormot.services.chat.formatting import (
+    format_roleplay,
+    split_formatted_message,
+)
 
 
 def _message(text: str | None, user_id: int | None = 1) -> SimpleNamespace:
@@ -601,11 +604,12 @@ def test_incoming_log_sanitizes_user_supplied_document_metadata(
 
 def test_chat_services_are_loaded_from_canonical_modules() -> None:
     """Chat services are loaded from canonical modules."""
-    assert incoming_log.__name__ == "bot.services.chat.incoming_log"
-    assert chat_pipeline.__name__ == "bot.services.chat.pipeline"
-    assert reporting.__name__ == "bot.services.chat.reporting"
-    assert chat_error_handler.__name__ == "bot.services.chat.errors.handler"
-    assert aggregator_module.__name__ == "bot.services.chat.aggregation.aggregator"
+    assert incoming_log.__name__ == "bot_obormot.services.chat.incoming_log"
+    assert chat_pipeline.__name__ == "bot_obormot.services.chat.pipeline"
+    assert reporting.__name__ == "bot_obormot.services.chat.reporting"
+    assert chat_error_handler.__name__ == "bot_obormot.services.chat.errors.handler"
+    expected_name = "bot_obormot.services.chat.aggregation.aggregator"
+    assert aggregator_module.__name__ == expected_name
 
 
 @pytest.mark.asyncio

@@ -15,8 +15,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from bot.handlers.chat import handler as handler_module
-from bot.settings import Settings
+from bot_obormot.handlers.chat import handler as handler_module
+from bot_obormot.settings import Settings
 from tests.support.settings import make_settings
 
 SETTINGS = make_settings()

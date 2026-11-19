@@ -1,0 +1,30 @@
+[Unit]
+Description=bot-obormot Telegram bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bot-obormot
+Group=bot-obormot
+WorkingDirectory=/srv/bot-obormot
+Environment="BOT_OBORMOT_HOME=/srv/bot-obormot"
+Environment=PYTHONUNBUFFERED=1
+ExecStart="/srv/bot-obormot/.venv/bin/bot-obormot" run
+Restart=on-failure
+RestartSec=5
+UMask=0077
+
+# Process and filesystem sandbox.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/srv/bot-obormot
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

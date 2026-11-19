@@ -9,10 +9,10 @@ from io import StringIO
 import pytest
 from aiogram.types import TelegramObject, Update
 
-from bot.app.logging_setup import configure_logging
-from bot.log_context import CorrelationIdFilter, correlation_id
-from bot.middlewares.aliases import MiddlewareData
-from bot.middlewares.correlation_id import CorrelationIdMiddleware
+from bot_obormot.app.logging_setup import configure_logging
+from bot_obormot.log_context import CorrelationIdFilter, correlation_id
+from bot_obormot.middlewares.aliases import MiddlewareData
+from bot_obormot.middlewares.correlation_id import CorrelationIdMiddleware
 from tests.support.settings import make_settings
 
 

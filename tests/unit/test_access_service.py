@@ -5,8 +5,8 @@
 
 import pytest
 
-from bot.services.access import user_has_access
-from bot.services.access.roles import (
+from bot_obormot.services.access import user_has_access
+from bot_obormot.services.access.roles import (
     is_allowlisted,
     is_database_admin,
     is_supervisor,

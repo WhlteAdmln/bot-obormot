@@ -9,9 +9,9 @@ from pathlib import Path
 import aiosqlite
 import pytest
 
-from bot.services.database.connection import open_connection
-from bot.services.database.migrations.admin_ids import migrate_admin_ids
-from bot.services.database.schema import create_schema
+from bot_obormot.services.database.connection import open_connection
+from bot_obormot.services.database.migrations.admin_ids import migrate_admin_ids
+from bot_obormot.services.database.schema import create_schema
 
 
 @pytest.mark.asyncio

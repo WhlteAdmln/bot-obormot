@@ -7,8 +7,8 @@ import os
 
 import pytest
 
-from bot.config.model import load_settings
-from bot.services.llm import LLMClient
+from bot_obormot.config.model import load_settings
+from bot_obormot.services.llm import LLMClient
 
 
 @pytest.mark.integration

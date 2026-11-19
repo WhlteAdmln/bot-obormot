@@ -6,17 +6,18 @@
 import importlib
 import importlib.util
 import logging
+from pathlib import Path
 
 import pytest
 
-from bot.app.logging_setup import configure_logging
-from bot.config.env import get_bool, get_optional_int
-from bot.config.model import (
+from bot_obormot.app.logging_setup import configure_logging
+from bot_obormot.config.model import (
     ConfigError,
     get_settings,
     load_settings,
     reset_settings_cache,
 )
+from bot_obormot.env_readers import get_bool, get_optional_int
 
 
 @pytest.mark.parametrize(
@@ -61,24 +62,28 @@ def test_get_bool_rejects_invalid_value(monkeypatch: pytest.MonkeyPatch) -> None
         get_bool("TEST_BOOL_SETTING")
 
 
-def test_load_env_file_loads_env_from_project_root_only(
+def test_load_env_file_uses_home_and_working_directory_only(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
-    """Load env file uses the project root path."""
-    config_module = importlib.import_module("bot.config")
-    env_module = importlib.import_module("bot.config.env")
-    project_root = importlib.import_module("bot.config.paths").PROJECT_ROOT
+    """Load env file reads the application home first, then the current directory."""
+    config_module = importlib.import_module("bot_obormot.config")
+    env_module = importlib.import_module("bot_obormot.env_readers")
+    home = tmp_path / "home"
+    cwd = tmp_path / "cwd"
+    monkeypatch.setenv("BOT_OBORMOT_HOME", str(home))
+    monkeypatch.setattr(Path, "cwd", classmethod(lambda _cls: cwd))
 
-    loaded_paths = []
+    loaded_paths: list[Path] = []
     monkeypatch.setattr(
         env_module,
         "load_dotenv",
-        loaded_paths.append,
+        lambda path, override=False: loaded_paths.append(Path(path)),
     )
 
     config_module.load_env_file()
 
-    assert loaded_paths == [project_root / ".env"]
+    assert loaded_paths == [home / ".env", cwd / ".env"]
 
 
 def test_load_settings_uses_the_supplied_environment() -> None:
@@ -95,6 +100,7 @@ def test_load_settings_uses_the_supplied_environment() -> None:
             "LLM_TOP_P": "1",
             "LLM_CONTEXT_SIZE": "8192",
             "LLM_TOKEN_COUNTING": "ESTIMATE",
+            "BOT_OBORMOT_HOME": "/srv/bot-obormot",
             "DATABASE_PATH": " data/custom.db ",
             "AUDIODOC_URL": " https://audio.test/// ",
             "AUDIODOC_AUDIO_KEY": " whisper-key ",
@@ -116,7 +122,7 @@ def test_load_settings_uses_the_supplied_environment() -> None:
     assert settings.LLM_CONTEXT_SIZE == 8192
     expected_mode = "estimate"
     assert expected_mode == settings.LLM_TOKEN_COUNTING
-    assert settings.DATABASE_PATH == "data/custom.db"
+    assert settings.DATABASE_PATH == "/srv/bot-obormot/data/custom.db"
     assert settings.AUDIODOC_URL == "https://audio.test"
     assert settings.AUDIODOC_AUDIO_KEY == "whisper-key"
     assert settings.AUDIODOC_DOCUMENT_KEY == "document-key"
@@ -210,7 +216,7 @@ def test_configure_logging_warns_for_legacy_names_and_redacts_audiodoc_keys(
 
     with caplog.at_level(logging.WARNING):
         configure_logging(settings)
-        logging.getLogger("bot.main").warning(
+        logging.getLogger("bot_obormot.main").warning(
             "Configured keys: %s %s",
             settings.AUDIODOC_AUDIO_KEY,
             settings.AUDIODOC_DOCUMENT_KEY,
@@ -305,9 +311,9 @@ def test_get_settings_is_cached_until_reset() -> None:
 
 def test_legacy_config_proxy_and_config_alias_are_removed() -> None:
     """The legacy proxy and Config alias are no longer exported."""
-    config_module = importlib.import_module("bot.config")
-    settings_module = importlib.import_module("bot.settings")
-    model_module = importlib.import_module("bot.config.model")
+    config_module = importlib.import_module("bot_obormot.config")
+    settings_module = importlib.import_module("bot_obormot.settings")
+    model_module = importlib.import_module("bot_obormot.config.model")
 
     assert not hasattr(config_module, "config")
     assert not hasattr(config_module, "Config")
@@ -349,18 +355,18 @@ def test_get_optional_int_rejects_invalid_values(
 
 def test_stream_update_interval_is_not_an_environment_setting() -> None:
     """Stream update interval is not an application setting."""
-    settings_class = importlib.import_module("bot.settings").Settings
+    settings_class = importlib.import_module("bot_obormot.settings").Settings
 
     assert not hasattr(settings_class, "STREAM_UPDATE_INTERVAL")
 
 
 def test_settings_have_a_single_public_import_path() -> None:
-    """Settings are exported from bot.settings only, not from bot.config."""
-    settings_module = importlib.import_module("bot.settings")
-    config_module = importlib.import_module("bot.config")
-    model_module = importlib.import_module("bot.config.model")
+    """Settings are exported from the settings module only, not from config."""
+    settings_module = importlib.import_module("bot_obormot.settings")
+    config_module = importlib.import_module("bot_obormot.config")
+    model_module = importlib.import_module("bot_obormot.config.model")
 
-    assert importlib.util.find_spec("bot.config.settings") is None
+    assert importlib.util.find_spec("bot_obormot.config.settings") is None
     for name in (
         "ConfigError",
         "Settings",

@@ -1,14 +1,14 @@
-name: Publish Docker image (manual)
+name: Publish Docker Hub image (manual)
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Версия образа, например 0.1.1"
+        description: "Image version, for example 0.2.0"
         required: true
         type: string
       also_latest:
-        description: "Обновить также тег latest"
+        description: "Also update the latest tag"
         required: false
         default: false
         type: boolean
@@ -20,6 +20,7 @@ jobs:
     uses: $/.github/workflows/ci.yml
     permissions:
       contents: read
+      packages: write
 
   publish:
     needs: ci
@@ -44,17 +45,17 @@ jobs:
           set -euo pipefail
 
           if [[ ! "$GITHUB_REF" == "refs/heads/main" ]]; then
-            echo "::error::Публикация разрешена только из main"
+            echo "::error::Publishing is allowed only from main"
             exit 1
           fi
 
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$ ]]; then
-            echo "::error::Неверный формат версии"
+            echo "::error::Invalid version format"
             exit 1
           fi
 
           if [[ ! "$IMAGE" =~ ^[a-z0-9]+([._-][a-z0-9]+)*/[a-z0-9]+([._-][a-z0-9]+)*$ ]]; then
-            echo "::error::Укажите DOCKERHUB_IMAGE в формате username/repository"
+            echo "::error::Set DOCKERHUB_IMAGE in the username/repository format"
             exit 1
           fi
 

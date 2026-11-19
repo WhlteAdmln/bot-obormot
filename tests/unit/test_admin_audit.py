@@ -8,8 +8,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from bot.handlers.admin import handler as admin_handler
-from bot.handlers.history import limits as history_limits_handler
+from bot_obormot.handlers.admin import handler as admin_handler
+from bot_obormot.handlers.history import limits as history_limits_handler
 from tests.support.settings import make_settings
 
 SETTINGS = make_settings()
@@ -42,7 +42,7 @@ async def test_admin_add_writes_audit_record(caplog: pytest.LogCaptureFixture) -
     message = FakeMessage(actor_id)
     command = SimpleNamespace(args=str(target_id))
 
-    with caplog.at_level(logging.INFO, logger="bot.audit"):
+    with caplog.at_level(logging.INFO, logger="bot_obormot.audit"):
         await admin_handler.cmd_admin_add(message, command, SETTINGS, database)
 
     assert (
@@ -66,7 +66,7 @@ async def test_admin_remove_writes_not_found_result(
     message = FakeMessage(actor_id)
     command = SimpleNamespace(args=str(target_id))
 
-    with caplog.at_level(logging.INFO, logger="bot.audit"):
+    with caplog.at_level(logging.INFO, logger="bot_obormot.audit"):
         await admin_handler.cmd_admin_remove(message, command, SETTINGS, database)
 
     assert (
@@ -83,7 +83,7 @@ async def test_non_supervisor_admin_command_is_audited(
     message = FakeMessage(SETTINGS.SUPERVISOR_ID - 1)
     database = SimpleNamespace()
 
-    with caplog.at_level(logging.INFO, logger="bot.audit"):
+    with caplog.at_level(logging.INFO, logger="bot_obormot.audit"):
         await admin_handler.cmd_admin(message, SETTINGS, database)
 
     assert (
@@ -120,7 +120,7 @@ async def test_history_limit_for_another_user_is_audited(
     state = SimpleNamespace()
     command = SimpleNamespace(args=f"{target_id} {exchange_limit}")
 
-    with caplog.at_level(logging.INFO, logger="bot.audit"):
+    with caplog.at_level(logging.INFO, logger="bot_obormot.audit"):
         await history_limits_handler.cmd_history_limit(
             message, state, command, SETTINGS, database
         )
@@ -152,7 +152,7 @@ async def test_ban_command_blocks_non_admin_and_audits(
     message = FakeMessage(actor_id)
     command = SimpleNamespace(args=str(target_id))
 
-    with caplog.at_level(logging.INFO, logger="bot.audit"):
+    with caplog.at_level(logging.INFO, logger="bot_obormot.audit"):
         await admin_handler.cmd_ban(message, command, SETTINGS, database)
 
     assert calls == [target_id]
@@ -205,7 +205,7 @@ async def test_unban_command_removes_block_and_audits(
     database = SimpleNamespace(get_admin_ids=get_admin_ids, unblock_user=unblock_user)
     message = FakeMessage(actor_id)
 
-    with caplog.at_level(logging.INFO, logger="bot.audit"):
+    with caplog.at_level(logging.INFO, logger="bot_obormot.audit"):
         await admin_handler.cmd_unban(
             message, SimpleNamespace(args=str(target_id)), SETTINGS, database
         )
@@ -235,7 +235,7 @@ async def test_database_admin_can_ban_non_admin(
     database = SimpleNamespace(get_admin_ids=get_admin_ids, block_user=block_user)
     message = FakeMessage(actor_id)
 
-    with caplog.at_level(logging.INFO, logger="bot.audit"):
+    with caplog.at_level(logging.INFO, logger="bot_obormot.audit"):
         await admin_handler.cmd_ban(
             message, SimpleNamespace(args=str(target_id)), SETTINGS, database
         )
@@ -262,7 +262,7 @@ async def test_non_admin_cannot_ban(caplog: pytest.LogCaptureFixture) -> None:
     )
     message = FakeMessage(actor_id)
 
-    with caplog.at_level(logging.INFO, logger="bot.audit"):
+    with caplog.at_level(logging.INFO, logger="bot_obormot.audit"):
         await admin_handler.cmd_ban(
             message, SimpleNamespace(args=str(target_id)), SETTINGS, database
         )

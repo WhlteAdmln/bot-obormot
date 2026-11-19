@@ -10,8 +10,8 @@ from dataclasses import replace
 import pytest
 from aiohttp import web
 
-from bot.services.llm import LLMClient
-from bot.settings import Settings
+from bot_obormot.services.llm import LLMClient
+from bot_obormot.settings import Settings
 
 
 @asynccontextmanager

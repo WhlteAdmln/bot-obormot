@@ -11,10 +11,10 @@ import pytest
 import pytest_asyncio
 from aiogram.enums import ChatType
 
-from bot.handlers.admin import handler as admin_handler
-from bot.middlewares import access as access_module
-from bot.services.database import Database
-from bot.settings import Settings
+from bot_obormot.handlers.admin import handler as admin_handler
+from bot_obormot.middlewares import access as access_module
+from bot_obormot.services.database import Database
+from bot_obormot.settings import Settings
 from tests.support.settings import make_settings
 
 SUPERVISOR_ID = 999999999

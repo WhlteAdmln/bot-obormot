@@ -10,30 +10,46 @@ from typing import Any
 
 from aiogram.types import Message
 
-from bot_obormot.services.chat.formatting import (
-    format_roleplay,
-    split_formatted_message,
+from bot_obormot.services.chat.formatting import FormattedChunk, prepare_response
+from bot_obormot.services.chat.reply import ReplyTarget
+from bot_obormot.services.chat.streaming.sending import (
+    UNKNOWN_DELIVERY_ERRORS,
+    edit_chunk,
+    send_chunk,
 )
 from bot_obormot.services.chat.streaming.settings import MAX_MESSAGE_LENGTH
 
 logger = logging.getLogger("bot_obormot.handlers.chat")
 
-Formatter = Callable[[str], str]
-Splitter = Callable[..., list[str]]
-SafeEdit = Callable[[Any, str], Awaitable[None]]
+Preparer = Callable[..., list[FormattedChunk]]
+SafeEdit = Callable[..., Awaitable[None]]
 
 
 @dataclass(frozen=True)
 class DeliveryOptions:
     """Configuration for final response formatting and delivery."""
 
-    formatter: Formatter = format_roleplay
-    splitter: Splitter = split_formatted_message
+    preparer: Preparer = prepare_response
     max_message_length: int = MAX_MESSAGE_LENGTH
     user_id: int | None = None
+    reply_to: ReplyTarget | None = None
 
 
 _DEFAULT_DELIVERY_OPTIONS: DeliveryOptions = DeliveryOptions()
+
+
+async def _send_all(
+    message: Message,
+    chunks: list[FormattedChunk],
+    reply_to: ReplyTarget | None,
+) -> None:
+    """Send chunks; only the first one is linked to the user's message."""
+    for number, chunk in enumerate(chunks):
+        await send_chunk(
+            message,
+            chunk,
+            reply_to=reply_to if number == 0 else None,
+        )
 
 
 async def deliver_final_response(
@@ -44,38 +60,29 @@ async def deliver_final_response(
     *,
     options: DeliveryOptions = _DEFAULT_DELIVERY_OPTIONS,
 ) -> None:
-    """Format and deliver the final response with the existing fallback behavior."""
-    formatted_response = options.formatter(response)
-    response_chunks = options.splitter(
-        formatted_response,
-        max_length=options.max_message_length,
-    )
+    """Format and deliver the final response.
 
-    if not response_chunks:
+    The format is detected automatically. A formatting error is retried once
+    without ``parse_mode``; network errors are never retried.
+    """
+    chunks = options.preparer(response, options.max_message_length)
+
+    if not chunks:
         return
 
     # Send the complete response when streaming was not started.
     if status is None:
-        for chunk in response_chunks:
-            await message.answer(
-                chunk,
-                parse_mode="HTML",
-            )
+        await _send_all(message, chunks, options.reply_to)
         return
 
-    # Replace the last streaming message with the final text.
+    # Replace the last streaming message with the final text. The streaming
+    # message was created as a reply, so the link is kept by the edit.
     try:
-        await safe_edit(
-            status,
-            response_chunks[0],
-        )
+        await edit_chunk(status, chunks[0], safe_edit)
 
-        # Send the remaining chunks as separate messages.
-        for chunk in response_chunks[1:]:
-            await message.answer(
-                chunk,
-                parse_mode="HTML",
-            )
+    except UNKNOWN_DELIVERY_ERRORS:
+        # The edit may have been applied; sending again could duplicate it.
+        raise
 
     except Exception:
         logger.warning(
@@ -85,12 +92,11 @@ async def deliver_final_response(
             exc_info=True,
         )
 
-        # Fallback: send the complete response.
-        for chunk in response_chunks:
-            await message.answer(
-                chunk,
-                parse_mode="HTML",
-            )
+        # Telegram rejected the edit, so the complete response is sent anew.
+        await _send_all(message, chunks, options.reply_to)
+        return
+
+    await _send_all(message, chunks[1:], None)
 
 
 __all__ = ["DeliveryOptions", "deliver_final_response"]

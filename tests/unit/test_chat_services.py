@@ -26,34 +26,12 @@ from bot_obormot.services.chat.aggregation import aggregator as aggregator_modul
 from bot_obormot.services.chat.aggregation.aggregator import MessageAggregator
 from bot_obormot.services.chat.errors import catalog, texts
 from bot_obormot.services.chat.errors import handler as chat_error_handler
-from bot_obormot.services.chat.formatting import (
-    format_roleplay,
-    split_formatted_message,
-)
+from bot_obormot.services.chat.formatting import split_formatted_message
 
 
 def _message(text: str | None, user_id: int | None = 1) -> SimpleNamespace:
     user = SimpleNamespace(id=user_id) if user_id is not None else None
     return SimpleNamespace(text=text, from_user=user)
-
-
-def test_format_roleplay_escapes_html_and_applies_markers() -> None:
-    """Format roleplay escapes html and applies markers."""
-    actual = format_roleplay("  Привет *мир* **важно** ~мысль~ <tag> &  ")
-
-    assert actual == (
-        "Привет <i>мир</i> <b>важно</b> "
-        "\n<blockquote><i>мысль</i></blockquote>\n "
-        "&lt;tag&gt; &amp;"
-    )
-
-
-def test_format_roleplay_keeps_unclosed_and_empty_markers_literal() -> None:
-    """Format roleplay keeps unclosed and empty markers literal."""
-    assert format_roleplay("текст *незакрыт") == "текст *незакрыт"
-    assert format_roleplay("a****b") == "a****b"
-    assert format_roleplay("   ") == ""
-    assert format_roleplay("") == ""
 
 
 def test_splitter_closes_and_reopens_html_tags() -> None:

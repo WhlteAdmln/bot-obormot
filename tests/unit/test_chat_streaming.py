@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from bot_obormot.services.chat.formatting import FormattedChunk
 from bot_obormot.services.chat.streaming.delivery import (
     DeliveryOptions,
     deliver_final_response,
@@ -43,6 +44,13 @@ def _split(text: str, *, max_length: object) -> list[object]:
     ]
 
 
+def _prepare(text: str, max_length: int) -> list[FormattedChunk]:
+    return [
+        FormattedChunk(text=chunk, parse_mode="HTML", plain_text=chunk)
+        for chunk in _split(text, max_length=max_length)
+    ]
+
+
 def _responder(
     message: object | None = None,
     *,
@@ -54,7 +62,11 @@ def _responder(
     async def default_count(_text: str) -> int:
         return 151
 
-    async def default_edit(_message: object, _text: str) -> None:
+    async def default_edit(
+        _message: object,
+        _text: str,
+        parse_mode: str | None = None,
+    ) -> None:
         return None
 
     return StreamingResponder(
@@ -63,7 +75,6 @@ def _responder(
         count_text_tokens=count or default_count,
         safe_edit=safe_edit or default_edit,
         options=StreamingResponderOptions(
-            formatter=lambda text: text,
             splitter=_split,
             token_threshold=token_threshold,
             update_interval=update_interval,
@@ -113,7 +124,7 @@ async def test_responder_checks_token_count_at_threshold_and_creates_status() ->
     await responder.on_update(text)
 
     assert calls == [text]
-    assert message.answers == [(text, {"parse_mode": "HTML"})]
+    assert message.answers == [(text, {})]
     assert responder.status.text == text
     assert responder.last_displayed_text == text
     assert responder.next_token_check_chars == 428
@@ -150,7 +161,11 @@ async def test_responder_updates_status_after_interval_only_when_chunk_changes()
     """Responder updates status after interval only when chunk changes."""
     edits = []
 
-    async def safe_edit(status: object, text: str) -> None:
+    async def safe_edit(
+        status: object,
+        text: str,
+        parse_mode: str | None = None,
+    ) -> None:
         edits.append((status, text))
 
     message = FakeMessage()
@@ -221,7 +236,11 @@ async def test_responder_disables_streaming_after_edit_failure(
 ) -> None:
     """Responder disables streaming after edit failure."""
 
-    async def broken_edit(_status: object, _text: str) -> None:
+    async def broken_edit(
+        _status: object,
+        _text: str,
+        parse_mode: str | None = None,
+    ) -> None:
         msg = "edit failed"
         raise RuntimeError(msg)
 
@@ -242,7 +261,11 @@ async def test_responder_cancel_uses_shielded_safe_edit() -> None:
     edits = []
     completed = asyncio.Event()
 
-    async def safe_edit(status: object, text: str) -> None:
+    async def safe_edit(
+        status: object,
+        text: str,
+        parse_mode: str | None = None,
+    ) -> None:
         edits.append((status, text))
         await asyncio.sleep(0)
         completed.set()
@@ -268,8 +291,7 @@ async def test_delivery_sends_all_chunks_without_streaming_status() -> None:
         status=None,
         safe_edit=lambda *_args: None,
         options=DeliveryOptions(
-            formatter=lambda text: text,
-            splitter=_split,
+            preparer=_prepare,
             max_message_length=3,
         ),
     )
@@ -287,7 +309,11 @@ async def test_delivery_edits_first_chunk_and_sends_remaining_chunks() -> None:
     message = FakeMessage()
     edits = []
 
-    async def safe_edit(status: object, text: str) -> None:
+    async def safe_edit(
+        status: object,
+        text: str,
+        parse_mode: str | None = None,
+    ) -> None:
         edits.append((status, text))
 
     status = object()
@@ -297,8 +323,7 @@ async def test_delivery_edits_first_chunk_and_sends_remaining_chunks() -> None:
         status=status,
         safe_edit=safe_edit,
         options=DeliveryOptions(
-            formatter=lambda text: text,
-            splitter=_split,
+            preparer=_prepare,
             max_message_length=3,
             user_id=42,
         ),
@@ -318,7 +343,11 @@ async def test_delivery_falls_back_to_all_chunks_when_status_edit_fails(
     """Delivery falls back to all chunks when status edit fails."""
     message = FakeMessage()
 
-    async def broken_edit(_status: object, _text: str) -> None:
+    async def broken_edit(
+        _status: object,
+        _text: str,
+        parse_mode: str | None = None,
+    ) -> None:
         msg = "edit failed"
         raise RuntimeError(msg)
 
@@ -329,8 +358,7 @@ async def test_delivery_falls_back_to_all_chunks_when_status_edit_fails(
             status=object(),
             safe_edit=broken_edit,
             options=DeliveryOptions(
-                formatter=lambda text: text,
-                splitter=_split,
+                preparer=_prepare,
                 max_message_length=3,
                 user_id=42,
             ),
@@ -354,7 +382,7 @@ async def test_delivery_does_nothing_for_empty_formatted_response() -> None:
         status=None,
         safe_edit=lambda *_args: None,
         options=DeliveryOptions(
-            formatter=lambda _text: "",
+            preparer=lambda _text, _max_length: [],
         ),
     )
 
@@ -373,8 +401,7 @@ async def test_delivery_splits_response_longer_than_telegram_message_limit() -> 
         status=None,
         safe_edit=lambda *_args: None,
         options=DeliveryOptions(
-            formatter=lambda text: text,
-            splitter=_split,
+            preparer=_prepare,
         ),
     )
 

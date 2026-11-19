@@ -78,7 +78,16 @@ Long plain-text messages are combined by `bot_obormot/services/chat/aggregation/
 
 `bot_obormot/services/llm/` contains the OpenAI-compatible client, HTTP session/auth headers, endpoints, message normalization, context fitting, tokenization, context-size queries, and streaming. `normalize_messages()` neutralizes known template/control-token strings in every non-system message, including text parts of multimodal messages. System prompts are left unchanged. This is a defense-in-depth measure; it is not a complete prompt-injection solution.
 
-The default system prompt is stored in `prompts/systemPrompt.md`; users may have a personal system prompt. The default prompt explicitly frames document text, speech transcriptions, and captions as data to analyze rather than instructions. Model output is formatted/escaped before being sent to Telegram.
+The default system prompt is stored in `prompts/systemPrompt.md`; users may have a personal system prompt. The default prompt explicitly frames document text, speech transcriptions, and captions as data to analyze rather than instructions. 
+### Delivery of responses
+
+Responses are delivered by `bot_obormot/services/chat/streaming/` and prepared by `bot_obormot/services/chat/formatting/`.
+
+- **Reply.** Every incoming message is stored as a `ReplyTarget` (`chat_id`, `message_id`, `bot_obormot/services/chat/reply.py`) for its own LLM request, and the response is sent with `reply_parameters` and `allow_sending_without_reply: true`. When several messages are combined by the aggregator, the target is the last of them. Only the first part of a long response is a reply.
+- **Streaming.** While the model is generating, the partial text is shown without `parse_mode`, because incomplete markup cannot be parsed reliably.
+- **Format detection.** The final text is classified once: Markdown is converted to MarkdownV2 (`parse_mode=MarkdownV2`), Telegram HTML is sanitized to the supported tags and attributes (`parse_mode=HTML`), and plain text is sent without `parse_mode`. Code is ignored during detection. Mixed or ambiguous text (Markdown with HTML tags, unbalanced tags) is sent as plain text.
+- **Splitting.** The original text is split to the Telegram limit before conversion, at block boundaries; a fenced code block that has to be split is closed and reopened in every part.
+- **Fallback.** If Telegram answers `can't parse entities` (or `can't find end of the entity`), the message is sent or edited once more without `parse_mode`, using the original LLM text and the same `reply_parameters`; a failed retry is logged. Other errors are not retried, and network errors or server errors, whose delivery status is unknown, never cause a second message.
 
 ### Error handling
 

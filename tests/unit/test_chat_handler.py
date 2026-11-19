@@ -16,6 +16,7 @@ from types import SimpleNamespace
 import pytest
 
 from bot_obormot.handlers.chat import handler as handler_module
+from bot_obormot.services.chat.aggregation import AggregatedText
 from bot_obormot.settings import Settings
 from tests.support.settings import make_settings
 
@@ -145,8 +146,12 @@ def _patch_reporting_stubs(
     monkeypatch: pytest.MonkeyPatch,
     state: SimpleNamespace,
 ) -> None:
-    async def safe_edit(message: object, text: str) -> None:
-        state.safe_edits.append((message, text))
+    async def safe_edit(
+        message: object,
+        text: str,
+        parse_mode: str | None = None,
+    ) -> None:
+        state.safe_edits.append((message, text, parse_mode))
 
     async def handle_error(**kwargs: object) -> None:
         state.error_calls.append(kwargs)
@@ -170,10 +175,17 @@ def state(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
 class Message:
     """Message."""
 
-    def __init__(self, text: str = "text", user_id: int = 7) -> None:
+    def __init__(
+        self,
+        text: str = "text",
+        user_id: int = 7,
+        message_id: int | None = None,
+    ) -> None:
         """Initializes the test double."""
         self.text = text
         self.from_user = SimpleNamespace(id=user_id)
+        self.message_id = message_id
+        self.chat = SimpleNamespace(id=user_id)
         self.answers = []
 
     async def answer(self, text: str, **kwargs: object) -> SimpleNamespace:
@@ -204,7 +216,7 @@ async def test_handler_preserves_order_for_short_non_streamed_response(
         settings=SETTINGS,
     )
 
-    assert message.answers == [("короткий ответ", {"parse_mode": "HTML"})]
+    assert message.answers == [("короткий ответ", {})]
     assert state.calls[:5] == [
         "log",
         "inspect",
@@ -246,7 +258,7 @@ async def test_handler_streams_long_response_and_finalizes_status(
     # First status is edited once during streaming and once for final delivery.
     assert len(state.safe_edits) == 2
     assert state.safe_edits[-1][1] == "Итоговый ответ"
-    assert message.answers == [("A" * 300, {"parse_mode": "HTML"})]
+    assert message.answers == [("A" * 300, {})]
     assert state.typing_stopped.is_set()
 
 
@@ -360,7 +372,11 @@ async def test_handler_preserves_final_answer_after_stream_edit_failure(
     """Handler preserves final answer after stream edit failure."""
     message = Message()
 
-    async def broken_edit(_status: object, _text: str) -> None:
+    async def broken_edit(
+        _status: object,
+        _text: str,
+        parse_mode: str | None = None,
+    ) -> None:
         msg = "telegram edit failed"
         raise RuntimeError(msg)
 
@@ -384,8 +400,8 @@ async def test_handler_preserves_final_answer_after_stream_edit_failure(
 
     # Первый answer создаёт stream-status; fallback отправляет полный ответ.
     assert message.answers == [
-        ("A" * 300, {"parse_mode": "HTML"}),
-        ("Финальный ответ не должен потеряться", {"parse_mode": "HTML"}),
+        ("A" * 300, {}),
+        ("Финальный ответ не должен потеряться", {}),
     ]
     assert state.typing_stopped.is_set()
 
@@ -418,3 +434,58 @@ async def test_handler_routes_llm_connection_loss_with_existing_status(
     assert error["status"].text == "S" * 300
     assert isinstance(error["error"], ConnectionError)
     assert state.typing_stopped.is_set()
+
+
+@pytest.mark.asyncio
+async def test_handler_replies_to_the_incoming_message(
+    state: SimpleNamespace,
+) -> None:
+    """Handler links the response to the incoming message."""
+    message = Message(message_id=11)
+
+    async def process(_kwargs: object) -> str:
+        return "**ответ**"
+
+    state.pipeline.process = process
+
+    await handler_module.handle_message(
+        message,
+        llm_client=state.llm_client,
+        message_aggregator=state.aggregator,
+        database=state.database,
+        settings=SETTINGS,
+    )
+
+    (text, kwargs), = message.answers
+    assert text == "*ответ*"
+    assert kwargs["parse_mode"] == "MarkdownV2"
+    assert kwargs["reply_parameters"].message_id == 11
+    assert kwargs["reply_parameters"].allow_sending_without_reply is True
+
+
+@pytest.mark.asyncio
+async def test_handler_replies_to_the_last_aggregated_message(
+    state: SimpleNamespace,
+) -> None:
+    """Handler links the response to the last message of a combined request."""
+    first = Message(message_id=11)
+    last = Message(message_id=13)
+    state.aggregator.result = AggregatedText("первая\nтретья", last)
+
+    async def process(_kwargs: object) -> str:
+        return "ответ"
+
+    state.pipeline.process = process
+
+    await handler_module.handle_message(
+        first,
+        llm_client=state.llm_client,
+        message_aggregator=state.aggregator,
+        database=state.database,
+        settings=SETTINGS,
+    )
+
+    (text, kwargs), = first.answers
+    assert text == "ответ"
+    assert "parse_mode" not in kwargs
+    assert kwargs["reply_parameters"].message_id == 13

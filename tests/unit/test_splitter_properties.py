@@ -10,10 +10,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from bot_obormot.services.chat.formatting import (
-    format_roleplay,
-    split_formatted_message,
-)
+from bot_obormot.services.chat.formatting import split_formatted_message
 
 _TAG_PATTERN = re.compile(r"<(?P<closing>/)?(?P<name>b|i|blockquote)>")
 _ENTITY_PATTERN = re.compile(r"&(?:#[0-9]+|#x[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]+);")
@@ -79,24 +76,24 @@ def test_splitter_property_preserves_plain_unicode_text_and_respects_limit(
 
 @settings(max_examples=200, deadline=None)
 @given(
-    marker=st.sampled_from(("*", "**", "~")),
+    tag=st.sampled_from(("i", "b", "blockquote")),
     text=st.text(
         alphabet=st.characters(
             blacklist_categories=("Cs",),
-            blacklist_characters="*~",
+            blacklist_characters="",
         ),
         min_size=1,
         max_size=160,
     ),
     max_length=st.integers(min_value=2, max_value=32),
 )
-def test_splitter_property_preserves_roleplay_markup_and_entities(
-    marker: str,
+def test_splitter_property_preserves_markup_and_entities(
+    tag: str,
     text: str,
     max_length: int,
 ) -> None:
-    """Splitting roleplay HTML preserves visible text and complete markup tokens."""
-    formatted = format_roleplay(f"{marker}{text}{marker}")
+    """Splitting Telegram HTML preserves visible text and complete markup tokens."""
+    formatted = f"<{tag}>{html.escape(text, quote=False)}</{tag}>"
     chunks = split_formatted_message(formatted, max_length=max_length)
 
     assert "".join(_visible_text(chunk) for chunk in chunks) == _visible_text(formatted)

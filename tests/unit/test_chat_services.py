@@ -608,8 +608,10 @@ def test_chat_services_are_loaded_from_canonical_modules() -> None:
     assert chat_pipeline.__name__ == "bot_obormot.services.chat.pipeline"
     assert reporting.__name__ == "bot_obormot.services.chat.reporting"
     assert chat_error_handler.__name__ == "bot_obormot.services.chat.errors.handler"
-    expected_name = "bot_obormot.services.chat.aggregation.aggregator"
-    assert aggregator_module.__name__ == expected_name
+    assert (
+        aggregator_module.__name__
+        == "bot_obormot.services.chat.aggregation.aggregator"
+    )
 
 
 @pytest.mark.asyncio

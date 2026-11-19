@@ -169,10 +169,9 @@ def test_real_legacy_upgrade_moves_source_and_keeps_user_data(
     assert _sha256(app_home / ".env") == env_hash
     assert _sha256(app_home / "data" / "bot.db") == database_hash
     assert (app_home / ".venv" / "bin" / "bot-obormot").is_file()
-    assert (
-        unit_path.with_name("bot-obormot.service.bak").read_text(encoding="utf-8")
-        == old_unit
-    )
+    assert unit_path.with_name("bot-obormot.service.bak").read_text(
+        encoding="utf-8"
+    ) == old_unit
     new_unit = unit_path.read_text(encoding="utf-8")
     assert f'ExecStart="{app_home}/.venv/bin/bot-obormot" run' in new_unit
     assert "python -m bot.main" not in new_unit
@@ -188,10 +187,8 @@ def test_real_legacy_upgrade_moves_source_and_keeps_user_data(
         [
             str(app_home / ".venv" / "bin" / "python"),
             "-c",
-            (
-                "import bot.main, pathlib; "
-                "print(pathlib.Path(bot.main.__file__).resolve())"
-            ),
+            "import bot.main, pathlib; "
+            "print(pathlib.Path(bot.main.__file__).resolve())",
         ],
         cwd=app_home,
         check=False,

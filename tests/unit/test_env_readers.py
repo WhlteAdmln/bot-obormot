@@ -19,7 +19,9 @@ def test_home_directory_and_relative_paths(
     user_home = tmp_path / "user"
 
     assert (
-        env_readers.get_home_dir({"BOT_OBORMOT_HOME": "custom", "HOME": str(user_home)})
+        env_readers.get_home_dir(
+            {"BOT_OBORMOT_HOME": "custom", "HOME": str(user_home)}
+        )
         == tmp_path / "custom"
     )
     assert env_readers.get_home_dir({"HOME": str(user_home)}) == (

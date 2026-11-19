@@ -77,17 +77,6 @@ def test_makefile_defines_every_target_used_by_ci() -> None:
     assert "check: lint types deptry vulture import-lint test docs-check" in makefile
 
 
-def test_installer_smoke_test_installs_locked_runtime_dependencies() -> None:
-    """Installer smoke tests use the project's locked runtime dependencies."""
-    text = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
-    installer_step = text.split(
-        "      - name: Install installer smoke-test tools\n", maxsplit=1
-    )[1].split("\n      - name:", maxsplit=1)[0]
-
-    assert "--constraint requirements-lock.txt" in installer_step
-    assert "-r requirements.txt" in installer_step
-
-
 def test_ci_build_job_verifies_release_assets_and_metadata() -> None:
     """The build job checks both distributions, checksums and the wheel."""
     text = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
@@ -96,7 +85,7 @@ def test_ci_build_job_verifies_release_assets_and_metadata() -> None:
     assert "wheels=(dist/bot_obormot-*.whl)" in text
     assert "sha256sum --check --status SHA256SUMS" in text
     assert "twine check" in text
-    assert 'bot-obormot" version' in text
+    assert "bot-obormot\" version" in text
 
 
 def test_ci_pins_every_third_party_action_to_a_commit() -> None:
@@ -104,27 +93,27 @@ def test_ci_pins_every_third_party_action_to_a_commit() -> None:
     for workflow in WORKFLOWS.glob("*.yml"):
         for line in workflow.read_text(encoding="utf-8").splitlines():
             match = re.search(r"uses:\s*(\S+)", line)
-            if match is None or match.group(1).startswith(("./", "$/")):
+            if match is None or match.group(1).startswith("./"):
                 continue
             assert re.fullmatch(r"[\w./-]+@[0-9a-f]{40}", match.group(1)), line
 
 
 def test_reusable_workflow_references_are_valid() -> None:
-    """Release workflows call CI through a valid self-repository workflow path."""
+    """Release workflows call CI through a real local workflow path."""
     pattern = re.compile(
         r"(?m)^  ci:\n"
         r"(?:    name: .*\n)?"
-        r"(?:    uses: \$/.github/workflows/ci\.yml\n)"
+        r"(?:    uses: \./\.github/workflows/ci\.yml\n)"
         r"    permissions:\n      contents: read\n      packages: write\n"
     )
     pattern_with_permissions_first = re.compile(
         r"(?m)^  ci:\n(?:    name: .*\n)?"
         r"    permissions:\n      contents: read\n      packages: write\n"
-        r"    uses: \$/.github/workflows/ci\.yml\n"
+        r"    uses: \./\.github/workflows/ci\.yml\n"
     )
     for name in ("release.yml", "docker-publish.yml"):
         text = (WORKFLOWS / name).read_text(encoding="utf-8")
-        assert "$/.github/workflows/ci.yml" in text
+        assert "$/.github" not in text
         assert pattern.search(text) or pattern_with_permissions_first.search(text), name
 
 

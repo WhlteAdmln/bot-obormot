@@ -10,6 +10,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+
 # The application name comes from the top-level package ("audiodoc" or
 # "bot_obormot"), so this module stays identical in both repositories.
 _APP_NAME = __name__.partition(".")[0].replace("_", "-")

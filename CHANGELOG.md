@@ -42,7 +42,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [0.1.1] - 2026-11-06
 
-### Added (0.1.1)
+### Added
 
 - Support for OpenAI-compatible LLM servers without llama.cpp-specific endpoints.
 - Explicit context-size and token-counting configuration.

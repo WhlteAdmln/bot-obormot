@@ -188,7 +188,7 @@ def fetch_status(url: str, headers: Mapping[str, str], timeout: float) -> int:
     if urlsplit(url).scheme not in {"http", "https"}:
         message = "Only http and https URLs are supported."
         raise ValueError(message)
-    request = urllib.request.Request(url, headers=dict(headers), method="GET")  # noqa: S310
+    request = urllib.request.Request(url, headers=dict(headers), method="GET")
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
             return int(response.status)

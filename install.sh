@@ -472,7 +472,7 @@ download_asset constraints.txt
 	die "Release SHA-256 verification failed."
 
 if [ "$WITH_TGS" -eq 1 ]; then
-	WHEEL_TARGET="${TMP_DIR}/${WHEEL_NAME}[tgs]"
+	WHEEL_TARGET="$TMP_DIR/$WHEEL_NAME[tgs]"
 else
 	WHEEL_TARGET="$TMP_DIR/$WHEEL_NAME"
 fi

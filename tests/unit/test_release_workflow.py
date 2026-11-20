@@ -164,15 +164,29 @@ def test_project_vendored_files_have_required_headers() -> None:
         assert first_line == VENDORED_HEADER, filename
 
 
-def test_version_and_changelog_prepare_release_021() -> None:
-    """Version 0.2.1 is the current version and has its own changelog entry."""
+def test_version_and_changelog_prepare_release_022() -> None:
+    """Version 0.2.2 is current and documents its own additions and fixes."""
     pyproject = tomllib.loads((ROOT_DIR / "pyproject.toml").read_text("utf-8"))
+    changelog = (ROOT_DIR / "CHANGELOG.md").read_text(encoding="utf-8")
+    release_entry = changelog.split("## [0.2.2] - ", maxsplit=1)[1].split(
+        "\n## [", maxsplit=1
+    )[0]
+
+    assert pyproject["project"]["version"] == "0.2.2"
+    for section in ("### Added", "### Fixed"):
+        assert section in release_entry
+    assert "SYSTEM_PROMPT_PATH" in release_entry
+    assert "LLM_MAX_TOKENS" in release_entry
+    assert "LLMEmptyResponseError" in release_entry
+
+
+def test_version_and_changelog_prepare_release_021() -> None:
+    """Version 0.2.1 keeps its historical changelog entry and required sections."""
     changelog = (ROOT_DIR / "CHANGELOG.md").read_text(encoding="utf-8")
     release_entry = changelog.split("## [0.2.1] - ", maxsplit=1)[1].split(
         "\n## [", maxsplit=1
     )[0]
 
-    assert pyproject["project"]["version"] == "0.2.1"
     for section in ("### Added", "### Changed"):
         assert section in release_entry
     assert "reply_parameters" in release_entry

@@ -22,7 +22,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The bot answers with a visual reply: the response is sent with `reply_parameters` pointing to the user's message. `chat_id` and `message_id` are stored per request, so the link stays correct when several messages arrive in a row and LLM responses finish in a different order. When several messages are combined into one request, the response is linked to the last of them. `allow_sending_without_reply` keeps the response deliverable if the original message is gone. For a long response only the first part is a reply.
 - Automatic detection of the response format: Markdown is sent with `parse_mode=MarkdownV2`, Telegram HTML with `parse_mode=HTML`, plain text without `parse_mode`. Mixed or ambiguous text (for example Markdown together with HTML tags, or unbalanced tags) is sent as plain text. Code is ignored when the format is detected, and no configuration is needed.
 - Conversion of Markdown to MarkdownV2 (bold, italic, strikethrough, code, links, quotes, lists, headings, tables as code blocks) with the required escaping, and sanitizing of HTML to the tags and attributes that Telegram supports.
-- `SYSTEM_PROMPT_PATH` setting: an optional UTF-8 file that replaces the built-in default system prompt, so the administrator can rewrite it without the length limit of personal prompts. A relative path resolves against the home directory, the file is read at startup, and an unusable file is reported as a configuration error (also by `bot-obormot doctor`).
 - Safe fallback: when Telegram rejects the formatting with a parse error, the message is sent once more without `parse_mode`, using the original LLM text and the same `reply_parameters`. If the retry fails, the error is logged.
 
 ### Changed (0.2.1)
@@ -34,10 +33,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed (0.2.1)
 
-- A response that a reasoning model cut off at `LLM_MAX_TOKENS` before it wrote any answer no longer ends with a traceback and an "unexpected error" message. The bot now says that the model used the whole token limit, logs a warning that suggests raising `LLM_MAX_TOKENS`, and also warns when a non-empty answer is truncated by the limit. An empty answer in general raises the dedicated `LLMEmptyResponseError` instead of `RuntimeError`.
 - `install.sh --upgrade` no longer leaves the paths of the staged `.venv.new` in the activated environment: the shebang of `bot-obormot`, the `activate` scripts and `pyvenv.cfg` now point to `.venv`, so the systemd unit can start the service after an upgrade. If the paths cannot be updated, the previous environment is restored.
 
-### Removed
+### Removed (0.2.1)
 
 - `format_roleplay`; use `prepare_response` from `bot_obormot.services.chat.formatting`.
 

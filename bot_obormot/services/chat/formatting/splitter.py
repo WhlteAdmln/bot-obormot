@@ -7,6 +7,7 @@ import html
 import re
 
 from bot_obormot.common.text import utf16_length
+from bot_obormot.services.chat.formatting.tg_html import SUPPORTED_TAGS
 
 _utf16_length = utf16_length
 
@@ -16,21 +17,24 @@ class _FormattedMessageSplitter:
         self.text = text
         self.max_length = max_length
         self.token_pattern = re.compile(
-            r"<(/?)(b|i|blockquote)>"
+            r"<(/?)(" + "|".join(SUPPORTED_TAGS) + r")(?:\s[^<>]*)?>"
             r"|&(?:#[0-9]+|#x[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]+);"
             r"|[^<&]+"
-            r"|[<&]"
+            r"|[<&]",
+            re.IGNORECASE,
         )
         self.chunks: list[str] = []
         self.current: list[str] = []
-        self.open_tags: list[str] = []
+        # Pairs of (tag name, original opening token) so attributes survive.
+        self.open_tags: list[tuple[str, str]] = []
         self.visible_length = 0
 
     def split(self) -> list[str]:
         for match in self.token_pattern.finditer(self.text):
             token = match.group(0)
 
-            if token.startswith("<"):
+            # A lone "<" is plain text, only a complete supported tag is markup.
+            if match.group(2) is not None:
                 self._append_tag(token, match)
                 continue
 
@@ -48,10 +52,10 @@ class _FormattedMessageSplitter:
         return self.chunks
 
     def _close_tags(self) -> str:
-        return "".join(f"</{tag}>" for tag in reversed(self.open_tags))
+        return "".join(f"</{name}>" for name, _ in reversed(self.open_tags))
 
     def _start_next_chunk(self) -> None:
-        self.current = [f"<{tag}>" for tag in self.open_tags]
+        self.current = [token for _, token in self.open_tags]
         self.visible_length = 0
 
     def _flush(self) -> None:
@@ -67,15 +71,16 @@ class _FormattedMessageSplitter:
     def _append_tag(self, token: str, match: re.Match[str]) -> None:
         self.current.append(token)
         closing = match.group(1)
-        tag = match.group(2)
+        tag = match.group(2).lower()
 
         if closing:
-            if tag in self.open_tags:
+            names = [name for name, _ in self.open_tags]
+            if tag in names:
                 # Remove the matching open tag.
-                index = len(self.open_tags) - 1 - self.open_tags[::-1].index(tag)
+                index = len(names) - 1 - names[::-1].index(tag)
                 self.open_tags.pop(index)
         else:
-            self.open_tags.append(tag)
+            self.open_tags.append((tag, token))
 
     def _append_entity(self, token: str) -> None:
         decoded = html.unescape(token)

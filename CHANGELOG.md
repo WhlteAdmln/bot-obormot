@@ -5,9 +5,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-## [0.2.0] - 2026-11-18
+## [0.2.1] - 2026-11-19
 
 ### Added
+
+- The bot answers with a visual reply: the response is sent with `reply_parameters` pointing to the user's message. `chat_id` and `message_id` are stored per request, so the link stays correct when several messages arrive in a row and LLM responses finish in a different order. When several messages are combined into one request, the response is linked to the last of them. `allow_sending_without_reply` keeps the response deliverable if the original message is gone. For a long response only the first part is a reply.
+- Automatic detection of the response format: Markdown is sent with `parse_mode=MarkdownV2`, Telegram HTML with `parse_mode=HTML`, plain text without `parse_mode`. Mixed or ambiguous text (for example Markdown together with HTML tags, or unbalanced tags) is sent as plain text. Code is ignored when the format is detected, and no configuration is needed.
+- Conversion of Markdown to MarkdownV2 (bold, italic, strikethrough, code, links, quotes, lists, headings, tables as code blocks) with the required escaping, and sanitizing of HTML to the tags and attributes that Telegram supports.
+- Safe fallback: when Telegram rejects the formatting with a parse error, the message is sent once more without `parse_mode`, using the original LLM text and the same `reply_parameters`. If the retry fails, the error is logged.
+
+### Changed
+
+- The text is shown without formatting while the response is being generated; the format is detected once, when the final message is delivered.
+- Long responses are split before conversion, at block boundaries; a fenced code block that has to be split is closed and reopened in every part.
+- The roleplay markup is replaced with standard Markdown: `*text*` and `**text**` keep working as italic and bold, while `~text~` is no longer a quote block.
+- Network errors and requests with an unknown delivery status are never retried: a failed delivery of the final response is no longer sent again after a network error, and a failure while sending a later part no longer repeats the parts that were already delivered.
+
+### Removed
+
+- `format_roleplay`; use `prepare_response` from `bot_obormot.services.chat.formatting`.
+
+## [0.2.0] - 2026-11-18
+
+### Added (0.2.0)
 
 - Command-line interface: `bot-obormot run`, `version`, `init`, `config check`, `doctor` and `service install|uninstall|status`; `python -m bot_obormot` is the same program.
 - `BOT_OBORMOT_HOME` (default `~/bot-obormot`) as the application home; `.env` and relative paths such as `DATABASE_PATH` resolve against it.
@@ -18,7 +38,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Documentation: configuration, commands, LLM servers and security guides, plus `make docs-check`.
 - CI jobs for integration tests, the installer (including a real 0.1.1 upgrade) and Docker.
 
-### Changed
+### Changed (0.2.0)
 
 - The Python package is now `bot_obormot` and the console script is `bot-obormot`.
 - All application errors derive from a single `AppError` with a `code` and a `public_message`.
@@ -35,7 +55,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `python -m bot.main` still works through a compatibility package, prints a deprecation line and will be removed in 0.3.0.
 - `BotServiceError` and the `Whisper*Error` names are aliases of `AppError` and `Audiodoc*Error`; they will be removed in 0.3.0.
 
-### Removed
+### Removed (0.2.0)
 
 - The old installer flags `--latest` (latest is now the default) and the installer-managed system package installation; the installer prints the commands instead.
 - The source-archive installation; the installer installs the release wheel.

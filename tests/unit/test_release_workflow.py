@@ -164,15 +164,28 @@ def test_project_vendored_files_have_required_headers() -> None:
         assert first_line == VENDORED_HEADER, filename
 
 
-def test_version_and_changelog_prepare_release_020() -> None:
-    """Version 0.2.0 has a changelog entry with the required sections."""
+def test_version_and_changelog_prepare_release_021() -> None:
+    """Version 0.2.1 is the current version and has its own changelog entry."""
     pyproject = tomllib.loads((ROOT_DIR / "pyproject.toml").read_text("utf-8"))
+    changelog = (ROOT_DIR / "CHANGELOG.md").read_text(encoding="utf-8")
+    release_entry = changelog.split("## [0.2.1] - ", maxsplit=1)[1].split(
+        "\n## [", maxsplit=1
+    )[0]
+
+    assert pyproject["project"]["version"] == "0.2.1"
+    for section in ("### Added", "### Changed"):
+        assert section in release_entry
+    assert "reply_parameters" in release_entry
+    assert "parse_mode" in release_entry
+
+
+def test_changelog_keeps_the_release_020_entry() -> None:
+    """Version 0.2.0 keeps its changelog entry with the required sections."""
     changelog = (ROOT_DIR / "CHANGELOG.md").read_text(encoding="utf-8")
     release_entry = changelog.split("## [0.2.0] - ", maxsplit=1)[1].split(
         "\n## [", maxsplit=1
     )[0]
 
-    assert pyproject["project"]["version"] == "0.2.0"
     for section in ("### Added", "### Changed", "### Deprecated", "### Removed"):
         assert section in release_entry
     assert "WHISPER_" in release_entry

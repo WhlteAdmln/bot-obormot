@@ -14,7 +14,7 @@ from aiogram import Router
 from bot_obormot.handlers.chat.texts import PENDING_REQUESTS_MESSAGE
 from bot_obormot.services.chat.errors.handler import handle_chat_error
 from bot_obormot.services.chat.formatting import (
-    format_roleplay,
+    prepare_response,
     split_formatted_message,
 )
 from bot_obormot.services.chat.incoming_log import log_incoming_message
@@ -24,6 +24,7 @@ from bot_obormot.services.chat.pipeline import (
     ChatPipelineDependencies,
     process_chat,
 )
+from bot_obormot.services.chat.reply import ReplyTarget
 from bot_obormot.services.chat.reporting import safe_edit
 from bot_obormot.services.chat.streaming import (
     MAX_MESSAGE_LENGTH,
@@ -33,7 +34,6 @@ from bot_obormot.services.chat.streaming import (
     deliver_final_response,
 )
 from bot_obormot.services.chat.streaming.delivery import DeliveryOptions
-from bot_obormot.services.chat.streaming.responder import StreamingResponderOptions
 from bot_obormot.services.telegram.chat_action import keep_typing
 from bot_obormot.settings import get_settings
 
@@ -97,16 +97,25 @@ async def handle_message(
         await message.answer(PENDING_REQUESTS_MESSAGE)
         return
 
+    # The response is linked to the last message of the request: this is the
+    # message itself, or the last one of several combined messages.
+    reply_to = ReplyTarget.from_message(
+        getattr(aggregated_text, "last_message", None) or message
+    )
+    logger.debug(
+        "Reply target for user_id=%s: chat_id=%s, message_id=%s",
+        user_id,
+        reply_to.chat_id,
+        reply_to.message_id,
+    )
+
     async with get_user_lock(user_id):
         responder = StreamingResponder(
             message=message,
             user_id=user_id,
             count_text_tokens=llm_client.count_text_tokens,
             safe_edit=safe_edit,
-            options=StreamingResponderOptions(
-                formatter=format_roleplay,
-                splitter=split_formatted_message,
-            ),
+            reply_to=reply_to,
         )
         typing_task = asyncio.create_task(keep_typing(message))
 
@@ -139,10 +148,10 @@ async def handle_message(
                 status=responder.status,
                 safe_edit=safe_edit,
                 options=DeliveryOptions(
-                    formatter=format_roleplay,
-                    splitter=split_formatted_message,
+                    preparer=prepare_response,
                     max_message_length=MAX_MESSAGE_LENGTH,
                     user_id=user_id,
+                    reply_to=reply_to,
                 ),
             )
 
@@ -177,7 +186,6 @@ __all__ = [
     "MAX_PENDING_PER_USER",
     "STREAM_TOKEN_THRESHOLD",
     "STREAM_UPDATE_INTERVAL",
-    "format_roleplay",
     "get_user_lock",
     "handle_chat_error",
     "handle_message",
@@ -186,6 +194,7 @@ __all__ = [
     "log_incoming_message",
     "logger",
     "prepare_message",
+    "prepare_response",
     "process_chat",
     "router",
     "safe_edit",

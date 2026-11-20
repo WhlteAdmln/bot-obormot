@@ -3,7 +3,10 @@
 
 """Aggregate consecutive text messages."""
 
-from bot_obormot.services.chat.aggregation.aggregator import MessageAggregator
+from bot_obormot.services.chat.aggregation.aggregator import (
+    AggregatedText,
+    MessageAggregator,
+)
 from bot_obormot.services.chat.aggregation.config import (
     MESSAGE_AGGREGATION_WINDOW,
     MESSAGE_LENGTH_THRESHOLD,
@@ -12,5 +15,6 @@ from bot_obormot.services.chat.aggregation.config import (
 __all__ = [
     "MESSAGE_AGGREGATION_WINDOW",
     "MESSAGE_LENGTH_THRESHOLD",
+    "AggregatedText",
     "MessageAggregator",
 ]

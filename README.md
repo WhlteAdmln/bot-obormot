@@ -10,6 +10,7 @@ Russian version: [README.ru.md](README.ru.md).
 ## Features
 
 - Streaming answers from any OpenAI-compatible server, such as llama.cpp or vLLM.
+- Replies to your message, with Markdown and HTML in the answer shown as Telegram formatting.
 - Per-user history with adjustable limits and per-user system prompts.
 - Images, GIFs, video and animated stickers are handled locally.
 - Voice messages, audio files and documents through audiodoc (optional).

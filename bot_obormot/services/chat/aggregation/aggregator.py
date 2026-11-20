@@ -6,6 +6,7 @@
 import asyncio
 import logging
 import time
+from typing import Self
 
 from aiogram.types import Message
 
@@ -21,6 +22,32 @@ logger = logging.getLogger("bot_obormot.services.chat.aggregation.aggregator")
 _utf16_length = utf16_length
 
 
+class AggregatedText(str):
+    """Collected text that remembers the last message it was built from.
+
+    It behaves exactly like ``str``; ``last_message`` is the message that
+    the response must be linked to (``reply_parameters``).
+    """
+
+    __slots__ = ("last_message",)
+
+    last_message: Message | None
+
+    def __new__(
+        cls,
+        text: str,
+        last_message: Message | None = None,
+    ) -> Self:
+        """Create the text together with its last source message."""
+        instance = super().__new__(cls, text)
+        instance.last_message = last_message
+        return instance
+
+
+def _joined(state: _AggregationState) -> AggregatedText:
+    return AggregatedText("\n".join(state.parts), state.last_message)
+
+
 class MessageAggregator:
     """Aggregate consecutive text messages from one user."""
 
@@ -33,7 +60,9 @@ class MessageAggregator:
     async def collect(self, message: Message) -> str | None:
         """Return collected text or None for a continuation part.
 
-        Return None when the message is accepted as a continuation.
+        Return None when the message is accepted as a continuation. For
+        aggregated text the result is an :class:`AggregatedText` that knows
+        the last message of the request.
         """
         text = message.text
 
@@ -54,7 +83,7 @@ class MessageAggregator:
                     user_id,
                     part_length,
                 )
-            elif self._absorb_continuation(user_id, state, text, part_length, now):
+            elif self._absorb_continuation(user_id, state, message, part_length, now):
                 return None
 
             # Do not delay short standalone messages.
@@ -68,7 +97,7 @@ class MessageAggregator:
                 )
                 return text
 
-            future = self._start_aggregation(user_id, text, part_length, now)
+            future = self._start_aggregation(user_id, message, part_length, now)
 
         # Cancelling the handler does not cancel the shared future.
         return await asyncio.shield(future)
@@ -77,7 +106,7 @@ class MessageAggregator:
         self,
         user_id: int,
         state: _AggregationState,
-        text: str,
+        message: Message,
         part_length: int,
         now: float,
     ) -> bool:
@@ -101,7 +130,8 @@ class MessageAggregator:
             if collected > MAX_INPUT_TEXT_LENGTH:
                 return True
 
-            state.parts.append(text)
+            state.parts.append(message.text or "")
+            state.last_message = message
             state.last_activity = now
             state.event.set()
 
@@ -118,13 +148,13 @@ class MessageAggregator:
         self._states.pop(user_id, None)
 
         if state.future and not state.future.done():
-            state.future.set_result("\n".join(state.parts))
+            state.future.set_result(_joined(state))
         return False
 
     def _start_aggregation(
         self,
         user_id: int,
-        text: str,
+        message: Message,
         part_length: int,
         now: float,
     ) -> asyncio.Future[str]:
@@ -133,9 +163,10 @@ class MessageAggregator:
         future: asyncio.Future[str] = loop.create_future()
 
         state = _AggregationState(
-            parts=[text],
+            parts=[message.text or ""],
             last_activity=now,
             future=future,
+            last_message=message,
         )
 
         self._states[user_id] = state
@@ -174,7 +205,7 @@ class MessageAggregator:
             if remaining <= 0:
                 self._states.pop(user_id, None)
 
-                result = "\n".join(state.parts)
+                result = _joined(state)
 
                 if state.future and not state.future.done():
                     state.future.set_result(result)
@@ -203,7 +234,7 @@ class MessageAggregator:
                 self._states.pop(user_id, None)
 
             if state.future and not state.future.done():
-                state.future.set_result("\n".join(state.parts))
+                state.future.set_result(_joined(state))
 
     async def _wait_for_continuation(
         self,

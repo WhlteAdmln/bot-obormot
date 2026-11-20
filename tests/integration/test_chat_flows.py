@@ -18,7 +18,6 @@ from PIL import Image
 import bot_obormot.app.routers as app_routers
 from bot_obormot.app.routers import configure_dispatcher
 from bot_obormot.middlewares import throttle as throttle_middleware
-from bot_obormot.services.chat.formatting import format_roleplay
 from bot_obormot.services.chat.streaming.settings import MAX_MESSAGE_LENGTH
 from bot_obormot.services.database import Database
 from bot_obormot.services.llm import LLMClient
@@ -223,7 +222,7 @@ def _assert_voice_delivery(
     assert llm_server.stream_started.is_set()
     assert len(sent_messages) == 1
     assert edited_texts
-    assert edited_texts[-1] == format_roleplay(response)
+    assert edited_texts[-1] == response
 
 
 async def _assert_voice_history(
@@ -306,7 +305,7 @@ async def test_text_message_streams_answer_and_persists_exchange(
             assert sent_messages[0].text is not None
             assert "streamed" in sent_messages[0].text
             assert edited_texts
-            assert edited_texts[-1] == format_roleplay(response)
+            assert edited_texts[-1] == response
 
             history = await test_db.get_history(user_id)
             assert [(item["role"], item["content"]) for item in history] == [
@@ -423,7 +422,7 @@ async def test_pdf_document_is_extracted_answered_and_persisted(
             assert llm_server.stream_started.is_set()
             assert len(sent_messages) == 1
             assert edited_texts
-            assert edited_texts[-1] == format_roleplay(response)
+            assert edited_texts[-1] == response
             assert llm_server.chat_requests
             assert any(
                 "Example document text." in str(request.get("messages", []))
@@ -466,7 +465,7 @@ def _assert_photo_delivery(
     assert llm_server.stream_started.is_set()
     assert len(sent_messages) == 1
     assert edited_texts
-    assert edited_texts[-1] == format_roleplay(response)
+    assert edited_texts[-1] == response
 
     image_parts = [
         part
@@ -796,7 +795,7 @@ async def test_long_answer_is_split_into_multiple_telegram_messages(
             assert len(sent_messages) == 4
             assert len(delivered_chunks) == len(sent_messages)
             assert all(len(chunk) <= MAX_MESSAGE_LENGTH for chunk in delivered_chunks)
-            assert "".join(delivered_chunks) == format_roleplay(response)
+            assert " ".join(delivered_chunks) == response
 
             history = await test_db.get_history(user_id)
             assert [(item["role"], item["content"]) for item in history] == [
@@ -1039,7 +1038,7 @@ def _assert_history_limit_delivery(
     delivered_text = sent_messages[0].text
     if edited_texts:
         delivered_text = edited_texts[-1]
-    assert delivered_text == format_roleplay(response)
+    assert delivered_text == response
 
 
 async def _assert_history_limit_persistence(

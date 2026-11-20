@@ -11,10 +11,8 @@ from typing import Any
 
 from aiogram.types import Message
 
-from bot_obormot.services.chat.formatting import (
-    format_roleplay,
-    split_formatted_message,
-)
+from bot_obormot.services.chat.formatting import split_plain_message
+from bot_obormot.services.chat.reply import ReplyTarget
 from bot_obormot.services.chat.streaming.settings import (
     MAX_MESSAGE_LENGTH,
     STREAM_TOKEN_THRESHOLD,
@@ -25,8 +23,7 @@ from bot_obormot.services.chat.streaming.texts import REQUEST_CANCELLED_TEXT
 logger = logging.getLogger("bot_obormot.handlers.chat")
 
 TokenCounter = Callable[[str], Awaitable[int]]
-SafeEdit = Callable[[Any, str], Awaitable[None]]
-Formatter = Callable[[str], str]
+SafeEdit = Callable[..., Awaitable[None]]
 Splitter = Callable[..., list[str]]
 
 
@@ -34,8 +31,7 @@ Splitter = Callable[..., list[str]]
 class StreamingResponderOptions:
     """Configuration for streaming display thresholds and formatting."""
 
-    formatter: Formatter = format_roleplay
-    splitter: Splitter = split_formatted_message
+    splitter: Splitter = split_plain_message
     token_threshold: int = STREAM_TOKEN_THRESHOLD
     update_interval: float = STREAM_UPDATE_INTERVAL
     max_message_length: int = MAX_MESSAGE_LENGTH
@@ -60,6 +56,7 @@ class StreamingResponder:
         count_text_tokens: TokenCounter,
         safe_edit: SafeEdit,
         *,
+        reply_to: ReplyTarget | None = None,
         options: StreamingResponderOptions = _DEFAULT_STREAMING_RESPONDER_OPTIONS,
     ) -> None:
         """Store the dependencies and the initial streaming state."""
@@ -67,7 +64,7 @@ class StreamingResponder:
         self.user_id = user_id
         self.count_text_tokens = count_text_tokens
         self.safe_edit = safe_edit
-        self.formatter = options.formatter
+        self.reply_to = reply_to
         self.splitter = options.splitter
         self.token_threshold = options.token_threshold
         self.update_interval = options.update_interval
@@ -120,19 +117,25 @@ class StreamingResponder:
     async def _start_streaming_display(self, current_text: str) -> None:
         """Create the initial streaming message."""
         try:
-            formatted_text = self.formatter(current_text)
+            # The text is shown as is while it is generated: incomplete
+            # markup cannot be parsed reliably, the format is detected at
+            # the end.
             chunks = self.splitter(
-                formatted_text,
+                current_text,
                 max_length=self.max_message_length,
             )
 
             if not chunks:
                 return
 
-            self.status = await self.message.answer(
-                chunks[0],
-                parse_mode="HTML",
+            reply_parameters = (
+                self.reply_to.parameters() if self.reply_to is not None else None
             )
+            kwargs: dict[str, Any] = {}
+            if reply_parameters is not None:
+                kwargs["reply_parameters"] = reply_parameters
+
+            self.status = await self.message.answer(chunks[0], **kwargs)
 
             self.last_displayed_text = chunks[0]
             self.last_update = asyncio.get_running_loop().time()
@@ -148,9 +151,11 @@ class StreamingResponder:
     async def _update_streaming_display(self, current_text: str) -> None:
         """Update the existing streaming message."""
         try:
-            formatted_text = self.formatter(current_text)
+            # The text is shown as is while it is generated: incomplete
+            # markup cannot be parsed reliably, the format is detected at
+            # the end.
             chunks = self.splitter(
-                formatted_text,
+                current_text,
                 max_length=self.max_message_length,
             )
 
@@ -160,7 +165,7 @@ class StreamingResponder:
             first_chunk = chunks[0]
 
             if first_chunk != self.last_displayed_text:
-                await self.safe_edit(self.status, first_chunk)
+                await self.safe_edit(self.status, first_chunk, parse_mode=None)
                 self.last_displayed_text = first_chunk
 
             self.last_update = asyncio.get_running_loop().time()

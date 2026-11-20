@@ -12,13 +12,20 @@ from aiogram.types import Message
 logger = logging.getLogger("bot_obormot.services.chat.reporting")
 
 
-async def safe_edit(message: Message, text: str) -> None:
-    """Safely edit a message."""
+async def safe_edit(
+    message: Message,
+    text: str,
+    parse_mode: str | None = ParseMode.HTML,
+) -> None:
+    """Safely edit a message.
+
+    ``parse_mode=None`` edits the text without any formatting.
+    """
     try:
-        await message.edit_text(
-            text,
-            parse_mode=ParseMode.HTML,
-        )
+        if parse_mode is None:
+            await message.edit_text(text)
+        else:
+            await message.edit_text(text, parse_mode=parse_mode)
     except TelegramBadRequest as exc:
         if "message is not modified" not in str(exc).lower():
             raise

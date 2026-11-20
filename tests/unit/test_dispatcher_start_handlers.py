@@ -3,7 +3,7 @@
 
 """Exercise handlers through the real Dispatcher."""
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from dataclasses import replace
 
 import pytest
@@ -220,9 +220,18 @@ def access_database(
 
 
 @pytest.fixture(scope="module")
-def dispatcher() -> Dispatcher:
-    """Create one configured dispatcher for the test module."""
-    return configure_dispatcher(Dispatcher(storage=MemoryStorage()), SETTINGS)
+def dispatcher() -> Iterator[Dispatcher]:
+    """Create one configured dispatcher for the test module.
+
+    The application routers are shared module-level objects, so they are
+    detached afterwards to keep other test modules independent of the order.
+    """
+    configured = configure_dispatcher(Dispatcher(storage=MemoryStorage()), SETTINGS)
+    yield configured
+
+    for router in configured.sub_routers:
+        router._parent_router = None
+    configured.sub_routers.clear()
 
 
 @pytest_asyncio.fixture

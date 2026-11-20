@@ -9,7 +9,7 @@ import pytest
 
 from bot_obormot import initial_env
 
-VALID_TOKEN = "123456789:" + "A" * 35  # noqa: S105
+VALID_TOKEN = "123456789:" + "A" * 35
 
 
 def test_new_file_is_created_with_private_permissions(tmp_path: Path) -> None:
@@ -47,9 +47,7 @@ def test_force_overwrites_the_file(tmp_path: Path) -> None:
 
 def test_placeholders_are_replaced(tmp_path: Path) -> None:
     """The token and supervisor placeholders are filled in."""
-    env_path = initial_env.write_initial_env(
-        tmp_path, token=VALID_TOKEN, supervisor=42
-    )
+    env_path = initial_env.write_initial_env(tmp_path, token=VALID_TOKEN, supervisor=42)
     lines = env_path.read_text(encoding="utf-8").splitlines()
 
     assert f"BOT_TOKEN={VALID_TOKEN}" in lines
@@ -68,8 +66,9 @@ def test_placeholders_remain_when_values_are_not_given(tmp_path: Path) -> None:
 
 def test_invalid_token_and_supervisor_are_rejected(tmp_path: Path) -> None:
     """Invalid values never reach the file."""
+    injection_value = "bad\nBOT_TOKEN=x"
     with pytest.raises(ValueError, match="token"):
-        initial_env.write_initial_env(tmp_path, token="bad\nBOT_TOKEN=x")
+        initial_env.write_initial_env(tmp_path, token=injection_value)
     with pytest.raises(ValueError, match="supervisor"):
         initial_env.write_initial_env(tmp_path, supervisor=0)
 

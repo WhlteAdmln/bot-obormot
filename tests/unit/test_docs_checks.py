@@ -15,10 +15,10 @@ from scripts.check_docs import (
     _settings_environment_names,
     check_documented_commands,
     check_markdown_links,
-    check_telegram_commands,
     check_russian_documents,
     check_section_parity,
     check_settings,
+    check_telegram_commands,
 )
 
 

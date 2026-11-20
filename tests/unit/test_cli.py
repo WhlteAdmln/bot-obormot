@@ -14,7 +14,7 @@ from bot_obormot import cli
 from bot_obormot.doctor import DiagnosticCheck
 from bot_obormot.settings import ConfigError
 
-VALID_TOKEN = "123456789:" + "A" * 35  # noqa: S105
+VALID_TOKEN = "123456789:" + "A" * 35
 ENV_EXAMPLE = Path(__file__).resolve().parents[2] / ".env.example"
 
 
@@ -251,7 +251,7 @@ def test_service_install_print_only_prints_the_unit(
     assert cli.main(["service", "install", "--print"]) == 0
 
     output = capsys.readouterr().out
-    assert f"ExecStart=\"{home}/.venv/bin/bot-obormot\" run" in output
+    assert f'ExecStart="{home}/.venv/bin/bot-obormot" run' in output
     assert "BOT_OBORMOT_HOME" in output
     assert not (home / ".config").exists()
 

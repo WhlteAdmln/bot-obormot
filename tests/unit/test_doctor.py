@@ -11,10 +11,9 @@ from pathlib import Path
 import pytest
 
 from bot_obormot import doctor
-from bot_obormot.doctor import DiagnosticCheck
 from bot_obormot.settings import Settings
 
-VALID_TOKEN = "123456789:" + "A" * 35  # noqa: S105
+VALID_TOKEN = "123456789:" + "A" * 35
 
 
 def _environ(tmp_path: Path, **overrides: str) -> dict[str, str]:
@@ -216,13 +215,15 @@ def test_fetch_status_rejects_other_schemes_and_maps_errors(
         doctor.fetch_status("file:///etc/passwd", {}, 1.0)
 
     def raise_http(*_args: object, **_kwargs: object) -> object:
-        raise urllib.error.HTTPError("http://x", 401, "no", None, None)  # type: ignore[arg-type]
+        url = "http://x"
+        raise urllib.error.HTTPError(url, 401, "no", None, None)  # type: ignore[arg-type]
 
     monkeypatch.setattr(doctor.urllib.request, "urlopen", raise_http)
     assert doctor.fetch_status("http://x", {}, 1.0) == 401
 
     def raise_url(*_args: object, **_kwargs: object) -> object:
-        raise urllib.error.URLError("refused")
+        reason = "refused"
+        raise urllib.error.URLError(reason)
 
     monkeypatch.setattr(doctor.urllib.request, "urlopen", raise_url)
     with pytest.raises(OSError, match="refused"):
@@ -256,7 +257,7 @@ def test_collect_skips_dependent_checks_for_invalid_settings(tmp_path: Path) -> 
     checks = doctor.collect_doctor_checks(
         _environ(tmp_path, SUPERVISOR_ID="x"), offline=True
     )
-    by_name: dict[str, DiagnosticCheck] = {check.name: check for check in checks}
+    by_name: dict[str, doctor.DiagnosticCheck] = {check.name: check for check in checks}
 
     assert by_name["Settings"].status == "FAIL"
     for name in ("Database", "LLM server", "audiodoc"):

@@ -21,10 +21,11 @@ async def safe_edit(
 
     ``parse_mode=None`` edits the text without any formatting.
     """
-    kwargs = {} if parse_mode is None else {"parse_mode": parse_mode}
-
     try:
-        await message.edit_text(text, **kwargs)
+        if parse_mode is None:
+            await message.edit_text(text)
+        else:
+            await message.edit_text(text, parse_mode=parse_mode)
     except TelegramBadRequest as exc:
         if "message is not modified" not in str(exc).lower():
             raise

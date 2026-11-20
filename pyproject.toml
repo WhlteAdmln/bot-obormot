@@ -44,11 +44,11 @@ dev = [
     "vulture==2.16",
     "mypy==2.4.1",
     "pip-audit==2.10.1",
-    "shfmt-py==4.0.0",
+    "shfmt-py==4.2.0",
     "shellcheck-py==0.11.0.1",
     "pre-commit==4.7.0",
     "packaging==26.3",
-    "build>=1.2,<2.0",
+    "build>=1.6.1,<2.0",
     "setuptools==84.2.1",
     "wheel==0.48.0",
 ]

@@ -97,7 +97,6 @@ async def edit_chunk(
     """Edit a message; retry once without ``parse_mode`` on a parse error."""
     try:
         await safe_edit(status, chunk.text, parse_mode=chunk.parse_mode)
-        return
     except TelegramBadRequest as error:
         if chunk.parse_mode is None or not is_entity_parse_error(error):
             raise
@@ -108,6 +107,8 @@ async def edit_chunk(
             chunk.parse_mode,
             error,
         )
+    else:
+        return
 
     try:
         await safe_edit(status, chunk.plain_text, parse_mode=None)

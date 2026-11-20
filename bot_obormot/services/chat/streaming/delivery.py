@@ -6,7 +6,6 @@
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any
 
 from aiogram.types import Message
 

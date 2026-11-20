@@ -91,7 +91,7 @@ def test_reply_target_without_message_id_has_no_parameters() -> None:
 )
 def test_only_confirmed_parse_errors_are_entity_errors(
     error: Exception,
-    expected: bool,  # noqa: FBT001
+    expected: bool,
 ) -> None:
     """Recognize only Telegram formatting errors."""
     assert is_entity_parse_error(error) is expected
@@ -104,7 +104,7 @@ async def test_parse_mode_and_reply_parameters_are_sent_together() -> None:
 
     await deliver_final_response(message, "**hi**", None, _edit, options=_options())
 
-    (text, kwargs), = message.answers
+    ((text, kwargs),) = message.answers
     assert text == "*hi*"
     assert kwargs["parse_mode"] == "MarkdownV2"
     assert kwargs["reply_parameters"].message_id == 42
@@ -125,9 +125,7 @@ async def test_formatting_error_retries_once_with_original_text_and_reply() -> N
     """Retry once without parse_mode, with the original text and the reply."""
     message = _Message(failures=[_bad_request(PARSE_ERROR), None])
 
-    await deliver_final_response(
-        message, "**hi** a.b", None, _edit, options=_options()
-    )
+    await deliver_final_response(message, "**hi** a.b", None, _edit, options=_options())
 
     assert len(message.answers) == 2
     retry_text, retry_kwargs = message.answers[1]
@@ -144,9 +142,7 @@ async def test_failed_retry_is_logged_and_not_repeated(
     message = _Message(failures=[_bad_request(PARSE_ERROR), _bad_request(PARSE_ERROR)])
 
     with pytest.raises(TelegramBadRequest):
-        await deliver_final_response(
-            message, "**hi**", None, _edit, options=_options()
-        )
+        await deliver_final_response(message, "**hi**", None, _edit, options=_options())
 
     assert len(message.answers) == 2
     assert "Plain-text retry failed" in caplog.text
@@ -162,9 +158,7 @@ async def test_other_errors_do_not_trigger_the_fallback(error: Exception) -> Non
     message = _Message(failures=[error])
 
     with pytest.raises(type(error)):
-        await deliver_final_response(
-            message, "**hi**", None, _edit, options=_options()
-        )
+        await deliver_final_response(message, "**hi**", None, _edit, options=_options())
 
     assert len(message.answers) == 1
 
@@ -212,7 +206,9 @@ async def test_only_the_first_chunk_is_a_reply() -> None:
     """Link only the first part of a long response to the user's message."""
     message = _Message()
 
-    await deliver_final_response(message, "слово " * 1500, None, _edit, options=_options())
+    await deliver_final_response(
+        message, "слово " * 1500, None, _edit, options=_options()
+    )
 
     assert len(message.answers) > 1
     assert "reply_parameters" in message.answers[0][1]
@@ -254,7 +250,7 @@ async def test_streaming_message_is_created_as_a_reply_without_parse_mode() -> N
 
     await responder.on_update("a" * 400)
 
-    (_, kwargs), = message.answers
+    ((_, kwargs),) = message.answers
     assert kwargs["reply_parameters"].message_id == 42
     assert "parse_mode" not in kwargs
 

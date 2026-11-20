@@ -122,9 +122,7 @@ async def cmd_start(
         scope=BotCommandScopeChat(chat_id=message.chat.id),
     )
 
-    text = _build_welcome_text(
-        settings, is_admin=is_admin, is_supervisor=is_supervisor
-    )
+    text = _build_welcome_text(settings, is_admin=is_admin, is_supervisor=is_supervisor)
     response = await message.answer(text)
 
     data: dict[str, Any] = {WELCOME_MESSAGE_KEY: response.message_id}

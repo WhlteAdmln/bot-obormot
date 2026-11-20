@@ -456,7 +456,7 @@ async def test_handler_replies_to_the_incoming_message(
         settings=SETTINGS,
     )
 
-    (text, kwargs), = message.answers
+    ((text, kwargs),) = message.answers
     assert text == "*ответ*"
     assert kwargs["parse_mode"] == "MarkdownV2"
     assert kwargs["reply_parameters"].message_id == 11
@@ -485,7 +485,7 @@ async def test_handler_replies_to_the_last_aggregated_message(
         settings=SETTINGS,
     )
 
-    (text, kwargs), = first.answers
+    ((text, kwargs),) = first.answers
     assert text == "ответ"
     assert "parse_mode" not in kwargs
     assert kwargs["reply_parameters"].message_id == 13

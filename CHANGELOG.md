@@ -27,7 +27,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [0.2.0] - 2026-11-18
 
-### Added
+### Added (0.2.0)
 
 - Command-line interface: `bot-obormot run`, `version`, `init`, `config check`, `doctor` and `service install|uninstall|status`; `python -m bot_obormot` is the same program.
 - `BOT_OBORMOT_HOME` (default `~/bot-obormot`) as the application home; `.env` and relative paths such as `DATABASE_PATH` resolve against it.
@@ -38,7 +38,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Documentation: configuration, commands, LLM servers and security guides, plus `make docs-check`.
 - CI jobs for integration tests, the installer (including a real 0.1.1 upgrade) and Docker.
 
-### Changed
+### Changed (0.2.0)
 
 - The Python package is now `bot_obormot` and the console script is `bot-obormot`.
 - All application errors derive from a single `AppError` with a `code` and a `public_message`.
@@ -55,14 +55,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `python -m bot.main` still works through a compatibility package, prints a deprecation line and will be removed in 0.3.0.
 - `BotServiceError` and the `Whisper*Error` names are aliases of `AppError` and `Audiodoc*Error`; they will be removed in 0.3.0.
 
-### Removed
+### Removed (0.2.0)
 
 - The old installer flags `--latest` (latest is now the default) and the installer-managed system package installation; the installer prints the commands instead.
 - The source-archive installation; the installer installs the release wheel.
 
 ## [0.1.1] - 2026-11-06
 
-### Added
+### Added (0.1.1)
 
 - Support for OpenAI-compatible LLM servers without llama.cpp-specific endpoints.
 - Explicit context-size and token-counting configuration.

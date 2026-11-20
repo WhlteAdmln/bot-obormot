@@ -5,6 +5,7 @@
 
 import html
 import re
+from collections.abc import Callable
 
 # Tags supported by Telegram ``parse_mode=HTML``.
 SUPPORTED_TAGS: tuple[str, ...] = (
@@ -39,7 +40,10 @@ _TELEGRAM_NAMED_ENTITIES = frozenset({"&lt;", "&gt;", "&amp;", "&quot;"})
 _SAFE_URL = re.compile(r"^(?:https?://|tg://|mailto:)\S+$", re.IGNORECASE)
 _LANGUAGE_CLASS = re.compile(r"^language-[A-Za-z0-9_+#.-]+$")
 _DIGITS = re.compile(r"^[0-9]+$")
-_PREFORMATTED = re.compile(r"<(pre|code)\b[^<>]*>.*?</\1\s*>", re.DOTALL | re.IGNORECASE)
+_PREFORMATTED = re.compile(
+    r"<(pre|code)\b[^<>]*>.*?</\1\s*>",
+    re.DOTALL | re.IGNORECASE,
+)
 _BREAK = re.compile(r"<br\s*/?>", re.IGNORECASE)
 
 
@@ -115,39 +119,62 @@ def _has_attribute(text: str, name: str) -> bool:
     return any(m.group(1).lower() == name for m in _ATTRIBUTE.finditer(text))
 
 
-def _quote(value: str) -> str:
+def _quote_value(value: str) -> str:
     return _escape_text(value).replace('"', "&quot;")
+
+
+def _anchor(raw_attributes: str) -> str | None:
+    href = _attribute_value(raw_attributes, "href")
+
+    if href is None or not _SAFE_URL.match(href.strip()):
+        return None
+
+    return f'<a href="{_quote_value(href.strip())}">'
+
+
+def _span(raw_attributes: str) -> str | None:
+    css = _attribute_value(raw_attributes, "class")
+    return '<span class="tg-spoiler">' if css == "tg-spoiler" else None
+
+
+def _emoji(raw_attributes: str) -> str | None:
+    emoji_id = _attribute_value(raw_attributes, "emoji-id")
+
+    if emoji_id is None or not _DIGITS.match(emoji_id):
+        return None
+
+    return f'<tg-emoji emoji-id="{emoji_id}">'
+
+
+def _code(raw_attributes: str) -> str | None:
+    css = _attribute_value(raw_attributes, "class")
+
+    if css is not None and _LANGUAGE_CLASS.match(css):
+        return f'<code class="{css}">'
+
+    return "<code>"
+
+
+def _blockquote(raw_attributes: str) -> str | None:
+    if _has_attribute(raw_attributes, "expandable"):
+        return "<blockquote expandable>"
+
+    return "<blockquote>"
+
+
+_OPENERS: dict[str, Callable[[str], str | None]] = {
+    "a": _anchor,
+    "span": _span,
+    "tg-emoji": _emoji,
+    "code": _code,
+    "blockquote": _blockquote,
+}
 
 
 def _open_tag(name: str, raw_attributes: str) -> str | None:
     """Return a clean opening tag or None when the tag must be dropped."""
-    if name == "a":
-        href = _attribute_value(raw_attributes, "href")
-        if href is None or not _SAFE_URL.match(href.strip()):
-            return None
-        return f'<a href="{_quote(href.strip())}">'
-
-    if name == "span":
-        css = _attribute_value(raw_attributes, "class")
-        return '<span class="tg-spoiler">' if css == "tg-spoiler" else None
-
-    if name == "tg-emoji":
-        emoji_id = _attribute_value(raw_attributes, "emoji-id")
-        if emoji_id is None or not _DIGITS.match(emoji_id):
-            return None
-        return f'<tg-emoji emoji-id="{emoji_id}">'
-
-    if name == "code":
-        css = _attribute_value(raw_attributes, "class")
-        if css is not None and _LANGUAGE_CLASS.match(css):
-            return f'<code class="{css}">'
-        return "<code>"
-
-    if name == "blockquote":
-        expandable = _has_attribute(raw_attributes, "expandable")
-        return "<blockquote expandable>" if expandable else "<blockquote>"
-
-    return f"<{name}>"
+    opener = _OPENERS.get(name)
+    return f"<{name}>" if opener is None else opener(raw_attributes)
 
 
 def sanitize_html(text: str) -> str:

@@ -6,6 +6,7 @@
 import asyncio
 import logging
 import time
+from typing import Self
 
 from aiogram.types import Message
 
@@ -28,13 +29,15 @@ class AggregatedText(str):
     the response must be linked to (``reply_parameters``).
     """
 
+    __slots__ = ("last_message",)
+
     last_message: Message | None
 
     def __new__(
         cls,
         text: str,
         last_message: Message | None = None,
-    ) -> "AggregatedText":
+    ) -> Self:
         """Create the text together with its last source message."""
         instance = super().__new__(cls, text)
         instance.last_message = last_message

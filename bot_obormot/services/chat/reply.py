@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 from aiogram.types import ReplyParameters
 
@@ -24,7 +23,7 @@ class ReplyTarget:
     message_id: int | None = None
 
     @classmethod
-    def from_message(cls, message: Any) -> ReplyTarget:  # noqa: ANN401 - aiogram Message or a test double
+    def from_message(cls, message: object) -> ReplyTarget:
         """Store ``chat_id`` and ``message_id`` of an incoming message."""
         chat = getattr(message, "chat", None)
         chat_id = getattr(chat, "id", None)

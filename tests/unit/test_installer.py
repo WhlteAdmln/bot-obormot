@@ -469,6 +469,39 @@ def test_upgrade_preserves_env_and_data_and_never_touches_the_unit(
     assert ["service", "install", "--user"] not in calls_of(app_home)
 
 
+def test_upgrade_leaves_no_staged_path_in_the_environment_files(
+    user_home: Path, local_release: tuple[str, Path]
+) -> None:
+    """Scripts of the swapped venv point to .venv, never to the staged .venv.new."""
+    release_url, release_dir = local_release
+    app_home = install_version_one(release_url, user_home)
+    publish_version_two(release_dir)
+
+    result = run_installer("--upgrade", release_url=release_url, home=user_home)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    environment = app_home / ".venv"
+    files = [
+        path
+        for path in (*(environment / "bin").iterdir(), environment / "pyvenv.cfg")
+        if path.is_file() and not path.is_symlink()
+    ]
+    assert environment / "bin" / "bot-obormot" in files
+    assert [path.name for path in files if b".venv.new" in path.read_bytes()] == []
+    interpreter = str(environment / "bin" / "python").encode()
+    assert interpreter in (environment / "bin" / "bot-obormot").read_bytes()
+
+    entry_point = subprocess.run(  # noqa: S603 - runs the CLI installed by the test.
+        [str(environment / "bin" / "bot-obormot"), "doctor", "--offline"],
+        check=False,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "BOT_OBORMOT_HOME": str(app_home)},
+        timeout=60,
+    )
+    assert entry_point.returncode == 0, entry_point.stdout + entry_point.stderr
+
+
 def test_upgrade_keeps_the_old_version_when_offline_doctor_fails(
     user_home: Path, local_release: tuple[str, Path]
 ) -> None:

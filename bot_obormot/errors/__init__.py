@@ -32,6 +32,7 @@ from bot_obormot.errors.documents import (
 )
 from bot_obormot.errors.llm import (
     LLMAPIError,
+    LLMEmptyResponseError,
     LLMError,
     LLMTimeoutError,
     LLMUnavailableError,
@@ -54,6 +55,7 @@ __all__ = [
     "DocumentUnavailableError",
     "InputTooLongError",
     "LLMAPIError",
+    "LLMEmptyResponseError",
     "LLMError",
     "LLMTimeoutError",
     "LLMUnavailableError",

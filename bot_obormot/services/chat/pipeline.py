@@ -9,6 +9,8 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from bot_obormot.errors import LLMEmptyResponseError
+
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
@@ -79,8 +81,7 @@ async def process_chat(
     response = "".join(response_parts).strip()
 
     if not response:
-        msg = "LLM returned an empty response."
-        raise RuntimeError(msg)
+        raise LLMEmptyResponseError
 
     await dependencies.database.add_exchange(
         user_id,

@@ -1,9 +1,10 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Loading of the default system prompt from package resources."""
+"""Loading of the default system prompt from package resources or a file."""
 
 from importlib.resources import files
+from pathlib import Path
 
 
 def load_default_system_prompt() -> str:
@@ -18,6 +19,24 @@ def load_default_system_prompt() -> str:
 
     if not prompt:
         msg = f"System prompt file is empty: {prompt_path}"
+        raise ValueError(msg)
+
+    return prompt
+
+
+def load_system_prompt_file(path: Path) -> str:
+    """Reads an administrator's system prompt file and returns its stripped text.
+
+    Raises ``ValueError`` with a short reason when the file cannot be used.
+    """
+    try:
+        prompt = path.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeDecodeError) as error:
+        msg = f"cannot read {path}: {error}"
+        raise ValueError(msg) from error
+
+    if not prompt:
+        msg = f"{path} is empty"
         raise ValueError(msg)
 
     return prompt

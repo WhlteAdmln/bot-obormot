@@ -40,3 +40,15 @@ class LLMAPIError(LLMError):
         self.status = status
         self.detail = detail
         super().__init__(f"LLM API HTTP {status}: {detail}")
+
+
+class LLMEmptyResponseError(LLMError):
+    """The LLM finished without producing any answer text."""
+
+    code: ClassVar[str] = "llm_empty_response"
+    public_message: ClassVar[str] = "LLM returned an empty response"
+
+    def __init__(self, finish_reason: str | None = None) -> None:
+        """Stores why the generation stopped, as reported by the server."""
+        self.finish_reason = finish_reason
+        super().__init__(f"LLM returned an empty response: {finish_reason}")

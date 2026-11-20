@@ -22,6 +22,7 @@ from bot_obormot.errors import (
     DocumentUnavailableError,
     InputTooLongError,
     LLMAPIError,
+    LLMEmptyResponseError,
     LLMTimeoutError,
     LLMUnavailableError,
     MediaError,
@@ -133,6 +134,12 @@ CHAT_ERROR_RULES: tuple[ChatErrorRule, ...] = (
         "error",
         "LLM API error for user_id=%s: HTTP %s, %s",
         ("user_id", "status", "detail"),
+    ),
+    ChatErrorRule(
+        LLMEmptyResponseError,
+        "warning",
+        "LLM returned an empty response for user_id=%s: %s",
+        ("user_id", "error"),
     ),
     ChatErrorRule(
         DatabaseError,

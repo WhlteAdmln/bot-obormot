@@ -41,13 +41,40 @@ See [LLM servers](llm-servers.md) for server compatibility.
 | `LLM_MODEL` | `local-model` | Model name sent in each request. |
 | `LLM_TEMPERATURE` | `0.7` | Sampling temperature, 0 or higher. |
 | `LLM_TOP_P` | `0.9` | Nucleus sampling, from 0 to 1. |
-| `LLM_MAX_TOKENS` | `2048` | Maximum number of generated tokens. |
+| `LLM_MAX_TOKENS` | `2048` | Maximum number of generated tokens. Reasoning models spend part of this limit on thinking, so raise it (for example to `8192`) if answers come back empty or cut off. |
 | `LLM_TIMEOUT` | `300` | Request timeout in seconds. |
 | `LLM_CONTEXT_SIZE` | empty | Context size in tokens. Set it when the server does not report it. |
 | `LLM_TOKEN_COUNTING` | `auto` | `auto`, `llamacpp` or `estimate`. |
 | `LLM_MAX_CONCURRENT_GENERATIONS` | `1` | Number of generations that run at the same time. |
 | `MAX_HISTORY_EXCHANGES` | `1000` | Upper bound of the per-user history limit. |
 | `MAX_STORED_EXCHANGES` | `2000` | Number of exchanges kept per user in SQLite. |
+
+### System prompt
+
+The default system prompt is built into the package. To replace it without
+changing the installation, point `SYSTEM_PROMPT_PATH` to your own file.
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `SYSTEM_PROMPT_PATH` | empty | UTF-8 text or Markdown file that replaces the built-in default system prompt. A relative path resolves against the home directory. Empty keeps the built-in prompt. |
+
+To start from the built-in prompt, copy it into the home directory, set
+`SYSTEM_PROMPT_PATH=systemPrompt.md` in `.env`, edit the file and restart the
+service:
+
+```sh
+cd ~/bot-obormot
+.venv/bin/python -c "from importlib.resources import files; print(files('bot_obormot').joinpath('prompts', 'systemPrompt.md').read_text(encoding='utf-8'))" > systemPrompt.md
+```
+
+- The file is read at startup. A missing, unreadable or empty file stops the
+  bot with a configuration error, and `bot-obormot doctor` reports it.
+- The file has no length limit. The 4000-character limit applies only to
+  personal prompts that users set with `/prompt_set`.
+- Personal prompts still override the default, and `/prompt_reset` returns a
+  user to the prompt from this file.
+- Keep the file outside the virtual environment, so reinstalling the package
+  does not touch it.
 
 ### audiodoc (optional)
 

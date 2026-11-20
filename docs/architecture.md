@@ -78,7 +78,7 @@ Long plain-text messages are combined by `bot_obormot/services/chat/aggregation/
 
 `bot_obormot/services/llm/` contains the OpenAI-compatible client, HTTP session/auth headers, endpoints, message normalization, context fitting, tokenization, context-size queries, and streaming. `normalize_messages()` neutralizes known template/control-token strings in every non-system message, including text parts of multimodal messages. System prompts are left unchanged. This is a defense-in-depth measure; it is not a complete prompt-injection solution.
 
-The default system prompt is stored in `prompts/systemPrompt.md`; users may have a personal system prompt. The default prompt explicitly frames document text, speech transcriptions, and captions as data to analyze rather than instructions.
+The default system prompt is stored in `prompts/systemPrompt.md`; an administrator can replace it with a file set by `SYSTEM_PROMPT_PATH`, and users may have a personal system prompt. The default prompt explicitly frames document text, speech transcriptions, and captions as data to analyze rather than instructions.
 
 ### Delivery of responses
 

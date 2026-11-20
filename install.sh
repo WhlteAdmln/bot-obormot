@@ -192,6 +192,28 @@ found = any((Path(paths[key]) / name).is_dir() for key in ("purelib", "platlib")
 raise SystemExit(0 if found else 1)' "$1" >/dev/null 2>&1
 }
 
+# pip and venv write the environment name and path (shebangs, activate scripts
+# and their prompt, pyvenv.cfg), so a staged environment that is renamed would
+# still point to its old location. Rewrites the staged path $1 and directory
+# name to the final path $2 and name.
+relocate_venv() {
+	"$2/bin/python" -c 'import os, sys
+from pathlib import Path
+staged_path, final_path = os.fsencode(sys.argv[1]), os.fsencode(sys.argv[2])
+staged_name = os.fsencode(Path(sys.argv[1]).name)
+final_name = os.fsencode(Path(sys.argv[2]).name)
+marker = b"\0relocated\0"
+root = Path(sys.argv[2])
+for path in [*(root / "bin").iterdir(), root / "pyvenv.cfg"]:
+    if path.is_symlink() or not path.is_file():
+        continue
+    data = path.read_bytes()
+    updated = data.replace(staged_path, marker)
+    updated = updated.replace(staged_name, final_name).replace(marker, final_path)
+    if updated != data:
+        path.write_bytes(updated)' "$1" "$2"
+}
+
 legacy_version() {
 	version=$(sed -n 's/^version = "\([0-9A-Za-z.+-]*\)"$/\1/p' "$HOME_DIR/pyproject.toml" 2>/dev/null | sed -n '1p')
 	printf '%s' "${version:-0.1.x}"
@@ -585,6 +607,11 @@ EOF
 
 	mv "$NEW_VENV" "$HOME_DIR/.venv" ||
 		die "Could not activate the staged virtual environment. The previous environment will be restored."
+
+	relocate_venv "$NEW_VENV" "$HOME_DIR/.venv" || {
+		rm -rf "$HOME_DIR/.venv"
+		die "Could not update the paths of the activated virtual environment. The previous environment will be restored."
+	}
 
 	if ! rm -rf "$HOME_DIR/.venv.prev"; then
 		log "WARNING: Could not remove the previous environment backup: $HOME_DIR/.venv.prev"

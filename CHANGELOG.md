@@ -21,6 +21,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The roleplay markup is replaced with standard Markdown: `*text*` and `**text**` keep working as italic and bold, while `~text~` is no longer a quote block.
 - Network errors and requests with an unknown delivery status are never retried: a failed delivery of the final response is no longer sent again after a network error, and a failure while sending a later part no longer repeats the parts that were already delivered.
 
+### Fixed
+
+- `install.sh --upgrade` no longer leaves the paths of the staged `.venv.new` in the activated environment: the shebang of `bot-obormot`, the `activate` scripts and `pyvenv.cfg` now point to `.venv`, so the systemd unit can start the service after an upgrade. If the paths cannot be updated, the previous environment is restored.
+
 ### Removed
 
 - `format_roleplay`; use `prepare_response` from `bot_obormot.services.chat.formatting`.
@@ -69,7 +73,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - audiodoc document-size negotiation and response truncation handling.
 - Contract examples and documentation for connecting audiodoc.
 
-### Fixed
+### Fixed (0.1.1)
 
 - User-facing text limits now use the configured maximum input length.
 - Removed the unused `STREAM_UPDATE_INTERVAL` configuration setting.

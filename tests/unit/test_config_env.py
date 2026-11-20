@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from bot_obormot.app.logging_setup import configure_logging
+from bot_obormot.config import load_default_system_prompt
 from bot_obormot.config.model import (
     ConfigError,
     get_settings,
@@ -376,3 +377,62 @@ def test_settings_have_a_single_public_import_path() -> None:
     ):
         assert getattr(settings_module, name) is getattr(model_module, name)
         assert not hasattr(config_module, name)
+
+
+def test_system_prompt_path_is_optional_and_keeps_the_built_in_prompt() -> None:
+    """Without SYSTEM_PROMPT_PATH the packaged prompt is the default."""
+    settings = load_settings({"SUPERVISOR_ID": "1"})
+
+    assert settings.SYSTEM_PROMPT_PATH == ""
+    assert load_default_system_prompt() == settings.DEFAULT_SYSTEM_PROMPT
+
+
+def test_system_prompt_path_replaces_the_default_prompt(tmp_path: Path) -> None:
+    """A relative path resolves against the home directory and is read as UTF-8."""
+    prompt_file = tmp_path / "systemPrompt.md"
+    prompt_file.write_text("\n  Свой системный промпт  \n", encoding="utf-8")
+
+    settings = load_settings(
+        {
+            "SUPERVISOR_ID": "1",
+            "BOT_OBORMOT_HOME": str(tmp_path),
+            "SYSTEM_PROMPT_PATH": " systemPrompt.md ",
+        }
+    )
+
+    assert str(prompt_file) == settings.SYSTEM_PROMPT_PATH
+    assert settings.DEFAULT_SYSTEM_PROMPT == "Свой системный промпт"
+
+
+def test_system_prompt_file_is_not_limited_like_personal_prompts(
+    tmp_path: Path,
+) -> None:
+    """The administrator's prompt may be longer than a personal prompt."""
+    prompt_file = tmp_path / "long.md"
+    prompt_file.write_text("а" * 10000, encoding="utf-8")
+
+    settings = load_settings(
+        {"SUPERVISOR_ID": "1", "SYSTEM_PROMPT_PATH": str(prompt_file)}
+    )
+
+    assert len(settings.DEFAULT_SYSTEM_PROMPT) == 10000
+
+
+@pytest.mark.parametrize(
+    "content",
+    [None, b"", b"  \n\t", b"\xff\xfe\x00"],
+    ids=["missing", "empty", "blank", "not-utf8"],
+)
+def test_system_prompt_path_rejects_unusable_files(
+    tmp_path: Path, content: bytes | None
+) -> None:
+    """A missing, empty or undecodable prompt file is a configuration error."""
+    prompt_file = tmp_path / "systemPrompt.md"
+    if content is not None:
+        prompt_file.write_bytes(content)
+
+    with pytest.raises(ConfigError) as error:
+        load_settings({"SUPERVISOR_ID": "1", "SYSTEM_PROMPT_PATH": str(prompt_file)})
+
+    assert [m for m in error.value.errors if "SYSTEM_PROMPT_PATH" in m]
+    assert str(prompt_file) in error.value.errors[0]

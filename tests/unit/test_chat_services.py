@@ -17,6 +17,7 @@ from bot_obormot.errors import (
     AudiodocError,
     DocumentAPIError,
     LLMAPIError,
+    LLMEmptyResponseError,
     MediaError,
 )
 from bot_obormot.services.chat import incoming_log, reporting
@@ -343,7 +344,7 @@ async def test_chat_pipeline_does_not_persist_empty_response() -> None:
             if False:
                 yield ""
 
-    with pytest.raises(RuntimeError, match="empty response"):
+    with pytest.raises(LLMEmptyResponseError, match="empty response"):
         await chat_pipeline.process_chat(
             77,
             "вход",
@@ -374,6 +375,7 @@ def test_chat_error_catalog_preserves_original_if_elif_priority() -> None:
         "LLMTimeoutError",
         "LLMUnavailableError",
         "LLMAPIError",
+        "LLMEmptyResponseError",
         "DatabaseError",
     ]
 

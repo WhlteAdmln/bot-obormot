@@ -10,7 +10,12 @@ from typing import Self
 import aiohttp
 import pytest
 
-from bot_obormot.errors import LLMAPIError, LLMTimeoutError, LLMUnavailableError
+from bot_obormot.errors import (
+    LLMAPIError,
+    LLMEmptyResponseError,
+    LLMTimeoutError,
+    LLMUnavailableError,
+)
 from bot_obormot.services.llm import LLMClient
 from bot_obormot.services.llm import client as client_module
 from bot_obormot.services.llm.streaming import stream_unlimited
@@ -235,3 +240,74 @@ async def test_public_stream_keeps_semaphore_wrapping_unlimited_stream(
 
     assert await collect(client.stream(messages)) == ["token"]
     assert calls == [(client, messages)]
+
+
+def _client_with_lines(
+    monkeypatch: pytest.MonkeyPatch, lines: list[bytes]
+) -> LLMClient:
+    client = LLMClient(make_settings())
+    session = FakeSession(FakeResponse(lines))
+
+    async def get_session() -> "FakeSession":
+        return session
+
+    monkeypatch.setattr(client, "_get_session", get_session)
+    return client
+
+
+@pytest.mark.asyncio
+async def test_stream_unlimited_reports_reasoning_that_used_the_whole_limit(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Reasoning without an answer, cut by max_tokens, is a dedicated error."""
+    client = _client_with_lines(
+        monkeypatch,
+        [
+            'data: {"choices":[{"delta":{"reasoning_content":"думаю"}}]}\n'.encode(),
+            b'data: {"choices":[{"delta":{},"finish_reason":"length"}]}\n',
+            b"data: [DONE]\n",
+        ],
+    )
+
+    with (
+        caplog.at_level(logging.WARNING, logger="bot_obormot.services.llm.streaming"),
+        pytest.raises(LLMEmptyResponseError) as error,
+    ):
+        await collect(stream_unlimited(client, []))
+
+    assert error.value.finish_reason == "length"
+    assert "answer_produced=False, reasoning_seen=True" in caplog.text
+    assert "LLM_MAX_TOKENS" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_stream_unlimited_warns_but_keeps_an_answer_cut_by_the_limit(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A truncated answer is delivered and the operator gets a warning."""
+    client = _client_with_lines(
+        monkeypatch,
+        [
+            b'data: {"choices":[{"delta":{"content":"| a |"}}]}\n',
+            b'data: {"choices":[{"delta":{},"finish_reason":"length"}]}\n',
+        ],
+    )
+
+    with caplog.at_level(logging.WARNING, logger="bot_obormot.services.llm.streaming"):
+        result = await collect(stream_unlimited(client, []))
+
+    assert result == ["| a |"]
+    assert "answer_produced=True" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_stream_unlimited_leaves_a_normal_empty_stop_to_the_pipeline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An empty stream that ended normally is not diagnosed by the client."""
+    client = _client_with_lines(
+        monkeypatch,
+        [b'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n'],
+    )
+
+    assert await collect(stream_unlimited(client, [])) == []

@@ -22,6 +22,7 @@ from bot_obormot.errors import (
     DocumentUnavailableError,
     InputTooLongError,
     LLMAPIError,
+    LLMEmptyResponseError,
     LLMError,
     LLMTimeoutError,
     LLMUnavailableError,
@@ -77,6 +78,7 @@ _EXPECTED_TEXTS: dict[type[AppError], tuple[AppError, str]] = {
     LLMUnavailableError: (LLMUnavailableError("x"), texts.LLM_UNAVAILABLE),
     LLMTimeoutError: (LLMTimeoutError("x"), texts.LLM_TIMEOUT),
     LLMAPIError: (LLMAPIError(500, "x"), texts.LLM_API),
+    LLMEmptyResponseError: (LLMEmptyResponseError(), texts.LLM_EMPTY_RESPONSE),
     TelegramError: (TelegramError("x"), texts.TELEGRAM_ERROR),
     TelegramFileTooBigError: (
         TelegramFileTooBigError("x"),
@@ -225,3 +227,12 @@ def test_api_errors_keep_status_and_detail() -> None:
     assert str(document_error) == "Document Engine HTTP 502: bad gateway"
     assert (llm_error.status, llm_error.detail) == (503, "busy")
     assert str(llm_error) == "LLM API HTTP 503: busy"
+
+
+def test_empty_response_text_tells_a_cut_generation_from_a_plain_empty_one() -> None:
+    """A response cut by max_tokens gets its own text for the user."""
+    cut = LLMEmptyResponseError("length")
+
+    assert texts.user_text(cut) == texts.LLM_TOKEN_LIMIT
+    assert texts.user_text(LLMEmptyResponseError("stop")) == texts.LLM_EMPTY_RESPONSE
+    assert "length" in str(cut)

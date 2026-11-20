@@ -7,9 +7,13 @@ import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from functools import lru_cache
+from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
-from bot_obormot.config.prompts import load_default_system_prompt
+from bot_obormot.config.prompts import (
+    load_default_system_prompt,
+    load_system_prompt_file,
+)
 from bot_obormot.env_readers import (
     get_bool,
     get_float,
@@ -58,6 +62,7 @@ class Settings:
     MAX_HISTORY_EXCHANGES: int = 1000
     MAX_STORED_EXCHANGES: int = 2000
     DATABASE_PATH: str = "data/bot.db"
+    SYSTEM_PROMPT_PATH: str = ""
     DEFAULT_SYSTEM_PROMPT: str = field(default_factory=load_default_system_prompt)
     AUDIODOC_URL: str = ""
     AUDIODOC_AUDIO_KEY: str = ""
@@ -242,9 +247,33 @@ class _SettingsLoader:
         # Relative paths resolve against the application home directory.
         return str(resolve_home_path(value, get_home_dir(self.environ)))
 
+    def _read_system_prompt_path(self) -> str:
+        value = self._read_str(
+            "SYSTEM_PROMPT_PATH",
+            self.defaults.SYSTEM_PROMPT_PATH,
+            strip=True,
+        )
+
+        if not value:
+            return ""
+
+        # Relative paths resolve against the application home directory.
+        return str(resolve_home_path(value, get_home_dir(self.environ)))
+
+    def _read_system_prompt(self, path: str) -> str:
+        if not path:
+            return self.defaults.DEFAULT_SYSTEM_PROMPT
+
+        try:
+            return load_system_prompt_file(Path(path))
+        except ValueError as error:
+            self.errors.append(f"SYSTEM_PROMPT_PATH: {error}")
+            return self.defaults.DEFAULT_SYSTEM_PROMPT
+
     def load(self) -> Settings:
         """Build settings and raise one error containing all invalid values."""
         defaults = self.defaults
+        system_prompt_path = self._read_system_prompt_path()
 
         result = Settings(
             BOT_TOKEN=self._read_str(
@@ -311,7 +340,8 @@ class _SettingsLoader:
                 defaults.MAX_STORED_EXCHANGES,
             ),
             DATABASE_PATH=self._read_database_path(),
-            DEFAULT_SYSTEM_PROMPT=defaults.DEFAULT_SYSTEM_PROMPT,
+            SYSTEM_PROMPT_PATH=system_prompt_path,
+            DEFAULT_SYSTEM_PROMPT=self._read_system_prompt(system_prompt_path),
             AUDIODOC_URL=self._read_str(
                 "AUDIODOC_URL",
                 defaults.AUDIODOC_URL,

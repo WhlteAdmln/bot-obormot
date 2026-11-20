@@ -6,7 +6,7 @@
 from collections.abc import Callable
 
 from bot_obormot.common.validation import MAX_INPUT_TEXT_LENGTH
-from bot_obormot.errors import AppError
+from bot_obormot.errors import AppError, LLMEmptyResponseError
 
 
 def _formatted_input_limit() -> str:
@@ -63,11 +63,23 @@ LLM_UNAVAILABLE = (
     "🔌 Не удалось связаться с языковой моделью. Проверь доступность AI-сервера."
 )
 LLM_API = "⚠️ Языковая модель вернула ошибку. Попробуй немного позже."
+LLM_EMPTY_RESPONSE = "🤷 Модель не вернула ответ. Попробуй отправить сообщение ещё раз."
+LLM_TOKEN_LIMIT = (
+    "🧠 Модель израсходовала весь лимит токенов на рассуждения и не успела "  # noqa: S105
+    "ответить. Попробуй упростить запрос или сообщи администратору бота."
+)
 DATABASE_ERROR = (
     "💾 Возникла ошибка при работе с историей диалога. "
     "Попробуй отправить сообщение ещё раз."
 )
 UNEXPECTED_ERROR = "❌ Произошла непредвиденная ошибка. Попробуй ещё раз."
+
+
+def llm_empty_response(error: Exception) -> str:
+    """Returns the message for an empty answer, told apart by its stop reason."""
+    if isinstance(error, LLMEmptyResponseError) and error.finish_reason == "length":
+        return LLM_TOKEN_LIMIT
+    return LLM_EMPTY_RESPONSE
 
 
 def media_error(error: Exception) -> str:
@@ -93,6 +105,7 @@ USER_TEXTS: dict[str, str | Callable[[Exception], str]] = {
     "llm_unavailable": LLM_UNAVAILABLE,
     "llm_timeout": LLM_TIMEOUT,
     "llm_api_error": LLM_API,
+    "llm_empty_response": llm_empty_response,
     "telegram_error": TELEGRAM_ERROR,
     "telegram_file_too_big": TELEGRAM_FILE_TOO_BIG,
     "audiodoc_error": WHISPER_ERROR,

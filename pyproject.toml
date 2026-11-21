@@ -44,6 +44,7 @@ dev = [
     "import-linter==2.16",
     "vulture==2.16",
     "mypy==2.4.1",
+    "pylint>=4.0.0,<5.0",
     "pip-audit==2.10.1",
     "shfmt-py==4.2.0",
     "shellcheck-py==0.11.0.1",
@@ -75,6 +76,61 @@ markers = [
     "contract: verifies compatibility with external interfaces",
     "e2e: exercises complete application workflows",
 ]
+
+[tool.pylint.main]
+py-version = "3.11"
+jobs = 0
+persistent = false
+fail-under = 10.0
+fail-on = ["I"]
+load-plugins = [
+    "pylint.extensions.bad_builtin",
+    "pylint.extensions.broad_try_clause",
+    "pylint.extensions.code_style",
+    "pylint.extensions.comparison_placement",
+    "pylint.extensions.confusing_elif",
+    "pylint.extensions.consider_refactoring_into_while_condition",
+    "pylint.extensions.consider_ternary_expression",
+    "pylint.extensions.dict_init_mutate",
+    "pylint.extensions.docparams",
+    "pylint.extensions.docstyle",
+    "pylint.extensions.empty_comment",
+    "pylint.extensions.for_any_all",
+    "pylint.extensions.magic_value",
+    "pylint.extensions.mccabe",
+    "pylint.extensions.no_self_use",
+    "pylint.extensions.overlapping_exceptions",
+    "pylint.extensions.private_import",
+    "pylint.extensions.redefined_loop_name",
+    "pylint.extensions.redefined_variable_type",
+    "pylint.extensions.set_membership",
+    "pylint.extensions.typing",
+    "pylint.extensions.while_used",
+]
+
+[tool.pylint.messages_control]
+enable = ["all"]
+disable = []
+
+[tool.pylint.format]
+max-line-length = 88
+
+[tool.pylint.design]
+max-args = 6
+max-positional-arguments = 6
+max-statements = 40
+max-branches = 12
+max-complexity = 10
+
+[tool.pylint.similarities]
+min-similarity-lines = 4
+
+[tool.pylint.parameter_documentation]
+accept-no-param-doc = false
+accept-no-raise-doc = false
+accept-no-return-doc = false
+accept-no-yields-doc = false
+default-docstring-type = "google"
 
 [tool.mypy]
 mypy_path = "typings"

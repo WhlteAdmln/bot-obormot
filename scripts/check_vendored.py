@@ -39,7 +39,7 @@ HEADERLESS_VENDORED_FILES = (
 PACKAGE_VENDORED_FILES = ("log_filters.py", "env_readers.py")
 # Only style and typing rules are shared. The dependency, dead-code and import
 # contract tables describe each project's own structure and must differ.
-LINT_TOOL_NAMES = ("ruff", "mypy")
+LINT_TOOL_NAMES = ("ruff", "mypy", "pylint")
 
 
 def _read_vendored_file(

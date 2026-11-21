@@ -39,7 +39,7 @@ jobs:
       - name: Run lint and documentation checks
         run: make lint
       - name: Run static analysis gates
-        run: make types deptry vulture import-lint
+        run: make types pylint deptry vulture import-lint
 
   test:
     name: Tests (py${{ matrix.python-version }}, ${{ matrix.deps }})

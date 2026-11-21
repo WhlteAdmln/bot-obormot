@@ -44,7 +44,7 @@ def test_ci_jobs_call_make_targets() -> None:
 
     for target in (
         "make lint",
-        "make types deptry vulture import-lint",
+        "make types pylint deptry vulture import-lint",
         "make test",
         "make integration",
         "make audit",
@@ -62,6 +62,7 @@ def test_makefile_defines_every_target_used_by_ci() -> None:
     for target in (
         "lint",
         "types",
+        "pylint",
         "deptry",
         "vulture",
         "import-lint",
@@ -75,7 +76,7 @@ def test_makefile_defines_every_target_used_by_ci() -> None:
         "check",
     ):
         assert re.search(rf"(?m)^{re.escape(target)}:", makefile), target
-    assert "check: lint types deptry vulture import-lint test docs-check" in makefile
+    assert "check: lint types pylint deptry vulture import-lint test docs-check" in makefile
 
 
 def test_installer_smoke_test_installs_locked_runtime_dependencies() -> None:

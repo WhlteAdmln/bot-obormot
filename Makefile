@@ -4,7 +4,7 @@ PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
 VERSION ?= dev
 PYTHON_SCRIPTS_DIR = $(shell $(PYTHON) -c "import sysconfig; print(sysconfig.get_path('scripts'))")
 
-.PHONY: venv install-dev lint fix types deptry vulture import-lint test \
+.PHONY: venv install-dev lint fix types pylint deptry vulture import-lint test \
         test-integration integration audit build docker installer \
         cov docs-check check clean
 
@@ -48,6 +48,9 @@ fix:
 types:
 	$(PYTHON) -m mypy bot_obormot
 
+pylint:
+	$(PYTHON) -m pylint bot_obormot scripts tests
+
 deptry:
 	$(PYTHON_SCRIPTS_DIR)/deptry .
 
@@ -87,7 +90,7 @@ docs-check:
 	$(PYTHON) -m scripts.check_docs
 	$(PYTHON) -m pre_commit run --all-files
 
-check: lint types deptry vulture import-lint test docs-check
+check: lint types pylint deptry vulture import-lint test docs-check
 
 build:
 	bash scripts/build_release.sh "$(VERSION)"

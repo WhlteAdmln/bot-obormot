@@ -20,6 +20,7 @@ Deprecated functionality is not supported starting with 0.3.0.
 
 ### Changed
 
+- Renovate replaces Dependabot version updates and opens and merges the dependency pull requests. Dependabot alerts stay enabled as a second source of vulnerability reports.
 - The installer tests, documentation and CI no longer cover the 0.1.x layout.
 - The CI test matrix includes Python 3.14.
 

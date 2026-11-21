@@ -24,15 +24,18 @@ VENDORED_HEADER = f"{_VENDORED_HEADER_PREFIX} Source of truth: audiodoc."
 VENDORED_FILES = (
     ".editorconfig",
     ".pre-commit-config.yaml",
-    ".github/dependabot.yml",
     "scripts/check_lock.py",
     "scripts/check_vendored.py",
     "pyproject.toml",
     ".markdownlint-cli2.yaml",
 )
-# Shell scripts and AGENTS.md cannot carry the header: a shebang must stay on the
-# first line and AGENTS.md is a verbatim rule list.
-HEADERLESS_VENDORED_FILES = ("AGENTS.md", "scripts/build_release.sh")
+# These files cannot carry the header: a shebang must stay on the first line,
+# AGENTS.md is a verbatim rule list and JSON5 has no `#` comments.
+HEADERLESS_VENDORED_FILES = (
+    ".github/renovate.json5",
+    "AGENTS.md",
+    "scripts/build_release.sh",
+)
 PACKAGE_VENDORED_FILES = ("log_filters.py", "env_readers.py")
 # Only style and typing rules are shared. The dependency, dead-code and import
 # contract tables describe each project's own structure and must differ.
@@ -252,7 +255,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             sys.stderr.write(f"ERROR: {error}\n")
         return 1
 
-    file_count = len(VENDORED_FILES) + len(PACKAGE_VENDORED_FILES)
+    file_count = (
+        len(VENDORED_FILES)
+        + len(HEADERLESS_VENDORED_FILES)
+        + len(PACKAGE_VENDORED_FILES)
+    )
     sys.stdout.write(f"Vendored files match: {file_count} files.\n")
     return 0
 

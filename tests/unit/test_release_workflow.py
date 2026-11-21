@@ -76,7 +76,10 @@ def test_makefile_defines_every_target_used_by_ci() -> None:
         "check",
     ):
         assert re.search(rf"(?m)^{re.escape(target)}:", makefile), target
-    assert "check: lint types pylint deptry vulture import-lint test docs-check" in makefile
+    assert (
+        "check: lint types pylint deptry vulture import-lint test docs-check"
+        in makefile
+    )
 
 
 def test_installer_smoke_test_installs_locked_runtime_dependencies() -> None:

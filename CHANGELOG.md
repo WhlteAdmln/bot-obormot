@@ -26,6 +26,7 @@ Deprecated functionality is not supported starting with 0.3.0.
 
 ### Added
 
+- pylint with every message enabled and all stable extensions, next to ruff and mypy. It runs in `make pylint`, `make check` and CI.
 - `AGENTS.md` with the rules for LLM agents working in this repository.
 - Python 3.14 classifiers and a Python 3.14 CI job.
 

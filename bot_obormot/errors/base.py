@@ -47,7 +47,3 @@ class MediaError(AppError):
 
     code: ClassVar[str] = "media_error"
     public_message: ClassVar[str] = "Media processing failed"
-
-
-# Deprecated alias kept for one release. Use ``AppError`` instead.
-BotServiceError = AppError

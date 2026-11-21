@@ -42,8 +42,7 @@ nano ~/bot-obormot/.env                      # укажите BOT_TOKEN и SUPER
 
 Для обновления выполните ту же команду с `-s -- --upgrade`. Обновление
 сохраняет `.env`, `data/` и unit, подменяет виртуальное окружение только после
-успешной проверки в staging и откатывается при сбое. Каталог версии 0.1.x тоже
-мигрирует: старые исходники переносятся в `.legacy-<версия>/`.
+успешной проверки в staging и откатывается при сбое.
 
 ### Docker Compose
 
@@ -73,7 +72,7 @@ python3 -m venv .venv && .venv/bin/pip install -c requirements-lock.txt .
 и из окружения. Все параметры описаны в [docs/configuration.md](docs/configuration.md).
 
 | Параметр | Значение |
-|----------|----------|
+| --- | --- |
 | `BOT_TOKEN` | Токен Telegram-бота (обязателен) |
 | `SUPERVISOR_ID` | Числовой Telegram ID владельца (обязателен) |
 | `ADMIN_IDS`, `ALLOWED_USERS` | Начальные администраторы и статический список разрешённых |
@@ -108,8 +107,6 @@ python3 -m venv .venv && .venv/bin/pip install -c requirements-lock.txt .
 Между сервисами используйте частную сеть или HTTPS. Схема сети, ротация ключей
 и диагностика описаны в руководстве audiodoc
 [connecting the bot](https://github.com/WhlteAdmln/audiodoc/blob/main/docs/connecting-the-bot.md).
-Старые имена `WHISPER_*` и `DOCUMENT_*` пока работают, но устарели и будут
-удалены в 0.3.0.
 
 ## Документация
 

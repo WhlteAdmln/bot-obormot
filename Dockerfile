@@ -11,7 +11,6 @@ WORKDIR /build
 
 COPY pyproject.toml requirements-lock.txt README.md LICENSE ./
 COPY bot_obormot ./bot_obormot
-COPY bot ./bot
 
 RUN python -m pip wheel \
     --no-cache-dir \

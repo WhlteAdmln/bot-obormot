@@ -92,7 +92,7 @@ Responses are delivered by `bot_obormot/services/chat/streaming/` and prepared b
 
 ### Error handling
 
-All application errors derive from `AppError` in `bot_obormot/errors/`. Every concrete class declares a unique machine-readable `code` and a short English `public_message` that never contains internal details; the string form of an exception carries the detail for logs. The Telegram layer turns an error into a reply in `bot_obormot/services/chat/errors/`: `catalog.py` decides only how an error is logged, and `texts.py` is the single place that maps each `code` to the Russian text shown to the user. A code without an entry, or an error that is not an `AppError`, gets the unexpected-error text and is logged with a traceback. The old names `BotServiceError` and `Whisper*Error` remain as deprecated aliases of `AppError` and `Audiodoc*Error` for one release.
+All application errors derive from `AppError` in `bot_obormot/errors/`. Every concrete class declares a unique machine-readable `code` and a short English `public_message` that never contains internal details; the string form of an exception carries the detail for logs. The Telegram layer turns an error into a reply in `bot_obormot/services/chat/errors/`: `catalog.py` decides only how an error is logged, and `texts.py` is the single place that maps each `code` to the Russian text shown to the user. A code without an entry, or an error that is not an `AppError`, gets the unexpected-error text and is logged with a traceback.
 
 ## 5. Media and external services
 
@@ -148,6 +148,5 @@ The application still depends on host-level protection, correct `.env` permissio
 - `requirements.txt` defines supported version ranges.
 - `requirements-lock.txt` pins the runtime dependency set for reproducible production installs.
 - `requirements-dev.txt` includes the locked runtime set plus pytest tooling.
-- The `bot` package is a deprecated shim that only keeps `python -m bot.main` working for old systemd units. Import code from `bot_obormot`.
 
 Run `make check` for the full gate and `make integration` for tests marked `integration`; some of them need an LLM server that implements `/tokenize`.

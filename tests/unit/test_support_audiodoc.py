@@ -31,10 +31,9 @@ _FIXTURE_PATH = (
 def _bot_settings(server: FakeAudiodoc, **overrides: object) -> Settings:
     """Build settings that point both real bot clients at the fake server."""
     return make_settings(
-        WHISPER_API_URL=f"{server.base_url}transcribe",
-        WHISPER_API_KEY=server.whisper_api_key,
-        DOCUMENT_API_URL=f"{server.base_url}process-document",
-        DOCUMENT_API_KEY=server.document_api_key,
+        AUDIODOC_URL=server.base_url.rstrip("/"),
+        AUDIODOC_AUDIO_KEY=server.whisper_api_key,
+        AUDIODOC_DOCUMENT_KEY=server.document_api_key,
         **overrides,
     )
 
@@ -123,7 +122,7 @@ async def test_fake_audiodoc_can_return_invalid_json() -> None:
 async def test_fake_audiodoc_can_delay_a_response() -> None:
     """Delay a response long enough to exercise the real client timeout."""
     async with FakeAudiodoc() as server:
-        settings = _bot_settings(server, WHISPER_TIMEOUT=0.01)
+        settings = _bot_settings(server, AUDIODOC_AUDIO_TIMEOUT=0.01)
         server.set_behavior(
             "transcribe",
             FakeResponseOptions(delay=0.05),

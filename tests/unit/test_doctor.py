@@ -3,9 +3,11 @@
 
 """Tests for the installation diagnostics; every check has success and failure."""
 
+import io
 import sys
 import urllib.error
 from collections.abc import Mapping
+from email.message import Message
 from pathlib import Path
 
 import pytest
@@ -216,7 +218,7 @@ def test_fetch_status_rejects_other_schemes_and_maps_errors(
 
     def raise_http(*_args: object, **_kwargs: object) -> object:
         url = "http://x"
-        raise urllib.error.HTTPError(url, 401, "no", None, None)  # type: ignore[arg-type]
+        raise urllib.error.HTTPError(url, 401, "no", Message(), io.BytesIO())
 
     monkeypatch.setattr(doctor.urllib.request, "urlopen", raise_http)
     assert doctor.fetch_status("http://x", {}, 1.0) == 401

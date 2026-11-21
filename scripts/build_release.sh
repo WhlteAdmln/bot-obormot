@@ -8,23 +8,29 @@ if [[ ! "$VERSION" =~ ^[0-9A-Za-z][0-9A-Za-z.+-]*$ ]]; then
   exit 2
 fi
 
-SDIST_ROOT="bot_obormot-${VERSION}"
+PROJECT_NAME="$(sed -n 's/^name = "\(.*\)"$/\1/p' pyproject.toml | head -n 1)"
+if [[ -z "$PROJECT_NAME" ]]; then
+  echo "Could not read the project name from pyproject.toml." >&2
+  exit 1
+fi
+DIST_NAME="${PROJECT_NAME//-/_}"
+SDIST_ROOT="${DIST_NAME}-${VERSION}"
 
 mkdir -p dist
-rm -f dist/bot_obormot-*.zip dist/bot_obormot-*.tar.gz dist/bot_obormot-*.whl \
+rm -f "dist/${DIST_NAME}"-*.zip "dist/${DIST_NAME}"-*.tar.gz "dist/${DIST_NAME}"-*.whl \
   dist/constraints.txt dist/SHA256SUMS dist/build-provenance.sigstore.json
 
 python3 -m build --sdist --wheel --outdir dist .
 
 shopt -s nullglob
-sdists=(dist/bot_obormot-*.tar.gz)
-wheels=(dist/bot_obormot-*.whl)
+sdists=("dist/${DIST_NAME}"-*.tar.gz)
+wheels=("dist/${DIST_NAME}"-*.whl)
 if [[ ${#sdists[@]} -ne 1 ]]; then
   echo "Expected exactly one source distribution in dist/, found ${#sdists[@]}." >&2
   exit 1
 fi
 if [[ ${#wheels[@]} -ne 1 ]]; then
-  echo "Expected exactly one bot_obormot wheel in dist/, found ${#wheels[@]}." >&2
+  echo "Expected exactly one ${DIST_NAME} wheel in dist/, found ${#wheels[@]}." >&2
   exit 1
 fi
 

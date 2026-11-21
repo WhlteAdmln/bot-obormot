@@ -193,6 +193,7 @@ def fetch_status(url: str, headers: Mapping[str, str], timeout: float) -> int:
         with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
             return int(response.status)
     except urllib.error.HTTPError as error:
+        error.close()
         return int(error.code)
     except urllib.error.URLError as error:
         message = str(error.reason)

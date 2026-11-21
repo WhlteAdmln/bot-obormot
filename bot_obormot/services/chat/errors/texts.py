@@ -64,8 +64,8 @@ LLM_UNAVAILABLE = (
 )
 LLM_API = "⚠️ Языковая модель вернула ошибку. Попробуй немного позже."
 LLM_EMPTY_RESPONSE = "🤷 Модель не вернула ответ. Попробуй отправить сообщение ещё раз."
-LLM_TOKEN_LIMIT = (
-    "🧠 Модель израсходовала весь лимит токенов на рассуждения и не успела "  # noqa: S105
+LLM_LENGTH_LIMIT = (
+    "🧠 Модель израсходовала весь лимит токенов на рассуждения и не успела "
     "ответить. Попробуй упростить запрос или сообщи администратору бота."
 )
 DATABASE_ERROR = (
@@ -78,7 +78,7 @@ UNEXPECTED_ERROR = "❌ Произошла непредвиденная ошиб
 def llm_empty_response(error: Exception) -> str:
     """Returns the message for an empty answer, told apart by its stop reason."""
     if isinstance(error, LLMEmptyResponseError) and error.finish_reason == "length":
-        return LLM_TOKEN_LIMIT
+        return LLM_LENGTH_LIMIT
     return LLM_EMPTY_RESPONSE
 
 

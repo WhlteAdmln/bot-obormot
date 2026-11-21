@@ -42,8 +42,7 @@ nano ~/bot-obormot/.env                      # set BOT_TOKEN and SUPERVISOR_ID
 
 To upgrade, run the same command with `-s -- --upgrade`. The upgrade keeps
 `.env`, `data/` and the unit, swaps the virtual environment only after a staged
-check passes, and rolls back on failure. A 0.1.x directory is migrated too: the
-old source moves to `.legacy-<version>/`.
+check passes, and rolls back on failure.
 
 ### Docker Compose
 
@@ -72,7 +71,7 @@ Settings come from `.env` in `BOT_OBORMOT_HOME` (default `~/bot-obormot`) and th
 environment. See [docs/configuration.md](docs/configuration.md) for all of them.
 
 | Setting | Meaning |
-|---------|---------|
+| --- | --- |
 | `BOT_TOKEN` | Telegram bot token (required) |
 | `SUPERVISOR_ID` | Numeric Telegram ID of the owner (required) |
 | `ADMIN_IDS`, `ALLOWED_USERS` | Initial administrators and a static allowlist |
@@ -107,8 +106,7 @@ Administrators: `/health`, `/ban`, `/unban`. Supervisor: `/admin`, `/admins`,
 Use a private network or HTTPS between the two services. Network layout, key
 rotation and troubleshooting are described in audiodoc's
 [connecting the bot](https://github.com/WhlteAdmln/audiodoc/blob/main/docs/connecting-the-bot.md)
-guide. The old `WHISPER_*` and `DOCUMENT_*` names still work but are deprecated
-and will be removed in 0.3.0.
+guide.
 
 ## Documentation
 

@@ -5,9 +5,10 @@
 
 from bot_obormot.fsm.keys import PROMPT_FLOW_KEY, WELCOME_MESSAGE_KEY
 from bot_obormot.fsm.states import PromptStates
-from bot_obormot.handlers import admin, chat, fallback, history, prompt, routers, start
+from bot_obormot.handlers import admin, fallback, prompt, routers, start
 from bot_obormot.handlers.admin import handler as admin_handler
 from bot_obormot.handlers.admin.handler import cmd_ban, cmd_unban
+from bot_obormot.handlers.chat import handler as chat_handler
 from bot_obormot.handlers.history import basic as history_basic
 from bot_obormot.handlers.history import limits as history_limits
 from bot_obormot.handlers.history.basic import cmd_forget_me
@@ -22,12 +23,12 @@ def test_handler_package_routers_are_exported() -> None:
     """Handler package routers are exported."""
     assert start.router is not None
     assert admin.router is not None
-    assert history.basic.router is not None
-    assert history.limits.router is not None
+    assert history_basic.router is not None
+    assert history_limits.router is not None
     assert prompt.router is not None
     assert fallback.router is not None
     assert routers.router is not None
-    assert chat.router is not None
+    assert chat_handler.router is not None
 
 
 def test_fsm_and_middleware_imports_use_canonical_modules() -> None:
@@ -44,9 +45,9 @@ def test_fsm_and_middleware_imports_use_canonical_modules() -> None:
 def test_routers_module_keeps_original_registration_groups_in_order() -> None:
     """Routers module keeps original registration groups in order."""
     assert routers.router.sub_routers == [
-        history.basic.router,
+        history_basic.router,
         prompt.router,
-        history.limits.router,
+        history_limits.router,
         fallback.router,
     ]
 
@@ -61,7 +62,7 @@ def test_forget_me_command_is_registered() -> None:
     """Forget me command is registered."""
     assert any(
         handler.callback is cmd_forget_me
-        for handler in history.basic.router.message.handlers
+        for handler in history_basic.router.message.handlers
     )
 
 

@@ -8,7 +8,7 @@ from pathlib import Path
 import bot_obormot.services.database as database_package
 import bot_obormot.services.database.facade as facade_module
 from bot_obormot.services.database import (
-    MAX_HISTORY_IMAGES,
+    MAX_HISTORY_MEDIA_MESSAGES,
     Database,
     handle_database_errors,
     read_image_as_base64,
@@ -36,7 +36,7 @@ def test_database_package_reexports_facade_api_without_global_instance() -> None
     assert Database is FacadeDatabase
     assert not hasattr(database_package, "db")
     assert not hasattr(facade_module, "db")
-    assert MAX_HISTORY_IMAGES == 3
+    assert MAX_HISTORY_MEDIA_MESSAGES == 3
     assert callable(handle_database_errors)
     assert callable(read_image_as_base64)
 

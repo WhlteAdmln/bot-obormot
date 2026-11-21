@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bot-obormot"
-version = "0.2.2"
+version = "0.3.0"
 requires-python = ">=3.11"
 readme = "README.md"
 license = "MIT"
@@ -19,6 +19,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
     "aiogram>=3.20,<4.0",
@@ -57,7 +58,7 @@ dev = [
 bot-obormot = "bot_obormot.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["bot_obormot*", "bot"]
+include = ["bot_obormot*"]
 
 [tool.setuptools.package-data]
 bot_obormot = ["prompts/*.md", "templates/env.example"]
@@ -81,11 +82,6 @@ python_version = "3.11"
 strict = true
 warn_unreachable = true
 enable_error_code = ["ignore-without-code", "redundant-expr"]
-
-# odfpy does not provide type information.
-[[tool.mypy.overrides]]
-module = ["odf", "odf.*"]
-ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 88
@@ -134,7 +130,7 @@ exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError", '\.\.\.']
 
 [tool.deptry]
 optional_dependencies_dev_groups = ["dev"]
-known_first_party = ["bot_obormot", "bot"]
+known_first_party = ["bot_obormot"]
 extend_exclude = ["scripts"]
 
 [tool.deptry.per_rule_ignores]

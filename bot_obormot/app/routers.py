@@ -5,7 +5,8 @@
 
 from aiogram import Dispatcher
 
-from bot_obormot.handlers import admin, chat, routers, start
+from bot_obormot.handlers import admin, routers, start
+from bot_obormot.handlers.chat import handler as chat
 from bot_obormot.middlewares.access import AccessMiddleware
 from bot_obormot.middlewares.temporary_messages import (
     TemporaryMessagesCleanupMiddleware,

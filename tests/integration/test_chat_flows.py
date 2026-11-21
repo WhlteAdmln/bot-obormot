@@ -178,8 +178,8 @@ def _configure_voice_flow(
     """Configure real clients to use local fake backend servers."""
     return _configure_llm_flow(
         llm_base_url,
-        WHISPER_API_URL=f"{audiodoc_base_url.rstrip('/')}/transcribe",
-        WHISPER_API_KEY="whisper-test-key",
+        AUDIODOC_URL=audiodoc_base_url.rstrip("/"),
+        AUDIODOC_AUDIO_KEY="whisper-test-key",
     )
 
 
@@ -191,8 +191,8 @@ def _configure_document_flow(
     """Configure real clients to use local fake backend servers."""
     return _configure_llm_flow(
         llm_base_url,
-        DOCUMENT_API_URL=f"{audiodoc_base_url.rstrip('/')}/process-document",
-        DOCUMENT_API_KEY="document-test-key",
+        AUDIODOC_URL=audiodoc_base_url.rstrip("/"),
+        AUDIODOC_DOCUMENT_KEY="document-test-key",
     )
 
 

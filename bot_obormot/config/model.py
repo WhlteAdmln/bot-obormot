@@ -8,7 +8,6 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
-from urllib.parse import urlsplit, urlunsplit
 
 from bot_obormot.config.prompts import (
     load_default_system_prompt,
@@ -69,14 +68,6 @@ class Settings:
     AUDIODOC_DOCUMENT_KEY: str = ""
     AUDIODOC_AUDIO_TIMEOUT: int = 180
     AUDIODOC_DOCUMENT_TIMEOUT: int = 300
-    _deprecated_env_vars: tuple[tuple[str, str], ...] = field(
-        default=(), repr=False, compare=False
-    )
-
-    @property
-    def deprecated_env_vars(self) -> tuple[tuple[str, str], ...]:
-        """Return legacy environment variables used during loading."""
-        return self._deprecated_env_vars
 
 
 class _SettingsLoader:
@@ -85,58 +76,7 @@ class _SettingsLoader:
     def __init__(self, environ: Mapping[str, str]) -> None:
         self.environ = dict(environ)
         self.errors: list[str] = []
-        self.deprecated_env_vars: list[tuple[str, str]] = []
         self.defaults = Settings()
-        self._apply_audiodoc_compatibility()
-
-    @staticmethod
-    def _legacy_audiodoc_base_url(value: str, endpoint: str) -> str:
-        parts = urlsplit(value)
-        path = parts.path.rstrip("/")
-        suffix = f"/{endpoint}"
-        path = path.removesuffix(suffix)
-        return urlunsplit(
-            (parts.scheme, parts.netloc, path, parts.query, parts.fragment)
-        ).rstrip("/")
-
-    def _apply_audiodoc_compatibility(self) -> None:
-        """Copy legacy audiodoc environment values to the shared names."""
-        if not self.environ.get("AUDIODOC_URL", "").strip():
-            legacy_urls: list[tuple[str, str]] = []
-            for name, endpoint in (
-                ("WHISPER_API_URL", "transcribe"),
-                ("DOCUMENT_API_URL", "process-document"),
-            ):
-                value = self.environ.get(name, "").strip()
-                if value:
-                    legacy_urls.append(
-                        (name, self._legacy_audiodoc_base_url(value, endpoint))
-                    )
-
-            if legacy_urls:
-                base_url = legacy_urls[0][1]
-                if any(url != base_url for _, url in legacy_urls[1:]):
-                    self.errors.append(
-                        "WHISPER_API_URL and DOCUMENT_API_URL must resolve "
-                        "to the same AUDIODOC_URL"
-                    )
-                self.environ["AUDIODOC_URL"] = base_url
-                self.deprecated_env_vars.extend(
-                    (name, "AUDIODOC_URL") for name, _ in legacy_urls
-                )
-
-        for new_name, legacy_name in (
-            ("AUDIODOC_AUDIO_KEY", "WHISPER_API_KEY"),
-            ("AUDIODOC_DOCUMENT_KEY", "DOCUMENT_API_KEY"),
-            ("AUDIODOC_AUDIO_TIMEOUT", "WHISPER_TIMEOUT"),
-            ("AUDIODOC_DOCUMENT_TIMEOUT", "DOCUMENT_TIMEOUT"),
-        ):
-            if self.environ.get(new_name, "").strip():
-                continue
-            value = self.environ.get(legacy_name, "")
-            if value.strip():
-                self.environ[new_name] = value
-                self.deprecated_env_vars.append((legacy_name, new_name))
 
     def _read_str(
         self,
@@ -365,7 +305,6 @@ class _SettingsLoader:
                 "AUDIODOC_DOCUMENT_TIMEOUT",
                 defaults.AUDIODOC_DOCUMENT_TIMEOUT,
             ),
-            _deprecated_env_vars=tuple(self.deprecated_env_vars),
         )
 
         if self.errors:

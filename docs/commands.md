@@ -9,7 +9,7 @@ commands than regular users.
 ### All users
 
 | Command | Description |
-|---------|-------------|
+| --- | --- |
 | `/start` | Show the help message and register the command menu. |
 | `/history` | Show the history limit. |
 | `/history_limit N` | Change the number of exchanges that are sent as context. |
@@ -23,7 +23,7 @@ commands than regular users.
 ### Administrators
 
 | Command | Description |
-|---------|-------------|
+| --- | --- |
 | `/health` | Check the state of the bot's components. |
 | `/ban ID` | Block a user. |
 | `/unban ID` | Unblock a user. |
@@ -32,7 +32,7 @@ commands than regular users.
 ### Supervisor
 
 | Command | Description |
-|---------|-------------|
+| --- | --- |
 | `/admin` | Open the administration panel. |
 | `/admins` | List the administrators. |
 | `/admin_add ID` | Add an administrator. |
@@ -41,7 +41,7 @@ commands than regular users.
 ## Console commands
 
 | Command | Description |
-|---------|-------------|
+| --- | --- |
 | `bot-obormot run` | Run the bot. Use `--env-file PATH` to load an extra file. |
 | `bot-obormot version` | Show the installed version. |
 | `bot-obormot init` | Create a protected `.env` file. Options: `--token`, `--supervisor`, `--force`. |
@@ -51,6 +51,4 @@ commands than regular users.
 | `bot-obormot service uninstall` | Remove the unit file without stopping the service. |
 | `bot-obormot service status` | Show the systemd status of the service. |
 
-`python -m bot_obormot` is the same as `bot-obormot`. The old
-`python -m bot.main` still works, prints a deprecation line and will be removed
-in 0.3.0.
+`python -m bot_obormot` is the same as `bot-obormot`.

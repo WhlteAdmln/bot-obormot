@@ -25,7 +25,9 @@ from bot_obormot.services import media
 from bot_obormot.services.media import animation
 from bot_obormot.services.media import pipeline as media_pipeline
 from bot_obormot.services.media.animation import tgs, video
+from bot_obormot.services.media.animation.dispatcher import dispatch_extraction
 from bot_obormot.services.media.animation.gif import extract_gif
+from bot_obormot.services.media.animation.jpeg import image_to_bytes
 from bot_obormot.services.media.animation.limits import MAX_FRAMES
 from bot_obormot.services.media.animation.sampling import sample_frame_indices
 from bot_obormot.services.media.contact_sheet import build_contact_sheet
@@ -173,26 +175,31 @@ def test_sample_frame_indices_rejects_empty_animation() -> None:
         sample_frame_indices(0)
 
 
-def test_animation_dispatcher_routes_formats_and_preserves_patch_points(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Animation dispatcher routes formats and preserves patch points."""
-    calls = []
-    monkeypatch.setattr(
-        animation, "_extract_gif", lambda data: calls.append(("gif", data)) or [b"g"]
-    )
-    monkeypatch.setattr(
-        animation, "_extract_tgs", lambda data: calls.append(("tgs", data)) or [b"t"]
-    )
-    monkeypatch.setattr(
-        animation,
-        "_extract_webm",
-        lambda data: calls.append(("video", data)) or [b"v"],
-    )
+def test_dispatch_extraction_routes_formats() -> None:
+    """Dispatch extraction routes each format to its decoder."""
+    calls: list[tuple[str, bytes]] = []
 
-    assert animation._extract_frames(b"1", "gif") == [b"g"]
-    assert animation._extract_frames(b"2", "tgs") == [b"t"]
-    assert animation._extract_frames(b"3", "mp4") == [b"v"]
+    def gif(data: bytes) -> list[bytes]:
+        calls.append(("gif", data))
+        return [b"g"]
+
+    def tgs_decoder(data: bytes) -> list[bytes]:
+        calls.append(("tgs", data))
+        return [b"t"]
+
+    def video_decoder(data: bytes) -> list[bytes]:
+        calls.append(("video", data))
+        return [b"v"]
+
+    extractors = {
+        "gif_extractor": gif,
+        "tgs_extractor": tgs_decoder,
+        "video_extractor": video_decoder,
+    }
+
+    assert dispatch_extraction(b"1", "gif", **extractors) == [b"g"]
+    assert dispatch_extraction(b"2", "tgs", **extractors) == [b"t"]
+    assert dispatch_extraction(b"3", "mp4", **extractors) == [b"v"]
     assert calls == [("gif", b"1"), ("tgs", b"2"), ("video", b"3")]
 
 
@@ -200,7 +207,7 @@ def test_image_to_bytes_encodes_bounded_jpeg_frame() -> None:
     """Image to bytes encodes bounded jpeg frame."""
     source = Image.new("RGBA", (1400, 900), (30, 60, 90, 128))
 
-    encoded = animation._image_to_bytes(source)
+    encoded = image_to_bytes(source)
 
     with Image.open(io.BytesIO(encoded)) as image:
         assert image.format == "JPEG"

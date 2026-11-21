@@ -53,8 +53,6 @@ logger = logging.getLogger(__name__)
 
 # Maximum number of media messages in history; all frames are loaded together.
 MAX_HISTORY_MEDIA_MESSAGES = 3
-# Keep the old name for compatibility with public imports.
-MAX_HISTORY_IMAGES = MAX_HISTORY_MEDIA_MESSAGES
 
 
 class Database:
@@ -386,7 +384,6 @@ class Database:
 
 
 __all__ = [
-    "MAX_HISTORY_IMAGES",
     "MAX_HISTORY_MEDIA_MESSAGES",
     "Database",
     "handle_database_errors",

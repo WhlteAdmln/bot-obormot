@@ -5,6 +5,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-21
+
+Deprecated functionality is not supported starting with 0.3.0.
+
+### Removed
+
+- The `WHISPER_API_URL`, `WHISPER_API_KEY`, `WHISPER_TIMEOUT`, `DOCUMENT_API_URL`, `DOCUMENT_API_KEY` and `DOCUMENT_TIMEOUT` settings. Use the `AUDIODOC_*` settings.
+- The `bot` package and `python -m bot.main`. Use `bot-obormot` or `python -m bot_obormot`.
+- The deprecated error aliases `BotServiceError` and `Whisper*Error`. Use `AppError` and `Audiodoc*Error`.
+- The `MAX_HISTORY_IMAGES` alias. Use `MAX_HISTORY_MEDIA_MESSAGES`.
+- The compatibility dispatcher in `services/media/animation` and the re-exports in the `handlers.chat` and `handlers.history` packages.
+- The 0.1.x migration in `install.sh`, its CI job and the old-schema database fixture.
+
+### Changed
+
+- The installer tests, documentation and CI no longer cover the 0.1.x layout.
+- The CI test matrix includes Python 3.14.
+
+### Added
+
+- `AGENTS.md` with the rules for LLM agents working in this repository.
+- Python 3.14 classifiers and a Python 3.14 CI job.
+
 ## [0.2.2] - 2026-11-19
 
 ### Added (0.2.2)

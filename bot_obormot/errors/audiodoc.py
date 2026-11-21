@@ -41,11 +41,3 @@ class AudiodocAPIError(AudiodocError):
 
     code: ClassVar[str] = "audiodoc_api_error"
     public_message: ClassVar[str] = "Audio transcription service returned an error"
-
-
-# Deprecated aliases kept for one release. Use the ``Audiodoc*`` names instead.
-WhisperError = AudiodocError
-WhisperEmptyAudioError = AudiodocEmptyAudioError
-WhisperUnavailableError = AudiodocUnavailableError
-WhisperTimeoutError = AudiodocTimeoutError
-WhisperAPIError = AudiodocAPIError

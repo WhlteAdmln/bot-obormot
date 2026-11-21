@@ -57,10 +57,9 @@ def _validate_response(path: str, status: int, payload: object) -> None:
 
 def _real_client_settings(server: FakeAudiodoc) -> Settings:
     return make_settings(
-        WHISPER_API_URL=f"{server.base_url}transcribe",
-        WHISPER_API_KEY=server.whisper_api_key,
-        DOCUMENT_API_URL=f"{server.base_url}process-document",
-        DOCUMENT_API_KEY=server.document_api_key,
+        AUDIODOC_URL=server.base_url.rstrip("/"),
+        AUDIODOC_AUDIO_KEY=server.whisper_api_key,
+        AUDIODOC_DOCUMENT_KEY=server.document_api_key,
     )
 
 
@@ -125,8 +124,8 @@ async def test_bot_transcription_client_accepts_shared_audiodoc_example(
             return FakeResponse(payload)
 
     settings = make_settings(
-        WHISPER_API_URL="http://audiodoc.test/transcribe",
-        WHISPER_API_KEY="whisper-test-key",
+        AUDIODOC_URL="http://audiodoc.test",
+        AUDIODOC_AUDIO_KEY="whisper-test-key",
     )
     monkeypatch.setattr(aiohttp, "ClientSession", Session)
 
@@ -163,8 +162,8 @@ async def test_bot_document_client_accepts_shared_audiodoc_example(
             return FakeResponse(payload)
 
     settings = make_settings(
-        DOCUMENT_API_URL="http://audiodoc.test/process-document",
-        DOCUMENT_API_KEY="document-test-key",
+        AUDIODOC_URL="http://audiodoc.test",
+        AUDIODOC_DOCUMENT_KEY="document-test-key",
     )
     monkeypatch.setattr(aiohttp, "ClientSession", Session)
 

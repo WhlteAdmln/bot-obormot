@@ -46,7 +46,7 @@ fix:
 	$(PYTHON) -m ruff format .
 
 types:
-	$(PYTHON) -m mypy bot_obormot bot
+	$(PYTHON) -m mypy bot_obormot
 
 deptry:
 	$(PYTHON_SCRIPTS_DIR)/deptry .
@@ -77,7 +77,6 @@ docker:
 
 installer:
 	$(PYTHON) -m pytest -q tests/unit/test_installer.py
-	$(PYTHON) -m pytest -q tests/integration/legacy_installer_ci.py
 
 cov:
 	$(PYTHON) -m coverage xml --fail-under=0

@@ -28,14 +28,23 @@ VENDORED_FILES = (
     "scripts/check_lock.py",
     "scripts/check_vendored.py",
     "pyproject.toml",
+    ".markdownlint-cli2.yaml",
 )
+# Shell scripts and AGENTS.md cannot carry the header: a shebang must stay on the
+# first line and AGENTS.md is a verbatim rule list.
+HEADERLESS_VENDORED_FILES = ("AGENTS.md", "scripts/build_release.sh")
 PACKAGE_VENDORED_FILES = ("log_filters.py", "env_readers.py")
 # Only style and typing rules are shared. The dependency, dead-code and import
 # contract tables describe each project's own structure and must differ.
 LINT_TOOL_NAMES = ("ruff", "mypy")
 
 
-def _read_vendored_file(path: Path, errors: list[str]) -> bytes | None:
+def _read_vendored_file(
+    path: Path,
+    errors: list[str],
+    *,
+    require_header: bool = True,
+) -> bytes | None:
     try:
         content = path.read_bytes()
     except FileNotFoundError:
@@ -45,7 +54,7 @@ def _read_vendored_file(path: Path, errors: list[str]) -> bytes | None:
         errors.append(f"{path}: cannot read file: {error}")
         return None
 
-    if content.splitlines()[:1] != [VENDORED_HEADER.encode("utf-8")]:
+    if require_header and content.splitlines()[:1] != [VENDORED_HEADER.encode("utf-8")]:
         errors.append(f"{path}: missing VENDORED header")
     return content
 
@@ -122,11 +131,17 @@ def _compare_files(
     other_path: Path,
     label: str,
     errors: list[str],
-    local_package: str | None,
-    other_package: str | None,
+    package_names: tuple[str | None, str | None],
+    *,
+    require_header: bool = True,
 ) -> None:
-    local_content = _read_vendored_file(local_path, errors)
-    other_content = _read_vendored_file(other_path, errors)
+    local_package, other_package = package_names
+    local_content = _read_vendored_file(
+        local_path, errors, require_header=require_header
+    )
+    other_content = _read_vendored_file(
+        other_path, errors, require_header=require_header
+    )
     if local_content is None or other_content is None:
         return
 
@@ -192,8 +207,20 @@ def check_vendored(other: Path, root: Path = PROJECT_ROOT) -> list[str]:
             other_path,
             relative_path,
             errors,
-            local_package.name if local_package is not None else None,
-            other_package.name if other_package is not None else None,
+            (
+                local_package.name if local_package is not None else None,
+                other_package.name if other_package is not None else None,
+            ),
+        )
+
+    for relative_path in HEADERLESS_VENDORED_FILES:
+        _compare_files(
+            local_root / relative_path,
+            other_root / relative_path,
+            relative_path,
+            errors,
+            (None, None),
+            require_header=False,
         )
 
     if local_package is not None and other_package is not None:
@@ -203,8 +230,7 @@ def check_vendored(other: Path, root: Path = PROJECT_ROOT) -> list[str]:
                 other_package / filename,
                 f"<package>/{filename}",
                 errors,
-                local_package.name,
-                other_package.name,
+                (local_package.name, other_package.name),
             )
 
     return errors

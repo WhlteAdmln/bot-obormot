@@ -35,12 +35,6 @@ _NON_ENVIRONMENT_FIELDS = frozenset(
 DOCUMENTATION_ONLY_ENV_NAMES = frozenset(
     {
         "BOT_OBORMOT_HOME",
-        "WHISPER_API_URL",
-        "WHISPER_API_KEY",
-        "WHISPER_TIMEOUT",
-        "DOCUMENT_API_URL",
-        "DOCUMENT_API_KEY",
-        "DOCUMENT_TIMEOUT",
     }
 )
 

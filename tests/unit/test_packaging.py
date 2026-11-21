@@ -28,9 +28,6 @@ def test_wheel_contains_prompt_and_excludes_development_files(
         assert "bot_obormot/prompts/systemPrompt.md" in members
         assert "bot_obormot/templates/env.example" in members
         assert "bot_obormot/__main__.py" in members
-        # Deprecated shim for old systemd units; removed in 0.3.0.
-        assert "bot/__init__.py" in members
-        assert "bot/main.py" in members
         assert not any(path.startswith(("tests/", "scripts/")) for path in members)
 
         entry_points = [

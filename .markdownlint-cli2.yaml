@@ -1,5 +1,10 @@
+# VENDORED: keep identical in bot-obormot and audiodoc. Source of truth: audiodoc.
 config:
+  # Prose paragraphs are one line each, so a line-length limit would force
+  # rewrapping every document.
   MD013: false
-  MD029: false
-  MD041: false
-  MD060: false
+  MD024:
+    siblings_only: true
+ignores:
+  # Text prompts for the language model are not documents and have no heading.
+  - "**/prompts/*.md"

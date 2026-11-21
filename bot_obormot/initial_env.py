@@ -10,7 +10,7 @@ from pathlib import Path
 
 from bot_obormot.config.token import is_valid_bot_token
 
-TOKEN_PLACEHOLDER = "BOT_TOKEN=YOUR_TELEGRAM_BOT_TOKEN"  # noqa: S105
+BOT_PLACEHOLDER_LINE = "BOT_TOKEN=YOUR_TELEGRAM_BOT_TOKEN"
 SUPERVISOR_PLACEHOLDER = "SUPERVISOR_ID=REPLACE_WITH_NUMERIC_TELEGRAM_ID"
 
 
@@ -27,7 +27,7 @@ def render_env_content(*, token: str | None, supervisor: int | None) -> str:
         if not is_valid_bot_token(token):
             message = "The Telegram token has an invalid format."
             raise ValueError(message)
-        content = content.replace(TOKEN_PLACEHOLDER, f"BOT_TOKEN={token}", 1)
+        content = content.replace(BOT_PLACEHOLDER_LINE, f"BOT_TOKEN={token}", 1)
     if supervisor is not None:
         if supervisor <= 0:
             message = "The supervisor ID must be a positive integer."

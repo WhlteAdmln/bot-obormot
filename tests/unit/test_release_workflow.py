@@ -8,6 +8,7 @@ import tomllib
 from pathlib import Path
 
 from scripts.check_vendored import (
+    HEADERLESS_VENDORED_FILES,
     PACKAGE_VENDORED_FILES,
     VENDORED_FILES,
     VENDORED_HEADER,
@@ -148,6 +149,12 @@ def test_release_workflow_builds_and_publishes_the_release_assets() -> None:
     assert "ghcr.io" in text
 
 
+def test_headerless_vendored_files_exist() -> None:
+    """Shared files without a header are present in the repository."""
+    for relative_path in HEADERLESS_VENDORED_FILES:
+        assert (ROOT_DIR / relative_path).is_file(), relative_path
+
+
 def test_project_vendored_files_have_required_headers() -> None:
     """Every vendored file starts with the shared marker line."""
     for relative_path in VENDORED_FILES:
@@ -164,15 +171,30 @@ def test_project_vendored_files_have_required_headers() -> None:
         assert first_line == VENDORED_HEADER, filename
 
 
-def test_version_and_changelog_prepare_release_022() -> None:
-    """Version 0.2.2 is current and documents its own additions and fixes."""
+def test_version_and_changelog_prepare_release_030() -> None:
+    """Version 0.3.0 is current and documents its removals."""
     pyproject = tomllib.loads((ROOT_DIR / "pyproject.toml").read_text("utf-8"))
+    changelog = (ROOT_DIR / "CHANGELOG.md").read_text(encoding="utf-8")
+    release_entry = changelog.split("## [0.3.0] - ", maxsplit=1)[1].split(
+        "\n## [", maxsplit=1
+    )[0]
+
+    assert pyproject["project"]["version"] == "0.3.0"
+    for section in ("### Added", "### Changed", "### Removed"):
+        assert section in release_entry
+    assert (
+        "Deprecated functionality is not supported starting with 0.3.0."
+        in release_entry
+    )
+
+
+def test_changelog_keeps_the_release_022_entry() -> None:
+    """Version 0.2.2 keeps its historical changelog entry."""
     changelog = (ROOT_DIR / "CHANGELOG.md").read_text(encoding="utf-8")
     release_entry = changelog.split("## [0.2.2] - ", maxsplit=1)[1].split(
         "\n## [", maxsplit=1
     )[0]
 
-    assert pyproject["project"]["version"] == "0.2.2"
     for section in ("### Added", "### Fixed"):
         assert section in release_entry
     assert "SYSTEM_PROMPT_PATH" in release_entry

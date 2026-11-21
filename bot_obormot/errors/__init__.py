@@ -9,15 +9,9 @@ from bot_obormot.errors.audiodoc import (
     AudiodocError,
     AudiodocTimeoutError,
     AudiodocUnavailableError,
-    WhisperAPIError,
-    WhisperEmptyAudioError,
-    WhisperError,
-    WhisperTimeoutError,
-    WhisperUnavailableError,
 )
 from bot_obormot.errors.base import (
     AppError,
-    BotServiceError,
     DatabaseError,
     InputTooLongError,
     MediaError,
@@ -46,7 +40,6 @@ __all__ = [
     "AudiodocError",
     "AudiodocTimeoutError",
     "AudiodocUnavailableError",
-    "BotServiceError",
     "DatabaseError",
     "DocumentAPIError",
     "DocumentError",
@@ -63,9 +56,4 @@ __all__ = [
     "TelegramError",
     "TelegramFileTooBigError",
     "ValidationError",
-    "WhisperAPIError",
-    "WhisperEmptyAudioError",
-    "WhisperError",
-    "WhisperTimeoutError",
-    "WhisperUnavailableError",
 ]

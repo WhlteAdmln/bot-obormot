@@ -29,7 +29,7 @@ usage() {
 	cat <<'EOF'
 Usage: install.sh [options]
 
-  --version X    Install release X (for example 0.2.0).
+  --version X    Install release X (for example 0.3.0).
   --nightly      Install the newest GitHub prerelease.
   --systemd      Install a per-user systemd unit (never started).
   --with-tgs     Install animated sticker support (needs a C compiler and CMake).
@@ -154,32 +154,11 @@ case "$HOME_DIR" in
 	;;
 esac
 
-USER_UNIT_FILE="$HOME/.config/systemd/user/bot-obormot.service"
-USER_UNIT_BACKUP="$USER_UNIT_FILE.bak"
-
 refuse_active_service() {
 	if command -v systemctl >/dev/null 2>&1 &&
 		systemctl --user is-active --quiet bot-obormot.service; then
 		die "The bot-obormot user service is active. Stop it manually before upgrading."
 	fi
-}
-
-LEGACY_UPGRADE=0
-LEGACY_DIR=""
-LEGACY_MIGRATION_STARTED=0
-LEGACY_MIGRATION_SUCCEEDED=0
-LEGACY_UNIT_BACKED_UP=0
-LEGACY_UNIT_TEMP=""
-
-# Move the 0.1.x source files from the directory $1 to the directory $2.
-move_legacy_files() {
-	for name in bot prompts pyproject.toml requirements.txt requirements-dev.txt \
-		requirements-lock.txt install.sh docs README.md README.ru.md CHANGELOG.md \
-		LICENSE .env.example; do
-		if [ -e "$1/$name" ] || [ -L "$1/$name" ]; then
-			mv "$1/$name" "$2/" || return 1
-		fi
-	done
 }
 
 # Succeeds when the virtual environment has the given top-level package.
@@ -214,11 +193,6 @@ for path in [*(root / "bin").iterdir(), root / "pyvenv.cfg"]:
         path.write_bytes(updated)' "$1" "$2"
 }
 
-legacy_version() {
-	version=$(sed -n 's/^version = "\([0-9A-Za-z.+-]*\)"$/\1/p' "$HOME_DIR/pyproject.toml" 2>/dev/null | sed -n '1p')
-	printf '%s' "${version:-0.1.x}"
-}
-
 if [ "$UPGRADE" -eq 1 ]; then
 	[ -d "$HOME_DIR" ] && [ ! -L "$HOME_DIR" ] ||
 		die "Upgrade requires an existing installation directory: $HOME_DIR"
@@ -232,17 +206,6 @@ if [ "$UPGRADE" -eq 1 ]; then
 		die "Refusing to overwrite stale upgrade directory: $HOME_DIR/.venv.new"
 	[ ! -e "$HOME_DIR/.venv.prev" ] && [ ! -L "$HOME_DIR/.venv.prev" ] ||
 		die "Refusing to overwrite stale upgrade backup: $HOME_DIR/.venv.prev"
-
-	if [ -f "$HOME_DIR/bot/main.py" ] && ! venv_has_package bot_obormot; then
-		LEGACY_UPGRADE=1
-		LEGACY_DIR="$HOME_DIR/.legacy-$(legacy_version)"
-		[ ! -e "$LEGACY_DIR" ] && [ ! -L "$LEGACY_DIR" ] ||
-			die "Refusing to overwrite legacy source backup: $LEGACY_DIR"
-		if [ -e "$USER_UNIT_FILE" ] || [ -L "$USER_UNIT_FILE" ]; then
-			[ ! -e "$USER_UNIT_BACKUP" ] && [ ! -L "$USER_UNIT_BACKUP" ] ||
-				die "Refusing to overwrite systemd unit backup: $USER_UNIT_BACKUP"
-		fi
-	fi
 
 	# Keep animated sticker support when the old environment already had it.
 	if venv_has_package rlottie_python; then
@@ -287,25 +250,6 @@ cleanup() {
 	result=$?
 	trap - 0
 	rm -rf "$TMP_DIR"
-	if [ -n "$LEGACY_UNIT_TEMP" ]; then
-		rm -f "$LEGACY_UNIT_TEMP"
-	fi
-	if [ "$result" -ne 0 ] &&
-		[ "$LEGACY_MIGRATION_STARTED" -eq 1 ] &&
-		[ "$LEGACY_MIGRATION_SUCCEEDED" -ne 1 ]; then
-		log "Restoring the legacy source tree."
-		move_legacy_files "$LEGACY_DIR" "$HOME_DIR" ||
-			printf '%s\n' "[$APP_NAME] ERROR: Could not restore the legacy source files." >&2
-		if [ "$LEGACY_UNIT_BACKED_UP" -eq 1 ]; then
-			cp -p "$USER_UNIT_BACKUP" "$USER_UNIT_FILE" ||
-				printf '%s\n' "[$APP_NAME] ERROR: Could not restore the user systemd unit." >&2
-			if command -v systemctl >/dev/null 2>&1; then
-				systemctl --user daemon-reload ||
-					printf '%s\n' "[$APP_NAME] ERROR: Could not reload the restored user systemd unit." >&2
-			fi
-		fi
-		rmdir "$LEGACY_DIR" 2>/dev/null || :
-	fi
 	if [ "$UPGRADE" -eq 1 ]; then
 		rm -rf "$HOME_DIR/.venv.new"
 		if [ "$UPGRADE_BACKUP" -eq 1 ] &&
@@ -513,70 +457,6 @@ install_wheel() {
 }
 
 if [ "$UPGRADE" -eq 1 ]; then
-	if [ "$LEGACY_UPGRADE" -eq 1 ]; then
-		log "Moving legacy source files to $LEGACY_DIR."
-		mkdir -m 700 "$LEGACY_DIR" ||
-			die "Could not create the legacy source backup directory."
-		LEGACY_MIGRATION_STARTED=1
-		move_legacy_files "$HOME_DIR" "$LEGACY_DIR" ||
-			die "Could not move the legacy source files."
-
-		log "Installing the verified release wheel into the existing virtual environment."
-		install_wheel "$HOME_DIR/.venv" ||
-			die "Could not upgrade the legacy virtual environment."
-
-		APP_CLI="$HOME_DIR/.venv/bin/bot-obormot"
-		if [ -e "$USER_UNIT_FILE" ] || [ -L "$USER_UNIT_FILE" ]; then
-			log "Updating the existing per-user systemd unit."
-			cp -p "$USER_UNIT_FILE" "$USER_UNIT_BACKUP" ||
-				die "Could not back up the existing user systemd unit."
-			LEGACY_UNIT_BACKED_UP=1
-			BOT_OBORMOT_HOME="$HOME_DIR" "$APP_CLI" service install --user --print \
-				>"$TMP_DIR/bot-obormot.service" ||
-				die "Could not render the new user systemd unit."
-			LEGACY_UNIT_TEMP=$(mktemp "${USER_UNIT_FILE%/*}/.bot-obormot.service.XXXXXX") ||
-				die "Could not create a temporary user systemd unit."
-			cat "$TMP_DIR/bot-obormot.service" >"$LEGACY_UNIT_TEMP" ||
-				die "Could not write the new user systemd unit."
-			chmod 644 "$LEGACY_UNIT_TEMP" ||
-				die "Could not set permissions on the new user systemd unit."
-			mv "$LEGACY_UNIT_TEMP" "$USER_UNIT_FILE" ||
-				die "Could not replace the existing user systemd unit."
-			LEGACY_UNIT_TEMP=""
-			systemctl --user daemon-reload ||
-				die "Could not reload the user systemd manager."
-		fi
-
-		DOCTOR_OUTPUT="$TMP_DIR/doctor-legacy.txt"
-		if BOT_OBORMOT_HOME="$HOME_DIR" "$APP_CLI" doctor --offline >"$DOCTOR_OUTPUT" 2>&1; then
-			cat "$DOCTOR_OUTPUT"
-		else
-			cat "$DOCTOR_OUTPUT"
-			die "bot-obormot doctor failed after the legacy upgrade. The old source and user unit will be restored."
-		fi
-
-		LEGACY_MIGRATION_SUCCEEDED=1
-		INSTALL_SUCCEEDED=1
-		cat <<EOF
-
-Upgrade completed successfully.
-
-Application directory:
-  $HOME_DIR
-
-Legacy source backup:
-  $LEGACY_DIR
-
-The installer preserved .env, data/ and the existing virtual environment.
-The installer did not restart or enable the systemd service.
-
-When ready, restart the bot user service:
-  systemctl --user restart bot-obormot.service
-EOF
-		log "Upgraded the legacy installation to release $RELEASE_TAG."
-		exit 0
-	fi
-
 	NEW_VENV="$HOME_DIR/.venv.new"
 	NEW_CLI="$NEW_VENV/bin/bot-obormot"
 

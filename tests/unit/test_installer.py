@@ -24,7 +24,6 @@ import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 INSTALLER = PROJECT_ROOT / "install.sh"
-SHIM_SOURCE = (PROJECT_ROOT / "bot" / "main.py").read_text(encoding="utf-8")
 
 FAKE_CLI_SOURCE = """
 import json
@@ -70,17 +69,6 @@ def main(argv=None):
         return 0
 
     return 2
-"""
-
-LEGACY_UNIT = """[Unit]
-Description=bot-obormot
-
-[Service]
-WorkingDirectory={home}
-ExecStart={home}/.venv/bin/python -m bot.main
-
-[Install]
-WantedBy=default.target
 """
 
 
@@ -177,7 +165,7 @@ def systemctl_environment(fake_bin: Path, log_path: Path) -> dict[str, str]:
 
 
 def create_test_wheel(release_dir: Path, *, version: str = "1.2.3") -> Path:
-    """Build a minimal wheel with an isolated fake CLI and the real shim."""
+    """Build a minimal wheel with an isolated fake CLI."""
     distribution = f"bot_obormot-{version}.dist-info"
     wheel_name = f"bot_obormot-{version}-py3-none-any.whl"
 
@@ -187,8 +175,6 @@ def create_test_wheel(release_dir: Path, *, version: str = "1.2.3") -> Path:
             b"import sys\nfrom bot_obormot.cli import main\nsys.exit(main())\n"
         ),
         "bot_obormot/cli.py": FAKE_CLI_SOURCE.encode("utf-8"),
-        "bot/__init__.py": b"",
-        "bot/main.py": SHIM_SOURCE.encode("utf-8"),
         f"{distribution}/METADATA": (
             "Metadata-Version: 2.1\n"
             "Name: bot-obormot\n"
@@ -547,165 +533,6 @@ def test_upgrade_refuses_while_the_user_service_is_active(
     assert "user service is active" in result.stderr
     assert installed_version(app_home) == "1.2.3"
     assert not (app_home / ".venv.new").exists()
-
-
-def prepare_legacy_installation(user_home: Path, app_home: Path) -> dict[str, str]:
-    """Turn a fresh install into a representative 0.1.1 directory."""
-    site_packages = next((app_home / ".venv" / "lib").glob("python*/site-packages"))
-    for pattern in ("bot_obormot", "bot", "bot_obormot-*.dist-info"):
-        for path in site_packages.glob(pattern):
-            shutil.rmtree(path)
-
-    source_files = {
-        "bot/__init__.py": "# Legacy package\n",
-        "bot/main.py": "# Legacy application entry point\n",
-        "prompts/systemPrompt.md": "legacy prompt\n",
-        "pyproject.toml": '[project]\nname = "bot-obormot"\nversion = "0.1.1"\n',
-        "requirements.txt": "aiogram\n",
-        "requirements-lock.txt": "aiogram==3.0.0\n",
-        "install.sh": "#!/bin/sh\n",
-        "docs/legacy.md": "# Legacy documentation\n",
-        "README.md": "# Legacy README\n",
-        "README.ru.md": "# Устаревшая документация\n",
-        "LICENSE": "Legacy license\n",
-        ".env.example": "LEGACY_EXAMPLE=true\n",
-    }
-    for relative_path, content in source_files.items():
-        path = app_home / relative_path
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content, encoding="utf-8")
-
-    (app_home / ".env").write_text("LEGACY_MARKER=keep\n", encoding="utf-8")
-    (app_home / "data").mkdir(exist_ok=True)
-    (app_home / "data" / "bot.db").write_bytes(b"legacy-sqlite")
-    unit_directory = user_home / ".config" / "systemd" / "user"
-    unit_directory.mkdir(parents=True)
-    (unit_directory / "bot-obormot.service").write_text(
-        LEGACY_UNIT.format(home=app_home), encoding="utf-8"
-    )
-    return source_files
-
-
-def test_legacy_upgrade_moves_source_rewrites_unit_and_keeps_data(
-    tmp_path: Path, user_home: Path, local_release: tuple[str, Path]
-) -> None:
-    """A 0.1.x directory reaches the new layout without losing anything."""
-    release_url, _ = local_release
-    app_home = install_version_one(release_url, user_home)
-    source_files = prepare_legacy_installation(user_home, app_home)
-    env_hash = sha256_of(app_home / ".env")
-    database_hash = sha256_of(app_home / "data" / "bot.db")
-    unit_path = user_home / ".config" / "systemd" / "user" / "bot-obormot.service"
-    fake_bin, log_path = create_systemctl_stub(tmp_path, active=False)
-
-    result = run_installer(
-        "--upgrade",
-        release_url=release_url,
-        home=user_home,
-        extra_env=systemctl_environment(fake_bin, log_path),
-    )
-
-    assert result.returncode == 0, result.stdout + result.stderr
-    legacy_dir = app_home / ".legacy-0.1.1"
-    for relative_path, content in source_files.items():
-        assert (legacy_dir / relative_path).read_text(encoding="utf-8") == content
-    assert sha256_of(app_home / ".env") == env_hash
-    assert sha256_of(app_home / "data" / "bot.db") == database_hash
-    assert not (app_home / "bot").exists()
-    assert installed_version(app_home) == "1.2.3"
-    assert unit_path.with_name("bot-obormot.service.bak").read_text(
-        encoding="utf-8"
-    ) == LEGACY_UNIT.format(home=app_home)
-    assert 'bot-obormot" run' in unit_path.read_text(encoding="utf-8")
-    assert "python -m bot.main" not in unit_path.read_text(encoding="utf-8")
-    assert "daemon-reload" in log_path.read_text(encoding="utf-8")
-    assert "restart" not in log_path.read_text(encoding="utf-8")
-    assert calls_of(app_home)[-1] == ["doctor", "--offline"]
-    assert str(legacy_dir) in result.stdout
-
-
-def test_old_unit_command_still_reaches_the_new_code_through_the_shim(
-    tmp_path: Path, user_home: Path, local_release: tuple[str, Path]
-) -> None:
-    """``python -m bot.main`` from the old unit prints a notice and runs the bot."""
-    release_url, _ = local_release
-    app_home = install_version_one(release_url, user_home)
-    prepare_legacy_installation(user_home, app_home)
-    fake_bin, log_path = create_systemctl_stub(tmp_path, active=False)
-    upgrade = run_installer(
-        "--upgrade",
-        release_url=release_url,
-        home=user_home,
-        extra_env=systemctl_environment(fake_bin, log_path),
-    )
-    assert upgrade.returncode == 0, upgrade.stdout + upgrade.stderr
-
-    result = subprocess.run(  # noqa: S603 - runs the venv interpreter of the test.
-        [str(app_home / ".venv" / "bin" / "python"), "-m", "bot.main"],
-        cwd=app_home,
-        check=False,
-        capture_output=True,
-        text=True,
-        env={**os.environ, "BOT_OBORMOT_HOME": str(app_home)},
-        timeout=60,
-    )
-
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert "DEPRECATED" in result.stderr
-    assert calls_of(app_home)[-1] == ["run"]
-
-
-def test_legacy_upgrade_restores_everything_after_a_doctor_failure(
-    tmp_path: Path, user_home: Path, local_release: tuple[str, Path]
-) -> None:
-    """A forced doctor failure restores the old source tree and the old unit."""
-    release_url, _ = local_release
-    app_home = install_version_one(release_url, user_home)
-    source_files = prepare_legacy_installation(user_home, app_home)
-    unit_path = user_home / ".config" / "systemd" / "user" / "bot-obormot.service"
-    fake_bin, log_path = create_systemctl_stub(tmp_path, active=False)
-
-    result = run_installer(
-        "--upgrade",
-        release_url=release_url,
-        home=user_home,
-        extra_env={
-            **systemctl_environment(fake_bin, log_path),
-            "FAKE_DOCTOR_FAIL_OFFLINE": "1",
-        },
-    )
-
-    assert result.returncode != 0
-    assert "will be restored" in result.stderr
-    for relative_path, content in source_files.items():
-        assert (app_home / relative_path).read_text(encoding="utf-8") == content
-    assert not (app_home / ".legacy-0.1.1").exists()
-    assert unit_path.read_text(encoding="utf-8") == LEGACY_UNIT.format(home=app_home)
-    assert (app_home / ".env").read_text(encoding="utf-8") == "LEGACY_MARKER=keep\n"
-    assert (app_home / "data" / "bot.db").read_bytes() == b"legacy-sqlite"
-
-
-def test_legacy_upgrade_refuses_while_the_user_service_is_active(
-    tmp_path: Path, user_home: Path, local_release: tuple[str, Path]
-) -> None:
-    """The old source stays in place when the service is running."""
-    release_url, _ = local_release
-    app_home = install_version_one(release_url, user_home)
-    source_files = prepare_legacy_installation(user_home, app_home)
-    fake_bin, log_path = create_systemctl_stub(tmp_path, active=True)
-
-    result = run_installer(
-        "--upgrade",
-        release_url=release_url,
-        home=user_home,
-        extra_env=systemctl_environment(fake_bin, log_path),
-    )
-
-    assert result.returncode != 0
-    assert "user service is active" in result.stderr
-    for relative_path, content in source_files.items():
-        assert (app_home / relative_path).read_text(encoding="utf-8") == content
-    assert not (app_home / ".legacy-0.1.1").exists()
 
 
 def test_embedded_python_snippets_are_valid(tmp_path: Path) -> None:

@@ -60,7 +60,7 @@ def test_placeholders_remain_when_values_are_not_given(tmp_path: Path) -> None:
     """Without options the template placeholders stay for the user to edit."""
     content = initial_env.write_initial_env(tmp_path).read_text(encoding="utf-8")
 
-    assert initial_env.TOKEN_PLACEHOLDER in content
+    assert initial_env.BOT_PLACEHOLDER_LINE in content
     assert initial_env.SUPERVISOR_PLACEHOLDER in content
 
 

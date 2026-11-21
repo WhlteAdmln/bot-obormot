@@ -5,7 +5,6 @@
 
 import pytest
 
-import bot_obormot.errors as errors_package
 from bot_obormot.errors import (
     AppError,
     AudiodocAPIError,
@@ -13,7 +12,6 @@ from bot_obormot.errors import (
     AudiodocError,
     AudiodocTimeoutError,
     AudiodocUnavailableError,
-    BotServiceError,
     DatabaseError,
     DocumentAPIError,
     DocumentError,
@@ -30,11 +28,6 @@ from bot_obormot.errors import (
     TelegramError,
     TelegramFileTooBigError,
     ValidationError,
-    WhisperAPIError,
-    WhisperEmptyAudioError,
-    WhisperError,
-    WhisperTimeoutError,
-    WhisperUnavailableError,
 )
 from bot_obormot.services.chat.errors import catalog, texts
 from bot_obormot.services.chat.errors import handler as chat_error_handler
@@ -199,25 +192,6 @@ def test_every_catalog_rule_targets_a_class_with_a_user_text() -> None:
         assert rule.error_type.code in texts.USER_TEXTS
 
 
-def test_deprecated_names_are_aliases_of_the_new_classes() -> None:
-    """Old class names stay importable for one release and are the same objects."""
-    assert BotServiceError is AppError
-    assert WhisperError is AudiodocError
-    assert WhisperEmptyAudioError is AudiodocEmptyAudioError
-    assert WhisperUnavailableError is AudiodocUnavailableError
-    assert WhisperTimeoutError is AudiodocTimeoutError
-    assert WhisperAPIError is AudiodocAPIError
-    for name in (
-        "BotServiceError",
-        "WhisperError",
-        "WhisperEmptyAudioError",
-        "WhisperUnavailableError",
-        "WhisperTimeoutError",
-        "WhisperAPIError",
-    ):
-        assert name in errors_package.__all__
-
-
 def test_api_errors_keep_status_and_detail() -> None:
     """HTTP status and detail stay available for logging."""
     document_error = DocumentAPIError(502, "bad gateway")
@@ -233,6 +207,6 @@ def test_empty_response_text_tells_a_cut_generation_from_a_plain_empty_one() -> 
     """A response cut by max_tokens gets its own text for the user."""
     cut = LLMEmptyResponseError("length")
 
-    assert texts.user_text(cut) == texts.LLM_TOKEN_LIMIT
+    assert texts.user_text(cut) == texts.LLM_LENGTH_LIMIT
     assert texts.user_text(LLMEmptyResponseError("stop")) == texts.LLM_EMPTY_RESPONSE
     assert "length" in str(cut)

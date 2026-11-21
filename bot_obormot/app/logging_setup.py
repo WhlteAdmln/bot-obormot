@@ -44,9 +44,3 @@ def configure_logging(settings: Settings) -> None:
             handler.addFilter(secret_filter)
 
     logger.info("Logging level: %s", settings.LOG_LEVEL)
-    for old_name, new_name in settings.deprecated_env_vars:
-        logger.warning(
-            "Environment variable %s is deprecated; use %s instead",
-            old_name,
-            new_name,
-        )

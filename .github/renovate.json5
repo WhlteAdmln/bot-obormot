@@ -1,108 +1,145 @@
 {
-  // Renovate (Mend Renovate App) is the only tool that updates dependencies,
-  // opens pull requests and merges them. Dependabot stays enabled only for
-  // alerts: Renovate reads them to raise security fixes.
-  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:best-practices",
-    "helpers:pinGitHubActionDigestsToSemver"
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: [
+    'config:best-practices',
+    'helpers:pinGitHubActionDigestsToSemver',
   ],
-  "timezone": "Etc/UTC",
-  "schedule": ["before 6am on monday"],
-  "semanticCommits": "disabled",
-  "commitMessagePrefix": "deps:",
-  "platformCommit": "enabled",
-  "dependencyDashboard": true,
-  "labels": ["dependencies"],
-  "prConcurrentLimit": 5,
-  "prHourlyLimit": 2,
-  // A release must be 14 days old before Renovate proposes it.
-  "minimumReleaseAge": "14 days",
-  "internalChecksFilter": "strict",
-  "enabledManagers": [
-    "dockerfile",
-    "docker-compose",
-    "github-actions",
-    "pep621",
-    "pip_requirements",
-    "pre-commit"
+  timezone: 'Etc/UTC',
+  schedule: [
+    'before 6am on monday',
   ],
-  "pre-commit": { "enabled": true },
-  // Renovate merges itself after every required check passes.
-  "automerge": true,
-  "automergeType": "pr",
-  "platformAutomerge": false,
-  "ignoreTests": false,
-  // Security fixes skip the schedule and the release age.
-  "vulnerabilityAlerts": {
-    "labels": ["dependencies", "security"],
-    "minimumReleaseAge": null,
-    "prPriority": 10
+  semanticCommits: 'disabled',
+  commitMessagePrefix: 'deps:',
+  platformCommit: 'enabled',
+  dependencyDashboard: {
+    enabled: true,
   },
-  "packageRules": [
+  labels: [
+    'dependencies',
+  ],
+  prConcurrentLimit: 5,
+  prHourlyLimit: 2,
+  minimumReleaseAge: '14 days',
+  internalChecksFilter: 'strict',
+  enabledManagers: [
+    'dockerfile',
+    'docker-compose',
+    'github-actions',
+    'pep621',
+    'pip_requirements',
+    'pre-commit',
+  ],
+  'pre-commit': {
+    enabled: true,
+  },
+  automerge: true,
+  automergeType: 'pr',
+  platformAutomerge: false,
+  ignoreTests: false,
+  vulnerabilityAlerts: {
+    labels: [
+      'dependencies',
+      'security',
+    ],
+    minimumReleaseAge: null,
+    prPriority: 10,
+  },
+  packageRules: [
     {
-      "description": "Majors and 0.x releases always wait for a human.",
-      "matchUpdateTypes": ["major"],
-      "automerge": false,
-      "dependencyDashboardApproval": true
-    },
-    {
-      "matchCurrentVersion": "/^0\\./",
-      "automerge": false
-    },
-    {
-      "description": "Packages that parse untrusted input or serve the network: only patches are merged automatically.",
-      "matchPackageNames": [
-        "aiogram",
-        "aiohttp",
-        "aiosqlite",
-        "av",
-        "beautifulsoup4",
-        "defusedxml",
-        "ebooklib",
-        "faster-whisper",
-        "fastapi",
-        "numpy",
-        "odfpy",
-        "openpyxl",
-        "pillow",
-        "pydantic",
-        "pymupdf",
-        "pytesseract",
-        "python-docx",
-        "python-multipart",
-        "python-pptx",
-        "starlette",
-        "striprtf",
-        "uvicorn"
+      description: 'Majors and 0.x releases always wait for a human.',
+      matchUpdateTypes: [
+        'major',
       ],
-      "matchUpdateTypes": ["minor"],
-      "automerge": false
+      automerge: false,
+      dependencyDashboardApproval: true,
     },
     {
-      "description": "The images are pinned to one Python minor version; only patches and digests are merged automatically.",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["python"],
-      "matchUpdateTypes": ["minor"],
-      "automerge": false
+      matchCurrentVersion: '/^0\\./',
+      automerge: false,
     },
     {
-      "matchManagers": ["github-actions"],
-      "commitMessagePrefix": "ci:",
-      "labels": ["dependencies", "github-actions"]
+      description: 'Packages that parse untrusted input or serve the network: only patches are merged automatically.',
+      matchPackageNames: [
+        'aiogram',
+        'aiohttp',
+        'aiosqlite',
+        'av',
+        'beautifulsoup4',
+        'defusedxml',
+        'ebooklib',
+        'faster-whisper',
+        'fastapi',
+        'numpy',
+        'odfpy',
+        'openpyxl',
+        'pillow',
+        'pydantic',
+        'pymupdf',
+        'pytesseract',
+        'python-docx',
+        'python-multipart',
+        'python-pptx',
+        'starlette',
+        'striprtf',
+        'uvicorn',
+      ],
+      matchUpdateTypes: [
+        'minor',
+      ],
+      automerge: false,
     },
     {
-      "matchManagers": ["pep621", "pip_requirements"],
-      "labels": ["dependencies", "python"]
+      description: 'The images are pinned to one Python minor version; only patches and digests are merged automatically.',
+      matchDatasources: [
+        'docker',
+      ],
+      matchPackageNames: [
+        'python',
+      ],
+      matchUpdateTypes: [
+        'minor',
+      ],
+      automerge: false,
     },
     {
-      "matchManagers": ["dockerfile", "docker-compose"],
-      "labels": ["dependencies", "docker"]
+      matchManagers: [
+        'github-actions',
+      ],
+      commitMessagePrefix: 'ci:',
+      labels: [
+        'dependencies',
+        'github-actions',
+      ],
     },
     {
-      "matchManagers": ["pre-commit"],
-      "commitMessagePrefix": "ci:",
-      "labels": ["dependencies", "pre-commit"]
-    }
-  ]
+      matchManagers: [
+        'pep621',
+        'pip_requirements',
+      ],
+      labels: [
+        'dependencies',
+        'python',
+      ],
+    },
+    {
+      matchManagers: [
+        'dockerfile',
+        'docker-compose',
+      ],
+      labels: [
+        'dependencies',
+        'docker',
+      ],
+    },
+    {
+      matchManagers: [
+        'pre-commit',
+      ],
+      commitMessagePrefix: 'ci:',
+      labels: [
+        'dependencies',
+        'pre-commit',
+      ],
+    },
+  ],
 }

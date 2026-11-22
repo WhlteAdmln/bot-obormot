@@ -27,7 +27,7 @@ def get_user_content(
 
     content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
 
-    if media_type in ("tgs", "webm", "gif", "mp4"):
+    if media_type in {"tgs", "webm", "gif", "mp4"}:
         content[0]["text"] += ANIMATION_CONTACT_SHEET_INSTRUCTION
     elif len(image_urls) > 1:
         content[0]["text"] += MULTIPLE_FRAMES_INSTRUCTION

@@ -30,6 +30,7 @@ class _FormattedMessageSplitter:
         self.visible_length = 0
 
     def split(self) -> list[str]:
+        """Split the text into chunks, closing and reopening tags at each cut."""
         for match in self.token_pattern.finditer(self.text):
             token = match.group(0)
 

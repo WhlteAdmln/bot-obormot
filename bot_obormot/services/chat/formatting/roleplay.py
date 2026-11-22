@@ -47,7 +47,7 @@ def _render_segment(text: str) -> str:
 
         closing = text.find(marker, i + len(marker))
 
-        if closing == -1 or closing == i + len(marker):
+        if closing in {-1, i + len(marker)}:
             # Display an unclosed or empty marker literally.
             result.append(html.escape(marker, quote=False))
             i += len(marker)

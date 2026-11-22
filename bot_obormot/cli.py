@@ -55,7 +55,7 @@ def _add_mode_arguments(parser: argparse.ArgumentParser) -> None:
     parser.set_defaults(service_mode="user")
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
     """Build the command-line argument parser."""
     parser = argparse.ArgumentParser(prog="bot-obormot")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -107,7 +107,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the bot-obormot command-line interface."""
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args(argv)
 
     handlers: dict[str, CommandHandler] = {
@@ -231,7 +231,7 @@ def _handle_service(args: argparse.Namespace, parser: argparse.ArgumentParser) -
             return _service_uninstall(mode)
         return _service_status(mode)
     except (OSError, ValueError) as error:
-        parser.error(str(error))
+        return parser.error(str(error))
 
 
 def _service_install(args: argparse.Namespace, home: Path, mode: ServiceMode) -> int:

@@ -25,7 +25,7 @@ def prepare_image(image_data: bytes) -> str:
         image = ImageOps.exif_transpose(source)
         image.thumbnail((MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION))
 
-        if image.mode in ("RGBA", "LA") or "transparency" in image.info:
+        if image.mode in {"RGBA", "LA"} or "transparency" in image.info:
             image = image.convert("RGBA")
             background = Image.new("RGB", image.size, "white")
             background.paste(

@@ -22,9 +22,6 @@ async def periodic_image_cleanup(database: Database) -> None:
             )
             logger.debug("Image cleanup result: %s", result)
 
-        except asyncio.CancelledError:
-            raise
-
         except Exception:
             logger.exception("Scheduled image cleanup failed")
 

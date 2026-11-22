@@ -27,7 +27,7 @@ def dispatch_extraction(
     if media_type == "tgs":
         return tgs_extractor(data)
 
-    if media_type in ("webm", "mp4", "video"):
+    if media_type in {"webm", "mp4", "video"}:
         return video_extractor(data)
 
     msg = f"Unsupported animation format: {media_type}"

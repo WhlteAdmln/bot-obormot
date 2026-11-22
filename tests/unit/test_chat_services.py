@@ -443,7 +443,10 @@ async def test_chat_error_handler_preserves_api_error_log_fields(
         await chat_error_handler.handle_chat_error(object(), None, 909, error)
 
     assert captured == [
-        "⚠️ Не удалось обработать документ. Проверь его формат или попробуй другой файл."
+        (
+            "⚠️ Не удалось обработать документ. "
+            "Проверь его формат или попробуй другой файл."
+        )
     ]
     assert (
         "Document Engine API error for user_id=909: HTTP 503, upstream unavailable"

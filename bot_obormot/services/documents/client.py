@@ -135,5 +135,4 @@ async def process_document(
         msg = f"Document Engine connection error: {error}"
         raise DocumentUnavailableError(msg) from error
 
-    else:
-        return result
+    return result

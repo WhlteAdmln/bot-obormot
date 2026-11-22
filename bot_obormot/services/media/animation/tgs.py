@@ -92,18 +92,18 @@ def validate_tgs(data: bytes) -> None:
 
     try:
         document = json.loads(raw)
-    except (ValueError, UnicodeDecodeError, RecursionError) as error:
+    except (ValueError, RecursionError) as error:
         msg = TGS_INVALID_CONTENT
         raise MediaError(msg) from error
 
     width = document.get("w") if isinstance(document, dict) else None
     height = document.get("h") if isinstance(document, dict) else None
 
-    valid_size = (
-        type(width) is int
-        and type(height) is int
-        and 0 < width <= MAX_TGS_SIDE
-        and 0 < height <= MAX_TGS_SIDE
+    valid_size = all(
+        isinstance(side, int)
+        and not isinstance(side, bool)
+        and 0 < side <= MAX_TGS_SIDE
+        for side in (width, height)
     )
 
     if not valid_size:

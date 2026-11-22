@@ -72,11 +72,31 @@ def test_renovate_never_automerges_major_updates(
     assert [rule["automerge"] for rule in major_rules] == [False]
 
 
-def test_renovate_does_not_regenerate_the_lock_file(
+def test_renovate_refreshes_the_lock_so_transitive_packages_move(
     renovate_config: dict[str, Any],
 ) -> None:
-    """A whole-lock refresh would bypass the release age and the merge rules."""
-    assert renovate_config["lockFileMaintenance"]["enabled"] is False
+    """Only a lock refresh updates transitive packages, such as security fixes."""
+    assert renovate_config["lockFileMaintenance"]["enabled"] is True
+
+
+def test_renovate_lock_refresh_is_not_merged_automatically(
+    renovate_config: dict[str, Any],
+) -> None:
+    """A refresh ignores the release age, so a human reviews and merges it."""
+    assert renovate_config["lockFileMaintenance"]["automerge"] is False
+
+
+def test_renovate_lock_refresh_rule_blocks_automerge(
+    renovate_config: dict[str, Any],
+) -> None:
+    """The package rule keeps the refresh out of automerge whatever the defaults."""
+    refresh_rules = [
+        rule
+        for rule in renovate_config["packageRules"]
+        if rule.get("matchUpdateTypes") == ["lockFileMaintenance"]
+    ]
+
+    assert [rule["automerge"] for rule in refresh_rules] == [False]
 
 
 def test_renovate_regenerates_the_lock_with_pip_compile(

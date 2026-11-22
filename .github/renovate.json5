@@ -35,8 +35,13 @@
   "automergeType": "pr",
   "platformAutomerge": false,
   "ignoreTests": false,
-  // Whole-lock refreshes would bypass the release age and the human-merge rules.
-  "lockFileMaintenance": { "enabled": false },
+  // Transitive packages change only through a lock refresh. It cannot apply the
+  // release age, so a human reviews and merges it.
+  "lockFileMaintenance": {
+    "enabled": true,
+    "automerge": false,
+    "schedule": ["before 6am on the first day of the month"]
+  },
   // Security fixes skip the schedule and the release age.
   "vulnerabilityAlerts": {
     "labels": ["dependencies", "security"],
@@ -96,6 +101,11 @@
     {
       "description": "The build backend and packaging tools run while the wheel is built; a human merges them.",
       "matchPackageNames": ["setuptools", "wheel", "build", "packaging"],
+      "automerge": false
+    },
+    {
+      "description": "A lock refresh can pull in any transitive package; a human merges it.",
+      "matchUpdateTypes": ["lockFileMaintenance"],
       "automerge": false
     },
     {

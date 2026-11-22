@@ -89,7 +89,7 @@
     },
     {
       "description": "Supported Python versions and the image base change by hand, never by a bot.",
-      "matchPackageNames": ["python"],
+      "matchDepNames": ["python"],
       "matchUpdateTypes": ["major", "minor"],
       "enabled": false
     },

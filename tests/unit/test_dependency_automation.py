@@ -100,10 +100,24 @@ def test_renovate_python_version_changes_are_left_to_humans(
     python_rules = [
         rule
         for rule in renovate_config["packageRules"]
-        if rule.get("matchPackageNames") == ["python"]
+        if rule.get("matchDepNames") == ["python"]
     ]
 
     assert [rule["enabled"] for rule in python_rules] == [False]
+
+
+def test_lock_command_writes_options_with_equal_signs() -> None:
+    """Renovate refuses a lock header whose long options lack an equal sign."""
+    makefile = (ROOT_DIR / "Makefile").read_text("utf-8")
+
+    assert "--python-version=$(LOCK_PYTHON_VERSION)" in makefile
+
+
+def test_lock_command_names_the_output_file_with_an_equal_sign() -> None:
+    """The header must name the output file in the form Renovate parses."""
+    makefile = (ROOT_DIR / "Makefile").read_text("utf-8")
+
+    assert "--output-file=requirements-lock.txt" in makefile
 
 
 def test_renovate_updates_pydantic_and_its_core_together(

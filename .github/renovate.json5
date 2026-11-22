@@ -12,7 +12,7 @@
   "semanticCommits": "disabled",
   "commitMessagePrefix": "deps:",
   "platformCommit": "enabled",
-  "dependencyDashboard": true,
+  "dependencyDashboard": { "enabled": true },
   "labels": ["dependencies"],
   "prConcurrentLimit": 5,
   "prHourlyLimit": 2,
@@ -24,20 +24,23 @@
     "docker-compose",
     "github-actions",
     "pep621",
-    "pip_requirements",
+    "pip-compile",
     "pre-commit"
   ],
   "pre-commit": { "enabled": true },
+  // uv wrote the header of requirements-lock.txt, so Renovate regenerates it with uv.
+  "pip-compile": { "managerFilePatterns": ["/^requirements-lock\\.txt$/"] },
   // Renovate merges itself after every required check passes.
   "automerge": true,
   "automergeType": "pr",
   "platformAutomerge": false,
   "ignoreTests": false,
+  // Whole-lock refreshes would bypass the release age and the human-merge rules.
+  "lockFileMaintenance": { "enabled": false },
   // Security fixes skip the schedule and the release age.
   "vulnerabilityAlerts": {
     "labels": ["dependencies", "security"],
-    "minimumReleaseAge": null,
-    "prPriority": 10
+    "minimumReleaseAge": null
   },
   "packageRules": [
     {
@@ -80,19 +83,44 @@
       "automerge": false
     },
     {
-      "description": "The images are pinned to one Python minor version; only patches and digests are merged automatically.",
-      "matchDatasources": ["docker"],
+      "description": "Digest pins carry no release date, so the release age would hold them forever.",
+      "matchUpdateTypes": ["pin", "pinDigest", "digest"],
+      "minimumReleaseAge": null
+    },
+    {
+      "description": "Supported Python versions and the image base change by hand, never by a bot.",
+      "matchDatasources": ["docker", "python-version"],
       "matchPackageNames": ["python"],
-      "matchUpdateTypes": ["minor"],
+      "matchUpdateTypes": ["major", "minor"],
+      "enabled": false
+    },
+    {
+      "description": "The build backend and packaging tools run while the wheel is built; a human merges them.",
+      "matchPackageNames": ["setuptools", "wheel", "build", "packaging"],
       "automerge": false
     },
     {
+      "description": "These packages pin each other exactly, so they move in one pull request.",
+      "matchPackageNames": ["pydantic", "pydantic-core", "pydantic_core"],
+      "groupName": "pydantic"
+    },
+    {
+      "matchPackageNames": ["pymupdf", "pymupdf-layout", "pymupdf4llm"],
+      "groupName": "pymupdf"
+    },
+    {
+      "matchPackageNames": ["httpx2", "httpcore2"],
+      "groupName": "httpx2"
+    },
+    {
+      "description": "Workflow actions run with the repository token and publish releases; a human merges them.",
       "matchManagers": ["github-actions"],
+      "automerge": false,
       "commitMessagePrefix": "ci:",
       "labels": ["dependencies", "github-actions"]
     },
     {
-      "matchManagers": ["pep621", "pip_requirements"],
+      "matchManagers": ["pep621", "pip-compile"],
       "labels": ["dependencies", "python"]
     },
     {
@@ -100,7 +128,9 @@
       "labels": ["dependencies", "docker"]
     },
     {
+      "description": "Hooks execute downloaded code on every contributor machine and in CI; a human merges them.",
       "matchManagers": ["pre-commit"],
+      "automerge": false,
       "commitMessagePrefix": "ci:",
       "labels": ["dependencies", "pre-commit"]
     }

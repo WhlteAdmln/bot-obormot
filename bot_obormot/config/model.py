@@ -37,8 +37,9 @@ class ConfigError(ValueError):
 _DEFAULT_COUNTING_MODE = "auto"
 
 
+# One field per environment variable; splitting them would only hide the schema.
 @dataclass(frozen=True, slots=True)
-class Settings:
+class Settings:  # pylint: disable=too-many-instance-attributes
     """Application settings loaded from environment variables."""
 
     BOT_TOKEN: str = ""

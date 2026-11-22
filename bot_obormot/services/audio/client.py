@@ -129,5 +129,4 @@ async def transcribe_audio(
         msg = f"audiodoc connection error: {error}"
         raise AudiodocUnavailableError(msg) from error
 
-    else:
-        return text
+    return text

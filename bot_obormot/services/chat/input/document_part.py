@@ -57,7 +57,8 @@ async def prepare_document(
         len(document_data),
     )
 
-    if document_processor is None:
+    # The branches call different signatures, so a ternary would not read well.
+    if document_processor is None:  # pylint: disable=consider-ternary-expression
         result = await process_document(
             document_data,
             document.file_name or "document",

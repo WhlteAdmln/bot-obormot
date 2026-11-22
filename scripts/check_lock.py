@@ -14,97 +14,121 @@ from packaging.utils import canonicalize_name
 from packaging.version import InvalidVersion, Version
 
 
-def _read_project_dependencies(path: Path) -> tuple[list[Requirement], list[str]]:
-    requirements: list[Requirement] = []
-    errors: list[str] = []
-
+def _load_dependency_entries(path: Path) -> tuple[list[object], str | None]:
+    """Return the raw [project].dependencies entries or the reason they are unusable."""
     try:
         project_data = tomllib.loads(path.read_text(encoding="utf-8")).get("project")
     except (OSError, tomllib.TOMLDecodeError) as exc:
-        return [], [f"Cannot read {path}: {exc}"]
+        return [], f"Cannot read {path}: {exc}"
 
     if not isinstance(project_data, dict):
-        return [], [f"{path}: missing [project] table"]
+        return [], f"{path}: missing [project] table"
 
     raw_requirements = project_data.get("dependencies")
     if not isinstance(raw_requirements, list):
-        return [], [f"{path}: [project].dependencies must be an array"]
+        return [], f"{path}: [project].dependencies must be an array"
 
+    return raw_requirements, None
+
+
+def _parse_project_requirement(
+    path: Path, line_number: int, raw_requirement: object
+) -> tuple[Requirement | None, str | None]:
+    """Parse one dependency; return no requirement when it is skipped or invalid."""
+    if not isinstance(raw_requirement, str):
+        return None, (
+            f"{path}: [project].dependencies entry {line_number} must be a string"
+        )
+
+    line = raw_requirement.strip()
+    try:
+        requirement = Requirement(line)
+    except InvalidRequirement as exc:
+        return None, (
+            f"{path}: [project].dependencies entry {line_number}: "
+            f"invalid requirement {line!r}: {exc}"
+        )
+
+    if requirement.url:
+        return None, (
+            f"{path}: [project].dependencies entry {line_number}: "
+            f"direct URL requirements are not supported: {line}"
+        )
+
+    if requirement.marker and not requirement.marker.evaluate():
+        return None, None
+
+    return requirement, None
+
+
+def _read_project_dependencies(path: Path) -> tuple[list[Requirement], list[str]]:
+    raw_requirements, load_error = _load_dependency_entries(path)
+    if load_error is not None:
+        return [], [load_error]
+
+    requirements: list[Requirement] = []
+    errors: list[str] = []
     for line_number, raw_requirement in enumerate(raw_requirements, start=1):
-        if not isinstance(raw_requirement, str):
-            errors.append(
-                f"{path}: [project].dependencies entry {line_number} must be a string"
-            )
-            continue
-
-        line = raw_requirement.strip()
-        try:
-            requirement = Requirement(line)
-        except InvalidRequirement as exc:
-            errors.append(
-                f"{path}: [project].dependencies entry {line_number}: "
-                f"invalid requirement {line!r}: {exc}"
-            )
-            continue
-
-        if requirement.url:
-            errors.append(
-                f"{path}: [project].dependencies entry {line_number}: "
-                f"direct URL requirements are not supported: {line}"
-            )
-            continue
-
-        if requirement.marker and not requirement.marker.evaluate():
-            continue
-
-        requirements.append(requirement)
+        requirement, error = _parse_project_requirement(
+            path, line_number, raw_requirement
+        )
+        if error is not None:
+            errors.append(error)
+        elif requirement is not None:
+            requirements.append(requirement)
 
     return requirements, errors
 
 
-def _read_lock(path: Path) -> tuple[dict[str, Version], list[str]]:
-    locked: dict[str, Version] = {}
-    errors: list[str] = []
+def _parse_lock_entry(
+    path: Path, line_number: int, line: str
+) -> tuple[tuple[str, Version] | None, str | None]:
+    """Parse one lock line into a canonical name and an exact version."""
+    try:
+        requirement = Requirement(line)
+    except InvalidRequirement as exc:
+        return None, f"{path}:{line_number}: invalid lock entry {line!r}: {exc}"
 
+    specifiers = list(requirement.specifier)
+    if (
+        len(specifiers) != 1
+        or specifiers[0].operator != "=="
+        or "*" in specifiers[0].version
+    ):
+        return None, (
+            f"{path}:{line_number}: lock entry must use one exact == version: {line}"
+        )
+
+    try:
+        version = Version(specifiers[0].version)
+    except InvalidVersion as exc:
+        return None, f"{path}:{line_number}: invalid locked version: {exc}"
+
+    return (canonicalize_name(requirement.name), version), None
+
+
+def _read_lock(path: Path) -> tuple[dict[str, Version], list[str]]:
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except OSError as exc:
         return {}, [f"Cannot read {path}: {exc}"]
 
+    locked: dict[str, Version] = {}
+    errors: list[str] = []
     for line_number, raw_line in enumerate(lines, start=1):
         line = raw_line.split("#", maxsplit=1)[0].strip()
         if not line or line.startswith("-"):
             continue
 
-        try:
-            requirement = Requirement(line)
-        except InvalidRequirement as exc:
-            errors.append(f"{path}:{line_number}: invalid lock entry {line!r}: {exc}")
-            continue
-
-        specifiers = list(requirement.specifier)
-        if (
-            len(specifiers) != 1
-            or specifiers[0].operator != "=="
-            or "*" in specifiers[0].version
-        ):
-            errors.append(
-                f"{path}:{line_number}: lock entry must use one exact == version: "
-                f"{line}"
-            )
-            continue
-
-        name = canonicalize_name(requirement.name)
-        try:
-            version = Version(specifiers[0].version)
-        except InvalidVersion as exc:
-            errors.append(f"{path}:{line_number}: invalid locked version: {exc}")
-            continue
-
-        if name in locked:
-            errors.append(f"{path}:{line_number}: duplicate lock entry for {name}")
-            continue
-        locked[name] = version
+        entry, error = _parse_lock_entry(path, line_number, line)
+        if error is not None:
+            errors.append(error)
+        elif entry is not None:
+            name, version = entry
+            if name in locked:
+                errors.append(f"{path}:{line_number}: duplicate lock entry for {name}")
+            else:
+                locked[name] = version
 
     return locked, errors
 

@@ -17,7 +17,7 @@ from urllib.parse import unquote, urlsplit
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-from bot_obormot.cli import _build_parser
+from bot_obormot.cli import build_parser
 from bot_obormot.settings import Settings
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -371,7 +371,7 @@ def _cli_command_is_valid(arguments: list[str]) -> bool:
     """Return whether the CLI parser accepts a documented command."""
     try:
         with redirect_stdout(StringIO()), redirect_stderr(StringIO()):
-            _build_parser().parse_args(arguments)
+            build_parser().parse_args(arguments)
     except SystemExit as error:
         return error.code == 0
     return True

@@ -4,7 +4,7 @@
 """Factories for isolated application settings in tests."""
 
 from dataclasses import replace
-from typing import Any, cast
+from typing import Any, cast  # pylint: disable=unused-import  # string cast
 
 from bot_obormot.settings import Settings
 

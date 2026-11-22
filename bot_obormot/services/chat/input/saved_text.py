@@ -35,7 +35,7 @@ def build_saved_user_text(
             saved_user_text = f"{message.caption}\n\n{saved_user_text}"
 
     elif info.has_media:
-        if info.media_type in ("tgs", "webm", "gif", "mp4"):
+        if info.media_type in {"tgs", "webm", "gif", "mp4"}:
             saved_user_text = texts.ANIMATION_HISTORY_TEMPLATE.format(
                 media_type=info.media_type
             )

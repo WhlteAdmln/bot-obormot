@@ -57,7 +57,8 @@ async def prepare_audio(
 
     logger.info("AUDIO: sending file to audiodoc")
 
-    if transcriber is None:
+    # The branches call different signatures, so a ternary would not read well.
+    if transcriber is None:  # pylint: disable=consider-ternary-expression
         transcribed_text = await transcribe_audio(
             audio_data,
             cast("str", info.audio_filename),

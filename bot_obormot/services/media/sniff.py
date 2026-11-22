@@ -16,7 +16,7 @@ _MIN_HEADER_LENGTH = 12
 
 def sniff_media_type(data: bytes) -> str | None:
     """Detect a supported media type from the file's leading signature."""
-    if data[:6] in (b"GIF87a", b"GIF89a"):
+    if data[:6] in {b"GIF87a", b"GIF89a"}:
         return "gif"
 
     # TGS is gzip-compressed JSON. validate_tgs performs full stream validation.
@@ -39,7 +39,7 @@ def sniff_media_type(data: bytes) -> str | None:
             and data[8:12] == b"WEBP"
         )
         or data[:2] == b"BM"  # BMP
-        or data[:4] in (b"II*\x00", b"MM\x00*")  # TIFF
+        or data[:4] in {b"II*\x00", b"MM\x00*"}  # TIFF
     )
 
     return "image" if is_image else None

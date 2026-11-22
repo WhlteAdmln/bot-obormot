@@ -99,5 +99,4 @@ async def process_media(
         msg = f"Failed to prepare {media_type} media"
         raise MediaError(msg) from error
 
-    else:
-        return [prepared_image]
+    return [prepared_image]

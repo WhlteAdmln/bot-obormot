@@ -3,6 +3,8 @@
 
 """Vulture whitelist for aiogram handlers registered through decorators."""
 
+# pylint: disable=invalid-name  # entries repeat the names vulture reports
+
 handle_message: object = None
 cmd_unknown: object = None
 

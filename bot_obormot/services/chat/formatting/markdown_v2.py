@@ -77,7 +77,7 @@ def _closing_run(text: str, start: int, marker: str, size: int) -> int:
             before = text[index - 1] if index > start else ""
             if (
                 length == size
-                and before != ""
+                and before
                 and not before.isspace()
                 and not after.isalnum()
             ):
@@ -235,7 +235,8 @@ def _link(
     if not url:
         return None
 
-    if label.strip():
+    # A nested ternary here would be harder to read than the two branches.
+    if label.strip():  # pylint: disable=consider-ternary-expression
         shown = _inline(label, active | {"link"})
     else:
         shown = escape_text("image" if is_image else url)
@@ -421,11 +422,11 @@ def to_markdown_v2(text: str) -> str:
             output.append(block)
             continue
 
-        if output and output[-1] != "":
+        if output and output[-1]:
             output.append("")
         index += 1
 
-    while output and output[-1] == "":
+    while output and not output[-1]:
         output.pop()
 
     return "\n".join(output)

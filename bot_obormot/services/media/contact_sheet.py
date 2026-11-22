@@ -52,7 +52,7 @@ def build_contact_sheet(frames: list[bytes]) -> bytes:
             frame = ImageOps.exif_transpose(source)
             frame.load()
 
-            if frame.mode in ("RGBA", "LA") or "transparency" in frame.info:
+            if frame.mode in {"RGBA", "LA"} or "transparency" in frame.info:
                 rgba = frame.convert("RGBA")
                 normalized = Image.new("RGB", rgba.size, "white")
                 normalized.paste(rgba, mask=rgba.getchannel("A"))

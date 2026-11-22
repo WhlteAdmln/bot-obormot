@@ -17,7 +17,7 @@ def get_media_prompt(message: Message, media_type: str | None) -> str:
     if message.caption:
         return message.caption
 
-    if media_type in ("tgs", "webm", "gif", "mp4"):
+    if media_type in {"tgs", "webm", "gif", "mp4"}:
         return ANIMATION_MEDIA_PROMPT
 
     if message.sticker:

@@ -103,8 +103,8 @@ class LLMClient:
     def _normalize_content(content: object) -> str | list[Any]:
         return normalize_content(content)
 
+    @staticmethod
     def _normalize_messages(
-        self,
         messages: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
         return normalize_messages(messages)

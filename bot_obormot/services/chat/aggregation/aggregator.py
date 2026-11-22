@@ -257,9 +257,6 @@ class MessageAggregator:
                 except TimeoutError:
                     continue
 
-        except asyncio.CancelledError:
-            raise
-
         except Exception:
             logger.exception(
                 "Message aggregation failed: user_id=%s",

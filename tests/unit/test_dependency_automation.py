@@ -72,18 +72,26 @@ def test_renovate_never_automerges_major_updates(
     assert [rule["automerge"] for rule in major_rules] == [False]
 
 
-def test_renovate_refreshes_the_lock_so_transitive_packages_move(
+def test_renovate_generic_lock_maintenance_is_off(
     renovate_config: dict[str, Any],
 ) -> None:
-    """Only a lock refresh updates transitive packages, such as security fixes."""
-    assert renovate_config["lockFileMaintenance"]["enabled"] is True
+    """The pip-compile manager has its own refresh; the generic one is a duplicate."""
+    assert renovate_config["lockFileMaintenance"]["enabled"] is False
 
 
-def test_renovate_lock_refresh_is_not_merged_automatically(
+def test_renovate_lock_refresh_runs_monthly(
     renovate_config: dict[str, Any],
 ) -> None:
-    """A refresh ignores the release age, so a human reviews and merges it."""
-    assert renovate_config["lockFileMaintenance"]["automerge"] is False
+    """A refresh ignores the release age, so it runs rarely."""
+    refresh_rules = [
+        rule
+        for rule in renovate_config["packageRules"]
+        if rule.get("matchUpdateTypes") == ["lockFileMaintenance"]
+    ]
+
+    assert [rule["schedule"] for rule in refresh_rules] == [
+        ["before 6am on the first day of the month"]
+    ]
 
 
 def test_renovate_lock_refresh_rule_blocks_automerge(

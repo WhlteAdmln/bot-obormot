@@ -35,13 +35,9 @@
   "automergeType": "pr",
   "platformAutomerge": false,
   "ignoreTests": false,
-  // Transitive packages change only through a lock refresh. It cannot apply the
-  // release age, so a human reviews and merges it.
-  "lockFileMaintenance": {
-    "enabled": true,
-    "automerge": false,
-    "schedule": ["before 6am on the first day of the month"]
-  },
+  // The pip-compile manager creates its own refresh branch; the generic job would be
+  // an empty duplicate for pyproject.toml.
+  "lockFileMaintenance": { "enabled": false },
   // Security fixes skip the schedule and the release age.
   "vulnerabilityAlerts": {
     "labels": ["dependencies", "security"],
@@ -104,8 +100,9 @@
       "automerge": false
     },
     {
-      "description": "A lock refresh can pull in any transitive package; a human merges it.",
+      "description": "The lock refresh is the only way transitive packages change. It cannot apply the release age, so it runs monthly and a human merges it.",
       "matchUpdateTypes": ["lockFileMaintenance"],
+      "schedule": ["before 6am on the first day of the month"],
       "automerge": false
     },
     {

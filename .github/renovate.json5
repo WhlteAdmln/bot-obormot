@@ -89,7 +89,6 @@
     },
     {
       "description": "Supported Python versions and the image base change by hand, never by a bot.",
-      "matchDatasources": ["docker", "python-version"],
       "matchPackageNames": ["python"],
       "matchUpdateTypes": ["major", "minor"],
       "enabled": false

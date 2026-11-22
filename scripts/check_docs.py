@@ -339,6 +339,34 @@ def _command_prefix_is_valid(tokens: list[str]) -> bool:
     )
 
 
+_COMMAND_END_TOKENS = frozenset({"&&", "||", ";", "|", ">", ">>", "<"})
+
+
+def _command_arguments(tokens: list[str], index: int) -> list[str]:
+    """Return the arguments after the command at ``index`` up to a shell operator."""
+    arguments: list[str] = []
+    for item in tokens[index + 1 :]:
+        if item in _COMMAND_END_TOKENS:
+            break
+        arguments.append(item)
+    return arguments
+
+
+def _commands_in_line(tokens: list[str]) -> Iterator[list[str]]:
+    """Yield the argument list of every documented bot-obormot call in one line."""
+    for index, token in enumerate(tokens):
+        if _ENV_ASSIGNMENT_RE.fullmatch(token) is not None:
+            continue
+        if Path(token).name != "bot-obormot":
+            continue
+        if not _command_prefix_is_valid(tokens[:index]):
+            continue
+
+        arguments = _command_arguments(tokens, index)
+        if arguments:
+            yield arguments
+
+
 def _documented_commands(segment: str) -> Iterator[list[str]]:
     """Extract bot-obormot CLI argument lists from shell and inline code."""
     logical_text = re.sub(r"\\\s*\n", " ", segment)
@@ -349,22 +377,7 @@ def _documented_commands(segment: str) -> Iterator[list[str]]:
         except ValueError:
             continue
 
-        for index, token in enumerate(tokens):
-            if _ENV_ASSIGNMENT_RE.fullmatch(token) is not None:
-                continue
-            if Path(token).name != "bot-obormot":
-                continue
-            if not _command_prefix_is_valid(tokens[:index]):
-                continue
-
-            arguments: list[str] = []
-            for item in tokens[index + 1 :]:
-                if item in {"&&", "||", ";", "|", ">", ">>", "<"}:
-                    break
-                arguments.append(item)
-
-            if arguments:
-                yield arguments
+        yield from _commands_in_line(tokens)
 
 
 def _cli_command_is_valid(arguments: list[str]) -> bool:

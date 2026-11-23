@@ -43,6 +43,7 @@ def test_render_rejects_relative_home_and_unknown_mode() -> None:
     with pytest.raises(ValueError, match="absolute"):
         service.render_service_unit(Path("relative"), mode="user")
     with pytest.raises(ValueError, match="Unsupported"):
+        # The invalid mode is the point of this check.
         service.render_service_unit(Path("/srv/app"), mode="global")  # type: ignore[arg-type]
 
 

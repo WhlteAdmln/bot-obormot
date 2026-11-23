@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 from aiogram.exceptions import TelegramBadRequest, TelegramNetworkError
+from aiogram.methods import GetMe
 
 from bot_obormot.services.chat.aggregation import aggregator as aggregator_module
 from bot_obormot.services.chat.aggregation.aggregator import (
@@ -26,11 +27,11 @@ PARSE_ERROR = "Bad Request: can't parse entities: Can't find end of the entity"
 
 
 def _bad_request(text: str) -> TelegramBadRequest:
-    return TelegramBadRequest(method=SimpleNamespace(), message=text)  # type: ignore[arg-type]
+    return TelegramBadRequest(method=GetMe(), message=text)
 
 
 def _network_error() -> TelegramNetworkError:
-    return TelegramNetworkError(method=SimpleNamespace(), message="timeout")  # type: ignore[arg-type]
+    return TelegramNetworkError(method=GetMe(), message="timeout")
 
 
 class _Message:
@@ -91,6 +92,7 @@ def test_reply_target_without_message_id_has_no_parameters() -> None:
 )
 def test_only_confirmed_parse_errors_are_entity_errors(
     error: Exception,
+    *,
     expected: bool,
 ) -> None:
     """Recognize only Telegram formatting errors."""

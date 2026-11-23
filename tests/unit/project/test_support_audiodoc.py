@@ -21,7 +21,7 @@ from tests.support.fake_audiodoc import FakeAudiodoc, FakeResponseOptions
 from tests.support.settings import make_settings
 
 _FIXTURE_PATH = (
-    Path(__file__).resolve().parents[1]
+    Path(__file__).resolve().parents[2]
     / "contract"
     / "fixtures"
     / "audiodoc_responses.json"

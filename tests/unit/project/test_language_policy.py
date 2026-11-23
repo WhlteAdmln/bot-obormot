@@ -9,7 +9,7 @@ import re
 import tokenize
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 BOT_ROOT = PROJECT_ROOT / "bot_obormot"
 PROMPTS_ROOT = BOT_ROOT / "prompts"
 CYRILLIC_PATTERN = re.compile(r"[\u0400-\u04FF]")

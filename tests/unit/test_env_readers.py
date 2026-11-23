@@ -55,7 +55,6 @@ def test_boolean_integer_and_id_readers() -> None:
     """Boolean, integer and ID readers validate their inputs."""
     assert env_readers.get_bool("FLAG", environ={"FLAG": "yes"}) is True
     assert env_readers.get_bool("FLAG", default=True, environ={}) is True
-    assert env_readers.get_bool("FLAG", True, environ={}) is True
     assert env_readers.get_int("COUNT", "3", 2, environ={}) == 3
     assert env_readers.get_optional_int("COUNT", environ={"COUNT": ""}) is None
     assert env_readers.parse_ids("IDS", environ={"IDS": "1, 2,2"}) == {1, 2}

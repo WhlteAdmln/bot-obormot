@@ -26,6 +26,7 @@ VENDORED_FILES = (
     ".editorconfig",
     ".pre-commit-config.yaml",
     "scripts/check_lock.py",
+    "scripts/check_test_layout.py",
     "scripts/check_vendored.py",
     "scripts/coverage_gaps.py",
     PYPROJECT_FILE,

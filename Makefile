@@ -41,6 +41,7 @@ lint: docs-check
 	$(PYTHON) -m ruff check .
 	$(PYTHON) -m ruff format --check .
 	$(PYTHON) scripts/check_lock.py
+	$(PYTHON) scripts/check_test_layout.py
 	$(PYTHON_SCRIPTS_DIR)/shfmt -i 0 -d install.sh
 	find scripts -type f -name '*.sh' -exec $(PYTHON_SCRIPTS_DIR)/shfmt -i 2 -sr -d {} +
 	$(PYTHON_SCRIPTS_DIR)/shellcheck $(shell git ls-files '*.sh' '*.sh.example')
@@ -92,7 +93,7 @@ docker:
 	docker compose -f compose.yaml build --pull bot-obormot
 
 installer:
-	$(PYTHON) -m pytest -q tests/unit/test_installer.py
+	$(PYTHON) -m pytest -q tests/unit/project/test_installer.py
 
 cov:
 	$(PYTHON) -m coverage xml --fail-under=0

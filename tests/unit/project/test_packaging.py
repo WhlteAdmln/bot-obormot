@@ -13,7 +13,7 @@ def test_wheel_contains_prompt_and_excludes_development_files(
     tmp_path: Path,
 ) -> None:
     """Builds a wheel with package data and without repository-only paths."""
-    project_root = Path(__file__).resolve().parents[2]
+    project_root = Path(__file__).resolve().parents[3]
     wheel_directory = tmp_path / "wheel"
     wheel_directory.mkdir()
 

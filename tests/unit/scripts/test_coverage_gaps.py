@@ -18,7 +18,7 @@ def _write_report(path: Path, classes: str) -> None:
 
 def test_find_coverage_gaps_combines_statement_and_branch_coverage(
     tmp_path: Path,
-):
+) -> None:
     report = tmp_path / "coverage.xml"
     _write_report(
         report,
@@ -46,7 +46,7 @@ def test_find_coverage_gaps_combines_statement_and_branch_coverage(
     ]
 
 
-def test_find_coverage_gaps_returns_at_most_fifteen_files(tmp_path: Path):
+def test_find_coverage_gaps_returns_at_most_fifteen_files(tmp_path: Path) -> None:
     report = tmp_path / "coverage.xml"
     classes = "".join(
         f'<class name="file_{index:02d}.py" filename="file_{index:02d}.py">'
@@ -63,7 +63,7 @@ def test_find_coverage_gaps_returns_at_most_fifteen_files(tmp_path: Path):
     ]
 
 
-def test_find_coverage_gaps_rejects_invalid_branch_coverage(tmp_path: Path):
+def test_find_coverage_gaps_rejects_invalid_branch_coverage(tmp_path: Path) -> None:
     report = tmp_path / "coverage.xml"
     _write_report(
         report,
@@ -83,9 +83,9 @@ def test_find_coverage_gaps_rejects_invalid_branch_coverage(tmp_path: Path):
 
 def test_main_rejects_dtd_declarations(
     tmp_path: Path,
-    monkeypatch,
-    capsys,
-):
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     report = tmp_path / "coverage.xml"
     report.write_text(
         '<!DOCTYPE coverage [<!ENTITY payload "value">]>'
@@ -103,9 +103,9 @@ def test_main_rejects_dtd_declarations(
 
 def test_main_prints_requested_number_of_files(
     tmp_path: Path,
-    monkeypatch,
-    capsys,
-):
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     report = tmp_path / "coverage.xml"
     _write_report(
         report,

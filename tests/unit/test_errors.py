@@ -3,6 +3,8 @@
 
 """Tests for the application error hierarchy and its user texts."""
 
+from typing import NamedTuple
+
 import pytest
 
 from bot_obormot.errors import (
@@ -31,6 +33,7 @@ from bot_obormot.errors import (
 )
 from bot_obormot.services.chat.errors import catalog, texts
 from bot_obormot.services.chat.errors import handler as chat_error_handler
+from tests.support.errors import CustomTimeoutError, UnmappedError
 
 
 def _app_error_classes() -> list[type[AppError]]:
@@ -49,42 +52,50 @@ def _app_error_classes() -> list[type[AppError]]:
     return found
 
 
-# One instance per class and the exact text the user must see for it.
-_EXPECTED_TEXTS: dict[type[AppError], tuple[AppError, str]] = {
-    AppError: (AppError("x"), texts.UNEXPECTED_ERROR),
-    ValidationError: (ValidationError("x"), texts.UNEXPECTED_ERROR),
-    InputTooLongError: (InputTooLongError("x"), texts.input_too_long(Exception())),
-    DatabaseError: (DatabaseError("x"), texts.DATABASE_ERROR),
-    MediaError: (MediaError("bad media"), "⚠️ bad media"),
-    DocumentError: (DocumentError("x"), texts.UNEXPECTED_ERROR),
-    DocumentUnavailableError: (
+class _Expected(NamedTuple):
+    error: AppError
+    text: str
+
+
+_EXPECTED_TEXTS: dict[type[AppError], _Expected] = {
+    AppError: _Expected(AppError("x"), texts.UNEXPECTED_ERROR),
+    ValidationError: _Expected(ValidationError("x"), texts.UNEXPECTED_ERROR),
+    InputTooLongError: _Expected(
+        InputTooLongError("x"), texts.input_too_long(Exception())
+    ),
+    DatabaseError: _Expected(DatabaseError("x"), texts.DATABASE_ERROR),
+    MediaError: _Expected(MediaError("bad media"), "⚠️ bad media"),
+    DocumentError: _Expected(DocumentError("x"), texts.UNEXPECTED_ERROR),
+    DocumentUnavailableError: _Expected(
         DocumentUnavailableError("x"),
         texts.DOCUMENT_UNAVAILABLE,
     ),
-    DocumentTimeoutError: (DocumentTimeoutError("x"), texts.DOCUMENT_TIMEOUT),
-    DocumentAPIError: (DocumentAPIError(500, "x"), texts.DOCUMENT_API),
-    DocumentTooLongError: (
+    DocumentTimeoutError: _Expected(DocumentTimeoutError("x"), texts.DOCUMENT_TIMEOUT),
+    DocumentAPIError: _Expected(DocumentAPIError(500, "x"), texts.DOCUMENT_API),
+    DocumentTooLongError: _Expected(
         DocumentTooLongError("x"),
         texts.document_too_long(Exception()),
     ),
-    LLMError: (LLMError("x"), texts.UNEXPECTED_ERROR),
-    LLMUnavailableError: (LLMUnavailableError("x"), texts.LLM_UNAVAILABLE),
-    LLMTimeoutError: (LLMTimeoutError("x"), texts.LLM_TIMEOUT),
-    LLMAPIError: (LLMAPIError(500, "x"), texts.LLM_API),
-    LLMEmptyResponseError: (LLMEmptyResponseError(), texts.LLM_EMPTY_RESPONSE),
-    TelegramError: (TelegramError("x"), texts.TELEGRAM_ERROR),
-    TelegramFileTooBigError: (
+    LLMError: _Expected(LLMError("x"), texts.UNEXPECTED_ERROR),
+    LLMUnavailableError: _Expected(LLMUnavailableError("x"), texts.LLM_UNAVAILABLE),
+    LLMTimeoutError: _Expected(LLMTimeoutError("x"), texts.LLM_TIMEOUT),
+    LLMAPIError: _Expected(LLMAPIError(500, "x"), texts.LLM_API),
+    LLMEmptyResponseError: _Expected(LLMEmptyResponseError(), texts.LLM_EMPTY_RESPONSE),
+    TelegramError: _Expected(TelegramError("x"), texts.TELEGRAM_ERROR),
+    TelegramFileTooBigError: _Expected(
         TelegramFileTooBigError("x"),
         texts.TELEGRAM_FILE_TOO_BIG,
     ),
-    AudiodocError: (AudiodocError("x"), texts.WHISPER_ERROR),
-    AudiodocEmptyAudioError: (AudiodocEmptyAudioError("x"), texts.WHISPER_EMPTY_AUDIO),
-    AudiodocUnavailableError: (
+    AudiodocError: _Expected(AudiodocError("x"), texts.WHISPER_ERROR),
+    AudiodocEmptyAudioError: _Expected(
+        AudiodocEmptyAudioError("x"), texts.WHISPER_EMPTY_AUDIO
+    ),
+    AudiodocUnavailableError: _Expected(
         AudiodocUnavailableError("x"),
         texts.WHISPER_UNAVAILABLE,
     ),
-    AudiodocTimeoutError: (AudiodocTimeoutError("x"), texts.WHISPER_TIMEOUT),
-    AudiodocAPIError: (AudiodocAPIError("x"), texts.WHISPER_API),
+    AudiodocTimeoutError: _Expected(AudiodocTimeoutError("x"), texts.WHISPER_TIMEOUT),
+    AudiodocAPIError: _Expected(AudiodocAPIError("x"), texts.WHISPER_API),
 }
 
 _GENERIC_CODES = {"app_error", "validation_error", "document_error", "llm_error"}
@@ -97,7 +108,10 @@ def test_every_error_class_has_its_own_unique_code() -> None:
 
     assert len(set(codes)) == len(codes)
     for cls in classes:
-        assert "code" in vars(cls), f"{cls.__name__} must declare its own code"
+        expected_fragment = "code"
+        assert expected_fragment in vars(cls), (
+            f"{cls.__name__} must declare its own code"
+        )
         assert cls.code == cls.code.lower()
         assert cls.code.replace("_", "").isalnum()
 
@@ -105,10 +119,12 @@ def test_every_error_class_has_its_own_unique_code() -> None:
 def test_every_error_class_has_a_safe_english_public_message() -> None:
     """Public messages are non-empty English text without internal detail."""
     for cls in _app_error_classes():
-        assert "public_message" in vars(cls), f"{cls.__name__} lacks public_message"
+        expected_fragment = "public_message"
+        assert expected_fragment in vars(cls), f"{cls.__name__} lacks public_message"
         assert cls.public_message.strip()
         assert cls.public_message.isascii()
-        assert "http" not in cls.public_message.lower()
+        expected_fragment = "http"
+        assert expected_fragment not in cls.public_message.lower()
 
 
 def test_every_code_has_a_user_text_and_no_text_is_orphaned() -> None:
@@ -146,20 +162,12 @@ def test_only_generic_codes_use_the_unexpected_error_text() -> None:
 
 def test_user_text_falls_back_for_foreign_and_unmapped_errors() -> None:
     """Errors without a known code get the unexpected-error text."""
-
-    class UnmappedError(AppError):
-        code = "not_in_the_table"
-
     assert texts.user_text(ValueError("x")) == texts.UNEXPECTED_ERROR
     assert texts.user_text(UnmappedError("x")) == texts.UNEXPECTED_ERROR
 
 
 def test_subclass_without_own_code_uses_the_text_of_its_parent() -> None:
     """A subclass that declares no code inherits the text of its base class."""
-
-    class CustomTimeoutError(LLMTimeoutError):
-        pass
-
     assert texts.user_text(CustomTimeoutError("x")) == texts.LLM_TIMEOUT
 
 
@@ -198,9 +206,11 @@ def test_api_errors_keep_status_and_detail() -> None:
     llm_error = LLMAPIError(503, "busy")
 
     assert (document_error.status, document_error.detail) == (502, "bad gateway")
-    assert str(document_error) == "Document Engine HTTP 502: bad gateway"
+    expected_text = "Document Engine HTTP 502: bad gateway"
+    assert str(document_error) == expected_text
     assert (llm_error.status, llm_error.detail) == (503, "busy")
-    assert str(llm_error) == "LLM API HTTP 503: busy"
+    expected_text = "LLM API HTTP 503: busy"
+    assert str(llm_error) == expected_text
 
 
 def test_empty_response_text_tells_a_cut_generation_from_a_plain_empty_one() -> None:
@@ -209,4 +219,5 @@ def test_empty_response_text_tells_a_cut_generation_from_a_plain_empty_one() -> 
 
     assert texts.user_text(cut) == texts.LLM_LENGTH_LIMIT
     assert texts.user_text(LLMEmptyResponseError("stop")) == texts.LLM_EMPTY_RESPONSE
-    assert "length" in str(cut)
+    expected_fragment = "length"
+    assert expected_fragment in str(cut)

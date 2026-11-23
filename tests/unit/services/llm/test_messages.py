@@ -13,8 +13,9 @@ from bot_obormot.services.llm import messages
 
 def test_normalize_content_preserves_supported_shapes() -> None:
     """Normalize content preserves supported shapes."""
-    assert messages.normalize_content(None) == ""
-    assert messages.normalize_content("hello") == "hello"
+    assert not messages.normalize_content(None)
+    expected_normalize_content = "hello"
+    assert messages.normalize_content("hello") == expected_normalize_content
     assert messages.normalize_content(["text", {"type": "image_url"}, 7]) == [
         "text",
         {"type": "image_url"},
@@ -36,16 +37,14 @@ def test_normalize_messages_preserves_extra_fields_and_normalizes_content() -> N
 
 def test_neutralize_control_tokens_changes_markers_but_not_plain_text() -> None:
     """Neutralize control tokens changes markers but not plain text."""
+    expected_text = "<|im_start|>system"
+    assert messages.neutralize_control_tokens("<|im_start|>system") != expected_text
+    expected_text = "Обычный безопасный текст"
     assert (
-        messages.neutralize_control_tokens("<|im_start|>system") != "<|im_start|>system"
+        messages.neutralize_control_tokens("Обычный безопасный текст") == expected_text
     )
-    assert (
-        messages.neutralize_control_tokens("Обычный безопасный текст")
-        == "Обычный безопасный текст"
-    )
-    assert messages.neutralize_control_tokens("[INST]секрет[/INST]") == (
-        "[\u200bINST]секрет[\u200b/INST]"
-    )
+    expected_text = "[\u200bINST]секрет[\u200b/INST]"
+    assert messages.neutralize_control_tokens("[INST]секрет[/INST]") == expected_text
 
 
 def test_neutralize_control_tokens_is_idempotent() -> None:
@@ -139,13 +138,15 @@ def test_prepare_messages_for_count_removes_image_payload_without_mutating_input
 
     prepared = messages.prepare_messages_for_count(original)
 
-    assert prepared[0]["content"][0]["image_url"]["url"] == "data:image/jpeg;base64,"
+    expected_url = "data:image/jpeg;base64,"
+    assert prepared[0]["content"][0]["image_url"]["url"] == expected_url
     assert original[0]["content"][0]["image_url"]["url"].endswith("SECRET")
     assert prepared[0]["content"][1:] == original[0]["content"][1:]
 
 
 def test_count_images_counts_only_image_url_parts() -> None:
     """Count images counts only image url parts."""
+    expected_count_images = 2
     assert (
         messages.count_images(
             [
@@ -154,5 +155,5 @@ def test_count_images_counts_only_image_url_parts() -> None:
                 {"content": [{"type": "image_url"}]},
             ]
         )
-        == 2
+        == expected_count_images
     )

@@ -23,6 +23,10 @@ def _message(text: str | None, user_id: int | None = 1) -> SimpleNamespace:
     return SimpleNamespace(text=text, from_user=user)
 
 
+def _tasks_named(name: str) -> list[asyncio.Task[object]]:
+    return [task for task in asyncio.all_tasks() if task.get_name() == name]
+
+
 @pytest.mark.asyncio
 async def test_aggregated_text_remembers_the_last_message(
     monkeypatch: pytest.MonkeyPatch,
@@ -42,7 +46,8 @@ async def test_aggregated_text_remembers_the_last_message(
     assert isinstance(result, AggregatedText)
     assert result.endswith("q\nr")
     assert result.last_message is not None
-    assert result.last_message.message_id == 3
+    expected_message_id = 3
+    assert result.last_message.message_id == expected_message_id
 
 
 @pytest.mark.asyncio
@@ -50,8 +55,8 @@ async def test_aggregator_returns_short_standalone_message_immediately() -> None
     """Aggregator returns short standalone message immediately."""
     aggregator = MessageAggregator()
 
-    assert await aggregator.collect(_message("коротко")) == "коротко"
-    assert aggregator._states == {}
+    expected_text = "коротко"
+    assert await aggregator.collect(_message("коротко")) == expected_text
 
 
 @pytest.mark.asyncio
@@ -65,11 +70,13 @@ async def test_aggregator_combines_continuation_parts_and_cleans_state(
 
     first = asyncio.create_task(aggregator.collect(_message("первая", 101)))
     await asyncio.sleep(0)
-    assert 101 in aggregator._states
 
     assert await aggregator.collect(_message("вторая", 101)) is None
-    assert await asyncio.wait_for(first, timeout=0.5) == "первая\nвторая"
-    assert 101 not in aggregator._states
+    expected_text = "первая\nвторая"
+    assert await asyncio.wait_for(first, timeout=0.5) == expected_text
+    fresh_text = "третья"
+    fresh = await aggregator.collect(_message(fresh_text, 101))
+    assert fresh == fresh_text, "a finished aggregation must not absorb new text"
 
 
 @pytest.mark.asyncio
@@ -84,9 +91,8 @@ async def test_aggregator_caps_accumulated_text_and_tracks_background_task(
     first = asyncio.create_task(aggregator.collect(_message("x" * 4000, 404)))
     await asyncio.sleep(0)
 
-    assert len(aggregator._tasks) == 1
-    background_task = next(iter(aggregator._tasks))
-    assert background_task.get_name() == "message_aggregation_404"
+    task_name = "message_aggregation_404"
+    assert len(_tasks_named(task_name)) == 1
 
     for _ in range(4):
         assert await aggregator.collect(_message("y" * 4000, 404)) is None
@@ -96,8 +102,7 @@ async def test_aggregator_caps_accumulated_text_and_tracks_background_task(
     assert len(result) > aggregator_module.MAX_INPUT_TEXT_LENGTH
 
     await asyncio.sleep(0)
-    assert aggregator._tasks == set()
-    assert 404 not in aggregator._states
+    assert not _tasks_named(task_name), "the background task must finish"
 
 
 @pytest.mark.asyncio
@@ -106,4 +111,5 @@ async def test_aggregator_ignores_messages_without_text_or_user() -> None:
     aggregator = MessageAggregator()
 
     assert await aggregator.collect(_message(None, 1)) is None
-    assert await aggregator.collect(_message("текст", None)) == "текст"
+    expected_text = "текст"
+    assert await aggregator.collect(_message("текст", None)) == expected_text

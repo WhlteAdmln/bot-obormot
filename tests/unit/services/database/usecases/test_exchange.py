@@ -49,7 +49,7 @@ async def test_add_exchange_rolls_back_database_and_removes_saved_images(
         "SELECT COUNT(*) AS total FROM message_media"
     )
     assert (await cursor.fetchone())["total"] == 0
-    assert list(test_db.images_dir.iterdir()) == []
+    assert not list(test_db.images_dir.iterdir())
     # Успешный следующий запрос доказывает, что lock был освобождён.
     assert await test_db.health_check() is True
 
@@ -146,4 +146,4 @@ async def test_add_exchange_reports_image_save_and_cleanup_failures(
 
     assert not test_db.connection.in_transaction
     assert await test_db.get_history(USER_ID) == []
-    assert list(test_db.images_dir.iterdir()) == []
+    assert not list(test_db.images_dir.iterdir())

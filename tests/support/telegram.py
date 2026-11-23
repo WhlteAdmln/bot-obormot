@@ -72,7 +72,7 @@ class FakeTelegramSession(BaseSession):
         timeout: int = 30,
         chunk_size: int = 65536,
         raise_for_status: bool = True,
-    ) -> AsyncGenerator[bytes, None]:
+    ) -> AsyncGenerator[bytes]:
         """Return configured download data in chunks."""
         self.streamed_urls.append(url)
         _ = (headers, timeout, raise_for_status)

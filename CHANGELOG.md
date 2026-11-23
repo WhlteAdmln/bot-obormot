@@ -27,6 +27,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `scripts/vulture_whitelist.py` is removed. vulture runs without a whitelist; `ignore_names` lists two Protocol parameter names.
 - The ruff ignores `FBT`, `TD002`, `TD003` and `FIX002` and the `ANN` and `ARG` ignores for tests are gone. Boolean parameters of `get_bool` and a few helpers are keyword-only, and the tests are annotated.
 - The changelog sections of every version follow the same order in both repositories.
+- pylint now checks every test module in both repositories (audiodoc no longer passes `--ignore-paths='^tests/unit/'`), and the ruff `PLR2004` and `SLF001` ignores for `tests/*` are gone. Literals compared in tests are local variables, fixtures use `@pytest.fixture(name=...)`, fakes that use no instance state are static or plain namespaces, and comparisons with empty literals use truthiness. The few tests that still pin a private helper carry a narrow, reasoned `# noqa: SLF001` and `# pylint: disable=protected-access`.
+- Test doubles moved to `tests/support/` with one shared fake per collaborator (aiohttp session and response, chat pipeline, application lifecycle, video tools, Telegram downloads, concurrency probe), and long multi-assertion tests were split into focused tests with assertion messages. The test count grew from 940 to 991.
+- The audiodoc transcription and document clients share `bot_obormot/services/audiodoc_http.py` (endpoint URL, settings check, multipart form, bearer header, size-limited POST); media decoding and image preparation share `bot_obormot/services/media/limited.py`. Behavior and error messages are unchanged.
+- `bot_obormot.services.database` re-exports `handle_database_errors` and `read_image_as_base64` from their defining modules instead of through the facade.
+
+### Fixed
+
+- The CI job that tests with the latest allowed dependencies installs `defusedxml`, which `scripts/coverage_gaps.py` imports; the job failed while collecting `tests/unit/scripts/test_coverage_gaps.py`.
+
+### Removed
+
+- The private `LLMClient` static methods `_normalize_content`, `_prepare_messages_for_count` and `_count_images`; only tests used them, and the public `normalize_messages`, `prepare_messages_for_count` and `count_images` remain.
 
 ## [0.3.0] - 2026-11-21
 

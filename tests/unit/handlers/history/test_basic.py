@@ -90,10 +90,12 @@ async def test_history_basic_commands_through_dispatcher(
 
     session = await feed_command(dispatcher_runtime, user_id, command_text)
 
-    if operation == "clear":
+    expected_operation = "clear"
+    expected_operation_2 = "forget"
+    if operation == expected_operation:
         expected_text = "🧹 История диалога очищена."
         assert access_database.reset_history_calls == [user_id]
-    elif operation == "forget":
+    elif operation == expected_operation_2:
         expected_text = "🧹 Все твои данные удалены."
         assert access_database.forgotten_user_ids == [user_id]
     else:
@@ -156,5 +158,6 @@ async def test_history_commands_are_denied_without_access(
     assert access_database.reset_history_calls == []
     assert access_database.forgotten_user_ids == []
     assert access_database.set_history_limit_calls == []
-    if operation == "show":
+    expected_operation = "show"
+    if operation == expected_operation:
         assert access_database.history_limits.get(user_id) is None

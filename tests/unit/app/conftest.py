@@ -4,9 +4,13 @@
 """Dispatcher fixtures for these tests."""
 
 from tests.support.dispatcher_fixtures import (
-    access_database,
-    dispatcher,
-    dispatcher_runtime,
+    fixture_access_database,
+    fixture_dispatcher,
+    fixture_dispatcher_runtime,
 )
 
-__all__ = ["access_database", "dispatcher", "dispatcher_runtime"]
+__all__ = [
+    "fixture_access_database",
+    "fixture_dispatcher",
+    "fixture_dispatcher_runtime",
+]

@@ -74,7 +74,8 @@ async def test_database_admin_has_access_even_when_not_allowlisted() -> None:
     )
 
     assert allowed is True
-    assert database.calls == 2
+    expected_calls = 2
+    assert database.calls == expected_calls
 
 
 @pytest.mark.asyncio
@@ -90,7 +91,8 @@ async def test_empty_allowlist_denies_access_after_admin_lookup() -> None:
     )
 
     assert allowed is False
-    assert database.calls == 2
+    expected_calls = 2
+    assert database.calls == expected_calls
 
 
 @pytest.mark.asyncio
@@ -107,7 +109,8 @@ async def test_allow_all_flag_opens_access_after_admin_lookup() -> None:
     )
 
     assert allowed is True
-    assert database.calls == 2
+    expected_calls = 2
+    assert database.calls == expected_calls
 
 
 @pytest.mark.asyncio
@@ -123,7 +126,8 @@ async def test_allowlisted_user_has_access() -> None:
     )
 
     assert allowed is True
-    assert database.calls == 2
+    expected_calls = 2
+    assert database.calls == expected_calls
 
 
 @pytest.mark.asyncio
@@ -139,7 +143,8 @@ async def test_unknown_user_is_denied() -> None:
     )
 
     assert allowed is False
-    assert database.calls == 2
+    expected_calls = 2
+    assert database.calls == expected_calls
 
 
 @pytest.mark.asyncio

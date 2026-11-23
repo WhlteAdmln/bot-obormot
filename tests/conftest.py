@@ -32,8 +32,8 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
             item.add_marker(relative_path.parts[0])
 
 
-@pytest_asyncio.fixture
-async def test_db(
+@pytest_asyncio.fixture(name="test_db")
+async def fixture_test_db(
     tmp_path: Path,
 ) -> AsyncIterator["Database"]:
     """Создаёт изолированную SQLite-базу для тестов репозиториев.

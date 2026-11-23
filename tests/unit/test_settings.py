@@ -36,13 +36,7 @@ def test_settings_have_a_single_public_import_path() -> None:
     model_module = importlib.import_module("bot_obormot.config.model")
 
     assert importlib.util.find_spec("bot_obormot.config.settings") is None
-    for name in (
-        "ConfigError",
-        "Settings",
-        "get_settings",
-        "load_settings",
-        "reset_settings_cache",
-    ):
+    for name in settings_module.__all__:
         assert getattr(settings_module, name) is getattr(model_module, name)
         assert not hasattr(config_module, name)
 

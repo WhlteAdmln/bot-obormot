@@ -8,15 +8,9 @@ import sys
 import pytest
 
 from bot_obormot.errors import MediaError
-from bot_obormot.services.media.animation import extract_animation_frames, tgs
+from bot_obormot.services.media.animation import extract_animation_frames
 from bot_obormot.services.media.texts import TGS_SUPPORT_UNAVAILABLE
 from tests.support.tgs import valid_tgs
-
-
-@pytest.fixture(autouse=True)
-def _reset_warning_cache() -> None:
-    """Allow every test to observe the one-time warning."""
-    tgs._warn_tgs_unavailable.cache_clear()
 
 
 @pytest.mark.asyncio

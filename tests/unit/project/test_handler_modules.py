@@ -18,12 +18,12 @@ from bot_obormot.middlewares.temporary_messages import (
 def test_fsm_and_middleware_imports_use_canonical_modules() -> None:
     """Fsm and middleware imports use canonical modules."""
     assert PromptStates.waiting_for_prompt is not None
-    assert PROMPT_FLOW_KEY == "prompt_flow_message_ids"
-    assert WELCOME_MESSAGE_KEY == "start_welcome_message_id"
-    assert (
-        TemporaryMessagesCleanupMiddleware.__module__
-        == "bot_obormot.middlewares.temporary_messages.middleware"
-    )
+    expected_prompt_flow_key = "prompt_flow_message_ids"
+    assert expected_prompt_flow_key == PROMPT_FLOW_KEY
+    expected_welcome_message_key = "start_welcome_message_id"
+    assert expected_welcome_message_key == WELCOME_MESSAGE_KEY
+    expected_module = "bot_obormot.middlewares.temporary_messages.middleware"
+    assert TemporaryMessagesCleanupMiddleware.__module__ == expected_module
 
 
 def test_settings_migrated_modules_do_not_import_legacy_config() -> None:
@@ -36,4 +36,5 @@ def test_settings_migrated_modules_do_not_import_legacy_config() -> None:
         access_middleware,
     )
 
-    assert all("config" not in vars(module) for module in modules)
+    expected_fragment = "config"
+    assert all(expected_fragment not in vars(module) for module in modules)

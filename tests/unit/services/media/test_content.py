@@ -21,10 +21,14 @@ def test_get_user_content_describes_animation_contact_sheet() -> None:
         "tgs",
     )
 
-    assert len(content) == 2
-    assert content[1]["image_url"]["url"] == "data:image/jpeg;base64,combined"
-    assert "одно нумерованное изображение-монтаж" in content[0]["text"]
-    assert "сверху вниз" in content[0]["text"]
+    expected_count = 2
+    assert len(content) == expected_count
+    expected_url = "data:image/jpeg;base64,combined"
+    assert content[1]["image_url"]["url"] == expected_url
+    expected_fragment = "одно нумерованное изображение-монтаж"
+    assert expected_fragment in content[0]["text"]
+    expected_fragment = "сверху вниз"
+    assert expected_fragment in content[0]["text"]
 
 
 @pytest.mark.parametrize(
@@ -75,7 +79,8 @@ def test_get_user_content_formats_media_prompts(
     if expected_fragment is not None:
         assert expected_fragment in result[0]["text"]
     else:
-        assert result[0]["text"] == "Prompt"
+        expected_text = "Prompt"
+        assert result[0]["text"] == expected_text
 
 
 @pytest.mark.parametrize("image_urls", [None, []])
@@ -85,4 +90,8 @@ def test_get_user_content_returns_plain_text_without_images(
     """Return the original message text when there are no images."""
     message = SimpleNamespace(text="plain text")
 
-    assert media_content.get_user_content(message, image_urls, "image") == "plain text"
+    expected_get_user_content = "plain text"
+    assert (
+        media_content.get_user_content(message, image_urls, "image")
+        == expected_get_user_content
+    )

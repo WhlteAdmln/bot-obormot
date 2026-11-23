@@ -12,6 +12,9 @@ from bot_obormot.services.chat.streaming.settings import (
 
 def test_streaming_settings_preserve_original_values() -> None:
     """Streaming settings preserve original values."""
-    assert STREAM_TOKEN_THRESHOLD == 150
-    assert STREAM_UPDATE_INTERVAL == 0.8
-    assert MAX_MESSAGE_LENGTH == 3900
+    expected_stream_token_threshold = 150
+    assert expected_stream_token_threshold == STREAM_TOKEN_THRESHOLD
+    expected_stream_update_interval = 0.8
+    assert expected_stream_update_interval == STREAM_UPDATE_INTERVAL
+    expected_max_message_length = 3900
+    assert expected_max_message_length == MAX_MESSAGE_LENGTH

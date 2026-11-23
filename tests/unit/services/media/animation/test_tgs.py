@@ -24,7 +24,8 @@ from tests.support.tgs import valid_tgs
 @pytest.fixture(autouse=True)
 def _reset_warning_cache() -> None:
     """Allow every test to observe the one-time warning."""
-    tgs._warn_tgs_unavailable.cache_clear()
+    # pylint: disable-next=protected-access  # the one-time warning has no reset API
+    tgs._warn_tgs_unavailable.cache_clear()  # noqa: SLF001
 
 
 def test_missing_decoder_gives_a_polite_media_error(
@@ -49,7 +50,8 @@ def test_missing_decoder_warns_only_once(
             with pytest.raises(MediaError):
                 tgs.extract_tgs(valid_tgs())
 
-    warnings = [record for record in caplog.records if "bot-obormot[tgs]" in record.msg]
+    expected_fragment = "bot-obormot[tgs]"
+    warnings = [record for record in caplog.records if expected_fragment in record.msg]
     assert len(warnings) == 1
 
 
@@ -137,7 +139,7 @@ def test_extract_tgs_validates_before_importing_rlottie(
     with pytest.raises(MediaError, match="Некорректный файл"):
         tgs.extract_tgs(b"not-a-gzip-file")
 
-    assert imported_modules == []
+    assert not imported_modules
 
 
 def test_extract_tgs_imports_rlottie_for_valid_animation(
@@ -176,4 +178,5 @@ def test_extract_tgs_imports_rlottie_for_valid_animation(
     assert imports == ["rlottie_python"]
     assert len(frames) == 1
     with Image.open(io.BytesIO(frames[0])) as image:
-        assert image.format == "JPEG"
+        expected_format = "JPEG"
+        assert image.format == expected_format

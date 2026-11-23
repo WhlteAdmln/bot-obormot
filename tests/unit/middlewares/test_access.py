@@ -66,14 +66,14 @@ class AccessMatrixDatabase:
         return self.admin_ids
 
 
-@pytest.fixture
-def fake_event() -> FakeEvent:
+@pytest.fixture(name="fake_event")
+def fixture_fake_event() -> FakeEvent:
     """Fake event."""
     return FakeEvent()
 
 
-@pytest.fixture
-def fake_handler() -> tuple[object, ...]:
+@pytest.fixture(name="fake_handler")
+def fixture_fake_handler() -> tuple[object, ...]:
     """Fake handler."""
     calls = []
 
@@ -84,8 +84,8 @@ def fake_handler() -> tuple[object, ...]:
     return handler, calls
 
 
-@pytest_asyncio.fixture
-async def test_database(tmp_path: Path) -> AsyncIterator[Database]:
+@pytest_asyncio.fixture(name="test_database")
+async def fixture_test_database(tmp_path: Path) -> AsyncIterator[Database]:
     """Создаёт отдельную временную базу данных."""
     settings = make_settings(
         DATABASE_PATH=str(tmp_path / "access_test.db"),
@@ -102,8 +102,8 @@ async def test_database(tmp_path: Path) -> AsyncIterator[Database]:
     await database.close()
 
 
-@pytest.fixture
-def configure_allowlist() -> Callable[..., Settings]:
+@pytest.fixture(name="configure_allowlist")
+def fixture_configure_allowlist() -> Callable[..., Settings]:
     """Build settings with the requested allowlist."""
 
     def configure(user_ids: object, *, allow_all: bool = False) -> Settings:
@@ -183,7 +183,8 @@ async def test_supervisor_access(
         database=test_database,
     )
 
-    assert result == "allowed"
+    expected_result = "allowed"
+    assert result == expected_result
     assert len(calls) == 1
     assert fake_event.answers == []
 
@@ -210,7 +211,8 @@ async def test_admin_access(
         database=test_database,
     )
 
-    assert result == "allowed"
+    expected_result = "allowed"
+    assert result == expected_result
     assert len(calls) == 1
     assert fake_event.answers == []
 
@@ -235,7 +237,8 @@ async def test_allowed_user_access(
         database=test_database,
     )
 
-    assert result == "allowed"
+    expected_result = "allowed"
+    assert result == expected_result
     assert len(calls) == 1
     assert fake_event.answers == []
 
@@ -263,7 +266,8 @@ async def test_outsider_denied(
     assert result is None
     assert calls == []
     assert len(fake_event.answers) == 1
-    assert "нет доступа" in fake_event.answers[0]
+    expected_fragment = "нет доступа"
+    assert expected_fragment in fake_event.answers[0]
 
 
 @pytest.mark.asyncio
@@ -289,7 +293,8 @@ async def test_empty_allowlist_denies_access_by_default(
     assert result is None
     assert calls == []
     assert len(fake_event.answers) == 1
-    assert "нет доступа" in fake_event.answers[0]
+    expected_fragment = "нет доступа"
+    assert expected_fragment in fake_event.answers[0]
 
 
 @pytest.mark.asyncio
@@ -312,7 +317,8 @@ async def test_open_access_requires_explicit_flag(
         database=test_database,
     )
 
-    assert result == "allowed"
+    expected_result = "allowed"
+    assert result == expected_result
     assert len(calls) == 1
     assert fake_event.answers == []
 
@@ -347,7 +353,8 @@ async def test_admin_changes_apply_immediately(
 
     result = await middleware(handler, fake_event, data)
 
-    assert result == "allowed"
+    expected_result = "allowed"
+    assert result == expected_result
 
     # Удаляем администратора.
     await test_database.remove_admin(ADMIN_ID)
@@ -439,7 +446,7 @@ async def test_denied_notice_is_rate_limited(
     assert await middleware(handler, first_event, data) is None
     assert await middleware(handler, second_event, data) is None
     assert first_event.answers == ["⛔ У тебя нет доступа к этому боту."]
-    assert second_event.answers == []
+    assert not second_event.answers
 
     current_time += access_module.DENY_NOTICE_INTERVAL
     assert await middleware(handler, third_event, data) is None
@@ -468,13 +475,16 @@ async def test_block_and_unblock_apply_immediately(
         "database": test_database,
     }
 
-    assert await middleware(handler, fake_event, data) == "allowed"
+    expected_text = "allowed"
+    assert await middleware(handler, fake_event, data) == expected_text
     assert await test_database.block_user(ALLOWED_USER_ID) is True
     assert await middleware(handler, fake_event, data) is None
     assert len(fake_event.answers) == 1
     assert await test_database.unblock_user(ALLOWED_USER_ID) is True
-    assert await middleware(handler, fake_event, data) == "allowed"
-    assert len(calls) == 2
+    expected_text = "allowed"
+    assert await middleware(handler, fake_event, data) == expected_text
+    expected_count = 2
+    assert len(calls) == expected_count
 
 
 @pytest.mark.asyncio
@@ -495,92 +505,98 @@ async def test_supervisor_cannot_be_blocked(
         handler,
         database=test_database,
     )
-    assert result == "allowed"
+    expected_result = "allowed"
+    assert result == expected_result
 
 
-@pytest.mark.parametrize(
-    "role",
-    ["supervisor", "admin", "allowed", "blocked", "stranger"],
-)
-@pytest.mark.parametrize("allow_all_mode", ["closed", "open"])
-@pytest.mark.parametrize("allowlist_mode", ["empty", "nonempty"])
-@pytest.mark.parametrize(
-    "command_class",
-    ["ordinary", "admin", "supervisor"],
-)
-@pytest.mark.asyncio
-async def test_access_matrix(
-    role: str,
-    allow_all_mode: str,
-    allowlist_mode: str,
-    command_class: str,
-) -> None:
-    """Combines global access with ordinary, admin, and supervisor command gates."""
-    allow_all = allow_all_mode == "open"
-    allowlist_nonempty = allowlist_mode == "nonempty"
-    user_id = {
-        "supervisor": SUPERVISOR_ID,
-        "admin": ADMIN_ID,
-        "allowed": ALLOWED_USER_ID,
-        "blocked": BLOCKED_USER_ID,
-        "stranger": OUTSIDER_ID,
-    }[role]
-    allowed_users = {ALLOWED_USER_ID} if allowlist_nonempty else set()
-    database = AccessMatrixDatabase(
-        admin_ids={ADMIN_ID},
-        blocked_ids={BLOCKED_USER_ID},
-    )
+async def _middleware_passes(
+    user_id: int, settings: Settings, database: object
+) -> bool:
+    async def handler(_event: object, _data: object) -> bool:
+        return True
 
-    settings = make_settings(
-        SUPERVISOR_ID=SUPERVISOR_ID,
-        ALLOWED_USERS=allowed_users,
-        ALLOW_ALL_USERS=allow_all,
-    )
-
-    async def handler(_event: object, _data: object) -> str:
-        return "allowed"
-
-    event = FakeEvent()
     data = {
         "event_from_user": SimpleNamespace(id=user_id),
         "event_chat": SimpleNamespace(type=ChatType.PRIVATE),
         "settings": settings,
         "database": database,
     }
-    middleware_result = await access_module.AccessMiddleware()(
-        handler,
-        event,
-        data,
+    result = await access_module.AccessMiddleware()(handler, FakeEvent(), data)
+    return result is True
+
+
+async def _command_allowed(
+    command_class: str,
+    user_id: int,
+    settings: Settings,
+    database: object,
+) -> bool:
+    gates = {
+        "ordinary": lambda: True,
+        "supervisor": lambda: admin_handler.is_supervisor(
+            SimpleNamespace(from_user=SimpleNamespace(id=user_id)), settings
+        ),
+    }
+    if command_class in gates:
+        return gates[command_class]()
+    return await admin_handler.is_admin_or_supervisor(user_id, settings, database)
+
+
+def _general_access(role: str, *, allow_all: bool, allowlist_nonempty: bool) -> bool:
+    grants = {
+        "supervisor": True,
+        "admin": True,
+        "allowed": allowlist_nonempty or allow_all,
+        "blocked": False,
+        "stranger": allow_all,
+    }
+    return grants[role]
+
+
+@pytest.mark.parametrize(
+    ("role", "user_id"),
+    [
+        ("supervisor", SUPERVISOR_ID),
+        ("admin", ADMIN_ID),
+        ("allowed", ALLOWED_USER_ID),
+        ("blocked", BLOCKED_USER_ID),
+        ("stranger", OUTSIDER_ID),
+    ],
+    ids=["supervisor", "admin", "allowed", "blocked", "stranger"],
+)
+@pytest.mark.parametrize("allow_all", [False, True], ids=["closed", "open"])
+@pytest.mark.parametrize("allowlist_nonempty", [False, True], ids=["empty", "nonempty"])
+@pytest.mark.parametrize(
+    ("command_class", "command_roles"),
+    [
+        ("ordinary", {"supervisor", "admin", "allowed", "blocked", "stranger"}),
+        ("admin", {"supervisor", "admin"}),
+        ("supervisor", {"supervisor"}),
+    ],
+    ids=["ordinary", "admin", "supervisor"],
+)
+@pytest.mark.asyncio
+async def test_access_matrix(
+    role: str,
+    user_id: int,
+    *,
+    allow_all: bool,
+    allowlist_nonempty: bool,
+    command_class: str,
+    command_roles: set[str],
+) -> None:
+    database = AccessMatrixDatabase(admin_ids={ADMIN_ID}, blocked_ids={BLOCKED_USER_ID})
+    settings = make_settings(
+        SUPERVISOR_ID=SUPERVISOR_ID,
+        ALLOWED_USERS={ALLOWED_USER_ID} if allowlist_nonempty else set(),
+        ALLOW_ALL_USERS=allow_all,
     )
-    middleware_passed = middleware_result == "allowed"
-
-    general_expected = role == "supervisor" or (
-        role != "blocked"
-        and (role == "admin" or (role == "allowed" and allowlist_nonempty) or allow_all)
+    general = _general_access(
+        role, allow_all=allow_all, allowlist_nonempty=allowlist_nonempty
     )
-
-    if command_class == "ordinary":
-        command_allowed = True
-    elif command_class == "admin":
-        command_allowed = await admin_handler.is_admin_or_supervisor(
-            user_id,
-            settings,
-            database,
-        )
-    else:
-        command_allowed = admin_handler.is_supervisor(
-            SimpleNamespace(from_user=SimpleNamespace(id=user_id)),
-            settings,
-        )
-
-    actual = middleware_passed and command_allowed
-
-    if command_class == "ordinary":
-        expected = general_expected
-    elif command_class == "admin":
-        expected = general_expected and role in {"supervisor", "admin"}
-    else:
-        expected = general_expected and role == "supervisor"
-
-    assert middleware_passed is general_expected
-    assert actual is expected
+    actual = (
+        await _middleware_passes(user_id, settings, database),
+        await _command_allowed(command_class, user_id, settings, database),
+    )
+    expected = (general, role in command_roles)
+    assert actual == expected, "the access gates disagree with the matrix"

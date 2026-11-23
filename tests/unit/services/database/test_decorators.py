@@ -11,14 +11,7 @@ import pytest
 from bot_obormot.errors import DatabaseError
 from bot_obormot.services.database import Database
 from bot_obormot.services.database.decorators import handle_database_errors
-
-
-class DummyDatabase:
-    """Dummy database."""
-
-    def __init__(self) -> None:
-        """Initializes the test double."""
-        self._lock = asyncio.Lock()
+from tests.support.database_lock import LockOwningDatabase
 
 
 @pytest.mark.asyncio
@@ -30,7 +23,7 @@ async def test_database_error_decorator_translates_sqlite_errors() -> None:
         msg = "database is locked"
         raise aiosqlite.OperationalError(msg)
 
-    database = DummyDatabase()
+    database = LockOwningDatabase()
 
     with pytest.raises(
         DatabaseError, match="Database operation failed: operation"
@@ -38,7 +31,8 @@ async def test_database_error_decorator_translates_sqlite_errors() -> None:
         await operation(database)
 
     assert isinstance(exc.value.__cause__, aiosqlite.OperationalError)
-    assert not database._lock.locked()
+    released = await asyncio.wait_for(database.ping(), 1)
+    assert released == database.marker, "the lock must be released after a failure"
 
 
 @pytest.mark.asyncio
@@ -50,24 +44,27 @@ async def test_database_error_decorator_preserves_database_error() -> None:
     async def operation(_self: object) -> None:
         raise original
 
-    database = DummyDatabase()
+    database = LockOwningDatabase()
 
     with pytest.raises(DatabaseError) as exc:
         await operation(database)
 
     assert exc.value is original
-    assert not database._lock.locked()
+    released = await asyncio.wait_for(database.ping(), 1)
+    assert released == database.marker, "the lock must be released after a failure"
 
 
 def test_database_error_decorator_preserves_function_metadata() -> None:
     """Database error decorator preserves function metadata."""
 
     @handle_database_errors
-    async def operation(self: object) -> None:
+    async def operation(_self: object) -> None:
         """Operation documentation."""
 
-    assert operation.__name__ == "operation"
-    assert operation.__doc__ == "Operation documentation."
+    expected_name = "operation"
+    assert operation.__name__ == expected_name
+    expected_doc = "Operation documentation."
+    assert operation.__doc__ == expected_doc
 
 
 @pytest.mark.asyncio

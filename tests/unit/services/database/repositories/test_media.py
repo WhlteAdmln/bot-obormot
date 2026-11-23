@@ -44,4 +44,5 @@ async def test_media_repository_removes_only_old_media_references(
         "SELECT content FROM messages WHERE id = ?",
         (message_id,),
     )
-    assert (await cursor.fetchone())["content"] == "Старое сообщение"
+    expected_content = "Старое сообщение"
+    assert (await cursor.fetchone())["content"] == expected_content

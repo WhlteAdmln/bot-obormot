@@ -29,8 +29,8 @@ USER_C = 333333333
 SUPERVISOR_ID = 999999999
 
 
-@pytest_asyncio.fixture
-async def test_db(
+@pytest_asyncio.fixture(name="test_db")
+async def fixture_test_db(
     tmp_path: Path,
 ) -> AsyncIterator[Database]:
     """Создаёт отдельную временную базу для тестов."""
@@ -62,7 +62,8 @@ async def test_facade_system_prompt_methods_preserve_default_behavior(
         == test_db.settings.DEFAULT_SYSTEM_PROMPT
     )
     await test_db.set_system_prompt(USER_ID, "Новый промпт")
-    assert await test_db.get_user_system_prompt(USER_ID) == "Новый промпт"
+    expected_text = "Новый промпт"
+    assert await test_db.get_user_system_prompt(USER_ID) == expected_text
 
 
 def test_database_images_dir_uses_injected_settings_at_instance_creation(
@@ -110,16 +111,26 @@ async def test_multiuser_isolation(test_db: Database) -> None:
     history_a = await db.get_history(USER_A, limit=20)
     history_b = await db.get_history(USER_B, limit=20)
 
-    assert len(history_a) == 2
-    assert len(history_b) == 2
+    expected_count = 2
+    assert len(history_a) == expected_count
+    expected_count = 2
+    assert len(history_b) == expected_count
 
-    assert history_a[0]["content"] == "Сообщение пользователя A"
-    assert history_b[0]["content"] == "Сообщение пользователя B"
+    expected_content = "Сообщение пользователя A"
+    assert history_a[0]["content"] == expected_content
+    expected_content = "Сообщение пользователя B"
+    assert history_b[0]["content"] == expected_content
 
     # Проверяем, что данные пользователей не смешиваются.
-    assert all("пользователя B" not in str(message["content"]) for message in history_a)
+    expected_fragment = "пользователя B"
+    assert all(
+        expected_fragment not in str(message["content"]) for message in history_a
+    )
 
-    assert all("пользователя A" not in str(message["content"]) for message in history_b)
+    expected_fragment = "пользователя A"
+    assert all(
+        expected_fragment not in str(message["content"]) for message in history_b
+    )
 
     # Сохраняем разные персональные промпты.
     await db.set_system_prompt(
@@ -132,17 +143,22 @@ async def test_multiuser_isolation(test_db: Database) -> None:
         "Персональный промпт B",
     )
 
-    assert await db.get_system_prompt(USER_A) == "Персональный промпт A"
-    assert await db.get_system_prompt(USER_B) == "Персональный промпт B"
+    expected_text = "Персональный промпт A"
+    assert await db.get_system_prompt(USER_A) == expected_text
+    expected_text = "Персональный промпт B"
+    assert await db.get_system_prompt(USER_B) == expected_text
 
     # У пользователя C должен остаться стандартный промпт.
-    assert await db.get_system_prompt(USER_C) == "Тестовый стандартный промпт"
+    expected_text = "Тестовый стандартный промпт"
+    assert await db.get_system_prompt(USER_C) == expected_text
 
     # Удаляем персональный промпт A.
     await db.delete_system_prompt(USER_A)
 
-    assert await db.get_system_prompt(USER_A) == "Тестовый стандартный промпт"
-    assert await db.get_system_prompt(USER_B) == "Персональный промпт B"
+    expected_text = "Тестовый стандартный промпт"
+    assert await db.get_system_prompt(USER_A) == expected_text
+    expected_text = "Персональный промпт B"
+    assert await db.get_system_prompt(USER_B) == expected_text
 
     # Очищаем историю A.
     await db.reset_history(USER_A)
@@ -152,7 +168,8 @@ async def test_multiuser_isolation(test_db: Database) -> None:
     # История B должна сохраниться.
     history_b = await db.get_history(USER_B, limit=20)
 
-    assert len(history_b) == 2
+    expected_count = 2
+    assert len(history_b) == expected_count
 
 
 @pytest.mark.asyncio
@@ -212,11 +229,20 @@ async def test_concurrent_users(test_db: Database) -> None:
     for user_id in (USER_A, USER_B, USER_C):
         history = await db.get_history(user_id, limit=100)
 
-        assert len(history) == 20
+        expected_count = 20
+        assert len(history) == expected_count
 
-        assert sum(message["role"] == "user" for message in history) == 10
+        expected_sum = 10
+        expected_role = "user"
+        assert (
+            sum(message["role"] == expected_role for message in history) == expected_sum
+        )
 
-        assert sum(message["role"] == "assistant" for message in history) == 10
+        expected_sum = 10
+        expected_role = "assistant"
+        assert (
+            sum(message["role"] == expected_role for message in history) == expected_sum
+        )
 
 
 @pytest.mark.asyncio
@@ -240,4 +266,4 @@ async def test_failed_exchange_rollback(test_db: Database) -> None:
     # Неудачный обмен не должен оставить файлы изображений.
     remaining_files = list(db.images_dir.iterdir())
 
-    assert remaining_files == []
+    assert not remaining_files

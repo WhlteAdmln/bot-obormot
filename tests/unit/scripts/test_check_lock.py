@@ -22,7 +22,7 @@ def test_check_lock_accepts_satisfied_constraints(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    assert check_lock(project, lock) == []
+    assert not check_lock(project, lock)
 
 
 def test_check_lock_reports_missing_direct_dependency(tmp_path: Path) -> None:
@@ -66,4 +66,4 @@ def test_check_lock_ignores_optional_dependencies(tmp_path: Path) -> None:
     )
     lock.write_text("base-package==1.1\n", encoding="utf-8")
 
-    assert check_lock(project, lock) == []
+    assert not check_lock(project, lock)

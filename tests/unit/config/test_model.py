@@ -3,6 +3,7 @@
 
 """Tests for config model."""
 
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -42,33 +43,45 @@ def test_load_settings_uses_the_supplied_environment() -> None:
 
     expected_value = "test-token"
     assert expected_value == settings.BOT_TOKEN
-    assert settings.SUPERVISOR_ID == 42
+    expected_supervisor_id = 42
+    assert expected_supervisor_id == settings.SUPERVISOR_ID
     assert {10, 20} == settings.ADMIN_IDS
     assert {30} == settings.ALLOWED_USERS
     assert settings.ALLOW_ALL_USERS is True
-    assert settings.LLM_BASE_URL == "http://llm.test/v1"
-    assert settings.LLM_TEMPERATURE == 0.2
+    expected_llm_base_url = "http://llm.test/v1"
+    assert expected_llm_base_url == settings.LLM_BASE_URL
+    expected_llm_temperature = 0.2
+    assert expected_llm_temperature == settings.LLM_TEMPERATURE
     assert settings.LLM_TOP_P == 1.0
-    assert settings.LLM_CONTEXT_SIZE == 8192
+    expected_llm_context_size = 8192
+    assert expected_llm_context_size == settings.LLM_CONTEXT_SIZE
     expected_mode = "estimate"
     assert expected_mode == settings.LLM_TOKEN_COUNTING
-    assert settings.DATABASE_PATH == "/srv/bot-obormot/data/custom.db"
-    assert settings.AUDIODOC_URL == "https://audio.test"
-    assert settings.AUDIODOC_AUDIO_KEY == "whisper-key"
-    assert settings.AUDIODOC_DOCUMENT_KEY == "document-key"
-    assert settings.AUDIODOC_AUDIO_TIMEOUT == 37
-    assert settings.AUDIODOC_DOCUMENT_TIMEOUT == 61
+    expected_database_path = "/srv/bot-obormot/data/custom.db"
+    assert expected_database_path == settings.DATABASE_PATH
+    expected_audiodoc_url = "https://audio.test"
+    assert expected_audiodoc_url == settings.AUDIODOC_URL
+    expected_audiodoc_audio_key = "whisper-key"
+    assert expected_audiodoc_audio_key == settings.AUDIODOC_AUDIO_KEY
+    expected_audiodoc_document_key = "document-key"
+    assert expected_audiodoc_document_key == settings.AUDIODOC_DOCUMENT_KEY
+    expected_audiodoc_audio_timeout = 37
+    assert expected_audiodoc_audio_timeout == settings.AUDIODOC_AUDIO_TIMEOUT
+    expected_number = 61
+    assert expected_number == settings.AUDIODOC_DOCUMENT_TIMEOUT
 
 
 def test_load_settings_disables_audiodoc_when_no_url_is_configured() -> None:
     """Audiodoc clients remain disabled when neither URL name is configured."""
     settings = load_settings({"SUPERVISOR_ID": "1"})
 
-    assert settings.AUDIODOC_URL == ""
-    assert settings.AUDIODOC_AUDIO_KEY == ""
-    assert settings.AUDIODOC_DOCUMENT_KEY == ""
-    assert settings.AUDIODOC_AUDIO_TIMEOUT == 180
-    assert settings.AUDIODOC_DOCUMENT_TIMEOUT == 300
+    assert not settings.AUDIODOC_URL
+    assert not settings.AUDIODOC_AUDIO_KEY
+    assert not settings.AUDIODOC_DOCUMENT_KEY
+    expected_audiodoc_audio_timeout = 180
+    assert expected_audiodoc_audio_timeout == settings.AUDIODOC_AUDIO_TIMEOUT
+    expected_number = 300
+    assert expected_number == settings.AUDIODOC_DOCUMENT_TIMEOUT
 
 
 @pytest.mark.parametrize(
@@ -121,29 +134,35 @@ def test_load_settings_collects_multiple_errors() -> None:
         assert name in str(error.value)
 
 
-def test_get_settings_is_cached_until_reset() -> None:
-    """Get settings returns a cached instance until reset."""
+@pytest.fixture(name="fresh_settings_cache")
+def fixture_fresh_settings_cache() -> Iterator[None]:
+    """Start with an empty settings cache and leave none behind."""
     reset_settings_cache()
-    try:
-        with pytest.MonkeyPatch.context() as patch:
-            patch.setenv("SUPERVISOR_ID", "123")
-            first = get_settings()
-            patch.setenv("SUPERVISOR_ID", "456")
+    yield
+    reset_settings_cache()
 
-            assert get_settings() is first
-            assert get_settings().SUPERVISOR_ID == 123
 
-            reset_settings_cache()
-            assert get_settings().SUPERVISOR_ID == 456
-    finally:
-        reset_settings_cache()
+@pytest.mark.usefixtures("fresh_settings_cache")
+def test_get_settings_is_cached_until_reset(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Get settings returns a cached instance until reset."""
+    monkeypatch.setenv("SUPERVISOR_ID", "123")
+    first = get_settings()
+    monkeypatch.setenv("SUPERVISOR_ID", "456")
+
+    assert get_settings() is first
+    expected_supervisor_id = 123
+    assert expected_supervisor_id == get_settings().SUPERVISOR_ID
+
+    reset_settings_cache()
+    expected_supervisor_id = 456
+    assert expected_supervisor_id == get_settings().SUPERVISOR_ID
 
 
 def test_system_prompt_path_is_optional_and_keeps_the_built_in_prompt() -> None:
     """Without SYSTEM_PROMPT_PATH the packaged prompt is the default."""
     settings = load_settings({"SUPERVISOR_ID": "1"})
 
-    assert settings.SYSTEM_PROMPT_PATH == ""
+    assert not settings.SYSTEM_PROMPT_PATH
     assert load_default_system_prompt() == settings.DEFAULT_SYSTEM_PROMPT
 
 
@@ -161,7 +180,8 @@ def test_system_prompt_path_replaces_the_default_prompt(tmp_path: Path) -> None:
     )
 
     assert str(prompt_file) == settings.SYSTEM_PROMPT_PATH
-    assert settings.DEFAULT_SYSTEM_PROMPT == "Свой системный промпт"
+    expected_default_system_prompt = "Свой системный промпт"
+    assert expected_default_system_prompt == settings.DEFAULT_SYSTEM_PROMPT
 
 
 def test_system_prompt_file_is_not_limited_like_personal_prompts(
@@ -175,7 +195,8 @@ def test_system_prompt_file_is_not_limited_like_personal_prompts(
         {"SUPERVISOR_ID": "1", "SYSTEM_PROMPT_PATH": str(prompt_file)}
     )
 
-    assert len(settings.DEFAULT_SYSTEM_PROMPT) == 10000
+    expected_count = 10000
+    assert len(settings.DEFAULT_SYSTEM_PROMPT) == expected_count
 
 
 @pytest.mark.parametrize(
@@ -194,5 +215,6 @@ def test_system_prompt_path_rejects_unusable_files(
     with pytest.raises(ConfigError) as error:
         load_settings({"SUPERVISOR_ID": "1", "SYSTEM_PROMPT_PATH": str(prompt_file)})
 
-    assert [m for m in error.value.errors if "SYSTEM_PROMPT_PATH" in m]
+    expected_fragment = "SYSTEM_PROMPT_PATH"
+    assert [m for m in error.value.errors if expected_fragment in m]
     assert str(prompt_file) in error.value.errors[0]

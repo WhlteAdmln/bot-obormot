@@ -300,7 +300,8 @@ async def test_history_limit_propagates_database_failures(
 ) -> None:
     """History limit commands propagate failures from database operations."""
     user_id, command_text, failed_operation = case
-    if failed_operation == "get_admin_ids":
+    expected_failed_operation = "get_admin_ids"
+    if failed_operation == expected_failed_operation:
         access_database.fail_admin_lookup_on = 2
     else:
         access_database.failed_operation = failed_operation

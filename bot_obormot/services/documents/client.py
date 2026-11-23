@@ -3,20 +3,13 @@
 
 """Client for the Document Engine (audiodoc) API."""
 
-import json
 import logging
 from http import HTTPStatus
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit, urlunsplit
 
 import aiohttp
 
-from bot_obormot.common.http_limits import (
-    MAX_ERROR_BODY_BYTES,
-    MAX_SERVICE_RESPONSE_BYTES,
-    read_limited_body,
-)
 from bot_obormot.common.text import log_safe
 from bot_obormot.common.validation import MAX_INPUT_TEXT_LENGTH
 from bot_obormot.errors import (
@@ -24,16 +17,17 @@ from bot_obormot.errors import (
     DocumentTimeoutError,
     DocumentUnavailableError,
 )
+from bot_obormot.services.audiodoc_http import (
+    bearer_headers,
+    endpoint_url,
+    file_form,
+    post_form,
+    require_base_url,
+)
 from bot_obormot.services.documents.response import validate_document_response
-from bot_obormot.settings import Settings, get_settings
+from bot_obormot.settings import Settings
 
 logger = logging.getLogger(__name__)
-
-
-def _endpoint_url(base_url: str, endpoint: str) -> str:
-    parts = urlsplit(base_url)
-    path = f"{parts.path.rstrip('/')}/{endpoint}"
-    return urlunsplit((parts.scheme, parts.netloc, path, parts.query, parts.fragment))
 
 
 # Reserve room for the document label, filename, and an optional Telegram caption.
@@ -48,38 +42,23 @@ async def _post_document(
     headers: dict[str, str],
 ) -> object:
     """Post the document form and return the decoded JSON response."""
-    async with (
-        aiohttp.ClientSession(
-            timeout=client_timeout,
-            headers=headers,
-        ) as session,
-        session.post(url, data=form) as response,
-    ):
-        if response.status != HTTPStatus.OK:
-            body = await read_limited_body(response, MAX_ERROR_BODY_BYTES)
-            detail = (body or b"").decode("utf-8", errors="replace")
+    response = await post_form(url, form, client_timeout, headers)
+    if response.status != HTTPStatus.OK:
+        raise DocumentAPIError(response.status, response.detail[:1000])
 
-            raise DocumentAPIError(
-                response.status,
-                detail[:1000],
-            )
+    if response.body is None:
+        raise DocumentAPIError(
+            502,
+            "Document Engine response is too large",
+        )
 
-        body = await read_limited_body(response, MAX_SERVICE_RESPONSE_BYTES)
-
-        if body is None:
-            raise DocumentAPIError(
-                502,
-                "Document Engine response is too large",
-            )
-
-        try:
-            result: object = json.loads(body)
-        except ValueError as error:
-            raise DocumentAPIError(
-                502,
-                "Document Engine returned invalid JSON",
-            ) from error
-    return result
+    try:
+        return response.json()
+    except ValueError as error:
+        raise DocumentAPIError(
+            502,
+            "Document Engine returned invalid JSON",
+        ) from error
 
 
 async def process_document(
@@ -89,33 +68,18 @@ async def process_document(
     settings: Settings | None = None,
 ) -> dict[str, Any]:
     """Send a document to the Document Engine and return the result."""
-    if settings is None:
-        settings = get_settings()
-
-    if not settings.AUDIODOC_URL:
-        msg = "AUDIODOC_URL is not configured"
-        raise DocumentUnavailableError(msg)
+    settings = require_base_url(settings, DocumentUnavailableError)
 
     filename = Path(filename or "document").name
     # The name is copied into a multipart header as well as the log.
     # Escape control characters before aiohttp constructs Content-Disposition.
     safe_filename = log_safe(filename, limit=255)
 
-    form = aiohttp.FormData()
-    form.add_field(
-        "file",
-        document_data,
-        filename=safe_filename,
-        content_type="application/octet-stream",
-    )
+    form = file_form(document_data, safe_filename)
     form.add_field("max_characters", str(MAX_DOCUMENT_TEXT_LENGTH))
 
     timeout = aiohttp.ClientTimeout(total=settings.AUDIODOC_DOCUMENT_TIMEOUT)
-    headers = (
-        {"Authorization": f"Bearer {settings.AUDIODOC_DOCUMENT_KEY}"}
-        if settings.AUDIODOC_DOCUMENT_KEY
-        else {}
-    )
+    headers = bearer_headers(settings.AUDIODOC_DOCUMENT_KEY)
 
     logger.info(
         "Sending document: filename=%s, size=%s",
@@ -125,7 +89,7 @@ async def process_document(
 
     try:
         raw_result = await _post_document(
-            _endpoint_url(settings.AUDIODOC_URL, "process-document"),
+            endpoint_url(settings.AUDIODOC_URL, "process-document"),
             form,
             timeout,
             headers,

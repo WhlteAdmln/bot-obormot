@@ -19,10 +19,7 @@ from bot_obormot.services.llm.fitting import fit_messages_to_context
 from bot_obormot.services.llm.messages import (
     count_images as count_message_images,
 )
-from bot_obormot.services.llm.messages import (
-    normalize_content,
-    normalize_messages,
-)
+from bot_obormot.services.llm.messages import normalize_messages
 from bot_obormot.services.llm.messages import (
     prepare_messages_for_count as prepare_for_token_counting,
 )
@@ -111,10 +108,6 @@ class LLMClient:
         return self._server_url()
 
     @staticmethod
-    def _normalize_content(content: object) -> str | list[Any]:
-        return normalize_content(content)
-
-    @staticmethod
     def _normalize_messages(
         messages: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
@@ -134,16 +127,6 @@ class LLMClient:
             context_size = await fetch_context_size(self)
             self._context_size = context_size
         return context_size
-
-    @staticmethod
-    def _prepare_messages_for_count(
-        messages: list[dict[str, Any]],
-    ) -> list[dict[str, Any]]:
-        return prepare_for_token_counting(messages)
-
-    @staticmethod
-    def _count_images(messages: list[dict[str, Any]]) -> int:
-        return count_message_images(messages)
 
     @staticmethod
     def prepare_messages_for_count(

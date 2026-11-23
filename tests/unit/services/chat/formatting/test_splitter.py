@@ -33,10 +33,13 @@ def _visible_text(chunk: str) -> str:
 def _assert_markup_tokens_are_whole(chunk: str) -> None:
     """Assert that HTML tags and entities are not fragmented."""
     without_tags = _TAG_PATTERN.sub("", chunk)
-    assert "<" not in without_tags
-    assert ">" not in without_tags
+    expected_fragment = "<"
+    assert expected_fragment not in without_tags
+    expected_fragment = ">"
+    assert expected_fragment not in without_tags
     without_entities = _ENTITY_PATTERN.sub("", without_tags)
-    assert "&" not in without_entities
+    expected_fragment = "&"
+    assert expected_fragment not in without_entities
 
 
 def _assert_tags_are_balanced(chunk: str) -> None:
@@ -53,7 +56,7 @@ def _assert_tags_are_balanced(chunk: str) -> None:
         else:
             stack.append(tag)
 
-    assert stack == []
+    assert not stack
 
 
 @settings(max_examples=200, deadline=None)
@@ -141,7 +144,8 @@ def test_splitter_keeps_unmatched_closing_tag_atomic() -> None:
     chunks = split_formatted_message("</b>abc", max_length=1)
 
     assert chunks[0].startswith("</b>")
-    assert "".join(_visible_text(chunk) for chunk in chunks) == "abc"
+    expected_text = "abc"
+    assert "".join(_visible_text(chunk) for chunk in chunks) == expected_text
     for chunk in chunks:
         _assert_markup_tokens_are_whole(chunk)
 

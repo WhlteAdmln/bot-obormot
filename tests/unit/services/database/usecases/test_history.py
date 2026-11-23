@@ -31,7 +31,8 @@ async def test_history_usecase_returns_image_parts_and_reset_removes_files(
     )
 
     history = await test_db.get_history(USER_ID)
-    assert len(history) == 2
+    expected_count = 2
+    assert len(history) == expected_count
     assert history[0]["content"][0] == {
         "type": "text",
         "text": "Посмотри на изображение",
@@ -78,12 +79,14 @@ async def test_history_combines_all_legacy_animation_frames_into_one_image(
         "type": "text",
         "text": "Посмотри на стикер",
     }
-    assert len(user_content) == 2
+    expected_count = 2
+    assert len(user_content) == expected_count
 
     data_url = user_content[1]["image_url"]["url"]
     image_data = base64.b64decode(data_url.split(",", 1)[1])
     with Image.open(io.BytesIO(image_data)) as contact_sheet:
-        assert contact_sheet.format == "JPEG"
+        expected_format = "JPEG"
+        assert contact_sheet.format == expected_format
         assert contact_sheet.size == (3 * 512, 2 * 384)
 
 
@@ -114,8 +117,10 @@ async def test_reset_history_does_not_delete_unmanaged_or_external_files(
     await test_db.reset_history(USER_ID)
 
     assert not managed_image.exists()
-    assert unmanaged_image.read_bytes() == b"keep-or-delete-check"
-    assert external_image.read_bytes() == b"keep-or-delete-check"
+    expected_read_bytes = b"keep-or-delete-check"
+    assert unmanaged_image.read_bytes() == expected_read_bytes
+    expected_read_bytes = b"keep-or-delete-check"
+    assert external_image.read_bytes() == expected_read_bytes
     assert await test_db.get_history(USER_ID) == []
 
 
@@ -192,7 +197,8 @@ async def test_history_skips_images_when_image_read_fails(
             logger=logging.getLogger(__name__),
         )
 
-    assert history[0]["content"] == "Question"
+    expected_content = "Question"
+    assert history[0]["content"] == expected_content
     assert expected_message in caplog.text
 
 
@@ -227,4 +233,5 @@ async def test_reset_history_keeps_database_reset_when_image_delete_fails(
 
     assert await test_db.get_history(USER_ID) == []
     assert await asyncio.to_thread(image_path.exists)
-    assert "Could not remove image during history reset" in caplog.text
+    expected_fragment = "Could not remove image during history reset"
+    assert expected_fragment in caplog.text

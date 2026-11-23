@@ -59,7 +59,6 @@ def _document_content(
 def _select_content(
     message: Message,
     info: MessageInfo,
-    *,
     text_override: str | None,
     transcribed_text: str | None,
     image_urls: list[str] | None,
@@ -89,12 +88,7 @@ def build_user_content(
 ) -> str | list[dict[str, Any]] | None:
     """Build text or multimodal content for the LLM."""
     user_content = _select_content(
-        message,
-        info,
-        text_override=text_override,
-        transcribed_text=transcribed_text,
-        image_urls=image_urls,
-        document_text=document_text,
+        message, info, text_override, transcribed_text, image_urls, document_text
     )
 
     if isinstance(user_content, str):

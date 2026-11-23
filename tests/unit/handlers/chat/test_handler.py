@@ -18,28 +18,11 @@ import pytest
 from bot_obormot.handlers.chat import handler as handler_module
 from bot_obormot.services.chat.aggregation import AggregatedText
 from bot_obormot.settings import Settings
+from tests.support.chat_handler import RecordingAggregator, RecordingTokenCounter
+from tests.support.chat_streaming import single_answer
 from tests.support.settings import make_settings
 
 SETTINGS = make_settings()
-
-
-class _TestAggregator:
-    def __init__(self, calls: list[object]) -> None:
-        self.calls = calls
-        self.result: str | None = "входящий текст"
-
-    async def collect(self, _message: object) -> str | None:
-        self.calls.append("aggregate")
-        return self.result
-
-
-class _TestLLM:
-    def __init__(self, calls: list[object]) -> None:
-        self.calls = calls
-
-    async def count_text_tokens(self, _text: str) -> int:
-        self.calls.append("count-tokens")
-        return 151
 
 
 def _create_chat_handler_state() -> SimpleNamespace:
@@ -52,8 +35,8 @@ def _create_chat_handler_state() -> SimpleNamespace:
         safe_edits=[],
         error_calls=[],
         pipeline=SimpleNamespace(),
-        aggregator=_TestAggregator(calls),
-        llm_client=_TestLLM(calls),
+        aggregator=RecordingAggregator(calls),
+        llm_client=RecordingTokenCounter(calls),
         database=object(),
     )
 
@@ -160,8 +143,8 @@ def _patch_reporting_stubs(
     monkeypatch.setattr(handler_module, "safe_edit", safe_edit)
 
 
-@pytest.fixture
-def state(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
+@pytest.fixture(name="state")
+def fixture_state(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
     """Replace the chat handler dependencies and expose the recorded state."""
     result = _create_chat_handler_state()
     _patch_input_stubs(monkeypatch, result.calls)
@@ -202,8 +185,10 @@ async def test_handler_preserves_order_for_short_non_streamed_response(
     message = Message()
 
     async def process(kwargs: object) -> str:
-        assert kwargs["user_id"] == 7
-        assert kwargs["user_content"] == "prepared user content"
+        expected_user_id = 7
+        assert kwargs["user_id"] == expected_user_id
+        expected_user_content = "prepared user content"
+        assert kwargs["user_content"] == expected_user_content
         return "короткий ответ"
 
     state.pipeline.process = process
@@ -229,7 +214,8 @@ async def test_handler_preserves_order_for_short_non_streamed_response(
     )
     assert state.typing_started.is_set()
     assert state.typing_stopped.is_set()
-    assert state.calls[-1] == "lock-exit"
+    expected_calls = "lock-exit"
+    assert state.calls[-1] == expected_calls
 
 
 @pytest.mark.asyncio
@@ -256,8 +242,10 @@ async def test_handler_streams_long_response_and_finalizes_status(
     )
 
     # First status is edited once during streaming and once for final delivery.
-    assert len(state.safe_edits) == 2
-    assert state.safe_edits[-1][1] == "Итоговый ответ"
+    expected_count = 2
+    assert len(state.safe_edits) == expected_count
+    expected_safe_edits = "Итоговый ответ"
+    assert state.safe_edits[-1][1] == expected_safe_edits
     assert message.answers == [("A" * 300, {})]
     assert state.typing_stopped.is_set()
 
@@ -284,10 +272,12 @@ async def test_handler_cancellation_updates_status_and_cleans_typing_task(
             settings=SETTINGS,
         )
 
-    assert state.safe_edits[-1][1] == "⏹ Запрос отменён."
+    expected_safe_edits = "⏹ Запрос отменён."
+    assert state.safe_edits[-1][1] == expected_safe_edits
     assert state.typing_started.is_set()
     assert state.typing_stopped.is_set()
-    assert state.calls[-1] == "lock-exit"
+    expected_calls = "lock-exit"
+    assert state.calls[-1] == expected_calls
 
 
 @pytest.mark.asyncio
@@ -308,7 +298,7 @@ async def test_handler_returns_early_for_aggregated_continuation(
 
     assert state.calls == ["log", "inspect", "aggregate"]
     assert not state.lock_entered.is_set()
-    assert message.answers == []
+    assert not message.answers
 
 
 @pytest.mark.asyncio
@@ -331,7 +321,8 @@ async def test_handler_rejects_user_when_pending_request_limit_is_reached(
     assert message.answers == [
         ("⏳ Я ещё обрабатываю твои предыдущие сообщения. Подожди немного.", {})
     ]
-    assert "lock-enter" not in state.calls
+    expected_fragment = "lock-enter"
+    assert expected_fragment not in state.calls
     assert not state.typing_started.is_set()
 
 
@@ -359,7 +350,8 @@ async def test_handler_routes_processing_error_to_central_error_handler(
     assert len(state.error_calls) == 1
     error = state.error_calls[0]
     assert error["message"] is message
-    assert error["user_id"] == 7
+    expected_user_id = 7
+    assert error["user_id"] == expected_user_id
     assert isinstance(error["error"], RuntimeError)
     assert state.typing_stopped.is_set()
 
@@ -456,10 +448,13 @@ async def test_handler_replies_to_the_incoming_message(
         settings=SETTINGS,
     )
 
-    ((text, kwargs),) = message.answers
-    assert text == "*ответ*"
-    assert kwargs["parse_mode"] == "MarkdownV2"
-    assert kwargs["reply_parameters"].message_id == 11
+    text, kwargs = single_answer(message)
+    expected_text = "*ответ*"
+    assert text == expected_text
+    expected_parse_mode = "MarkdownV2"
+    assert kwargs["parse_mode"] == expected_parse_mode
+    expected_message_id = 11
+    assert kwargs["reply_parameters"].message_id == expected_message_id
     assert kwargs["reply_parameters"].allow_sending_without_reply is True
 
 
@@ -485,7 +480,10 @@ async def test_handler_replies_to_the_last_aggregated_message(
         settings=SETTINGS,
     )
 
-    ((text, kwargs),) = first.answers
-    assert text == "ответ"
-    assert "parse_mode" not in kwargs
-    assert kwargs["reply_parameters"].message_id == 13
+    text, kwargs = single_answer(first)
+    expected_text = "ответ"
+    assert text == expected_text
+    expected_fragment = "parse_mode"
+    assert expected_fragment not in kwargs
+    expected_message_id = 13
+    assert kwargs["reply_parameters"].message_id == expected_message_id

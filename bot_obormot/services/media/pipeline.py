@@ -15,6 +15,7 @@ from bot_obormot.errors import MediaError
 from bot_obormot.services.media.animation import extract_animation_frames
 from bot_obormot.services.media.contact_sheet import build_contact_sheet
 from bot_obormot.services.media.images import prepare_image
+from bot_obormot.services.media.limited import run_limited
 from bot_obormot.services.media.limits import MAX_CONCURRENT_IMAGE_JOBS
 from bot_obormot.services.media.media_types import MEDIA_TYPE_IMAGE
 from bot_obormot.services.media.sniff import verify_declared_type
@@ -46,17 +47,7 @@ _DEFAULT_MEDIA_PIPELINE_OPTIONS: MediaPipelineOptions = MediaPipelineOptions()
 
 async def _run_limited(func: Callable[..., _T], *args: object) -> _T:
     """Run CPU-intensive image processing in at most N threads."""
-    async with _image_jobs:
-        task = asyncio.create_task(asyncio.to_thread(func, *args))
-
-        try:
-            return await asyncio.shield(task)
-        except asyncio.CancelledError:
-            # A thread cannot be cancelled; keep the slot occupied while it runs.
-            try:
-                await task
-            finally:
-                raise
+    return await run_limited(_image_jobs, func, *args)
 
 
 def _ensure_frames(frames: list[bytes]) -> None:

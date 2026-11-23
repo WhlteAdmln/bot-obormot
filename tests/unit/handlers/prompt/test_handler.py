@@ -121,7 +121,8 @@ async def test_prompt_save_persists_the_new_personal_prompt(
         "Новый системный промпт",
     )
 
-    assert access_database.user_prompts[user_id] == "Новый системный промпт"
+    expected_user_prompts = "Новый системный промпт"
+    assert access_database.user_prompts[user_id] == expected_user_prompts
     assert sent_texts(session) == [
         (
             "✍️ Отправь следующим сообщением новый системный промпт.\n\n"

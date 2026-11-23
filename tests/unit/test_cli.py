@@ -18,8 +18,8 @@ VALID_TOKEN = "123456789:" + "A" * 35
 ENV_EXAMPLE = Path(__file__).resolve().parents[2] / ".env.example"
 
 
-@pytest.fixture
-def home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+@pytest.fixture(name="home")
+def fixture_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     """Isolate the process environment and point the app home at a temp dir."""
     home_dir = tmp_path / "home"
     monkeypatch.setattr(
@@ -38,7 +38,8 @@ def test_version_prints_the_installed_version(
     monkeypatch.setattr(cli, "package_version", lambda _name: "9.8.7")
 
     assert cli.main(["version"]) == 0
-    assert capsys.readouterr().out == "bot-obormot 9.8.7\n"
+    expected_out = "bot-obormot 9.8.7\n"
+    assert capsys.readouterr().out == expected_out
 
 
 def test_missing_command_is_a_usage_error(capsys: pytest.CaptureFixture[str]) -> None:
@@ -46,8 +47,10 @@ def test_missing_command_is_a_usage_error(capsys: pytest.CaptureFixture[str]) ->
     with pytest.raises(SystemExit) as exit_info:
         cli.main([])
 
-    assert exit_info.value.code == 2
-    assert "usage" in capsys.readouterr().err.lower()
+    expected_code = 2
+    assert exit_info.value.code == expected_code
+    expected_fragment = "usage"
+    assert expected_fragment in capsys.readouterr().err.lower()
 
 
 def test_run_starts_the_bot_with_the_env_file(
@@ -84,8 +87,10 @@ def test_run_reports_configuration_errors(
     with pytest.raises(SystemExit) as exit_info:
         cli.main(["run"])
 
-    assert exit_info.value.code == 2
-    assert "SUPERVISOR_ID" in capsys.readouterr().err
+    expected_code = 2
+    assert exit_info.value.code == expected_code
+    expected_fragment = "SUPERVISOR_ID"
+    assert expected_fragment in capsys.readouterr().err
 
 
 def test_python_dash_m_runs_the_cli(
@@ -99,7 +104,8 @@ def test_python_dash_m_runs_the_cli(
         runpy.run_module("bot_obormot", run_name="__main__")
 
     assert exit_info.value.code == 0
-    assert "bot-obormot 1.2.3" in capsys.readouterr().out
+    expected_fragment = "bot-obormot 1.2.3"
+    assert expected_fragment in capsys.readouterr().out
 
 
 def test_config_check_shows_template_placeholder_errors(
@@ -111,10 +117,14 @@ def test_config_check_shows_template_placeholder_errors(
     assert cli.main(["config", "check", "--env-file", str(ENV_EXAMPLE)]) == 1
 
     output = capsys.readouterr().out
-    assert "Configuration has problems:" in output
-    assert "SUPERVISOR_ID" in output
-    assert "BOT_TOKEN" in output
-    assert "REPLACE_WITH_NUMERIC_TELEGRAM_ID" not in output
+    expected_fragment = "Configuration has problems:"
+    assert expected_fragment in output
+    expected_fragment = "SUPERVISOR_ID"
+    assert expected_fragment in output
+    expected_fragment = "BOT_TOKEN"
+    assert expected_fragment in output
+    expected_fragment = "REPLACE_WITH_NUMERIC_TELEGRAM_ID"
+    assert expected_fragment not in output
 
 
 def test_config_check_never_prints_secrets(
@@ -129,8 +139,10 @@ def test_config_check_never_prints_secrets(
     assert cli.main(["config", "check"]) == 1
 
     output = capsys.readouterr().out
-    assert "SUPERVISOR_ID" in output
-    assert "top-secret" not in output
+    expected_fragment = "SUPERVISOR_ID"
+    assert expected_fragment in output
+    expected_fragment = "top-secret"
+    assert expected_fragment not in output
     assert VALID_TOKEN not in output
 
 
@@ -144,7 +156,8 @@ def test_config_check_accepts_a_valid_configuration(
     )
 
     assert cli.main(["config", "check"]) == 0
-    assert capsys.readouterr().out == "Configuration is valid.\n"
+    expected_out = "Configuration is valid.\n"
+    assert capsys.readouterr().out == expected_out
 
 
 def test_init_creates_the_file_and_prints_next_steps(
@@ -154,13 +167,18 @@ def test_init_creates_the_file_and_prints_next_steps(
     assert cli.main(["init", "--token", VALID_TOKEN, "--supervisor", "7"]) == 0
 
     env_path = home / ".env"
-    assert env_path.stat().st_mode & 0o777 == 0o600
-    assert "SUPERVISOR_ID=7" in env_path.read_text(encoding="utf-8")
+    expected_number = 0o600
+    assert env_path.stat().st_mode & 0o777 == expected_number
+    expected_fragment = "SUPERVISOR_ID=7"
+    assert expected_fragment in env_path.read_text(encoding="utf-8")
     output = capsys.readouterr().out
     assert f"Created configuration: {env_path}" in output
-    assert "  1. " in output
-    assert "  2. " in output
-    assert "  3. " in output
+    expected_fragment = "  1. "
+    assert expected_fragment in output
+    expected_fragment = "  2. "
+    assert expected_fragment in output
+    expected_fragment = "  3. "
+    assert expected_fragment in output
 
 
 def test_init_refuses_to_overwrite_without_force(
@@ -173,12 +191,16 @@ def test_init_refuses_to_overwrite_without_force(
     with pytest.raises(SystemExit) as exit_info:
         cli.main(["init"])
 
-    assert exit_info.value.code == 2
-    assert "--force" in capsys.readouterr().err
-    assert (home / ".env").read_text(encoding="utf-8") == "OLD=1\n"
+    expected_code = 2
+    assert exit_info.value.code == expected_code
+    expected_fragment = "--force"
+    assert expected_fragment in capsys.readouterr().err
+    expected_text = "OLD=1\n"
+    assert (home / ".env").read_text(encoding="utf-8") == expected_text
 
     assert cli.main(["init", "--force"]) == 0
-    assert "OLD=1" not in (home / ".env").read_text(encoding="utf-8")
+    expected_fragment = "OLD=1"
+    assert expected_fragment not in (home / ".env").read_text(encoding="utf-8")
 
 
 def test_init_rejects_an_invalid_token(
@@ -188,8 +210,10 @@ def test_init_rejects_an_invalid_token(
     with pytest.raises(SystemExit) as exit_info:
         cli.main(["init", "--token", "bad"])
 
-    assert exit_info.value.code == 2
-    assert "token" in capsys.readouterr().err
+    expected_code = 2
+    assert exit_info.value.code == expected_code
+    expected_fragment = "token"
+    assert expected_fragment in capsys.readouterr().err
     assert not (home / ".env").exists()
 
 
@@ -241,7 +265,8 @@ def test_doctor_quiet_hides_ok_lines_and_succeeds_without_failures(
     )
 
     assert cli.main(["doctor", "--quiet"]) == 0
-    assert capsys.readouterr().out == "WARN ffmpeg: missing\n"
+    expected_out = "WARN ffmpeg: missing\n"
+    assert capsys.readouterr().out == expected_out
 
 
 def test_service_install_print_only_prints_the_unit(
@@ -252,7 +277,8 @@ def test_service_install_print_only_prints_the_unit(
 
     output = capsys.readouterr().out
     assert f'ExecStart="{home}/.venv/bin/bot-obormot" run' in output
-    assert "BOT_OBORMOT_HOME" in output
+    expected_fragment = "BOT_OBORMOT_HOME"
+    assert expected_fragment in output
     assert not (home / ".config").exists()
 
 
@@ -271,13 +297,17 @@ def test_service_install_writes_the_user_unit_and_prints_commands(
     unit = tmp_path / "user" / ".config" / "systemd" / "user" / "bot-obormot.service"
     assert unit.is_file()
     output = capsys.readouterr().out
-    assert "was not enabled or started" in output
-    assert "systemctl --user daemon-reload" in output
-    assert "systemctl --user enable --now bot-obormot.service" in output
+    expected_fragment = "was not enabled or started"
+    assert expected_fragment in output
+    expected_fragment = "systemctl --user daemon-reload"
+    assert expected_fragment in output
+    expected_fragment = "systemctl --user enable --now bot-obormot.service"
+    assert expected_fragment in output
 
     with pytest.raises(SystemExit) as exit_info:
         cli.main(["service", "install"])
-    assert exit_info.value.code == 2
+    expected_code = 2
+    assert exit_info.value.code == expected_code
 
 
 def test_service_uninstall_removes_the_unit_and_prints_commands(
@@ -290,15 +320,18 @@ def test_service_uninstall_removes_the_unit_and_prints_commands(
     _ = home
     monkeypatch.setattr(Path, "home", classmethod(lambda _cls: tmp_path / "user"))
     assert cli.main(["service", "uninstall"]) == 0
-    assert "No systemd unit is installed." in capsys.readouterr().out
+    expected_fragment = "No systemd unit is installed."
+    assert expected_fragment in capsys.readouterr().out
 
     cli.main(["service", "install"])
     capsys.readouterr()
 
     assert cli.main(["service", "uninstall"]) == 0
     output = capsys.readouterr().out
-    assert "was not stopped" in output
-    assert "disable --now bot-obormot.service" in output
+    expected_fragment = "was not stopped"
+    assert expected_fragment in output
+    expected_fragment = "disable --now bot-obormot.service"
+    assert expected_fragment in output
 
 
 def test_service_status_runs_a_read_only_systemctl_command(
@@ -318,8 +351,10 @@ def test_service_status_runs_a_read_only_systemctl_command(
     monkeypatch.setattr(cli.shutil, "which", lambda _name: "/usr/bin/systemctl")
     monkeypatch.setattr(cli.subprocess, "run", fake_run)
 
-    assert cli.main(["service", "status"]) == 3
-    assert cli.main(["service", "status", "--system"]) == 3
+    expected_main = 3
+    assert cli.main(["service", "status"]) == expected_main
+    expected_main = 3
+    assert cli.main(["service", "status", "--system"]) == expected_main
     assert commands == [
         ["/usr/bin/systemctl", "--user", "status", "--no-pager", "bot-obormot.service"],
         ["/usr/bin/systemctl", "status", "--no-pager", "bot-obormot.service"],
@@ -338,5 +373,7 @@ def test_service_status_without_systemctl_is_an_error(
     with pytest.raises(SystemExit) as exit_info:
         cli.main(["service", "status"])
 
-    assert exit_info.value.code == 2
-    assert "systemctl" in capsys.readouterr().err
+    expected_code = 2
+    assert exit_info.value.code == expected_code
+    expected_fragment = "systemctl"
+    assert expected_fragment in capsys.readouterr().err

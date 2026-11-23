@@ -8,7 +8,7 @@ import os
 import pytest
 
 from bot_obormot.config.model import load_settings
-from bot_obormot.services.llm import LLMClient
+from tests.support.fake_llm import open_llm_client
 
 
 @pytest.mark.integration
@@ -25,26 +25,17 @@ async def test_count_text_tokens() -> None:
     settings_environ = os.environ.copy()
     if not settings_environ.get("SUPERVISOR_ID", "").strip():
         settings_environ["SUPERVISOR_ID"] = "1"
-    llm_client = LLMClient(load_settings(settings_environ))
+    async with open_llm_client(load_settings(settings_environ)) as llm_client:
+        await llm_client.start()
+        counts = [await llm_client.count_text_tokens(text) for text in test_texts]
 
-    await llm_client.start()
-
-    try:
-        for text in test_texts:
-            count = await llm_client.count_text_tokens(text)
-            assert isinstance(count, int)
-            assert count > 0
-    finally:
-        await llm_client.close()
+    assert all(isinstance(count, int) and count > 0 for count in counts), counts
 
 
 @pytest.mark.asyncio
 async def test_count_empty_text() -> None:
     """Пустой текст не должен отправляться на сервер."""
-    llm_client = LLMClient()
-    try:
+    async with open_llm_client() as llm_client:
         count = await llm_client.count_text_tokens("")
-    finally:
-        await llm_client.close()
 
     assert count == 0

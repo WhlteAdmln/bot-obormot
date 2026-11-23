@@ -16,8 +16,9 @@ def test_sanitize_html_keeps_supported_tags_and_escapes_the_rest() -> None:
         '<code class="language-py">c</code> <span>n</span> 1<2'
     )
 
-    assert sanitize_html(text) == (
+    expected_sanitize_html = (
         "<b>x</b> a\nb &amp; l "
         '<a href="https://e.com?a=1&amp;b=2">ok</a> '
         '<code class="language-py">c</code> n 1&lt;2'
     )
+    assert sanitize_html(text) == expected_sanitize_html

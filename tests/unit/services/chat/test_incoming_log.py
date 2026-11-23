@@ -27,9 +27,12 @@ def test_incoming_log_records_message_types(caplog: pytest.LogCaptureFixture) ->
     with caplog.at_level(logging.INFO, logger=incoming_log.logger.name):
         incoming_log.log_incoming_message(message)
 
-    assert "INCOMING MESSAGE: type=document" in caplog.text
-    assert "DOCUMENT INFO: filename=doc.pdf" in caplog.text
-    assert "ANIMATION INFO: mime_type=image/gif" in caplog.text
+    expected_fragment = "INCOMING MESSAGE: type=document"
+    assert expected_fragment in caplog.text
+    expected_fragment = "DOCUMENT INFO: filename=doc.pdf"
+    assert expected_fragment in caplog.text
+    expected_fragment = "ANIMATION INFO: mime_type=image/gif"
+    assert expected_fragment in caplog.text
 
 
 def test_incoming_log_sanitizes_user_supplied_document_metadata(
@@ -52,7 +55,11 @@ def test_incoming_log_sanitizes_user_supplied_document_metadata(
     with caplog.at_level(logging.INFO, logger=incoming_log.logger.name):
         incoming_log.log_incoming_message(message)
 
-    assert r"filename=report.pdf\nERROR forged entry" in caplog.text
-    assert r"mime_type=application/pdf\rINFO forged entry" in caplog.text
-    assert "\nERROR forged entry" not in caplog.text
-    assert "\rINFO forged entry" not in caplog.text
+    expected_fragment = r"filename=report.pdf\nERROR forged entry"
+    assert expected_fragment in caplog.text
+    expected_fragment = r"mime_type=application/pdf\rINFO forged entry"
+    assert expected_fragment in caplog.text
+    expected_fragment = "\nERROR forged entry"
+    assert expected_fragment not in caplog.text
+    expected_fragment = "\rINFO forged entry"
+    assert expected_fragment not in caplog.text

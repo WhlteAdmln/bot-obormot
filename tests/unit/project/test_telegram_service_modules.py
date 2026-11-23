@@ -13,4 +13,5 @@ from bot_obormot.services.telegram.downloader import (
 def test_telegram_services_are_imported_from_canonical_modules() -> None:
     """Telegram services are imported from canonical modules."""
     assert media.download_telegram_file is download_telegram_file
-    assert keep_typing.__module__ == "bot_obormot.services.telegram.chat_action"
+    expected_module = "bot_obormot.services.telegram.chat_action"
+    assert keep_typing.__module__ == expected_module

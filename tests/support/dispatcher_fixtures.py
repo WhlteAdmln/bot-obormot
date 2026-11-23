@@ -23,6 +23,7 @@ from tests.support.dispatcher import (
     SETTINGS,
     AccessDatabase,
     FakeLLM,
+    detach_router,
     reset_throttle,
 )
 from tests.support.telegram import (
@@ -31,8 +32,8 @@ from tests.support.telegram import (
 )
 
 
-@pytest.fixture
-def access_database(
+@pytest.fixture(name="access_database")
+def fixture_access_database(
     dispatcher: Dispatcher,
 ) -> AccessDatabase:
     """Configure an isolated database and open access for dispatcher tests."""
@@ -43,8 +44,8 @@ def access_database(
     return database
 
 
-@pytest.fixture(scope="module")
-def dispatcher() -> Iterator[Dispatcher]:
+@pytest.fixture(scope="module", name="dispatcher")
+def fixture_dispatcher() -> Iterator[Dispatcher]:
     """Create one configured dispatcher for the test module.
 
     The application routers are shared module-level objects, so they are
@@ -54,12 +55,12 @@ def dispatcher() -> Iterator[Dispatcher]:
     yield configured
 
     for router in configured.sub_routers:
-        router._parent_router = None
+        detach_router(router)
     configured.sub_routers.clear()
 
 
-@pytest_asyncio.fixture
-async def dispatcher_runtime(
+@pytest_asyncio.fixture(name="dispatcher_runtime")
+async def fixture_dispatcher_runtime(
     dispatcher: Dispatcher,
     access_database: AccessDatabase,
 ) -> AsyncIterator[tuple[Dispatcher, Bot, FakeTelegramSession]]:

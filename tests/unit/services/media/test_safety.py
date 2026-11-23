@@ -32,7 +32,8 @@ def test_configure_pillow_limits_sets_global_decompression_limit(
     monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", None)
     configure_pillow_limits()
     assert Image.MAX_IMAGE_PIXELS == MAX_IMAGE_PIXELS
+    expected_action = "error"
     assert any(
-        action == "error" and category is Image.DecompressionBombWarning
+        action == expected_action and category is Image.DecompressionBombWarning
         for action, _message, category, _module, _lineno in warnings.filters
     )

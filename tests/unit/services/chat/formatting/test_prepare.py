@@ -18,9 +18,11 @@ def test_prepare_response_uses_matching_parse_mode_and_keeps_original() -> None:
     )
 
     assert (markdown.parse_mode, markdown.text) == ("MarkdownV2", "*a* b\\.c")
-    assert markdown.plain_text == "**a** b.c"
+    expected_plain_text = "**a** b.c"
+    assert markdown.plain_text == expected_plain_text
     assert (html_chunk.parse_mode, html_chunk.text) == ("HTML", "<b>a</b> b&amp;c")
-    assert html_chunk.plain_text == "<b>a</b> b&c"
+    expected_plain_text = "<b>a</b> b&c"
+    assert html_chunk.plain_text == expected_plain_text
     assert (plain.parse_mode, plain.text) == (None, "a *b")
 
 
@@ -36,8 +38,12 @@ def test_prepare_response_respects_the_length_limit() -> None:
     chunks = prepare_response(text, 500)
 
     assert len(chunks) > 1
-    assert all(utf16_length(chunk.plain_text) <= 500 for chunk in chunks)
-    assert all(chunk.parse_mode == "MarkdownV2" for chunk in chunks)
+    expected_utf16_length = 500
+    assert all(
+        utf16_length(chunk.plain_text) <= expected_utf16_length for chunk in chunks
+    )
+    expected_parse_mode = "MarkdownV2"
+    assert all(chunk.parse_mode == expected_parse_mode for chunk in chunks)
 
 
 def test_prepare_response_keeps_html_valid_after_splitting() -> None:
@@ -47,7 +53,8 @@ def test_prepare_response_keeps_html_valid_after_splitting() -> None:
     chunks = prepare_response(text, 40)
 
     assert len(chunks) > 1
-    assert all(chunk.parse_mode == "HTML" for chunk in chunks)
+    expected_parse_mode = "HTML"
+    assert all(chunk.parse_mode == expected_parse_mode for chunk in chunks)
     assert all(
         chunk.text.startswith('<a href="https://e.com">')
         and chunk.text.endswith("</a>")

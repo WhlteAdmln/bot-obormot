@@ -11,9 +11,13 @@ from bot_obormot.services.chat.errors import handler as chat_error_handler
 
 def test_chat_services_are_loaded_from_canonical_modules() -> None:
     """Chat services are loaded from canonical modules."""
-    assert incoming_log.__name__ == "bot_obormot.services.chat.incoming_log"
-    assert chat_pipeline.__name__ == "bot_obormot.services.chat.pipeline"
-    assert reporting.__name__ == "bot_obormot.services.chat.reporting"
-    assert chat_error_handler.__name__ == "bot_obormot.services.chat.errors.handler"
+    expected_name_2 = "bot_obormot.services.chat.incoming_log"
+    assert incoming_log.__name__ == expected_name_2
+    expected_name_2 = "bot_obormot.services.chat.pipeline"
+    assert chat_pipeline.__name__ == expected_name_2
+    expected_name_2 = "bot_obormot.services.chat.reporting"
+    assert reporting.__name__ == expected_name_2
+    expected_name_2 = "bot_obormot.services.chat.errors.handler"
+    assert chat_error_handler.__name__ == expected_name_2
     expected_name = "bot_obormot.services.chat.aggregation.aggregator"
     assert aggregator_module.__name__ == expected_name

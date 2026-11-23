@@ -23,7 +23,8 @@ def renovate_config_fixture() -> dict[str, Any]:
 
 def test_renovate_extends_best_practices(renovate_config: dict[str, Any]) -> None:
     """Renovate pins actions and images by digest through the shared preset."""
-    assert "config:best-practices" in renovate_config["extends"]
+    expected_fragment = "config:best-practices"
+    assert expected_fragment in renovate_config["extends"]
 
 
 def test_renovate_merges_pull_requests_itself(
@@ -49,7 +50,8 @@ def test_renovate_requires_fourteen_day_old_releases(
     renovate_config: dict[str, Any],
 ) -> None:
     """New releases wait 14 days before a pull request is opened."""
-    assert renovate_config["minimumReleaseAge"] == "14 days"
+    expected_minimumreleaseage = "14 days"
+    assert renovate_config["minimumReleaseAge"] == expected_minimumreleaseage
 
 
 def test_renovate_security_fixes_skip_the_release_age(
@@ -111,14 +113,16 @@ def test_renovate_regenerates_the_lock_with_pip_compile(
     renovate_config: dict[str, Any],
 ) -> None:
     """requirements-lock.txt carries a uv header, so pip-compile owns the file."""
-    assert "pip-compile" in renovate_config["enabledManagers"]
+    expected_fragment = "pip-compile"
+    assert expected_fragment in renovate_config["enabledManagers"]
 
 
 def test_renovate_does_not_edit_the_lock_line_by_line(
     renovate_config: dict[str, Any],
 ) -> None:
     """Pins without a resolver could break the lock, so pip_requirements is off."""
-    assert "pip_requirements" not in renovate_config["enabledManagers"]
+    expected_fragment = "pip_requirements"
+    assert expected_fragment not in renovate_config["enabledManagers"]
 
 
 def test_renovate_python_version_changes_are_left_to_humans(
@@ -138,24 +142,27 @@ def test_lock_command_writes_options_with_equal_signs() -> None:
     """Renovate refuses a lock header whose long options lack an equal sign."""
     makefile = (ROOT_DIR / "Makefile").read_text("utf-8")
 
-    assert "--python-version=$(LOCK_PYTHON_VERSION)" in makefile
+    expected_fragment = "--python-version=$(LOCK_PYTHON_VERSION)"
+    assert expected_fragment in makefile
 
 
 def test_lock_command_names_the_output_file_with_an_equal_sign() -> None:
     """The header must name the output file in the form Renovate parses."""
     makefile = (ROOT_DIR / "Makefile").read_text("utf-8")
 
-    assert "--output-file=requirements-lock.txt" in makefile
+    expected_fragment = "--output-file=requirements-lock.txt"
+    assert expected_fragment in makefile
 
 
 def test_renovate_updates_pydantic_and_its_core_together(
     renovate_config: dict[str, Any],
 ) -> None:
     """The two packages pin each other exactly, so one pull request moves both."""
+    expected_fragment = "groupName"
     groups = {
         rule["groupName"]: set(rule["matchPackageNames"])
         for rule in renovate_config["packageRules"]
-        if "groupName" in rule
+        if expected_fragment in rule
     }
 
     assert {"pydantic", "pydantic-core"} <= groups["pydantic"]
@@ -165,10 +172,11 @@ def test_renovate_digest_pins_skip_the_release_age(
     renovate_config: dict[str, Any],
 ) -> None:
     """A digest has no release date, so the release age must not hold it."""
+    expected_fragment = "pinDigest"
     digest_rules = [
         rule
         for rule in renovate_config["packageRules"]
-        if "pinDigest" in rule.get("matchUpdateTypes", [])
+        if expected_fragment in rule.get("matchUpdateTypes", [])
     ]
 
     assert [rule["minimumReleaseAge"] for rule in digest_rules] == [None]
@@ -204,10 +212,11 @@ def test_renovate_leaves_build_tooling_to_humans(
     renovate_config: dict[str, Any],
 ) -> None:
     """The build backend runs while the wheel is built, so a human merges it."""
+    expected_fragment = "setuptools"
     build_rules = [
         rule
         for rule in renovate_config["packageRules"]
-        if "setuptools" in rule.get("matchPackageNames", [])
+        if expected_fragment in rule.get("matchPackageNames", [])
     ]
 
     assert [rule["automerge"] for rule in build_rules] == [False]
@@ -217,7 +226,8 @@ def test_renovate_vulnerability_alerts_use_only_supported_options(
     renovate_config: dict[str, Any],
 ) -> None:
     """Renovate rejects package-rule-only options inside vulnerabilityAlerts."""
-    assert "prPriority" not in renovate_config["vulnerabilityAlerts"]
+    expected_fragment = "prPriority"
+    assert expected_fragment not in renovate_config["vulnerabilityAlerts"]
 
 
 def test_dependabot_version_updates_are_removed() -> None:

@@ -4,9 +4,9 @@
 """Compatibility checks against the shared audiodoc response examples."""
 
 import json
-from collections.abc import AsyncIterator
+from http import HTTPStatus
 from pathlib import Path
-from typing import Any, Self
+from typing import Any
 
 import aiohttp
 import pytest
@@ -17,6 +17,12 @@ from bot_obormot.services.audio.client import transcribe_audio
 from bot_obormot.services.documents.client import process_document
 from bot_obormot.services.documents.response import validate_document_response
 from bot_obormot.settings import Settings
+from tests.support.audio_documents import (
+    FakeHTTPResponse,
+    FakeHTTPSession,
+    form_fields,
+    json_body,
+)
 from tests.support.fake_audiodoc import FakeAudiodoc, FakeResponseOptions
 from tests.support.settings import make_settings
 
@@ -63,38 +69,6 @@ def _real_client_settings(server: FakeAudiodoc) -> Settings:
     )
 
 
-class FakeContent:
-    """Fake content."""
-
-    def __init__(self, body: bytes) -> None:
-        """Initializes the test double."""
-        self.body = body
-
-    async def iter_chunked(self, size: object) -> AsyncIterator[bytes]:
-        """Iter chunked."""
-        for offset in range(0, len(self.body), size):
-            yield self.body[offset : offset + size]
-
-
-class FakeResponse:
-    """Fake response."""
-
-    status = 200
-    content_length = None
-
-    def __init__(self, payload: object) -> None:
-        """Initializes the test double."""
-        self.content = FakeContent(json.dumps(payload).encode("utf-8"))
-
-    async def __aenter__(self) -> Self:
-        """Enters the async context."""
-        return self
-
-    async def __aexit__(self, *_args: object) -> bool:
-        """Leaves the async context."""
-        return False
-
-
 @pytest.mark.asyncio
 async def test_bot_transcription_client_accepts_shared_audiodoc_example(
     monkeypatch: pytest.MonkeyPatch,
@@ -105,34 +79,18 @@ async def test_bot_transcription_client_accepts_shared_audiodoc_example(
     assert isinstance(payload["text"], str)
     assert isinstance(payload["language"], str)
     assert isinstance(payload["duration"], (int, float))
-    calls = {}
-
-    class Session:
-        def __init__(self, timeout: object, headers: object | None = None) -> None:
-            self.timeout = timeout
-            calls["headers"] = headers
-
-        async def __aenter__(self) -> Self:
-            return self
-
-        async def __aexit__(self, *_args: object) -> bool:
-            return False
-
-        def post(self, url: str, data: object) -> FakeResponse:
-            self.posted_data = data
-            calls["url"] = url
-            return FakeResponse(payload)
+    session = FakeHTTPSession(FakeHTTPResponse(body=json_body(payload)))
 
     settings = make_settings(
         AUDIODOC_URL="http://audiodoc.test",
         AUDIODOC_AUDIO_KEY="whisper-test-key",
     )
-    monkeypatch.setattr(aiohttp, "ClientSession", Session)
+    monkeypatch.setattr(aiohttp, "ClientSession", session)
 
     result = await transcribe_audio(b"audio", "voice.ogg", settings=settings)
     assert result == payload["text"]
-    assert calls["url"].endswith("/transcribe")
-    assert calls["headers"] == {"Authorization": "Bearer whisper-test-key"}
+    assert session.posts[0]["url"].endswith("/transcribe")
+    assert session.options["headers"] == {"Authorization": "Bearer whisper-test-key"}
 
 
 @pytest.mark.asyncio
@@ -143,29 +101,13 @@ async def test_bot_document_client_accepts_shared_audiodoc_example(
     payload = CONTRACT["process_document"]
     assert set(payload) == {"format", "text", "characters", "truncated"}
     assert validate_document_response(payload) is payload
-    calls = {}
-
-    class Session:
-        def __init__(self, timeout: object, headers: object | None = None) -> None:
-            self.timeout = timeout
-            calls["headers"] = headers
-
-        async def __aenter__(self) -> Self:
-            return self
-
-        async def __aexit__(self, *_args: object) -> bool:
-            return False
-
-        def post(self, url: str, data: object) -> FakeResponse:
-            calls["url"] = url
-            calls["data"] = data
-            return FakeResponse(payload)
+    session = FakeHTTPSession(FakeHTTPResponse(body=json_body(payload)))
 
     settings = make_settings(
         AUDIODOC_URL="http://audiodoc.test",
         AUDIODOC_DOCUMENT_KEY="document-test-key",
     )
-    monkeypatch.setattr(aiohttp, "ClientSession", Session)
+    monkeypatch.setattr(aiohttp, "ClientSession", session)
 
     result = await process_document(
         b"Example document text.",
@@ -173,16 +115,55 @@ async def test_bot_document_client_accepts_shared_audiodoc_example(
         settings=settings,
     )
     assert result == payload
-    assert calls["url"].endswith("/process-document")
-    assert calls["headers"] == {"Authorization": "Bearer document-test-key"}
-    fields = {field[0].get("name"): field[2] for field in calls["data"]._fields}
-    assert fields["max_characters"] == "11264"
+    assert session.posts[0]["url"].endswith("/process-document")
+    assert session.options["headers"] == {"Authorization": "Bearer document-test-key"}
+    fields = form_fields(session.posts[0]["data"])
+    expected_max_characters = "11264"
+    assert fields["max_characters"][1] == expected_max_characters
 
 
 def test_shared_audiodoc_response_examples_match_openapi() -> None:
     """Validate the shared successful response examples against OpenAPI."""
     _validate_response("/transcribe", 200, CONTRACT["transcribe"])
     _validate_response("/process-document", 200, CONTRACT["process_document"])
+
+
+def _check_request(request: object, path: str, api_key: str) -> None:
+    operation = _operation(path)
+    expected_method = "POST"
+    assert request.method == expected_method
+    assert request.path == path
+    expected_content_type = "multipart/form-data"
+    assert request.content_type == expected_content_type
+
+    expected_in = "header"
+    expected_lower = "authorization"
+    authorization = [
+        parameter
+        for parameter in operation.get("parameters", [])
+        if parameter["in"] == expected_in
+        and parameter["name"].lower() == expected_lower
+    ]
+    assert len(authorization) == 1
+    assert request.authorization == f"Bearer {api_key}"
+    OPENAPI_VALIDATOR.evolve(schema=authorization[0]["schema"]).validate(
+        request.authorization
+    )
+
+    request_schema = operation["requestBody"]["content"]["multipart/form-data"][
+        "schema"
+    ]
+    resolved_request_schema = _resolve_schema(request_schema)
+    properties = set(resolved_request_schema["properties"])
+    request_fields = set(request.fields)
+    assert request_fields <= properties
+    assert set(resolved_request_schema.get("required", [])) <= request_fields
+
+    payload: dict[str, object] = dict(request.fields)
+    expected_fragment = "max_characters"
+    if expected_fragment in payload:
+        payload["max_characters"] = int(payload["max_characters"])
+    OPENAPI_VALIDATOR.evolve(schema=request_schema).validate(payload)
 
 
 @pytest.mark.asyncio
@@ -206,36 +187,7 @@ async def test_real_bot_requests_match_audiodoc_openapi() -> None:
         )
         assert len(server.requests) == len(expected)
         for request, (path, api_key) in zip(server.requests, expected, strict=True):
-            operation = _operation(path)
-            assert request.method == "POST"
-            assert request.path == path
-            assert request.content_type == "multipart/form-data"
-
-            authorization = [
-                parameter
-                for parameter in operation.get("parameters", [])
-                if parameter["in"] == "header"
-                and parameter["name"].lower() == "authorization"
-            ]
-            assert len(authorization) == 1
-            assert request.authorization == f"Bearer {api_key}"
-            OPENAPI_VALIDATOR.evolve(schema=authorization[0]["schema"]).validate(
-                request.authorization
-            )
-
-            request_schema = operation["requestBody"]["content"]["multipart/form-data"][
-                "schema"
-            ]
-            resolved_request_schema = _resolve_schema(request_schema)
-            properties = set(resolved_request_schema["properties"])
-            request_fields = set(request.fields)
-            assert request_fields <= properties
-            assert set(resolved_request_schema.get("required", [])) <= request_fields
-
-            payload: dict[str, object] = dict(request.fields)
-            if "max_characters" in payload:
-                payload["max_characters"] = int(payload["max_characters"])
-            OPENAPI_VALIDATOR.evolve(schema=request_schema).validate(payload)
+            _check_request(request, path, api_key)
 
 
 @pytest.mark.parametrize(
@@ -244,7 +196,7 @@ async def test_real_bot_requests_match_audiodoc_openapi() -> None:
         (path, int(status))
         for path, operations in OPENAPI["paths"].items()
         for status in operations.get("post", {}).get("responses", {})
-        if int(status) >= 400
+        if int(status) >= HTTPStatus.BAD_REQUEST
     ],
 )
 @pytest.mark.asyncio
@@ -253,12 +205,14 @@ async def test_bot_handles_every_documented_audiodoc_error_status(
     status: int,
 ) -> None:
     """Parse every documented error response through the real HTTP clients."""
-    endpoint = "transcribe" if path == "/transcribe" else "process-document"
+    expected_path = "/transcribe"
+    endpoint = "transcribe" if path == expected_path else "process-document"
     async with FakeAudiodoc() as server:
         settings = _real_client_settings(server)
         server.set_behavior(endpoint, FakeResponseOptions(status=status))
 
-        if endpoint == "transcribe":
+        expected_endpoint = "transcribe"
+        if endpoint == expected_endpoint:
             with pytest.raises(AudiodocAPIError, match=f"audiodoc HTTP {status}"):
                 await transcribe_audio(b"audio", "voice.ogg", settings=settings)
         else:

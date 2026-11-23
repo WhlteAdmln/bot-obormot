@@ -32,13 +32,16 @@ def _environ(tmp_path: Path, **overrides: str) -> dict[str, str]:
 
 def test_python_version_success_and_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     """Supported Python passes; an old interpreter fails."""
-    assert doctor.check_python_version().status == "OK"
+    expected_status = "OK"
+    assert doctor.check_python_version().status == expected_status
 
     monkeypatch.setattr(sys, "version_info", (3, 10, 0, "final", 0))
     result = doctor.check_python_version()
 
-    assert result.status == "FAIL"
-    assert "3.11" in result.message
+    expected_status = "FAIL"
+    assert result.status == expected_status
+    expected_fragment = "3.11"
+    assert expected_fragment in result.message
 
 
 def test_env_file_ok_with_private_permissions(tmp_path: Path) -> None:
@@ -47,44 +50,55 @@ def test_env_file_ok_with_private_permissions(tmp_path: Path) -> None:
     env_path.write_text("A=1\n", encoding="utf-8")
     env_path.chmod(0o600)
 
-    assert doctor.check_env_file(_environ(tmp_path)).status == "OK"
+    expected_status = "OK"
+    assert doctor.check_env_file(_environ(tmp_path)).status == expected_status
 
 
 def test_env_file_warns_when_open_or_missing(tmp_path: Path) -> None:
     """Open permissions and a missing file are warnings, not failures."""
     missing = doctor.check_env_file(_environ(tmp_path))
-    assert missing.status == "WARN"
-    assert "process environment" in missing.message
+    expected_status = "WARN"
+    assert missing.status == expected_status
+    expected_fragment = "process environment"
+    assert expected_fragment in missing.message
 
     env_path = tmp_path / ".env"
     env_path.write_text("A=1\n", encoding="utf-8")
     env_path.chmod(0o644)
     opened = doctor.check_env_file(_environ(tmp_path))
-    assert opened.status == "WARN"
-    assert "chmod 600" in opened.message
+    expected_status = "WARN"
+    assert opened.status == expected_status
+    expected_fragment = "chmod 600"
+    assert expected_fragment in opened.message
 
 
 def test_env_file_fails_for_a_directory(tmp_path: Path) -> None:
     """A directory in place of the file is a failure."""
     (tmp_path / ".env").mkdir()
 
-    assert doctor.check_env_file(_environ(tmp_path)).status == "FAIL"
+    expected_status = "FAIL"
+    assert doctor.check_env_file(_environ(tmp_path)).status == expected_status
 
 
 def test_settings_success_and_failure_without_secrets(tmp_path: Path) -> None:
     """Invalid settings are listed by name and values are not echoed."""
     ok_check, settings = doctor.check_settings(_environ(tmp_path))
-    assert ok_check.status == "OK"
+    expected_status = "OK"
+    assert ok_check.status == expected_status
     assert settings is not None
 
     bad_check, bad_settings = doctor.check_settings(
         _environ(tmp_path, SUPERVISOR_ID="secret-value", LLM_TIMEOUT="0")
     )
-    assert bad_check.status == "FAIL"
+    expected_status = "FAIL"
+    assert bad_check.status == expected_status
     assert bad_settings is None
-    assert "SUPERVISOR_ID" in bad_check.message
-    assert "LLM_TIMEOUT" in bad_check.message
-    assert "secret-value" not in bad_check.message
+    expected_fragment = "SUPERVISOR_ID"
+    assert expected_fragment in bad_check.message
+    expected_fragment = "LLM_TIMEOUT"
+    assert expected_fragment in bad_check.message
+    expected_fragment = "secret-value"
+    assert expected_fragment not in bad_check.message
 
 
 @pytest.mark.parametrize(
@@ -108,26 +122,36 @@ def test_bot_token_format(token: str, status: str) -> None:
 def test_ffmpeg_success_and_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     """Missing ffmpeg tools produce a warning that names them."""
     monkeypatch.setattr(doctor.shutil, "which", lambda name: f"/usr/bin/{name}")
-    assert doctor.check_ffmpeg().status == "OK"
+    expected_status = "OK"
+    assert doctor.check_ffmpeg().status == expected_status
 
-    monkeypatch.setattr(
-        doctor.shutil, "which", lambda name: None if name == "ffprobe" else "/bin/x"
-    )
+    missing = "ffprobe"
+
+    def which(name: str) -> str | None:
+        return None if name == missing else "/bin/x"
+
+    monkeypatch.setattr(doctor.shutil, "which", which)
     result = doctor.check_ffmpeg()
-    assert result.status == "WARN"
-    assert "ffprobe" in result.message
-    assert "ffmpeg," not in result.message
+    expected_status = "WARN"
+    assert result.status == expected_status
+    expected_fragment = "ffprobe"
+    assert expected_fragment in result.message
+    expected_fragment = "ffmpeg,"
+    assert expected_fragment not in result.message
 
 
 def test_tgs_support_success_and_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     """The optional extra is reported as a warning when it is absent."""
     monkeypatch.setattr(doctor, "tgs_support_available", lambda: True)
-    assert doctor.check_tgs_support().status == "OK"
+    expected_status = "OK"
+    assert doctor.check_tgs_support().status == expected_status
 
     monkeypatch.setattr(doctor, "tgs_support_available", lambda: False)
     result = doctor.check_tgs_support()
-    assert result.status == "WARN"
-    assert "bot-obormot[tgs]" in result.message
+    expected_status = "WARN"
+    assert result.status == expected_status
+    expected_fragment = "bot-obormot[tgs]"
+    assert expected_fragment in result.message
 
 
 def test_database_path_success_and_failure(
@@ -135,17 +159,21 @@ def test_database_path_success_and_failure(
 ) -> None:
     """A creatable path passes; an unwritable ancestor fails."""
     good = Settings(DATABASE_PATH=str(tmp_path / "new" / "data" / "bot.db"))
-    assert doctor.check_database_path(good).status == "OK"
+    expected_status = "OK"
+    assert doctor.check_database_path(good).status == expected_status
 
     existing = tmp_path / "bot.db"
     existing.write_text("", encoding="utf-8")
     existing_settings = Settings(DATABASE_PATH=str(existing))
-    assert doctor.check_database_path(existing_settings).status == "OK"
+    expected_status = "OK"
+    assert doctor.check_database_path(existing_settings).status == expected_status
 
     monkeypatch.setattr(doctor.os, "access", lambda _path, _mode: False)
     result = doctor.check_database_path(good)
-    assert result.status == "FAIL"
-    assert "DATABASE_PATH" in result.message
+    expected_status = "FAIL"
+    assert result.status == expected_status
+    expected_fragment = "DATABASE_PATH"
+    assert expected_fragment in result.message
 
 
 def test_llm_server_success_failure_and_offline(
@@ -162,11 +190,13 @@ def test_llm_server_success_failure_and_offline(
     monkeypatch.setattr(doctor, "fetch_status", fake_status)
     settings = Settings(LLM_BASE_URL="http://llm.test:8080/v1", LLM_API_KEY="k")
 
-    assert doctor.check_llm_server(settings, offline=False).status == "OK"
+    expected_status = "OK"
+    assert doctor.check_llm_server(settings, offline=False).status == expected_status
     assert calls == [("http://llm.test:8080/v1/models", {"Authorization": "Bearer k"})]
 
     monkeypatch.setattr(doctor, "fetch_status", lambda *_args: 503)
-    assert doctor.check_llm_server(settings, offline=False).status == "FAIL"
+    expected_status = "FAIL"
+    assert doctor.check_llm_server(settings, offline=False).status == expected_status
 
     def unreachable(*_args: object) -> int:
         message = "connection refused"
@@ -174,13 +204,17 @@ def test_llm_server_success_failure_and_offline(
 
     monkeypatch.setattr(doctor, "fetch_status", unreachable)
     failed = doctor.check_llm_server(settings, offline=False)
-    assert failed.status == "FAIL"
-    assert "Bearer" not in failed.message
+    expected_status = "FAIL"
+    assert failed.status == expected_status
+    expected_fragment = "Bearer"
+    assert expected_fragment not in failed.message
 
     monkeypatch.setattr(doctor, "fetch_status", lambda *_args: pytest.fail("network"))
     skipped = doctor.check_llm_server(settings, offline=True)
-    assert skipped.status == "OK"
-    assert "offline" in skipped.message
+    expected_status = "OK"
+    assert skipped.status == expected_status
+    expected_fragment = "offline"
+    assert expected_fragment in skipped.message
 
 
 def test_audiodoc_success_failure_unconfigured_and_offline(
@@ -198,15 +232,20 @@ def test_audiodoc_success_failure_unconfigured_and_offline(
     configured = Settings(AUDIODOC_URL="http://user:pw@audio.test:8000")
 
     result = doctor.check_audiodoc(configured, offline=False)
-    assert result.status == "OK"
+    expected_status = "OK"
+    assert result.status == expected_status
     assert seen == ["http://user:pw@audio.test:8000/health"]
-    assert "pw" not in result.message
+    expected_fragment = "pw"
+    assert expected_fragment not in result.message
 
     monkeypatch.setattr(doctor, "fetch_status", lambda *_args: 500)
-    assert doctor.check_audiodoc(configured, offline=False).status == "WARN"
+    expected_status = "WARN"
+    assert doctor.check_audiodoc(configured, offline=False).status == expected_status
 
-    assert doctor.check_audiodoc(Settings(), offline=False).status == "OK"
-    assert doctor.check_audiodoc(configured, offline=True).status == "OK"
+    expected_status = "OK"
+    assert doctor.check_audiodoc(Settings(), offline=False).status == expected_status
+    expected_status = "OK"
+    assert doctor.check_audiodoc(configured, offline=True).status == expected_status
 
 
 def test_fetch_status_rejects_other_schemes_and_maps_errors(
@@ -221,7 +260,8 @@ def test_fetch_status_rejects_other_schemes_and_maps_errors(
         raise urllib.error.HTTPError(url, 401, "no", Message(), io.BytesIO())
 
     monkeypatch.setattr(doctor.urllib.request, "urlopen", raise_http)
-    assert doctor.fetch_status("http://x", {}, 1.0) == 401
+    expected_fetch_status = 401
+    assert doctor.fetch_status("http://x", {}, 1.0) == expected_fetch_status
 
     def raise_url(*_args: object, **_kwargs: object) -> object:
         reason = "refused"
@@ -251,7 +291,8 @@ def test_collect_runs_every_check_and_skips_network_offline(
         "LLM server",
         "audiodoc",
     ]
-    assert not [check for check in checks if check.status == "FAIL"]
+    expected_status = "FAIL"
+    assert not [check for check in checks if check.status == expected_status]
 
 
 def test_collect_skips_dependent_checks_for_invalid_settings(tmp_path: Path) -> None:
@@ -261,7 +302,10 @@ def test_collect_skips_dependent_checks_for_invalid_settings(tmp_path: Path) -> 
     )
     by_name: dict[str, doctor.DiagnosticCheck] = {check.name: check for check in checks}
 
-    assert by_name["Settings"].status == "FAIL"
+    expected_status = "FAIL"
+    assert by_name["Settings"].status == expected_status
     for name in ("Database", "LLM server", "audiodoc"):
-        assert by_name[name].status == "WARN"
-        assert "invalid" in by_name[name].message
+        expected_status = "WARN"
+        assert by_name[name].status == expected_status
+        expected_fragment = "invalid"
+        assert expected_fragment in by_name[name].message

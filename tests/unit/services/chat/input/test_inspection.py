@@ -59,8 +59,10 @@ def test_inspect_message_routes_image_documents_to_media() -> None:
         audio_info_getter=no_audio,
     )
 
-    assert info.file_id == "document-image-id"
-    assert info.media_type == "image"
+    expected_file_id = "document-image-id"
+    assert info.file_id == expected_file_id
+    expected_media_type = "image"
+    assert info.media_type == expected_media_type
     assert info.has_media is True
     assert info.has_document is False
 

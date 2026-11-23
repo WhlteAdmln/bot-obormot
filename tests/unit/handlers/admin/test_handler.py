@@ -159,7 +159,8 @@ async def test_ban_rejects_supervisor_and_admin_targets() -> None:
         await admin_handler.cmd_ban(
             message, SimpleNamespace(args=str(target_id)), SETTINGS, database
         )
-        assert "заблокировать нельзя" in message.answers[0]
+        expected_fragment = "заблокировать нельзя"
+        assert expected_fragment in message.answers[0]
 
 
 @pytest.mark.asyncio

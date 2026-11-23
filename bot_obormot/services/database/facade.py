@@ -383,9 +383,4 @@ class Database:  # pylint: disable=too-many-public-methods  # facade over use ca
         return await blocked_users_repository.unblock_user(self._conn, user_id)
 
 
-__all__ = [
-    "MAX_HISTORY_MEDIA_MESSAGES",
-    "Database",
-    "handle_database_errors",
-    "read_image_as_base64",
-]
+__all__ = ["MAX_HISTORY_MEDIA_MESSAGES", "Database"]

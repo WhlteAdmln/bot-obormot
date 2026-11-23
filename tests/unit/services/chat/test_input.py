@@ -20,8 +20,10 @@ def test_new_chat_input_package_reexports_the_public_api() -> None:
     """New chat input package reexports the public api."""
     assert chat_input.MessageInfo is MessageInfo
     assert chat_input.PreparedMessage is PreparedMessage
-    assert chat_input.inspect_message.__name__ == "inspect_message"
-    assert chat_input.prepare_message.__name__ == "prepare_message"
+    expected_name = "inspect_message"
+    assert chat_input.inspect_message.__name__ == expected_name
+    expected_name = "prepare_message"
+    assert chat_input.prepare_message.__name__ == expected_name
 
 
 def test_public_api_keeps_original_function_signatures() -> None:

@@ -21,7 +21,8 @@ def test_markdown_splitter_reopens_fenced_code_in_every_part() -> None:
     code_parts = [chunk for chunk in chunks if chunk.startswith("```py")]
     assert len(code_parts) > 1
     assert all(chunk.endswith("```") for chunk in code_parts)
-    assert all(utf16_length(chunk) <= 80 for chunk in chunks)
+    expected_utf16_length = 80
+    assert all(utf16_length(chunk) <= expected_utf16_length for chunk in chunks)
 
 
 def test_markdown_splitter_preserves_block_separators() -> None:
@@ -49,4 +50,5 @@ def test_plain_splitter_does_not_treat_fences_as_code() -> None:
     chunks = split_plain_message(text, 20)
 
     assert chunks
-    assert all(utf16_length(chunk) <= 20 for chunk in chunks)
+    expected_utf16_length = 20
+    assert all(utf16_length(chunk) <= expected_utf16_length for chunk in chunks)

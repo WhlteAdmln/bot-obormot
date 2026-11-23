@@ -3,10 +3,6 @@
 
 """Tests for media pipeline."""
 
-import asyncio
-import threading
-import time
-
 import pytest
 
 from bot_obormot.errors import MediaError
@@ -85,36 +81,6 @@ async def test_process_media_wraps_unexpected_pipeline_errors(
 
 
 @pytest.mark.asyncio
-async def test_run_limited_caps_concurrent_image_jobs(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Run limited caps concurrent image jobs."""
-    monkeypatch.setattr(media_pipeline, "_image_jobs", asyncio.Semaphore(2))
-    guard = threading.Lock()
-    active = 0
-    maximum = 0
-
-    def work(value: object) -> object:
-        nonlocal active, maximum
-        with guard:
-            active += 1
-            maximum = max(maximum, active)
-        try:
-            time.sleep(0.03)
-            return value
-        finally:
-            with guard:
-                active -= 1
-
-    results = await asyncio.gather(
-        *(media_pipeline._run_limited(work, value) for value in range(7))
-    )
-
-    assert results == list(range(7))
-    assert maximum == 2
-
-
-@pytest.mark.asyncio
 async def test_process_media_rejects_declared_type_mismatch_before_decoder() -> None:
     """Process media rejects declared type mismatch before decoder."""
     calls = []
@@ -138,4 +104,4 @@ async def test_process_media_rejects_declared_type_mismatch_before_decoder() -> 
             ),
         )
 
-    assert calls == []
+    assert not calls

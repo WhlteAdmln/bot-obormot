@@ -79,7 +79,7 @@ def test_load_env_file_uses_home_and_working_directory_only(
     monkeypatch.setattr(
         env_module,
         "load_dotenv",
-        lambda path, override=False: loaded_paths.append(Path(path)),
+        lambda path, **_kwargs: loaded_paths.append(Path(path)),
     )
 
     config_module.load_env_file()

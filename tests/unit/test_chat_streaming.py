@@ -65,7 +65,7 @@ def _responder(
     async def default_edit(
         _message: object,
         _text: str,
-        parse_mode: str | None = None,
+        **_kwargs: object,
     ) -> None:
         return None
 
@@ -164,7 +164,7 @@ async def test_responder_updates_status_after_interval_only_when_chunk_changes()
     async def safe_edit(
         status: object,
         text: str,
-        parse_mode: str | None = None,
+        **_kwargs: object,
     ) -> None:
         edits.append((status, text))
 
@@ -239,7 +239,7 @@ async def test_responder_disables_streaming_after_edit_failure(
     async def broken_edit(
         _status: object,
         _text: str,
-        parse_mode: str | None = None,
+        **_kwargs: object,
     ) -> None:
         msg = "edit failed"
         raise RuntimeError(msg)
@@ -264,7 +264,7 @@ async def test_responder_cancel_uses_shielded_safe_edit() -> None:
     async def safe_edit(
         status: object,
         text: str,
-        parse_mode: str | None = None,
+        **_kwargs: object,
     ) -> None:
         edits.append((status, text))
         await asyncio.sleep(0)
@@ -312,7 +312,7 @@ async def test_delivery_edits_first_chunk_and_sends_remaining_chunks() -> None:
     async def safe_edit(
         status: object,
         text: str,
-        parse_mode: str | None = None,
+        **_kwargs: object,
     ) -> None:
         edits.append((status, text))
 
@@ -346,7 +346,7 @@ async def test_delivery_falls_back_to_all_chunks_when_status_edit_fails(
     async def broken_edit(
         _status: object,
         _text: str,
-        parse_mode: str | None = None,
+        **_kwargs: object,
     ) -> None:
         msg = "edit failed"
         raise RuntimeError(msg)

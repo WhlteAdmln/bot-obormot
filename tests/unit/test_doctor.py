@@ -186,7 +186,7 @@ def test_llm_server_success_failure_and_offline(
 def test_audiodoc_success_failure_unconfigured_and_offline(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """audiodoc is optional: unreachable is a warning, unset is fine."""
+    """Audiodoc is optional: unreachable is a warning, unset is fine."""
     seen: list[str] = []
 
     def fake_status(url: str, headers: Mapping[str, str], timeout: float) -> int:

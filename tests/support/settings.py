@@ -4,7 +4,7 @@
 """Factories for isolated application settings in tests."""
 
 from dataclasses import replace
-from typing import Any, cast  # pylint: disable=unused-import  # string cast
+from typing import Any
 
 from bot_obormot.settings import Settings
 
@@ -20,4 +20,5 @@ def make_settings(**overrides: object) -> Settings:
         LLM_API_KEY="test-key",
         LLM_MODEL="test-model",
     )
-    return replace(defaults, **cast("Any", overrides))
+    changes: dict[str, Any] = dict(overrides)
+    return replace(defaults, **changes)

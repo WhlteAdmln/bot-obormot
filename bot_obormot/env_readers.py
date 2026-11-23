@@ -59,7 +59,7 @@ def load_env_file(env_file: str | Path | None = None) -> None:
 
 
 def get_bool(
-    name: str, default: bool = False, *, environ: Mapping[str, str] | None = None
+    name: str, *, default: bool = False, environ: Mapping[str, str] | None = None
 ) -> bool:
     """Read a boolean environment variable using common spellings."""
     source = os.environ if environ is None else environ

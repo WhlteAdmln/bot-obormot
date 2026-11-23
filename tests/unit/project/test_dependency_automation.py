@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-ROOT_DIR = Path(__file__).resolve().parents[2]
+ROOT_DIR = Path(__file__).resolve().parents[3]
 
 
 @pytest.fixture(name="renovate_config")

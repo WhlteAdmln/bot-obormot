@@ -375,7 +375,7 @@ async def test_handler_preserves_final_answer_after_stream_edit_failure(
     async def broken_edit(
         _status: object,
         _text: str,
-        parse_mode: str | None = None,
+        **_kwargs: object,
     ) -> None:
         msg = "telegram edit failed"
         raise RuntimeError(msg)

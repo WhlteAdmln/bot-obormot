@@ -9,6 +9,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - `make lock` generates `requirements-lock.txt` with `uv pip compile`; releases younger than 14 days are skipped unless `LOCK_MIN_RELEASE_AGE_DAYS=0` is passed.
 - Guidance on the assignment expression `:=` in `CONTRIBUTING.md`.
+- `scripts/check_test_layout.py`, shared with the other repository and run by `make lint`, requires every unit test file to mirror a production unit (`tests/unit/<dirs>/test_<name>.py`) or to live in `tests/unit/project/` or `tests/unit/scripts/`. `tests/layout_pending.txt` lists the multi-unit files that are still to be split; the list only shrinks.
 
 ### Changed
 
@@ -20,6 +21,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `scripts/coverage_gaps.py` is shared with audiodoc and checked by `scripts/check_vendored.py`; it reads `coverage.xml` with `defusedxml`, which is a new dev dependency.
 - Renovate refreshes the lock on the first day of each month (`renovate/pip-compile-refresh`); a human merges it. The generic lock maintenance job is off because it duplicated that branch.
 - `build_parser` in the CLI module is public so that `scripts/check_docs.py` does not import a private name.
+- Unit tests that target one production unit moved to the mirrored path; tests of the project itself moved to `tests/unit/project/` and `tests/unit/scripts/`.
+- Test functions and test modules need no docstring: pylint `no-docstring-rgx` exempts them and `D1` stays ignored for `tests/*`. This is technical debt that a later release removes. `AGENTS.md` records the rule.
+- `scripts/vulture_whitelist.py` is removed. vulture runs without a whitelist; `ignore_names` lists two Protocol parameter names.
+- The ruff ignores `FBT`, `TD002`, `TD003` and `FIX002` and the `ANN` and `ARG` ignores for tests are gone. Boolean parameters of `get_bool` and a few helpers are keyword-only, and the tests are annotated.
 
 ## [0.3.0] - 2026-11-21
 

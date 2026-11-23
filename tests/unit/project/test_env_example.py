@@ -6,7 +6,7 @@
 import ast
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 SETTINGS_PATH = PROJECT_ROOT / "bot_obormot" / "config" / "model.py"
 ENV_EXAMPLE_PATH = PROJECT_ROOT / ".env.example"
 

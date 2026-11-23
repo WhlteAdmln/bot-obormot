@@ -187,6 +187,7 @@ def _display_url(url: str) -> str:
 
 def _open_status(request: urllib.request.Request, timeout: float) -> int:
     """Open the request and return its HTTP status."""
+    # fetch_status accepts only http and https URLs.
     with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
         return int(response.status)
 

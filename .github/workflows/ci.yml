@@ -92,7 +92,7 @@ jobs:
         run: |
           python -m pip install -r requirements.txt \
             pytest pytest-asyncio pytest-cov \
-            pytest-randomly pytest-timeout packaging \
+            pytest-randomly pytest-timeout packaging defusedxml \
             hypothesis jsonschema build setuptools==84.2.1 wheel==0.48.0
       - name: Check installed dependencies
         run: python -m pip check

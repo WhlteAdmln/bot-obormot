@@ -32,6 +32,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The audiodoc transcription and document clients share `bot_obormot/services/audiodoc_http.py` (endpoint URL, settings check, multipart form, bearer header, size-limited POST); media decoding and image preparation share `bot_obormot/services/media/limited.py`. Behavior and error messages are unchanged.
 - `bot_obormot.services.database` re-exports `handle_database_errors` and `read_image_as_base64` from their defining modules instead of through the facade.
 
+### Fixed
+
+- The CI job that tests with the latest allowed dependencies installs `defusedxml`, which `scripts/coverage_gaps.py` imports; the job failed while collecting `tests/unit/scripts/test_coverage_gaps.py`.
+
 ### Removed
 
 - The private `LLMClient` static methods `_normalize_content`, `_prepare_messages_for_count` and `_count_images`; only tests used them, and the public `normalize_messages`, `prepare_messages_for_count` and `count_images` remain.

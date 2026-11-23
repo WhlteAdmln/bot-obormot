@@ -35,7 +35,7 @@ One task is one session. Do not start a second task in the same session.
 
 ## Git and CI
 
-Git and CI belong to the user. Do not run any command that writes to the repository or to a remote: no `git add`, `commit`, `push`, `branch`, `checkout`, `switch`, `restore`, `stash`, `reset`, `rebase`, `merge`, `tag`, and no `gh` command that creates or changes anything. Read-only commands (`git status`, `diff`, `log`, `show`) are fine. The user commits, pushes and watches CI in the web interface. Suggest a branch name, commit message or pull request text only when asked; the pull request text is English and follows `.github/pull_request_template.md`.
+Git and CI belong to the user. Without a request in the current session, do not run any command that writes to the repository or to a remote. When the user asks in the session, create a branch from the current state, `git add`, `git commit`, `git push -u origin <branch>` and open a pull request with `gh pr create`; show the pull request text to the user and wait for approval before creating it. Never force-push, merge, rebase, reset, tag, delete a branch, push to `main` or change a pull request the user did not ask about. Read-only commands (`git status`, `diff`, `log`, `show`) are fine. The user watches CI and merges in the web interface. Commit and pull request text is English; the pull request text follows `.github/pull_request_template.md` and carries no generated-by attribution line: never add `🤖 Generated with [Claude Code](https://claude.com/claude-code)` or a similar line.
 
 ## Standards
 

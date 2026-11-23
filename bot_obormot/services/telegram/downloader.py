@@ -24,6 +24,8 @@ from bot_obormot.services.telegram.texts import (
     TELEGRAM_FILE_TOO_LARGE,
 )
 
+_FILE_TOO_BIG_DESCRIPTION = "file is too big"
+
 # Prevent too many large files from accumulating in memory at once.
 _download_slots = asyncio.Semaphore(MAX_CONCURRENT_DOWNLOADS)
 
@@ -47,35 +49,36 @@ class _LimitedBytesIO(io.BytesIO):
         return super().write(view)
 
 
+async def _fetch_file(bot: "Bot", file_id: str) -> bytes:
+    """Check the declared size, then download the file into a limited buffer."""
+    telegram_file = await bot.get_file(file_id)
+    file_size = telegram_file.file_size
+
+    if not isinstance(file_size, int) or isinstance(file_size, bool) or file_size <= 0:
+        msg = TELEGRAM_FILE_SIZE_UNKNOWN
+        raise MediaError(msg)
+
+    if file_size > MAX_MEDIA_SIZE:
+        msg = TELEGRAM_FILE_TOO_LARGE
+        raise MediaError(msg)
+
+    async with _download_slots:
+        buffer = _LimitedBytesIO(MAX_MEDIA_SIZE)
+        await bot.download_file(
+            cast("str", telegram_file.file_path),
+            destination=buffer,
+        )
+        return buffer.getvalue()
+
+
 async def download_telegram_file(message: Message, file_id: str) -> bytes:
     """Download a file from Telegram with a 20 MB size limit."""
+    bot = cast("Bot", message.bot)
     try:
-        bot = cast("Bot", message.bot)
-        telegram_file = await bot.get_file(file_id)
-        file_size = telegram_file.file_size
-
-        if (
-            not isinstance(file_size, int)
-            or isinstance(file_size, bool)
-            or file_size <= 0
-        ):
-            msg = TELEGRAM_FILE_SIZE_UNKNOWN
-            raise MediaError(msg)
-
-        if file_size > MAX_MEDIA_SIZE:
-            msg = TELEGRAM_FILE_TOO_LARGE
-            raise MediaError(msg)
-
-        async with _download_slots:
-            buffer = _LimitedBytesIO(MAX_MEDIA_SIZE)
-            await bot.download_file(
-                cast("str", telegram_file.file_path),
-                destination=buffer,
-            )
-            data = buffer.getvalue()
+        data = await _fetch_file(bot, file_id)
 
     except TelegramBadRequest as error:
-        if "file is too big" in str(error).lower():
+        if _FILE_TOO_BIG_DESCRIPTION in str(error).lower():
             msg = "Telegram cannot download this file because it is too large"
             raise TelegramFileTooBigError(msg) from error
 

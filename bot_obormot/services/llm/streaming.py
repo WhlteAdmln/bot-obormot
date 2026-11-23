@@ -5,7 +5,8 @@
 
 import json
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from http import HTTPStatus
 from typing import Any, Protocol
@@ -19,7 +20,10 @@ from bot_obormot.errors import (
     LLMTimeoutError,
     LLMUnavailableError,
 )
+from bot_obormot.services.llm.constants import FINISH_REASON_LENGTH
 from bot_obormot.settings import Settings
+
+_STREAM_DONE = "[DONE]"
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +82,7 @@ class _StreamState:
 
     def check_finished(self) -> None:
         """Report a response that was cut by the max_tokens limit."""
-        if self.finish_reason != "length":
+        if self.finish_reason != FINISH_REASON_LENGTH:
             return
 
         logger.warning(
@@ -92,6 +96,78 @@ class _StreamState:
             raise LLMEmptyResponseError(self.finish_reason)
 
 
+@contextmanager
+def _translated_transport_errors() -> Iterator[None]:
+    """Translate transport failures into the application's LLM errors."""
+    try:
+        yield
+    except TimeoutError as error:
+        msg = "LLM generation timed out"
+        raise LLMTimeoutError(msg) from error
+    except aiohttp.ClientError as error:
+        msg = "Could not connect to LLM server"
+        raise LLMUnavailableError(msg) from error
+
+
+def _completion_payload(
+    settings: Settings,
+    messages: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Build the chat/completions request body for a streamed generation."""
+    return {
+        "model": settings.LLM_MODEL,
+        "messages": messages,
+        "temperature": settings.LLM_TEMPERATURE,
+        "top_p": settings.LLM_TOP_P,
+        "max_tokens": settings.LLM_MAX_TOKENS,
+        "stream": True,
+    }
+
+
+async def _stream_contents(
+    client: StreamingClient,
+    url: str,
+    payload: dict[str, Any],
+) -> AsyncIterator[str]:
+    """Post the request and yield the answer text of each server-sent chunk."""
+    state = _StreamState()
+    session = await client.get_session()
+
+    async with session.post(url, json=payload) as response:
+        if response.status != HTTPStatus.OK:
+            detail = await response.text()
+            logger.error(
+                "chat/completions failed: HTTP %s: %s",
+                response.status,
+                log_safe(detail, 300),
+            )
+            raise LLMAPIError(response.status, detail)
+
+        async for raw_line in response.content:
+            line = raw_line.decode("utf-8").strip()
+
+            if not line or not line.startswith("data:"):
+                continue
+
+            data = line[5:].strip()
+
+            if data == _STREAM_DONE:
+                break
+
+            try:
+                chunk = json.loads(data)
+            except json.JSONDecodeError:
+                logger.warning("Invalid LLM stream chunk: %s", data)
+                continue
+
+            content = state.read(chunk)
+
+            if content:
+                yield content
+
+        state.check_finished()
+
+
 async def stream_unlimited(
     client: StreamingClient,
     messages: list[dict[str, Any]],
@@ -99,60 +175,8 @@ async def stream_unlimited(
     """Yield response chunks without semaphore management."""
     settings = client.settings
     url = f"{settings.LLM_BASE_URL.rstrip('/')}/chat/completions"
-    normalized_messages = client.normalize_messages(messages)
+    payload = _completion_payload(settings, client.normalize_messages(messages))
 
-    payload = {
-        "model": settings.LLM_MODEL,
-        "messages": normalized_messages,
-        "temperature": settings.LLM_TEMPERATURE,
-        "top_p": settings.LLM_TOP_P,
-        "max_tokens": settings.LLM_MAX_TOKENS,
-        "stream": True,
-    }
-
-    state = _StreamState()
-
-    try:
-        session = await client.get_session()
-
-        async with session.post(url, json=payload) as response:
-            if response.status != HTTPStatus.OK:
-                detail = await response.text()
-                logger.error(
-                    "chat/completions failed: HTTP %s: %s",
-                    response.status,
-                    log_safe(detail, 300),
-                )
-                raise LLMAPIError(response.status, detail)
-
-            async for raw_line in response.content:
-                line = raw_line.decode("utf-8").strip()
-
-                if not line or not line.startswith("data:"):
-                    continue
-
-                data = line[5:].strip()
-
-                if data == "[DONE]":
-                    break
-
-                try:
-                    chunk = json.loads(data)
-                except json.JSONDecodeError:
-                    logger.warning("Invalid LLM stream chunk: %s", data)
-                    continue
-
-                content = state.read(chunk)
-
-                if content:
-                    yield content
-
-            state.check_finished()
-
-    except TimeoutError as error:
-        msg = "LLM generation timed out"
-        raise LLMTimeoutError(msg) from error
-
-    except aiohttp.ClientError as error:
-        msg = "Could not connect to LLM server"
-        raise LLMUnavailableError(msg) from error
+    with _translated_transport_errors():
+        async for content in _stream_contents(client, url, payload):
+            yield content

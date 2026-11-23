@@ -41,6 +41,47 @@ DOCUMENT_TEXT_OVERHEAD_RESERVE = 1024
 MAX_DOCUMENT_TEXT_LENGTH = MAX_INPUT_TEXT_LENGTH - DOCUMENT_TEXT_OVERHEAD_RESERVE
 
 
+async def _post_document(
+    url: str,
+    form: aiohttp.FormData,
+    client_timeout: aiohttp.ClientTimeout,
+    headers: dict[str, str],
+) -> object:
+    """Post the document form and return the decoded JSON response."""
+    async with (
+        aiohttp.ClientSession(
+            timeout=client_timeout,
+            headers=headers,
+        ) as session,
+        session.post(url, data=form) as response,
+    ):
+        if response.status != HTTPStatus.OK:
+            body = await read_limited_body(response, MAX_ERROR_BODY_BYTES)
+            detail = (body or b"").decode("utf-8", errors="replace")
+
+            raise DocumentAPIError(
+                response.status,
+                detail[:1000],
+            )
+
+        body = await read_limited_body(response, MAX_SERVICE_RESPONSE_BYTES)
+
+        if body is None:
+            raise DocumentAPIError(
+                502,
+                "Document Engine response is too large",
+            )
+
+        try:
+            result: object = json.loads(body)
+        except ValueError as error:
+            raise DocumentAPIError(
+                502,
+                "Document Engine returned invalid JSON",
+            ) from error
+    return result
+
+
 async def process_document(
     document_data: bytes,
     filename: str,
@@ -76,55 +117,18 @@ async def process_document(
         else {}
     )
 
+    logger.info(
+        "Sending document: filename=%s, size=%s",
+        safe_filename,
+        len(document_data),
+    )
+
     try:
-        logger.info(
-            "Sending document: filename=%s, size=%s",
-            safe_filename,
-            len(document_data),
-        )
-
-        async with (
-            aiohttp.ClientSession(
-                timeout=timeout,
-                headers=headers,
-            ) as session,
-            session.post(
-                _endpoint_url(settings.AUDIODOC_URL, "process-document"),
-                data=form,
-            ) as response,
-        ):
-            if response.status != HTTPStatus.OK:
-                body = await read_limited_body(response, MAX_ERROR_BODY_BYTES)
-                detail = (body or b"").decode("utf-8", errors="replace")
-
-                raise DocumentAPIError(
-                    response.status,
-                    detail[:1000],
-                )
-
-            body = await read_limited_body(response, MAX_SERVICE_RESPONSE_BYTES)
-
-            if body is None:
-                raise DocumentAPIError(
-                    502,
-                    "Document Engine response is too large",
-                )
-
-            try:
-                result = json.loads(body)
-            except ValueError as error:
-                raise DocumentAPIError(
-                    502,
-                    "Document Engine returned invalid JSON",
-                ) from error
-
-        result = validate_document_response(result)
-
-        logger.info(
-            "Document processed: filename=%s, format=%s, characters=%s",
-            safe_filename,
-            result["format"],
-            result["characters"],
+        raw_result = await _post_document(
+            _endpoint_url(settings.AUDIODOC_URL, "process-document"),
+            form,
+            timeout,
+            headers,
         )
 
     except TimeoutError as error:
@@ -135,4 +139,12 @@ async def process_document(
         msg = f"Document Engine connection error: {error}"
         raise DocumentUnavailableError(msg) from error
 
+    result = validate_document_response(raw_result)
+
+    logger.info(
+        "Document processed: filename=%s, format=%s, characters=%s",
+        safe_filename,
+        result["format"],
+        result["characters"],
+    )
     return result

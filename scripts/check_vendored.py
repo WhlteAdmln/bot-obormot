@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 _VENDORED_HEADER_PREFIX = "# VENDORED: keep identical in bot-obormot and audiodoc."
 VENDORED_HEADER = f"{_VENDORED_HEADER_PREFIX} Source of truth: audiodoc."
+PYPROJECT_FILE = "pyproject.toml"
 # The Makefile and the CI workflow are intentionally not shared: they run
 # project-specific jobs (OCR and Whisper for audiodoc, Telegram for the bot).
 VENDORED_FILES = (
@@ -26,7 +27,8 @@ VENDORED_FILES = (
     ".pre-commit-config.yaml",
     "scripts/check_lock.py",
     "scripts/check_vendored.py",
-    "pyproject.toml",
+    "scripts/coverage_gaps.py",
+    PYPROJECT_FILE,
     ".markdownlint-cli2.yaml",
 )
 # These files cannot carry the header: a shebang must stay on the first line,
@@ -123,7 +125,7 @@ def _content_hash(
     package_name: str | None,
     errors: list[str],
 ) -> str | None:
-    if path.name == "pyproject.toml":
+    if path.name == PYPROJECT_FILE:
         return _lint_configuration_hash(content, path, package_name, errors)
 
     return hashlib.sha256(content).hexdigest()
@@ -153,7 +155,7 @@ def _compare_files(
     if local_hash is None or other_hash is None or local_hash == other_hash:
         return
 
-    if label == "pyproject.toml":
+    if label == PYPROJECT_FILE:
         errors.append(f"{label}: lint configuration differs from other repository")
     else:
         errors.append(f"{label}: content differs from other repository")
@@ -199,7 +201,7 @@ def check_vendored(other: Path, root: Path = PROJECT_ROOT) -> list[str]:
     for relative_path in VENDORED_FILES:
         local_path = local_root / relative_path
         other_path = other_root / relative_path
-        if relative_path == "pyproject.toml" and (
+        if relative_path == PYPROJECT_FILE and (
             local_package is None or other_package is None
         ):
             _read_vendored_file(local_path, errors)

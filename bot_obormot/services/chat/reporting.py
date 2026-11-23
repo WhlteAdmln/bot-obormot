@@ -9,7 +9,17 @@ from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import Message
 
+_NOT_MODIFIED_DESCRIPTION = "message is not modified"
+
 logger = logging.getLogger("bot_obormot.services.chat.reporting")
+
+
+async def _edit_text(message: Message, text: str, parse_mode: str | None) -> None:
+    """Edit the message text, omitting ``parse_mode`` when it is ``None``."""
+    if parse_mode is None:
+        await message.edit_text(text)
+    else:
+        await message.edit_text(text, parse_mode=parse_mode)
 
 
 async def safe_edit(
@@ -22,12 +32,9 @@ async def safe_edit(
     ``parse_mode=None`` edits the text without any formatting.
     """
     try:
-        if parse_mode is None:
-            await message.edit_text(text)
-        else:
-            await message.edit_text(text, parse_mode=parse_mode)
+        await _edit_text(message, text, parse_mode)
     except TelegramBadRequest as exc:
-        if "message is not modified" not in str(exc).lower():
+        if _NOT_MODIFIED_DESCRIPTION not in str(exc).lower():
             raise
 
 

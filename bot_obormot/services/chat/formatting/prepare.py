@@ -14,6 +14,9 @@ from bot_obormot.services.chat.formatting.text_splitter import (
 )
 from bot_obormot.services.chat.formatting.tg_html import sanitize_html
 
+_HTML_FORMAT = "html"
+_MARKDOWN_FORMAT = "markdown"
+
 MARKDOWN_V2 = "MarkdownV2"
 HTML = "HTML"
 
@@ -48,11 +51,11 @@ def prepare_response(text: str, max_length: int = 3900) -> list[FormattedChunk]:
     response_format = detect_format(text)
     text = text.strip()
 
-    if response_format == "html":
+    if response_format == _HTML_FORMAT:
         parts = split_formatted_message(text, max_length=max_length)
         return [_formatted(p, sanitize_html(p), HTML) for p in parts if p.strip()]
 
-    if response_format == "markdown":
+    if response_format == _MARKDOWN_FORMAT:
         parts = split_markdown_message(text, max_length)
         return [_formatted(p, to_markdown_v2(p), MARKDOWN_V2) for p in parts]
 

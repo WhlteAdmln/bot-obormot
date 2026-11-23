@@ -74,12 +74,26 @@ async def _delete_old_images(
             continue
         try:
             await asyncio.to_thread(delete_image_file, image_path)
-            deleted_old += 1
         except OSError:
             failed += 1
             logger.exception("Could not delete old image: %s", image_path)
+        else:
+            deleted_old += 1
 
     return deleted_old, failed
+
+
+async def _delete_orphan_if_stale(
+    image_path: Path,
+    orphan_cutoff: float,
+    delete_image_file: Callable[[Path], None],
+) -> bool:
+    """Delete an unreferenced image older than the cutoff; report whether it did."""
+    stat = await asyncio.to_thread(image_path.stat)
+    if stat.st_mtime >= orphan_cutoff:
+        return False
+    await asyncio.to_thread(delete_image_file, image_path)
+    return True
 
 
 async def _delete_orphan_images(
@@ -112,14 +126,15 @@ async def _delete_orphan_images(
         if resolved_path in referenced_paths:
             continue
         try:
-            stat = await asyncio.to_thread(image_path.stat)
-            if stat.st_mtime >= orphan_cutoff:
-                continue
-            await asyncio.to_thread(delete_image_file, image_path)
-            deleted_orphans += 1
+            deleted = await _delete_orphan_if_stale(
+                image_path, orphan_cutoff, delete_image_file
+            )
         except OSError:
             failed += 1
             logger.exception("Could not delete orphan image: %s", image_path)
+        else:
+            if deleted:
+                deleted_orphans += 1
 
     return deleted_orphans, failed
 

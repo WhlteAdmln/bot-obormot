@@ -14,7 +14,25 @@ from bot_obormot.services.media import get_media_info
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from aiogram.types import Message
+    from aiogram.types import Document, Message
+
+
+_IMAGE_EXTENSIONS = (
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".webp",
+    ".bmp",
+    ".tif",
+    ".tiff",
+)
+
+
+def _is_image_document(document: Document) -> bool:
+    """Return whether the document's MIME type or file name says it is an image."""
+    filename = (document.file_name or "").lower()
+    mime_type = (document.mime_type or "").lower()
+    return mime_type.startswith("image/") or filename.endswith(_IMAGE_EXTENSIONS)
 
 
 def inspect_message(
@@ -37,27 +55,9 @@ def inspect_message(
 
     # Route images sent as documents
     # through the existing Vision Engine.
-    if document and not file_id:
-        filename = (document.file_name or "").lower()
-        mime_type = (document.mime_type or "").lower()
-
-        image_extensions = (
-            ".jpg",
-            ".jpeg",
-            ".png",
-            ".webp",
-            ".bmp",
-            ".tif",
-            ".tiff",
-        )
-
-        is_image_document = mime_type.startswith("image/") or filename.endswith(
-            image_extensions
-        )
-
-        if is_image_document:
-            file_id = document.file_id
-            media_type = "image"
+    if document and not file_id and _is_image_document(document):
+        file_id = document.file_id
+        media_type = "image"
 
     has_media = file_id is not None
     has_audio = audio_file_id is not None

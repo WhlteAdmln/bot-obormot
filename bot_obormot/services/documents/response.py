@@ -7,6 +7,8 @@ from typing import Any
 
 from bot_obormot.errors import DocumentAPIError
 
+_TRUNCATED_FIELD = "truncated"
+
 
 def validate_document_response(result: object) -> dict[str, Any]:
     """Validate the Document Engine response structure without transforming data."""
@@ -35,7 +37,7 @@ def validate_document_response(result: object) -> dict[str, Any]:
         )
 
     # Older audiodoc versions may omit this field; when present, it must be boolean.
-    if "truncated" in result and not isinstance(result["truncated"], bool):
+    if _TRUNCATED_FIELD in result and not isinstance(result[_TRUNCATED_FIELD], bool):
         raise DocumentAPIError(
             502,
             "Document Engine returned invalid truncated flag",

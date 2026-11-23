@@ -12,6 +12,8 @@ from bot_obormot.errors import MediaError
 from bot_obormot.services.media.limits import MAX_IMAGE_DIMENSION, MAX_IMAGE_PIXELS
 from bot_obormot.services.media.texts import IMAGE_RESOLUTION_TOO_LARGE
 
+_TRANSPARENCY_KEY = "transparency"
+
 
 def prepare_image(image_data: bytes) -> str:
     """Convert an image to Base64-encoded JPEG."""
@@ -25,7 +27,7 @@ def prepare_image(image_data: bytes) -> str:
         image = ImageOps.exif_transpose(source)
         image.thumbnail((MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION))
 
-        if image.mode in {"RGBA", "LA"} or "transparency" in image.info:
+        if image.mode in {"RGBA", "LA"} or _TRANSPARENCY_KEY in image.info:
             image = image.convert("RGBA")
             background = Image.new("RGB", image.size, "white")
             background.paste(

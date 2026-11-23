@@ -5,6 +5,10 @@
 
 from aiogram.types import Document, Message, Sticker
 
+_GIF_MIME_TYPE = "image/gif"
+_WEBM_MIME_TYPE = "video/webm"
+_MP4_MIME_TYPE = "video/mp4"
+
 
 def _sticker_media_info(sticker: Sticker) -> tuple[str, str]:
     """Returns the file_id and media type of a sticker."""
@@ -22,13 +26,13 @@ def _document_media_info(document: Document) -> tuple[str, str] | None:
     filename = (document.file_name or "").lower()
     mime_type = (document.mime_type or "").lower()
 
-    if filename.endswith(".gif") or mime_type == "image/gif":
+    if filename.endswith(".gif") or mime_type == _GIF_MIME_TYPE:
         return document.file_id, "gif"
 
-    if filename.endswith(".webm") or mime_type == "video/webm":
+    if filename.endswith(".webm") or mime_type == _WEBM_MIME_TYPE:
         return document.file_id, "webm"
 
-    if filename.endswith(".mp4") or mime_type == "video/mp4":
+    if filename.endswith(".mp4") or mime_type == _MP4_MIME_TYPE:
         return document.file_id, "mp4"
 
     return None

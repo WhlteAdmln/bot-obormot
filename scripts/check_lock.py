@@ -13,6 +13,9 @@ from packaging.requirements import InvalidRequirement, Requirement
 from packaging.utils import canonicalize_name
 from packaging.version import InvalidVersion, Version
 
+_EXACT_OPERATOR = "=="
+_WILDCARD = "*"
+
 
 def _load_dependency_entries(path: Path) -> tuple[list[object], str | None]:
     """Return the raw [project].dependencies entries or the reason they are unusable."""
@@ -92,8 +95,8 @@ def _parse_lock_entry(
     specifiers = list(requirement.specifier)
     if (
         len(specifiers) != 1
-        or specifiers[0].operator != "=="
-        or "*" in specifiers[0].version
+        or specifiers[0].operator != _EXACT_OPERATOR
+        or _WILDCARD in specifiers[0].version
     ):
         return None, (
             f"{path}:{line_number}: lock entry must use one exact == version: {line}"

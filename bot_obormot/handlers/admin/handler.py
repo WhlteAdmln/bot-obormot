@@ -39,8 +39,8 @@ def _audit_denied(message: Message) -> None:
 
 async def check_telegram(message: Message) -> tuple[bool, str]:
     """Check Telegram Bot API availability."""
+    bot = cast("Bot", message.bot)
     try:
-        bot = cast("Bot", message.bot)
         await bot.get_me()
 
     except Exception:

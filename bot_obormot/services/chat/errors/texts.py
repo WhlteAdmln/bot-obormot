@@ -7,6 +7,7 @@ from collections.abc import Callable
 
 from bot_obormot.common.validation import MAX_INPUT_TEXT_LENGTH
 from bot_obormot.errors import AppError, LLMEmptyResponseError
+from bot_obormot.services.llm.constants import FINISH_REASON_LENGTH
 
 
 def _formatted_input_limit() -> str:
@@ -77,7 +78,10 @@ UNEXPECTED_ERROR = "❌ Произошла непредвиденная ошиб
 
 def llm_empty_response(error: Exception) -> str:
     """Returns the message for an empty answer, told apart by its stop reason."""
-    if isinstance(error, LLMEmptyResponseError) and error.finish_reason == "length":
+    if (
+        isinstance(error, LLMEmptyResponseError)
+        and error.finish_reason == FINISH_REASON_LENGTH
+    ):
         return LLM_LENGTH_LIMIT
     return LLM_EMPTY_RESPONSE
 

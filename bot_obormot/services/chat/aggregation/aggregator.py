@@ -236,6 +236,26 @@ class MessageAggregator:
             if state.future and not state.future.done():
                 state.future.set_result(_joined(state))
 
+    async def _wait_until_quiet(
+        self,
+        user_id: int,
+        state: _AggregationState,
+    ) -> None:
+        """Wait until no continuation arrives before the aggregation deadline."""
+        while True:
+            remaining = await self._remaining_wait(user_id, state)
+            if remaining is None:
+                return
+
+            try:
+                await asyncio.wait_for(
+                    state.event.wait(),
+                    timeout=remaining,
+                )
+
+            except TimeoutError:
+                continue
+
     async def _wait_for_continuation(
         self,
         user_id: int,
@@ -243,19 +263,7 @@ class MessageAggregator:
     ) -> None:
         """Wait for continuation and finalize aggregation after the timeout."""
         try:
-            while True:
-                remaining = await self._remaining_wait(user_id, state)
-                if remaining is None:
-                    return
-
-                try:
-                    await asyncio.wait_for(
-                        state.event.wait(),
-                        timeout=remaining,
-                    )
-
-                except TimeoutError:
-                    continue
+            await self._wait_until_quiet(user_id, state)
 
         except Exception:
             logger.exception(

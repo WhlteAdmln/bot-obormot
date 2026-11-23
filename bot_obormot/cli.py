@@ -15,17 +15,28 @@ from importlib.metadata import version as package_version
 from pathlib import Path
 
 from bot_obormot.app.bootstrap import main as run_bot
-from bot_obormot.doctor import DiagnosticCheck, check_bot_token, collect_doctor_checks
+from bot_obormot.doctor import (
+    FAIL_STATUS,
+    OK_STATUS,
+    DiagnosticCheck,
+    check_bot_token,
+    collect_doctor_checks,
+)
 from bot_obormot.env_readers import get_home_dir, load_env_file
 from bot_obormot.initial_env import write_initial_env
 from bot_obormot.service import (
     UNIT_NAME,
+    USER_MODE,
     ServiceMode,
     install_service_unit,
     render_service_unit,
     uninstall_service_unit,
 )
 from bot_obormot.settings import ConfigError, load_settings
+
+CONFIG_CHECK_COMMAND = "check"
+SERVICE_INSTALL_COMMAND = "install"
+SERVICE_UNINSTALL_COMMAND = "uninstall"
 
 CommandHandler = Callable[[argparse.Namespace, argparse.ArgumentParser], int]
 
@@ -129,11 +140,16 @@ def main(argv: Sequence[str] | None = None) -> int:
 def _handle_run(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     """Run the bot until it is stopped."""
     try:
-        with suppress(KeyboardInterrupt, SystemExit):
-            asyncio.run(run_bot(args.env_file))
+        _run_until_stopped(args.env_file)
     except ConfigError as error:
         parser.error(str(error))
     return 0
+
+
+def _run_until_stopped(env_file: Path | None) -> None:
+    """Run the bot and treat an interrupt or exit request as a normal stop."""
+    with suppress(KeyboardInterrupt, SystemExit):
+        asyncio.run(run_bot(env_file))
 
 
 def _handle_version(_args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int:
@@ -151,14 +167,14 @@ def configuration_problems(environ: Mapping[str, str]) -> list[str]:
         problems.extend(message.partition(" Got:")[0] for message in error.errors)
 
     token_check = check_bot_token(environ)
-    if token_check.status == "FAIL":
+    if token_check.status == FAIL_STATUS:
         problems.append(token_check.message)
     return problems
 
 
 def _handle_config(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int:
     """Handle ``config check``."""
-    if args.config_command != "check":
+    if args.config_command != CONFIG_CHECK_COMMAND:
         return 2
     load_env_file(args.env_file)
     problems = configuration_problems(os.environ)
@@ -208,15 +224,15 @@ def _handle_doctor(args: argparse.Namespace, _parser: argparse.ArgumentParser) -
     load_env_file()
     checks = collect_doctor_checks(os.environ, offline=args.offline)
     for check in checks:
-        if args.quiet and check.status == "OK":
+        if args.quiet and check.status == OK_STATUS:
             continue
         sys.stdout.write(_format_check(check))
-    return 1 if any(check.status == "FAIL" for check in checks) else 0
+    return 1 if any(check.status == FAIL_STATUS for check in checks) else 0
 
 
 def _systemctl_commands(mode: ServiceMode, *actions: str) -> tuple[str, ...]:
     """Return the exact systemctl commands to print for the user to run."""
-    prefix = "systemctl --user" if mode == "user" else "sudo systemctl"
+    prefix = "systemctl --user" if mode == USER_MODE else "sudo systemctl"
     return tuple(f"{prefix} {action}" for action in actions)
 
 
@@ -225,13 +241,20 @@ def _handle_service(args: argparse.Namespace, parser: argparse.ArgumentParser) -
     mode: ServiceMode = args.service_mode
     home = get_home_dir()
     try:
-        if args.service_command == "install":
-            return _service_install(args, home, mode)
-        if args.service_command == "uninstall":
-            return _service_uninstall(mode)
-        return _service_status(mode)
+        return _run_service_command(args, home, mode)
     except (OSError, ValueError) as error:
         return parser.error(str(error))
+
+
+def _run_service_command(
+    args: argparse.Namespace, home: Path, mode: ServiceMode
+) -> int:
+    """Run the selected ``service`` subcommand."""
+    if args.service_command == SERVICE_INSTALL_COMMAND:
+        return _service_install(args, home, mode)
+    if args.service_command == SERVICE_UNINSTALL_COMMAND:
+        return _service_uninstall(mode)
+    return _service_status(mode)
 
 
 def _service_install(args: argparse.Namespace, home: Path, mode: ServiceMode) -> int:
@@ -271,7 +294,7 @@ def _service_status(mode: ServiceMode) -> int:
         message = "systemctl was not found on this system."
         raise OSError(message)
     command = [systemctl]
-    if mode == "user":
+    if mode == USER_MODE:
         command.append("--user")
     command.extend(("status", "--no-pager", UNIT_NAME))
     return subprocess.run(command, check=False).returncode  # noqa: S603 - fixed argv; shell=False.

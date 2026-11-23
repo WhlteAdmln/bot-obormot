@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 MAX_HISTORY_MEDIA_MESSAGES = 3
 
 
-class Database:
+class Database:  # pylint: disable=too-many-public-methods  # facade over use cases
     """Facade over the SQLite repositories and use cases."""
 
     def __init__(self, settings: Settings) -> None:

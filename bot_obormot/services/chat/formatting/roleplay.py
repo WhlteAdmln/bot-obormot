@@ -5,6 +5,8 @@
 
 import html
 
+_BLOCKQUOTE_TAG = "blockquote"
+
 
 def _render_segment(text: str) -> str:
     """Convert roleplay markup to safe Telegram HTML.
@@ -18,7 +20,7 @@ def _render_segment(text: str) -> str:
     markers = {
         "**": "b",
         "*": "i",
-        "~": "blockquote",
+        "~": _BLOCKQUOTE_TAG,
     }
 
     result = []
@@ -58,7 +60,7 @@ def _render_segment(text: str) -> str:
 
         formatted_inner = _render_segment(inner)
 
-        if tag == "blockquote":
+        if tag == _BLOCKQUOTE_TAG:
             result.append(f"\n<blockquote><i>{formatted_inner}</i></blockquote>\n")
         else:
             result.append(f"<{tag}>{formatted_inner}</{tag}>")

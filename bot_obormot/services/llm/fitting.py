@@ -10,8 +10,11 @@ from typing import Any, Protocol
 from bot_obormot.errors import InputTooLongError, LLMUnavailableError
 from bot_obormot.services.llm.constants import (
     CONTEXT_SAFETY_MARGIN,
+    COUNTING_MODE_ESTIMATE,
     ESTIMATE_CONTEXT_SAFETY_FACTOR,
     IMAGE_TOKEN_RESERVE,
+    ROLE_ASSISTANT,
+    ROLE_USER,
 )
 from bot_obormot.settings import Settings
 
@@ -61,13 +64,13 @@ async def fit_messages_to_context(
     context_size = await client.get_context_size()
     counting_mode = await client.get_token_counting_mode()
     safety_margin = CONTEXT_SAFETY_MARGIN
-    if counting_mode == "estimate":
+    if counting_mode == COUNTING_MODE_ESTIMATE:
         safety_margin += math.ceil(context_size * ESTIMATE_CONTEXT_SAFETY_FACTOR)
 
     history = list(history)
 
     # History must start with a user message.
-    while history and history[0].get("role") != "user":
+    while history and history[0].get("role") != ROLE_USER:
         history.pop(0)
 
     messages = [
@@ -120,7 +123,7 @@ async def fit_messages_to_context(
             raise InputTooLongError(msg)
 
         # History must be organized in user/assistant pairs.
-        if messages[1].get("role") != "user":
+        if messages[1].get("role") != ROLE_USER:
             msg = "Invalid history: expected a user message"
             raise LLMUnavailableError(msg)
 
@@ -128,7 +131,10 @@ async def fit_messages_to_context(
         messages.pop(1)
 
         # Remove the following assistant response, if present.
-        if len(messages) > _PINNED_MESSAGES and messages[1].get("role") == "assistant":
+        if (
+            len(messages) > _PINNED_MESSAGES
+            and messages[1].get("role") == ROLE_ASSISTANT
+        ):
             messages.pop(1)
 
         logger.debug("Context overflow: removed oldest history exchange")

@@ -42,7 +42,7 @@ _DEFAULT_STREAMING_RESPONDER_OPTIONS: StreamingResponderOptions = (
 )
 
 
-class StreamingResponder:
+class StreamingResponder:  # pylint: disable=too-many-instance-attributes  # reply state
     """Manage the intermediate message during LLM generation.
 
     State is explicitly stored in attributes instead of closure-local
@@ -117,28 +117,7 @@ class StreamingResponder:
     async def _start_streaming_display(self, current_text: str) -> None:
         """Create the initial streaming message."""
         try:
-            # The text is shown as is while it is generated: incomplete
-            # markup cannot be parsed reliably, the format is detected at
-            # the end.
-            chunks = self.splitter(
-                current_text,
-                max_length=self.max_message_length,
-            )
-
-            if not chunks:
-                return
-
-            reply_parameters = (
-                self.reply_to.parameters() if self.reply_to is not None else None
-            )
-            kwargs: dict[str, Any] = {}
-            if reply_parameters is not None:
-                kwargs["reply_parameters"] = reply_parameters
-
-            self.status = await self.message.answer(chunks[0], **kwargs)
-
-            self.last_displayed_text = chunks[0]
-            self.last_update = asyncio.get_running_loop().time()
+            await self._send_first_chunk(current_text)
 
         except Exception:
             self.streaming_failed = True
@@ -148,27 +127,35 @@ class StreamingResponder:
                 exc_info=True,
             )
 
+    async def _send_first_chunk(self, current_text: str) -> None:
+        """Answer with the first chunk of the text generated so far."""
+        # The text is shown as is while it is generated: incomplete
+        # markup cannot be parsed reliably, the format is detected at
+        # the end.
+        chunks = self.splitter(
+            current_text,
+            max_length=self.max_message_length,
+        )
+
+        if not chunks:
+            return
+
+        reply_parameters = (
+            self.reply_to.parameters() if self.reply_to is not None else None
+        )
+        kwargs: dict[str, Any] = {}
+        if reply_parameters is not None:
+            kwargs["reply_parameters"] = reply_parameters
+
+        self.status = await self.message.answer(chunks[0], **kwargs)
+
+        self.last_displayed_text = chunks[0]
+        self.last_update = asyncio.get_running_loop().time()
+
     async def _update_streaming_display(self, current_text: str) -> None:
         """Update the existing streaming message."""
         try:
-            # The text is shown as is while it is generated: incomplete
-            # markup cannot be parsed reliably, the format is detected at
-            # the end.
-            chunks = self.splitter(
-                current_text,
-                max_length=self.max_message_length,
-            )
-
-            if not chunks:
-                return
-
-            first_chunk = chunks[0]
-
-            if first_chunk != self.last_displayed_text:
-                await self.safe_edit(self.status, first_chunk, parse_mode=None)
-                self.last_displayed_text = first_chunk
-
-            self.last_update = asyncio.get_running_loop().time()
+            await self._edit_first_chunk(current_text)
 
         except Exception:
             self.streaming_failed = True
@@ -177,6 +164,27 @@ class StreamingResponder:
                 self.user_id,
                 exc_info=True,
             )
+
+    async def _edit_first_chunk(self, current_text: str) -> None:
+        """Edit the status message when the first chunk has changed."""
+        # The text is shown as is while it is generated: incomplete
+        # markup cannot be parsed reliably, the format is detected at
+        # the end.
+        chunks = self.splitter(
+            current_text,
+            max_length=self.max_message_length,
+        )
+
+        if not chunks:
+            return
+
+        first_chunk = chunks[0]
+
+        if first_chunk != self.last_displayed_text:
+            await self.safe_edit(self.status, first_chunk, parse_mode=None)
+            self.last_displayed_text = first_chunk
+
+        self.last_update = asyncio.get_running_loop().time()
 
     async def cancel(self) -> None:
         """Mark the intermediate message as cancelled."""

@@ -91,6 +91,60 @@ def _models_payload_context(data: dict[str, Any], model_name: str) -> int | None
     return _extract_context_size(model) if isinstance(model, dict) else None
 
 
+async def _context_size_from_props(
+    client: ContextSizeClient,
+    session: aiohttp.ClientSession,
+) -> int | None:
+    """Read the context size from the llama.cpp /props endpoint, if available."""
+    settings = client.settings
+    async with session.get(
+        f"{client.get_server_url()}/props",
+        params={"model": settings.LLM_MODEL},
+        timeout=aiohttp.ClientTimeout(total=min(5, settings.LLM_TIMEOUT)),
+    ) as response:
+        if response.status != HTTPStatus.OK:
+            detail = await response.text()
+            logger.debug(
+                "Optional /props endpoint unavailable: HTTP %s: %s",
+                response.status,
+                log_safe(detail, 200),
+            )
+            return None
+        data = await _read_json(response)
+        context_size = _extract_context_size(data or {})
+        if context_size is not None:
+            logger.info(
+                "LLM context size detected via /props: %s",
+                context_size,
+            )
+        return context_size
+
+
+async def _context_size_from_models(
+    settings: Settings,
+    session: aiohttp.ClientSession,
+) -> int | None:
+    """Read ``max_model_len`` and similar fields from the /models model card."""
+    async with session.get(
+        f"{settings.LLM_BASE_URL}/models",
+        timeout=aiohttp.ClientTimeout(total=min(5, settings.LLM_TIMEOUT)),
+    ) as response:
+        if response.status != HTTPStatus.OK:
+            logger.debug(
+                "Could not detect context via /models: HTTP %s",
+                response.status,
+            )
+            return None
+        data = await _read_json(response)
+        context_size = _models_payload_context(data or {}, settings.LLM_MODEL)
+        if context_size is not None:
+            logger.info(
+                "LLM context size detected via /models: %s",
+                context_size,
+            )
+        return context_size
+
+
 async def get_context_size(client: ContextSizeClient) -> int:
     """Return the context size from settings, llama.cpp /props, or OpenAI /models."""
     settings = client.settings
@@ -103,57 +157,26 @@ async def get_context_size(client: ContextSizeClient) -> int:
 
     # /props is an optional llama.cpp extension, not a required part of the API.
     try:
-        async with session.get(
-            f"{client.get_server_url()}/props",
-            params={"model": settings.LLM_MODEL},
-            timeout=aiohttp.ClientTimeout(total=min(5, settings.LLM_TIMEOUT)),
-        ) as response:
-            if response.status == HTTPStatus.OK:
-                data = await _read_json(response)
-                context_size = _extract_context_size(data or {})
-                if context_size is not None:
-                    logger.info(
-                        "LLM context size detected via /props: %s",
-                        context_size,
-                    )
-                    return context_size
-            else:
-                detail = await response.text()
-                logger.debug(
-                    "Optional /props endpoint unavailable: HTTP %s: %s",
-                    response.status,
-                    log_safe(detail, 200),
-                )
+        context_size = await _context_size_from_props(client, session)
     except (TimeoutError, aiohttp.ClientError) as error:
         logger.debug("Optional /props endpoint unavailable: %s", type(error).__name__)
+    else:
+        if context_size is not None:
+            return context_size
 
     # Some servers, such as certain vLLM builds, add max_model_len
     # to the model card. This field is not standardized by the OpenAI API,
     # so this lookup is best effort.
     try:
-        async with session.get(
-            f"{settings.LLM_BASE_URL}/models",
-            timeout=aiohttp.ClientTimeout(total=min(5, settings.LLM_TIMEOUT)),
-        ) as response:
-            if response.status == HTTPStatus.OK:
-                data = await _read_json(response)
-                context_size = _models_payload_context(data or {}, settings.LLM_MODEL)
-                if context_size is not None:
-                    logger.info(
-                        "LLM context size detected via /models: %s",
-                        context_size,
-                    )
-                    return context_size
-            else:
-                logger.debug(
-                    "Could not detect context via /models: HTTP %s",
-                    response.status,
-                )
+        context_size = await _context_size_from_models(settings, session)
     except (TimeoutError, aiohttp.ClientError) as error:
         logger.debug(
             "Could not query /models for context size: %s",
             type(error).__name__,
         )
+    else:
+        if context_size is not None:
+            return context_size
 
     msg = "Could not determine the context size. Set LLM_CONTEXT_SIZE in .env"
     raise LLMUnavailableError(msg)

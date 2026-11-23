@@ -18,6 +18,7 @@ from bot_obormot.middlewares.correlation_id import CorrelationIdMiddleware
 from bot_obormot.services.chat.aggregation import MessageAggregator
 from bot_obormot.services.database import Database
 from bot_obormot.services.llm.client import LLMClient
+from bot_obormot.services.media.animation.tgs import log_tgs_support
 from bot_obormot.services.media.safety import configure_pillow_limits
 from bot_obormot.settings import Settings, load_settings
 
@@ -67,6 +68,7 @@ async def main(env_file: Path | None = None) -> None:
 
     configure_logging(settings)
     configure_pillow_limits()
+    log_tgs_support()
     log_access_mode(settings)
 
     bot = create_bot(settings)

@@ -9,7 +9,7 @@
 7. Add or update tests for changed behavior. Tests must not require network access, a GPU, or real secrets.
 8. Run `make fix` to apply Ruff fixes and formatting.
 9. Run `make check` before opening a pull request.
-10. LLM agents must also follow the rules in [AGENTS.md](AGENTS.md).
+10. LLM agents must also follow the rules in [AGENTS.md](AGENTS.md) and [CLAUDE.md](CLAUDE.md). Planned work is listed in [ROADMAP.md](ROADMAP.md); one task is one session.
 11. Open a pull request describing the change and the checks you ran. Do not include secrets, local environments, or generated build artifacts.
 
 ## Useful commands
@@ -22,7 +22,7 @@
 | `make docs-check` | Links, settings, commands, README section parity and changelog section order. |
 | `make docker` | Validate `compose.yaml` and build the image. |
 
-Shared files: `.editorconfig`, `.pre-commit-config.yaml`, `.github/renovate.json5`, `.markdownlint-cli2.yaml`, `AGENTS.md`,
+Shared files: `.editorconfig`, `.pre-commit-config.yaml`, `.github/renovate.json5`, `.markdownlint-cli2.yaml`, `AGENTS.md`, `CLAUDE.md`,
 `scripts/build_release.sh`, `scripts/check_changelog.py`, `scripts/check_lock.py`, `scripts/check_test_layout.py`,
 `scripts/check_vendored.py`, `scripts/coverage_gaps.py`, `tests/unit/scripts/test_check_changelog.py`, the `ruff`, `mypy` and `pylint` tables of
 `pyproject.toml`, `bot_obormot/log_filters.py` and `bot_obormot/env_readers.py` are copies

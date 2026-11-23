@@ -446,7 +446,8 @@ async def test_denied_notice_is_rate_limited(
     assert await middleware(handler, first_event, data) is None
     assert await middleware(handler, second_event, data) is None
     assert first_event.answers == ["⛔ У тебя нет доступа к этому боту."]
-    assert not second_event.answers
+    expected_empty = []
+    assert second_event.answers == expected_empty, "expected an empty list"
 
     current_time += access_module.DENY_NOTICE_INTERVAL
     assert await middleware(handler, third_event, data) is None

@@ -3,6 +3,9 @@
 
 """Shared helpers for dispatcher tests."""
 
+from collections.abc import Callable
+from dataclasses import dataclass, field
+
 from aiogram import Bot, Dispatcher, Router
 from aiogram.dispatcher.middlewares.manager import MiddlewareManager
 from aiogram.methods import (
@@ -35,126 +38,144 @@ HISTORY_ADMIN_ID = 444000001
 SETTINGS = make_settings(SUPERVISOR_ID=SUPERVISOR_ID, ALLOW_ALL_USERS=True)
 
 
-class AccessDatabase:  # pylint: disable=too-many-instance-attributes  # one recorder per call
-    """Provide deterministic database responses for dispatcher tests."""
+@dataclass
+class DatabaseScenario:
+    """Describe how the fake database misbehaves in one test."""
 
-    def __init__(self, admin_ids: set[int] | None = None) -> None:
-        self.admin_ids = set(admin_ids or ())
-        self.history_limits: dict[int, int] = {}
-        self.reset_history_calls: list[int] = []
-        self.forgotten_user_ids: list[int] = []
-        self.set_history_limit_calls: list[tuple[int, int]] = []
-        self.blocked_user_ids: set[int] = set()
-        self.add_admin_calls: list[int] = []
-        self.remove_admin_calls: list[int] = []
-        self.block_user_calls: list[int] = []
-        self.unblock_user_calls: list[int] = []
-        self.add_admin_result = True
-        self.remove_admin_result = True
-        self.block_user_result = True
-        self.unblock_user_result = True
-        self.user_prompts: dict[int, str] = {}
-        self.default_system_prompt = "Тестовый системный промпт"
-        self.failed_operation: str | None = None
-        self.admin_lookup_calls = 0
-        self.fail_admin_lookup_on: int | None = None
+    failed_operation: str | None = None
+    fail_admin_lookup_on: int | None = None
+    results: dict[str, bool] = field(default_factory=dict)
 
-    async def get_blocked_ids(self) -> set[int]:
-        """Return configured blocked users."""
-        self._check_failure("get_blocked_ids")
-        return self.blocked_user_ids
-
-    async def get_admin_ids(self) -> set[int]:
-        """Return configured administrator IDs."""
-        self.admin_lookup_calls += 1
-        if self.admin_lookup_calls == self.fail_admin_lookup_on:
-            msg = "database unavailable"
-            raise RuntimeError(msg)
-        self._check_failure("get_admin_ids")
-        return self.admin_ids
-
-    def _check_failure(self, operation: str) -> None:
+    def check(self, operation: str) -> None:
+        """Raise when the scenario makes this operation fail."""
         if self.failed_operation == operation:
             msg = "database unavailable"
             raise RuntimeError(msg)
 
+    def result_of(self, operation: str) -> bool:
+        """Return the outcome of a change operation, successful by default."""
+        return self.results.get(operation, True)
+
+
+@dataclass
+class CallLog:
+    """Record the database operations a handler performed."""
+
+    calls: list[tuple[str, tuple[int, ...]]] = field(default_factory=list)
+
+    def record(self, operation: str, *arguments: int) -> None:
+        """Remember one call with its arguments."""
+        self.calls.append((operation, arguments))
+
+    def arguments(self, operation: str) -> list[tuple[int, ...]]:
+        """Return the arguments of every call to one operation."""
+        return [arguments for name, arguments in self.calls if name == operation]
+
+    def count(self, operation: str) -> int:
+        """Return how many times an operation was called."""
+        return len(self.arguments(operation))
+
+
+class AccessDatabase:
+    """Provide deterministic database responses for dispatcher tests."""
+
+    def __init__(self, admin_ids: set[int] | None = None) -> None:
+        self.admin_ids = set(admin_ids or ())
+        self.blocked_user_ids: set[int] = set()
+        self.history_limits: dict[int, int] = {}
+        self.user_prompts: dict[int, str] = {}
+        self.default_system_prompt = "Тестовый системный промпт"
+        self.scenario = DatabaseScenario()
+        self.log = CallLog()
+
+    async def get_blocked_ids(self) -> set[int]:
+        """Return configured blocked users."""
+        self.scenario.check("get_blocked_ids")
+        return self.blocked_user_ids
+
+    async def get_admin_ids(self) -> set[int]:
+        """Return configured administrator IDs."""
+        self.log.record("get_admin_ids")
+        if self.log.count("get_admin_ids") == self.scenario.fail_admin_lookup_on:
+            msg = "database unavailable"
+            raise RuntimeError(msg)
+        self.scenario.check("get_admin_ids")
+        return self.admin_ids
+
     async def reset_history(self, user_id: int) -> None:
         """Record a dialog history reset."""
-        self._check_failure("reset_history")
-        self.reset_history_calls.append(user_id)
+        self.scenario.check("reset_history")
+        self.log.record("reset_history", user_id)
 
     async def forget_user(self, user_id: int) -> None:
         """Record a complete user data deletion."""
-        self._check_failure("forget_user")
-        self.forgotten_user_ids.append(user_id)
+        self.scenario.check("forget_user")
+        self.log.record("forget_user", user_id)
 
     async def get_history_limit(self, user_id: int) -> int:
         """Return the configured history limit or a test default."""
-        self._check_failure("get_history_limit")
+        self.scenario.check("get_history_limit")
         return self.history_limits.get(user_id, 17)
 
     async def set_history_limit(self, user_id: int, limit: int) -> None:
         """Record and store a history limit."""
-        self._check_failure("set_history_limit")
+        self.scenario.check("set_history_limit")
         self.history_limits[user_id] = limit
-        self.set_history_limit_calls.append((user_id, limit))
+        self.log.record("set_history_limit", user_id, limit)
 
     async def get_user_system_prompt(self, user_id: int) -> str | None:
         """Return a user's personal system prompt."""
-        self._check_failure("get_user_system_prompt")
+        self.scenario.check("get_user_system_prompt")
         return self.user_prompts.get(user_id)
 
     async def get_system_prompt(self, user_id: int) -> str:
         """Return the effective system prompt."""
-        self._check_failure("get_system_prompt")
+        self.scenario.check("get_system_prompt")
         return self.user_prompts.get(user_id, self.default_system_prompt)
 
     async def set_system_prompt(self, user_id: int, prompt: str) -> None:
         """Store a user's personal system prompt."""
-        self._check_failure("set_system_prompt")
+        self.scenario.check("set_system_prompt")
         self.user_prompts[user_id] = prompt
 
     async def delete_system_prompt(self, user_id: int) -> None:
         """Remove a user's personal system prompt."""
-        self._check_failure("delete_system_prompt")
+        self.scenario.check("delete_system_prompt")
         self.user_prompts.pop(user_id, None)
 
     async def health_check(self) -> bool:
         """Return a successful database health check."""
-        self._check_failure("health_check")
+        self.scenario.check("health_check")
         return True
 
     async def add_admin(self, user_id: int) -> bool:
         """Record an administrator addition."""
-        self._check_failure("add_admin")
-        self.add_admin_calls.append(user_id)
-        if self.add_admin_result:
-            self.admin_ids.add(user_id)
-        return self.add_admin_result
+        return self._change("add_admin", user_id, self.admin_ids.add)
 
     async def remove_admin(self, user_id: int) -> bool:
         """Record an administrator removal."""
-        self._check_failure("remove_admin")
-        self.remove_admin_calls.append(user_id)
-        if self.remove_admin_result:
-            self.admin_ids.discard(user_id)
-        return self.remove_admin_result
+        return self._change("remove_admin", user_id, self.admin_ids.discard)
 
     async def block_user(self, user_id: int) -> bool:
         """Record a user block."""
-        self._check_failure("block_user")
-        self.block_user_calls.append(user_id)
-        if self.block_user_result:
-            self.blocked_user_ids.add(user_id)
-        return self.block_user_result
+        return self._change("block_user", user_id, self.blocked_user_ids.add)
 
     async def unblock_user(self, user_id: int) -> bool:
         """Record a user unblock."""
-        self._check_failure("unblock_user")
-        self.unblock_user_calls.append(user_id)
-        if self.unblock_user_result:
-            self.blocked_user_ids.discard(user_id)
-        return self.unblock_user_result
+        return self._change("unblock_user", user_id, self.blocked_user_ids.discard)
+
+    def _change(
+        self,
+        operation: str,
+        user_id: int,
+        apply: Callable[[int], None],
+    ) -> bool:
+        self.scenario.check(operation)
+        self.log.record(operation, user_id)
+        result = self.scenario.result_of(operation)
+        if result:
+            apply(user_id)
+        return result
 
 
 class FakeLLM:

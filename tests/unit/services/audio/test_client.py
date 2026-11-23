@@ -91,7 +91,10 @@ async def test_does_not_log_the_transcription_or_the_url_secret(
     await _transcribe_forged_name(monkeypatch, caplog)
     secrets = ("распознанный текст", "token=private")
     leaked = [secret for secret in secrets if secret in caplog.text]
-    assert not leaked, "the log must not contain the text or the URL secret"
+    expected_empty = []
+    assert leaked == expected_empty, (
+        "the log must not contain the text or the URL secret"
+    )
 
 
 @pytest.mark.asyncio

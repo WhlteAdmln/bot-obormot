@@ -335,6 +335,7 @@ def _patch_main_components(
         "configure_pillow_limits",
         lambda: calls.append("pillow_limits"),
     )
+    monkeypatch.setattr(bootstrap, "log_tgs_support", lambda: calls.append("tgs"))
     monkeypatch.setattr(
         bootstrap,
         "log_access_mode",
@@ -412,6 +413,7 @@ def test_bootstrap_main_loads_env_and_passes_settings_down(
         "settings",
         ("logging", SETTINGS),
         "pillow_limits",
+        "tgs",
         ("access_mode", SETTINGS),
         ("bot", SETTINGS),
         ("llm_client", SETTINGS),

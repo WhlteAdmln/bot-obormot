@@ -292,7 +292,10 @@ def test_collect_runs_every_check_and_skips_network_offline(
         "audiodoc",
     ]
     expected_status = "FAIL"
-    assert not [check for check in checks if check.status == expected_status]
+    expected_empty = []
+    assert [
+        check for check in checks if check.status == expected_status
+    ] == expected_empty, "expected an empty list"
 
 
 def test_collect_skips_dependent_checks_for_invalid_settings(tmp_path: Path) -> None:

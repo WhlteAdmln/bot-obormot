@@ -9,7 +9,6 @@ import json
 import logging
 import tempfile
 import zlib
-from functools import lru_cache
 from pathlib import Path
 from types import ModuleType
 
@@ -42,13 +41,13 @@ def tgs_support_available() -> bool:
         return False
 
 
-@lru_cache(maxsize=1)
-def _warn_tgs_unavailable() -> None:
-    """Log the missing optional decoder once per process."""
-    logger.warning(
-        "Animated stickers are disabled: install the optional extra "
-        '`pip install "bot-obormot[tgs]"` (needs a C compiler and CMake).'
-    )
+def log_tgs_support() -> None:
+    """Warn at startup when the optional animated-sticker decoder is missing."""
+    if not tgs_support_available():
+        logger.warning(
+            "Animated stickers are disabled: install the optional extra "
+            '`pip install "bot-obormot[tgs]"` (needs a C compiler and CMake).'
+        )
 
 
 def _load_rlottie() -> ModuleType:
@@ -56,7 +55,6 @@ def _load_rlottie() -> ModuleType:
     try:
         return importlib.import_module(_RLOTTIE_MODULE)
     except ImportError as error:
-        _warn_tgs_unavailable()
         msg = TGS_SUPPORT_UNAVAILABLE
         raise MediaError(msg) from error
 

@@ -10,6 +10,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `make lock` generates `requirements-lock.txt` with `uv pip compile`; releases younger than 14 days are skipped unless `LOCK_MIN_RELEASE_AGE_DAYS=0` is passed.
 - Guidance on the assignment expression `:=` in `CONTRIBUTING.md`.
 - `scripts/check_test_layout.py`, shared with the other repository and run by `make lint`, requires every unit test file to mirror a production unit (`tests/unit/<dirs>/test_<name>.py`) or to live in `tests/unit/project/` or `tests/unit/scripts/`. `tests/layout_pending.txt` may list multi-unit files that are still to be split; the list only shrinks, and it is currently absent because no file is pending.
+- `CLAUDE.md` holds the development standards for LLM agents and the rule for picking the next task; it is identical in both repositories and checked by `scripts/check_vendored.py`. `ROADMAP.md` lists the planned work as tasks of one session each (`AD-` and `BO-` IDs); `CONTRIBUTING.md` links both files.
 - `scripts/check_changelog.py`, shared with the other repository and run by `make docs-check`, requires the sections of every changelog version to follow the order Added, Changed, Deprecated, Fixed, Removed, Security, without duplicates or unknown sections.
 
 ### Changed
@@ -30,6 +31,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - pylint now checks every test module in both repositories (audiodoc no longer passes `--ignore-paths='^tests/unit/'`), and the ruff `PLR2004` and `SLF001` ignores for `tests/*` are gone. Literals compared in tests are local variables, fixtures use `@pytest.fixture(name=...)`, fakes that use no instance state are static or plain namespaces, and comparisons with empty literals use truthiness. The few tests that still pin a private helper carry a narrow, reasoned `# noqa: SLF001` and `# pylint: disable=protected-access`.
 - Test doubles moved to `tests/support/` with one shared fake per collaborator (aiohttp session and response, chat pipeline, application lifecycle, video tools, Telegram downloads, concurrency probe), and long multi-assertion tests were split into focused tests with assertion messages. The test count grew from 940 to 991.
 - The audiodoc transcription and document clients share `bot_obormot/services/audiodoc_http.py` (endpoint URL, settings check, multipart form, bearer header, size-limited POST); media decoding and image preparation share `bot_obormot/services/media/limited.py`. Behavior and error messages are unchanged.
+- The warning about the missing `[tgs]` extra is logged once by `bootstrap.main` at startup (`log_tgs_support`) instead of by the first animated sticker; `bot-obormot doctor` still reports the same check. The per-process `functools` cache that kept the warning from repeating is gone, and a sticker sent without the extra no longer writes a log line.
+- Tests that check for an empty result compare it with an empty literal of the expected type (`expected_empty = []`, then `assert value == expected_empty, "..."`) instead of relying on truthiness, so a `None` or a value of another type no longer passes.
+- The dispatcher test fake `AccessDatabase` keeps the database state only; call recording moved to `CallLog` and failure or refusal settings to `DatabaseScenario`, so it needs no `too-many-instance-attributes` suppression.
+- `PROMPT_RESET_ALREADY_DEFAULT` writes the invisible variation selector of its emoji as `\ufe0f`, so the line fits the length limit without a `line-too-long` suppression. The text is unchanged.
 - `bot_obormot.services.database` re-exports `handle_database_errors` and `read_image_as_base64` from their defining modules instead of through the facade.
 
 ### Fixed

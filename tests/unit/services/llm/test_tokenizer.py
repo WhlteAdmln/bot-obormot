@@ -84,7 +84,8 @@ async def test_count_tokens_rejects_invalid_normalized_content(
     with pytest.raises(LLMUnavailableError, match="Invalid message content"):
         await client.count_tokens([{"role": "user", "content": "hello"}])
 
-    assert not fake_session.post_calls
+    expected_empty = []
+    assert fake_session.post_calls == expected_empty, "expected an empty list"
 
 
 @pytest.mark.asyncio

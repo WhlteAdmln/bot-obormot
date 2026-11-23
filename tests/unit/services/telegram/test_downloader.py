@@ -46,7 +46,8 @@ async def test_telegram_downloader_rejects_reported_oversized_file() -> None:
     with pytest.raises(MediaError, match="слишком большой"):
         await download_telegram_file(make_message(bot), "large-file")
 
-    assert not bot.download_calls
+    expected_empty = []
+    assert bot.download_calls == expected_empty, "expected an empty list"
 
 
 @pytest.mark.asyncio
@@ -68,7 +69,8 @@ async def test_telegram_downloader_rejects_unknown_file_size() -> None:
     with pytest.raises(MediaError, match="размер файла"):
         await download_telegram_file(make_message(bot), "unknown-size")
 
-    assert not bot.download_calls
+    expected_empty = []
+    assert bot.download_calls == expected_empty, "expected an empty list"
 
 
 @pytest.mark.asyncio

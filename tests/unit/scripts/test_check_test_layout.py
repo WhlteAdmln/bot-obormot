@@ -28,19 +28,24 @@ def _add_test(project: Path, relative: str) -> None:
 def test_accepts_test_file_at_the_path_of_its_module(project: Path) -> None:
     _add_test(project, "api/test_auth.py")
     problems = check_test_layout.find_problems(project)
-    assert not problems, "a test next to its module path must pass"
+    expected_empty = []
+    assert problems == expected_empty, "a test next to its module path must pass"
 
 
 def test_accepts_test_file_named_after_a_class(project: Path) -> None:
     _add_test(project, "api/test_token_checker.py")
     problems = check_test_layout.find_problems(project)
-    assert not problems, "a snake_case class name must identify the unit"
+    expected_empty = []
+    assert problems == expected_empty, "a snake_case class name must identify the unit"
 
 
 def test_accepts_test_file_in_project_directory(project: Path) -> None:
     _add_test(project, "project/test_release_notes.py")
     problems = check_test_layout.find_problems(project)
-    assert not problems, "tests of the project itself need no production unit"
+    expected_empty = []
+    assert problems == expected_empty, (
+        "tests of the project itself need no production unit"
+    )
 
 
 def test_reports_test_file_without_production_unit(project: Path) -> None:
@@ -57,7 +62,8 @@ def test_tolerates_pending_file_that_breaks_the_layout(project: Path) -> None:
         "tests/unit/test_everything.py\n"
     )
     problems = check_test_layout.find_problems(project)
-    assert not problems, "a listed file is allowed to break the layout"
+    expected_empty = []
+    assert problems == expected_empty, "a listed file is allowed to break the layout"
 
 
 def test_reports_pending_file_that_already_mirrors_a_unit(project: Path) -> None:

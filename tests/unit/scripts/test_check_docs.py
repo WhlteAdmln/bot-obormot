@@ -29,7 +29,8 @@ def test_markdown_links_check_local_files_and_anchors(tmp_path: Path) -> None:
     readme.write_text("[Guide](guide.md#intro)\n", encoding="utf-8")
     guide.write_text("## Intro\n", encoding="utf-8")
 
-    assert not check_markdown_links(tmp_path)
+    expected_empty = []
+    assert check_markdown_links(tmp_path) == expected_empty, "expected an empty list"
 
     readme.write_text(
         "[Missing](missing.md)\n[Wrong anchor](guide.md#missing)\n",
@@ -51,7 +52,8 @@ def test_russian_sections_keep_the_same_order(tmp_path: Path) -> None:
     english.write_text("## 1. First\n## 2. Second\n", encoding="utf-8")
     russian.write_text("## 1. Первый\n## 2. Второй\n", encoding="utf-8")
 
-    assert not check_section_parity(tmp_path)
+    expected_empty = []
+    assert check_section_parity(tmp_path) == expected_empty, "expected an empty list"
 
     russian.write_text("## 2. Второй\n## 1. Первый\n", encoding="utf-8")
     assert check_section_parity(tmp_path)
@@ -102,7 +104,10 @@ def test_documented_commands_must_exist_in_cli_help(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    assert not check_documented_commands(tmp_path)
+    expected_empty = []
+    assert check_documented_commands(tmp_path) == expected_empty, (
+        "expected an empty list"
+    )
 
     readme.write_text("Use `bot-obormot unknown-command`.\n", encoding="utf-8")
     assert check_documented_commands(tmp_path)
@@ -120,7 +125,10 @@ def test_documented_commands_ignore_environment_paths_ending_in_bot_obormot(
         encoding="utf-8",
     )
 
-    assert not check_documented_commands(tmp_path)
+    expected_empty = []
+    assert check_documented_commands(tmp_path) == expected_empty, (
+        "expected an empty list"
+    )
 
 
 def test_telegram_commands_must_appear_in_the_commands_guide(tmp_path: Path) -> None:
@@ -135,7 +143,8 @@ def test_telegram_commands_must_appear_in_the_commands_guide(tmp_path: Path) -> 
     guide = docs_dir / "commands.md"
     guide.write_text("`/start`\n`/history_limit N`\n", encoding="utf-8")
 
-    assert not check_telegram_commands(tmp_path)
+    expected_empty = []
+    assert check_telegram_commands(tmp_path) == expected_empty, "expected an empty list"
 
     guide.write_text("`/start`\n", encoding="utf-8")
     errors = check_telegram_commands(tmp_path)

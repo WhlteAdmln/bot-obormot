@@ -107,7 +107,8 @@ async def test_configured_context_size_skips_server_requests(
 
     expected_number = 16384
     assert await client.get_context_size() == expected_number
-    assert not fake_session.get_calls
+    expected_empty = []
+    assert fake_session.get_calls == expected_empty, "expected an empty list"
 
 
 @pytest.mark.asyncio

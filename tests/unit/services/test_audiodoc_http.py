@@ -22,7 +22,8 @@ def test_endpoint_url_keeps_the_base_path_and_query() -> None:
 
 
 def test_bearer_headers_are_empty_without_a_key() -> None:
-    assert not bearer_headers(""), "no key means no authorization header"
+    expected_empty = {}
+    assert bearer_headers("") == expected_empty, "no key means no authorization header"
 
 
 def test_require_base_url_rejects_missing_url() -> None:
@@ -32,7 +33,10 @@ def test_require_base_url_rejects_missing_url() -> None:
 
 
 def test_form_response_detail_of_a_missing_body_is_empty() -> None:
-    assert not FormResponse(413, None).detail, "a dropped body has no detail"
+    expected_empty = ""
+    assert FormResponse(413, None).detail == expected_empty, (
+        "a dropped body has no detail"
+    )
 
 
 def test_form_response_rejects_a_non_json_body() -> None:

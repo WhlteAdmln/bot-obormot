@@ -113,7 +113,10 @@ async def test_does_not_persist_an_empty_response() -> None:
     database = FakePipelineDatabase()
     with pytest.raises(LLMEmptyResponseError):
         await _run(database, FakePipelineLLM([]))
-    assert not database.calls_named("save"), "an empty response must not be saved"
+    expected_empty = []
+    assert database.calls_named("save") == expected_empty, (
+        "an empty response must not be saved"
+    )
 
 
 @pytest.mark.asyncio

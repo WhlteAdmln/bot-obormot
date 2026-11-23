@@ -34,10 +34,11 @@ VENDORED_FILES = (
     ".markdownlint-cli2.yaml",
 )
 # These files cannot carry the header: a shebang must stay on the first line,
-# AGENTS.md is a verbatim rule list and JSON5 has no `#` comments.
+# AGENTS.md and CLAUDE.md are prose for agents and JSON5 has no `#` comments.
 HEADERLESS_VENDORED_FILES = (
     ".github/renovate.json5",
     "AGENTS.md",
+    "CLAUDE.md",
     "scripts/build_release.sh",
     "tests/unit/scripts/test_check_changelog.py",
 )

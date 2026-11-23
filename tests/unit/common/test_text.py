@@ -16,7 +16,8 @@ def test_log_safe_escapes_line_breaks_and_truncates_values() -> None:
     assert log_safe("a\x00b") == expected_log_safe
     expected_log_safe = "abcde"
     assert log_safe("abcdefgh", limit=5) == expected_log_safe
-    assert not log_safe(None)
+    expected_empty = ""
+    assert log_safe(None) == expected_empty, "expected an empty string"
 
 
 def test_utf16_length_counts_code_units() -> None:

@@ -94,10 +94,10 @@ async def test_history_basic_commands_through_dispatcher(
     expected_operation_2 = "forget"
     if operation == expected_operation:
         expected_text = "🧹 История диалога очищена."
-        assert access_database.reset_history_calls == [user_id]
+        assert access_database.log.arguments("reset_history") == [(user_id,)]
     elif operation == expected_operation_2:
         expected_text = "🧹 Все твои данные удалены."
-        assert access_database.forgotten_user_ids == [user_id]
+        assert access_database.log.arguments("forget_user") == [(user_id,)]
     else:
         expected_text = (
             f"📚 Твой лимит истории: 17 полных обменов.\n"
@@ -123,7 +123,7 @@ async def test_history_basic_commands_propagate_database_failures(
 ) -> None:
     """Basic history commands propagate database failures."""
     user_id, command_text, failed_operation = case
-    access_database.failed_operation = failed_operation
+    access_database.scenario.failed_operation = failed_operation
 
     with pytest.raises(RuntimeError, match="database unavailable"):
         await feed_command(dispatcher_runtime, user_id, command_text)
@@ -155,9 +155,9 @@ async def test_history_commands_are_denied_without_access(
     session = await feed_command(dispatcher_runtime, user_id, command_text)
 
     assert sent_texts(session) == ["⛔ У тебя нет доступа к этому боту."]
-    assert access_database.reset_history_calls == []
-    assert access_database.forgotten_user_ids == []
-    assert access_database.set_history_limit_calls == []
+    assert access_database.log.arguments("reset_history") == []
+    assert access_database.log.arguments("forget_user") == []
+    assert access_database.log.arguments("set_history_limit") == []
     expected_operation = "show"
     if operation == expected_operation:
         assert access_database.history_limits.get(user_id) is None

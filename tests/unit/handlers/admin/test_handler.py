@@ -290,7 +290,7 @@ async def test_health_reports_failed_telegram_database_and_llm(
         raise RuntimeError(msg)
 
     dispatcher, bot, session = dispatcher_runtime
-    access_database.failed_operation = "health_check"
+    access_database.scenario.failed_operation = "health_check"
     monkeypatch.setattr(Bot, "get_me", fail_get_me)
     dispatcher.workflow_data["llm_client"] = FakeLLM((False, "Недоступен"))
 
@@ -316,7 +316,7 @@ async def test_health_denies_user_when_admin_lookup_fails(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
     """Health reports a permission lookup failure to a non-supervisor."""
-    access_database.fail_admin_lookup_on = 2
+    access_database.scenario.fail_admin_lookup_on = 2
 
     session = await feed_command(
         dispatcher_runtime,
@@ -345,8 +345,8 @@ async def test_supervisor_commands_deny_non_supervisor(
     )
 
     assert sent_texts(session) == ["⛔ Доступ запрещён."]
-    assert access_database.add_admin_calls == []
-    assert access_database.remove_admin_calls == []
+    assert access_database.log.arguments("add_admin") == []
+    assert access_database.log.arguments("remove_admin") == []
 
 
 @pytest.mark.asyncio
@@ -419,7 +419,7 @@ async def test_admin_read_commands_propagate_database_failures(
     operation: str,
 ) -> None:
     """Admin panel and list propagate database lookup failures."""
-    access_database.failed_operation = operation
+    access_database.scenario.failed_operation = operation
 
     with pytest.raises(RuntimeError, match="database unavailable"):
         await feed_command(dispatcher_runtime, SUPERVISOR_ID, command_text)
@@ -440,7 +440,7 @@ async def test_admin_add_reports_added_and_existing_users(
 ) -> None:
     """Admin add reports both newly added and existing administrators."""
     result, expected_text = case
-    access_database.add_admin_result = result
+    access_database.scenario.results["add_admin"] = result
 
     session = await feed_command(
         dispatcher_runtime,
@@ -449,7 +449,7 @@ async def test_admin_add_reports_added_and_existing_users(
     )
 
     assert sent_texts(session) == [expected_text]
-    assert access_database.add_admin_calls == [8001]
+    assert access_database.log.arguments("add_admin") == [(8001,)]
 
 
 @pytest.mark.asyncio
@@ -479,7 +479,7 @@ async def test_admin_add_rejects_invalid_arguments_and_supervisor(
     )
 
     assert sent_texts(session) == [expected_text]
-    assert access_database.add_admin_calls == []
+    assert access_database.log.arguments("add_admin") == []
 
 
 @pytest.mark.asyncio
@@ -488,7 +488,7 @@ async def test_admin_add_propagates_database_failure(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
     """Admin add propagates database failures."""
-    access_database.failed_operation = "add_admin"
+    access_database.scenario.failed_operation = "add_admin"
 
     with pytest.raises(RuntimeError, match="database unavailable"):
         await feed_command(dispatcher_runtime, SUPERVISOR_ID, "/admin_add 8001")
@@ -509,7 +509,7 @@ async def test_admin_remove_reports_removed_and_missing_users(
 ) -> None:
     """Admin remove reports successful and unsuccessful removals."""
     result, expected_text = case
-    access_database.remove_admin_result = result
+    access_database.scenario.results["remove_admin"] = result
 
     session = await feed_command(
         dispatcher_runtime,
@@ -518,7 +518,7 @@ async def test_admin_remove_reports_removed_and_missing_users(
     )
 
     assert sent_texts(session) == [expected_text]
-    assert access_database.remove_admin_calls == [8001]
+    assert access_database.log.arguments("remove_admin") == [(8001,)]
 
 
 @pytest.mark.asyncio
@@ -545,7 +545,7 @@ async def test_admin_remove_rejects_invalid_arguments_and_supervisor(
     )
 
     assert sent_texts(session) == [expected_text]
-    assert access_database.remove_admin_calls == []
+    assert access_database.log.arguments("remove_admin") == []
 
 
 @pytest.mark.asyncio
@@ -554,7 +554,7 @@ async def test_admin_remove_propagates_database_failure(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
     """Admin remove propagates database failures."""
-    access_database.failed_operation = "remove_admin"
+    access_database.scenario.failed_operation = "remove_admin"
 
     with pytest.raises(RuntimeError, match="database unavailable"):
         await feed_command(dispatcher_runtime, SUPERVISOR_ID, "/admin_remove 8001")
@@ -575,7 +575,7 @@ async def test_ban_reports_blocked_and_already_blocked_users(
 ) -> None:
     """Ban reports both new and existing blocks."""
     result, expected_text = case
-    access_database.block_user_result = result
+    access_database.scenario.results["block_user"] = result
 
     session = await feed_command(
         dispatcher_runtime,
@@ -584,7 +584,7 @@ async def test_ban_reports_blocked_and_already_blocked_users(
     )
 
     assert sent_texts(session) == [expected_text]
-    assert access_database.block_user_calls == [8001]
+    assert access_database.log.arguments("block_user") == [(8001,)]
 
 
 @pytest.mark.asyncio
@@ -607,7 +607,7 @@ async def test_ban_rejects_invalid_target_ids(
     assert sent_texts(session) == [
         "Укажи положительный Telegram ID. Пример: /ban 123456789"
     ]
-    assert access_database.block_user_calls == []
+    assert access_database.log.arguments("block_user") == []
 
 
 @pytest.mark.asyncio
@@ -632,7 +632,7 @@ async def test_ban_protects_supervisor_and_administrators(
             "Сначала сними права администратора."
         )
     ]
-    assert access_database.block_user_calls == []
+    assert access_database.log.arguments("block_user") == []
 
 
 @pytest.mark.asyncio
@@ -643,7 +643,7 @@ async def test_ban_propagates_database_failures(
     failed_operation: str,
 ) -> None:
     """Ban propagates permission lookup and block operation failures."""
-    access_database.failed_operation = failed_operation
+    access_database.scenario.failed_operation = failed_operation
 
     with pytest.raises(RuntimeError, match="database unavailable"):
         await feed_command(dispatcher_runtime, SUPERVISOR_ID, "/ban 8001")
@@ -658,10 +658,10 @@ async def test_unban_reports_success_and_missing_blocks(
     session = await feed_command(dispatcher_runtime, SUPERVISOR_ID, "/unban 8001")
     assert sent_texts(session) == ["✅ Блокировка пользователя 8001 снята."]
 
-    access_database.unblock_user_result = False
+    access_database.scenario.results["unblock_user"] = False
     session = await feed_command(dispatcher_runtime, SUPERVISOR_ID, "/unban 8002")
     assert sent_texts(session)[-1:] == ["ℹ️ Пользователь 8002 не был заблокирован."]
-    assert access_database.unblock_user_calls == [8001, 8002]
+    assert access_database.log.arguments("unblock_user") == [(8001,), (8002,)]
 
 
 @pytest.mark.asyncio
@@ -684,7 +684,7 @@ async def test_unban_rejects_invalid_target_ids(
     assert sent_texts(session) == [
         "Укажи положительный Telegram ID. Пример: /unban 123456789"
     ]
-    assert access_database.unblock_user_calls == []
+    assert access_database.log.arguments("unblock_user") == []
 
 
 @pytest.mark.asyncio
@@ -693,7 +693,7 @@ async def test_unban_propagates_database_failure(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
     """Unban propagates database failures."""
-    access_database.failed_operation = "unblock_user"
+    access_database.scenario.failed_operation = "unblock_user"
 
     with pytest.raises(RuntimeError, match="database unavailable"):
         await feed_command(dispatcher_runtime, SUPERVISOR_ID, "/unban 8001")

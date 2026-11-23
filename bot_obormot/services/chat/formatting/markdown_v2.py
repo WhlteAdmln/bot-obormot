@@ -122,11 +122,13 @@ def _link_destination(text: str, start: int) -> tuple[str, int] | None:
             depth += 1
         elif char == ")":
             depth -= 1
-            if depth == 0:
-                end = cursor if url_end is None else url_end
-                return text[start:end], cursor + 1
         elif char.isspace() and depth == 1 and url_end is None:
             url_end = cursor
+
+        if char == ")" and depth == 0:
+            end = cursor if url_end is None else url_end
+            return text[start:end], cursor + 1
+
         cursor += 1
 
     return None

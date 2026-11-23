@@ -19,6 +19,65 @@ if TYPE_CHECKING:
     from bot_obormot.services.chat.input.models import MessageInfo
 
 
+def _audio_content(message: Message, transcribed_text: str | None) -> str | None:
+    """Return the transcript, framed by the caption when the message has one."""
+    if message.caption:
+        return texts.RECOGNIZED_SPEECH_TEMPLATE.format(
+            caption=message.caption,
+            transcribed_text=transcribed_text,
+        )
+
+    return transcribed_text
+
+
+def _document_content(
+    message: Message,
+    info: MessageInfo,
+    document_text: str | None,
+) -> str:
+    """Return the document text with its sanitized name and the caption."""
+    # has_document is only set when the message carries a document.
+    document = cast("Document", info.document)
+    raw_name = document.file_name or "document"
+    safe_name = re.sub(r"[\r\n\[\]]+", " ", raw_name)[:100]
+
+    content = texts.DOCUMENT_CONTENT_TEMPLATE.format(
+        filename=safe_name,
+        document_text=document_text,
+    )
+
+    if message.caption:
+        content = f"{message.caption}\n\n{content}"
+
+    if len(content) > MAX_INPUT_TEXT_LENGTH:
+        msg = f"Document message exceeds {MAX_INPUT_TEXT_LENGTH} characters"
+        raise DocumentTooLongError(msg)
+
+    return content
+
+
+def _select_content(
+    message: Message,
+    info: MessageInfo,
+    *,
+    text_override: str | None,
+    transcribed_text: str | None,
+    image_urls: list[str] | None,
+    document_text: str | None,
+) -> str | list[dict[str, Any]] | None:
+    """Pick the content that matches the kind of message."""
+    if info.has_audio:
+        return _audio_content(message, transcribed_text)
+
+    if info.has_media:
+        return get_user_content(message, image_urls, info.media_type)
+
+    if info.has_document:
+        return _document_content(message, info, document_text)
+
+    return text_override if text_override is not None else message.text
+
+
 def build_user_content(
     message: Message,
     info: MessageInfo,
@@ -29,44 +88,14 @@ def build_user_content(
     document_text: str | None,
 ) -> str | list[dict[str, Any]] | None:
     """Build text or multimodal content for the LLM."""
-    user_content: str | list[dict[str, Any]] | None
-
-    if info.has_audio:
-        user_content = transcribed_text
-
-        if message.caption:
-            user_content = texts.RECOGNIZED_SPEECH_TEMPLATE.format(
-                caption=message.caption,
-                transcribed_text=transcribed_text,
-            )
-
-    elif info.has_media:
-        user_content = get_user_content(
-            message,
-            image_urls,
-            info.media_type,
-        )
-
-    elif info.has_document:
-        # has_document is only set when the message carries a document.
-        document = cast("Document", info.document)
-        raw_name = document.file_name or "document"
-        safe_name = re.sub(r"[\r\n\[\]]+", " ", raw_name)[:100]
-
-        user_content = texts.DOCUMENT_CONTENT_TEMPLATE.format(
-            filename=safe_name,
-            document_text=document_text,
-        )
-
-        if message.caption:
-            user_content = f"{message.caption}\n\n{user_content}"
-
-        if len(user_content) > MAX_INPUT_TEXT_LENGTH:
-            msg = f"Document message exceeds {MAX_INPUT_TEXT_LENGTH} characters"
-            raise DocumentTooLongError(msg)
-
-    else:
-        user_content = text_override if text_override is not None else message.text
+    user_content = _select_content(
+        message,
+        info,
+        text_override=text_override,
+        transcribed_text=transcribed_text,
+        image_urls=image_urls,
+        document_text=document_text,
+    )
 
     if isinstance(user_content, str):
         validate_input_text(user_content)

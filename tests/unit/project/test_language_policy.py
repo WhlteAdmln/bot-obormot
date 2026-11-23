@@ -51,6 +51,7 @@ def test_python_language_policy_has_no_violations() -> None:
         if _has_language_violations(path)
     }
 
-    assert not violations, (
+    expected_empty = set()
+    assert violations == expected_empty, (
         f"Python language policy violations found: {sorted(violations)}"
     )

@@ -108,7 +108,10 @@ def test_extract_video_rejects_resolution_before_running_ffmpeg(
     tools = _install(monkeypatch, FakeVideoTools(size=b"3840x2161\n"))
     with pytest.raises(MediaError, match="Разрешение исходного видео"):
         video.extract_video(b"\x1a\x45\xdf\xa3" + b"fake-webm")
-    assert not tools.commands("ffmpeg"), "ffmpeg must not run for oversized input"
+    expected_empty = []
+    assert tools.commands("ffmpeg") == expected_empty, (
+        "ffmpeg must not run for oversized input"
+    )
 
 
 @pytest.mark.parametrize(

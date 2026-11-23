@@ -78,7 +78,10 @@ def test_env_example_matches_config_environment_variables() -> None:
     settings_names = _settings_environment_names()
     example_names, duplicates = _env_example_names()
 
-    assert not duplicates, f"Duplicate variables in .env.example: {sorted(duplicates)}"
+    expected_empty = []
+    assert duplicates == expected_empty, (
+        f"Duplicate variables in .env.example: {sorted(duplicates)}"
+    )
     assert example_names == settings_names, (
         f"Missing from .env.example: {sorted(settings_names - example_names)}; "
         f"not read by Settings: {sorted(example_names - settings_names)}"

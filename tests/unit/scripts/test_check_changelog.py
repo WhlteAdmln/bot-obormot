@@ -16,7 +16,8 @@ def test_accepts_sections_in_the_project_order(tmp_path: Path) -> None:
 
     errors = check_changelog(tmp_path)
 
-    assert not errors, "sections in the project order must be accepted"
+    expected_empty = []
+    assert errors == expected_empty, "sections in the project order must be accepted"
 
 
 def test_accepts_versions_with_omitted_sections(tmp_path: Path) -> None:
@@ -25,7 +26,8 @@ def test_accepts_versions_with_omitted_sections(tmp_path: Path) -> None:
 
     errors = check_changelog(tmp_path)
 
-    assert not errors, "a version may leave out any section"
+    expected_empty = []
+    assert errors == expected_empty, "a version may leave out any section"
 
 
 def test_reports_section_that_comes_after_a_later_one(tmp_path: Path) -> None:
@@ -67,7 +69,10 @@ def test_ignores_a_parenthesized_suffix_in_a_section_name(tmp_path: Path) -> Non
 
     errors = check_changelog(tmp_path)
 
-    assert not errors, "a suffix in parentheses must not change the section name"
+    expected_empty = []
+    assert errors == expected_empty, (
+        "a suffix in parentheses must not change the section name"
+    )
 
 
 def test_checks_every_version_on_its_own(tmp_path: Path) -> None:
@@ -79,7 +84,10 @@ def test_checks_every_version_on_its_own(tmp_path: Path) -> None:
 
     errors = check_changelog(tmp_path)
 
-    assert not errors, "the same section in two versions is not a duplicate"
+    expected_empty = []
+    assert errors == expected_empty, (
+        "the same section in two versions is not a duplicate"
+    )
 
 
 def test_ignores_headings_inside_code_blocks(tmp_path: Path) -> None:
@@ -88,7 +96,8 @@ def test_ignores_headings_inside_code_blocks(tmp_path: Path) -> None:
 
     errors = check_changelog(tmp_path)
 
-    assert not errors, "a heading inside a fenced block is not a section"
+    expected_empty = []
+    assert errors == expected_empty, "a heading inside a fenced block is not a section"
 
 
 def test_reports_section_that_is_outside_any_version(tmp_path: Path) -> None:

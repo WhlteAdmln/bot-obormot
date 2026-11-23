@@ -102,7 +102,8 @@ async def test_aggregator_caps_accumulated_text_and_tracks_background_task(
     assert len(result) > aggregator_module.MAX_INPUT_TEXT_LENGTH
 
     await asyncio.sleep(0)
-    assert not _tasks_named(task_name), "the background task must finish"
+    expected_empty = []
+    assert _tasks_named(task_name) == expected_empty, "the background task must finish"
 
 
 @pytest.mark.asyncio

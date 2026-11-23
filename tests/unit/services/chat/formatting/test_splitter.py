@@ -56,7 +56,8 @@ def _assert_tags_are_balanced(chunk: str) -> None:
         else:
             stack.append(tag)
 
-    assert not stack
+    expected_empty = []
+    assert stack == expected_empty, "expected an empty list"
 
 
 @settings(max_examples=200, deadline=None)

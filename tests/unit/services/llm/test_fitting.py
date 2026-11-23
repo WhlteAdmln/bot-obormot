@@ -180,7 +180,8 @@ async def test_fitting_rejects_context_smaller_than_reserved_tokens() -> None:
     with pytest.raises(InputTooLongError, match="Not enough context space"):
         await fit_messages_to_context(client, "system", [], "question")
 
-    assert not client.count_calls
+    expected_empty = []
+    assert client.count_calls == expected_empty, "expected an empty list"
 
 
 @pytest.mark.asyncio

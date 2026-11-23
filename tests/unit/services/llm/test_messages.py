@@ -13,7 +13,10 @@ from bot_obormot.services.llm import messages
 
 def test_normalize_content_preserves_supported_shapes() -> None:
     """Normalize content preserves supported shapes."""
-    assert not messages.normalize_content(None)
+    expected_empty = ""
+    assert messages.normalize_content(None) == expected_empty, (
+        "expected an empty string"
+    )
     expected_normalize_content = "hello"
     assert messages.normalize_content("hello") == expected_normalize_content
     assert messages.normalize_content(["text", {"type": "image_url"}, 7]) == [

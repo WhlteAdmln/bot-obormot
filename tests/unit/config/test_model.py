@@ -75,9 +75,12 @@ def test_load_settings_disables_audiodoc_when_no_url_is_configured() -> None:
     """Audiodoc clients remain disabled when neither URL name is configured."""
     settings = load_settings({"SUPERVISOR_ID": "1"})
 
-    assert not settings.AUDIODOC_URL
-    assert not settings.AUDIODOC_AUDIO_KEY
-    assert not settings.AUDIODOC_DOCUMENT_KEY
+    expected_empty = ""
+    assert expected_empty == settings.AUDIODOC_URL, "expected an empty string"
+    expected_empty = ""
+    assert expected_empty == settings.AUDIODOC_AUDIO_KEY, "expected an empty string"
+    expected_empty = ""
+    assert expected_empty == settings.AUDIODOC_DOCUMENT_KEY, "expected an empty string"
     expected_audiodoc_audio_timeout = 180
     assert expected_audiodoc_audio_timeout == settings.AUDIODOC_AUDIO_TIMEOUT
     expected_number = 300
@@ -162,7 +165,8 @@ def test_system_prompt_path_is_optional_and_keeps_the_built_in_prompt() -> None:
     """Without SYSTEM_PROMPT_PATH the packaged prompt is the default."""
     settings = load_settings({"SUPERVISOR_ID": "1"})
 
-    assert not settings.SYSTEM_PROMPT_PATH
+    expected_empty = ""
+    assert expected_empty == settings.SYSTEM_PROMPT_PATH, "expected an empty string"
     assert load_default_system_prompt() == settings.DEFAULT_SYSTEM_PROMPT
 
 

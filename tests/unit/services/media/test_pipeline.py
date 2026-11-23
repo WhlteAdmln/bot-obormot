@@ -104,4 +104,5 @@ async def test_process_media_rejects_declared_type_mismatch_before_decoder() -> 
             ),
         )
 
-    assert not calls
+    expected_empty = []
+    assert calls == expected_empty, "expected an empty list"

@@ -28,8 +28,9 @@ PROMPT_TOO_LONG_ERROR = "Промпт слишком длинный. Макси�
 PROMPT_SAVED = """✅ Персональный системный промпт сохранён.
 
 Теперь он используется только в твоём чате."""
-# pylint counts the two code points of the emoji, ruff counts its display width.
-PROMPT_RESET_ALREADY_DEFAULT = "ℹ️ У тебя уже используется стандартный системный промпт."  # pylint: disable=line-too-long
+PROMPT_RESET_ALREADY_DEFAULT = (
+    "ℹ\ufe0f У тебя уже используется стандартный системный промпт."
+)
 PROMPT_RESET_DONE = """🔄 Персональный системный промпт удалён.
 Теперь используется стандартный промпт."""
 PROMPT_CANCELLED = "❎ Ввод системного промпта отменён."

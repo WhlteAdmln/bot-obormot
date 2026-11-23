@@ -252,7 +252,7 @@ async def test_prompt_view_propagates_database_failures(
     failed_operation: str,
 ) -> None:
     """Prompt view propagates failures from either prompt lookup."""
-    access_database.failed_operation = failed_operation
+    access_database.scenario.failed_operation = failed_operation
 
     with pytest.raises(RuntimeError, match="database unavailable"):
         await feed_command(
@@ -282,7 +282,7 @@ async def test_prompt_reset_propagates_database_failures(
     user_id = PROMPT_USER_ID + 11
     if has_personal_prompt:
         access_database.user_prompts[user_id] = "Personal prompt"
-    access_database.failed_operation = failed_operation
+    access_database.scenario.failed_operation = failed_operation
 
     with pytest.raises(RuntimeError, match="database unavailable"):
         await feed_command(
@@ -302,7 +302,7 @@ async def test_prompt_save_propagates_database_failure(
     """Saving a personal prompt propagates a database failure."""
     user_id = PROMPT_USER_ID + 12
     session = await feed_command(dispatcher_runtime, user_id, "/prompt_set")
-    access_database.failed_operation = "set_system_prompt"
+    access_database.scenario.failed_operation = "set_system_prompt"
 
     with pytest.raises(RuntimeError, match="database unavailable"):
         await feed_command(

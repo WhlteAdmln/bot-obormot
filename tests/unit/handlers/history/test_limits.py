@@ -136,7 +136,7 @@ async def test_history_limit_sets_own_limit_for_user_admin_and_supervisor(
     assert sent_texts(session) == [
         f"✅ Твой лимит истории установлен: {limit} полных обменов."
     ]
-    assert access_database.set_history_limit_calls == [(user_id, limit)]
+    assert access_database.log.arguments("set_history_limit") == [(user_id, limit)]
 
 
 @pytest.mark.asyncio
@@ -175,7 +175,7 @@ async def test_history_limit_rejects_invalid_own_limits(
     )
 
     assert sent_texts(session) == [expected_text]
-    assert access_database.set_history_limit_calls == []
+    assert access_database.log.arguments("set_history_limit") == []
 
 
 @pytest.mark.asyncio
@@ -217,7 +217,9 @@ async def test_history_limit_allows_admin_to_change_target_limit(
             f"{limit} полных обменов."
         )
     ]
-    assert access_database.set_history_limit_calls == [(HISTORY_TARGET_ID, limit)]
+    assert access_database.log.arguments("set_history_limit") == [
+        (HISTORY_TARGET_ID, limit)
+    ]
 
 
 @pytest.mark.asyncio
@@ -262,7 +264,7 @@ async def test_history_limit_rejects_invalid_target_arguments(
     )
 
     assert sent_texts(session) == [expected_text]
-    assert access_database.set_history_limit_calls == []
+    assert access_database.log.arguments("set_history_limit") == []
 
 
 @pytest.mark.asyncio
@@ -302,9 +304,9 @@ async def test_history_limit_propagates_database_failures(
     user_id, command_text, failed_operation = case
     expected_failed_operation = "get_admin_ids"
     if failed_operation == expected_failed_operation:
-        access_database.fail_admin_lookup_on = 2
+        access_database.scenario.fail_admin_lookup_on = 2
     else:
-        access_database.failed_operation = failed_operation
+        access_database.scenario.failed_operation = failed_operation
 
     with pytest.raises(RuntimeError, match="database unavailable"):
         await feed_command(dispatcher_runtime, user_id, command_text)

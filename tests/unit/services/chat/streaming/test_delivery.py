@@ -146,7 +146,8 @@ async def test_delivery_does_nothing_for_empty_formatted_response() -> None:
         ),
     )
 
-    assert not message.answers
+    expected_empty = []
+    assert message.answers == expected_empty, "expected an empty list"
 
 
 @pytest.mark.asyncio
@@ -274,7 +275,8 @@ async def test_status_edit_falls_back_to_original_text() -> None:
     )
 
     assert edits == [("*hi*", "MarkdownV2"), ("**hi**", None)]
-    assert not message.answers
+    expected_empty = []
+    assert message.answers == expected_empty, "expected an empty list"
 
 
 @pytest.mark.asyncio
@@ -292,7 +294,8 @@ async def test_network_error_on_edit_does_not_send_a_duplicate() -> None:
             message, "hi", SimpleNamespace(), edit, options=_options()
         )
 
-    assert not message.answers
+    expected_empty = []
+    assert message.answers == expected_empty, "expected an empty list"
 
 
 @pytest.mark.asyncio

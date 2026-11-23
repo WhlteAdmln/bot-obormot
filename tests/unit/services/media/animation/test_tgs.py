@@ -21,13 +21,6 @@ from bot_obormot.services.media.texts import TGS_SUPPORT_UNAVAILABLE
 from tests.support.tgs import valid_tgs
 
 
-@pytest.fixture(autouse=True)
-def _reset_warning_cache() -> None:
-    """Allow every test to observe the one-time warning."""
-    # pylint: disable-next=protected-access  # the one-time warning has no reset API
-    tgs._warn_tgs_unavailable.cache_clear()  # noqa: SLF001
-
-
 def test_missing_decoder_gives_a_polite_media_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -38,21 +31,43 @@ def test_missing_decoder_gives_a_polite_media_error(
         tgs.extract_tgs(valid_tgs())
 
 
-def test_missing_decoder_warns_only_once(
+def test_startup_check_warns_when_decoder_is_missing(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """The log warning about the missing extra is written one time."""
     monkeypatch.setitem(sys.modules, "rlottie_python", None)
-
     with caplog.at_level(logging.WARNING, logger=tgs.logger.name):
+        tgs.log_tgs_support()
+    hint = "bot-obormot[tgs]"
+    actual = [hint in record.getMessage() for record in caplog.records]
+    expected = [True]
+    assert actual == expected, "a missing decoder must be reported once at startup"
+
+
+def test_startup_check_is_silent_when_decoder_is_installed(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setattr(tgs, "tgs_support_available", lambda: True)
+    with caplog.at_level(logging.DEBUG, logger=tgs.logger.name):
+        tgs.log_tgs_support()
+    expected: list[str] = []
+    actual = [record.getMessage() for record in caplog.records]
+    assert actual == expected, "an installed decoder must not produce log records"
+
+
+def test_missing_decoder_does_not_log_on_each_sticker(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setitem(sys.modules, "rlottie_python", None)
+    with caplog.at_level(logging.DEBUG, logger=tgs.logger.name):
         for _ in range(3):
             with pytest.raises(MediaError):
                 tgs.extract_tgs(valid_tgs())
-
-    expected_fragment = "bot-obormot[tgs]"
-    warnings = [record for record in caplog.records if expected_fragment in record.msg]
-    assert len(warnings) == 1
+    expected: list[str] = []
+    actual = [record.getMessage() for record in caplog.records]
+    assert actual == expected, "the missing extra is reported at startup only"
 
 
 def test_invalid_file_is_still_rejected_before_the_import_check(
@@ -139,7 +154,8 @@ def test_extract_tgs_validates_before_importing_rlottie(
     with pytest.raises(MediaError, match="Некорректный файл"):
         tgs.extract_tgs(b"not-a-gzip-file")
 
-    assert not imported_modules
+    expected_empty = []
+    assert imported_modules == expected_empty, "expected an empty list"
 
 
 def test_extract_tgs_imports_rlottie_for_valid_animation(

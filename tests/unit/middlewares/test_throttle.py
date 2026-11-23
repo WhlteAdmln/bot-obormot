@@ -66,7 +66,8 @@ async def test_throttle_drops_events_without_sender() -> None:
         calls.append(event)
 
     assert await middleware(handler, "event", {"event_from_user": None}) is None
-    assert not calls
+    expected_empty = []
+    assert calls == expected_empty, "expected an empty list"
 
 
 async def _send(middleware: object, user_id: int) -> object:

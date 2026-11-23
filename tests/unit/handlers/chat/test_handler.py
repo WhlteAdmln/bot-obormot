@@ -298,7 +298,8 @@ async def test_handler_returns_early_for_aggregated_continuation(
 
     assert state.calls == ["log", "inspect", "aggregate"]
     assert not state.lock_entered.is_set()
-    assert not message.answers
+    expected_empty = []
+    assert message.answers == expected_empty, "expected an empty list"
 
 
 @pytest.mark.asyncio

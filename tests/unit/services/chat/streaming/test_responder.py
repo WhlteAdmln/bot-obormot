@@ -68,8 +68,10 @@ async def test_responder_waits_until_initial_character_checkpoint() -> None:
 
     await responder.on_update("x" * 299)
 
-    assert not calls
-    assert not message.answers
+    expected_empty = []
+    assert calls == expected_empty, "expected an empty list"
+    expected_empty = []
+    assert message.answers == expected_empty, "expected an empty list"
     expected_next_token_check_chars = 300
     assert responder.next_token_check_chars == expected_next_token_check_chars
 
@@ -142,7 +144,8 @@ async def test_responder_updates_status_after_interval_only_when_chunk_changes()
     status = responder.status
 
     await responder.on_update("first" + "x" * 295)
-    assert not edits
+    expected_empty = []
+    assert edits == expected_empty, "expected an empty list"
 
     await responder.on_update("second" + "x" * 294)
     assert edits == [(status, "second" + "x" * 294)]

@@ -266,4 +266,5 @@ async def test_failed_exchange_rollback(test_db: Database) -> None:
     # Неудачный обмен не должен оставить файлы изображений.
     remaining_files = list(db.images_dir.iterdir())
 
-    assert not remaining_files
+    expected_empty = []
+    assert remaining_files == expected_empty, "expected an empty list"

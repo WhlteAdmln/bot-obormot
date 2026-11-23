@@ -39,6 +39,8 @@ DOCUMENTATION_ONLY_ENV_NAMES = frozenset(
 )
 
 _COMMAND_DECLARATION_RE = re.compile(r"Command\(\"([a-z_]+)\"")
+_COMMAND_NAME = "bot-obormot"
+_SLUG_PUNCTUATION = "-_ "
 
 _ENV_ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=.*$")
 _FENCED_BLOCK_RE = re.compile(r"(?ms)^(`{3,}|~{3,})[^\n]*\n(.*?)^\1[ \t]*$")
@@ -83,7 +85,9 @@ def _heading_slug(heading: str) -> str:
     heading = re.sub(r"<[^>]+>", "", heading)
     heading = re.sub(r"[`*_~]", "", heading).lower()
     slug = "".join(
-        character for character in heading if character.isalnum() or character in "-_ "
+        character
+        for character in heading
+        if character.isalnum() or character in _SLUG_PUNCTUATION
     )
     return re.sub(r"\s+", "-", slug).strip("-")
 
@@ -357,7 +361,7 @@ def _commands_in_line(tokens: list[str]) -> Iterator[list[str]]:
     for index, token in enumerate(tokens):
         if _ENV_ASSIGNMENT_RE.fullmatch(token) is not None:
             continue
-        if Path(token).name != "bot-obormot":
+        if Path(token).name != _COMMAND_NAME:
             continue
         if not _command_prefix_is_valid(tokens[:index]):
             continue
@@ -380,11 +384,16 @@ def _documented_commands(segment: str) -> Iterator[list[str]]:
         yield from _commands_in_line(tokens)
 
 
+def _parse_arguments_silently(arguments: list[str]) -> None:
+    """Run the CLI parser without printing its usage or error messages."""
+    with redirect_stdout(StringIO()), redirect_stderr(StringIO()):
+        build_parser().parse_args(arguments)
+
+
 def _cli_command_is_valid(arguments: list[str]) -> bool:
     """Return whether the CLI parser accepts a documented command."""
     try:
-        with redirect_stdout(StringIO()), redirect_stderr(StringIO()):
-            build_parser().parse_args(arguments)
+        _parse_arguments_silently(arguments)
     except SystemExit as error:
         return error.code == 0
     return True
@@ -399,7 +408,7 @@ def check_documented_commands(root: Path) -> list[str]:
         for segment in _code_segments(text):
             for arguments in _documented_commands(segment):
                 if not _cli_command_is_valid(arguments):
-                    command = " ".join(("bot-obormot", *arguments))
+                    command = " ".join((_COMMAND_NAME, *arguments))
                     errors.append(
                         f"{_display_path(path, root)}: invalid CLI command '{command}'"
                     )

@@ -8,6 +8,7 @@ from collections.abc import Callable
 from bot_obormot.services.media.animation.gif import extract_gif
 from bot_obormot.services.media.animation.tgs import extract_tgs
 from bot_obormot.services.media.animation.video import extract_video
+from bot_obormot.services.media.media_types import MEDIA_TYPE_GIF, MEDIA_TYPE_TGS
 
 FrameExtractor = Callable[[bytes], list[bytes]]
 
@@ -21,10 +22,10 @@ def dispatch_extraction(
     video_extractor: FrameExtractor = extract_video,
 ) -> list[bytes]:
     """Select the decoder based on the animation format."""
-    if media_type == "gif":
+    if media_type == MEDIA_TYPE_GIF:
         return gif_extractor(data)
 
-    if media_type == "tgs":
+    if media_type == MEDIA_TYPE_TGS:
         return tgs_extractor(data)
 
     if media_type in {"webm", "mp4", "video"}:

@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Literal
 
 ServiceMode = Literal["user", "system"]
+USER_MODE: ServiceMode = "user"
+SYSTEM_MODE: ServiceMode = "system"
 UNIT_NAME = "bot-obormot.service"
 SYSTEM_UNIT_DIRECTORY = Path("/etc/systemd/system")
 
@@ -46,7 +48,7 @@ def _quote_systemd_value(value: str) -> str:
 
 def default_unit_directory(mode: ServiceMode) -> Path:
     """Return the directory that holds units for the selected mode."""
-    if mode == "system":
+    if mode == SYSTEM_MODE:
         return SYSTEM_UNIT_DIRECTORY
     return Path.home() / ".config" / "systemd" / "user"
 
@@ -56,12 +58,12 @@ def render_service_unit(home: Path, *, mode: ServiceMode) -> str:
     if not home.is_absolute():
         message = "The bot-obormot home directory must be an absolute path."
         raise ValueError(message)
-    if mode not in {"user", "system"}:
+    if mode not in {USER_MODE, SYSTEM_MODE}:
         message = f"Unsupported systemd service mode: {mode}"
         raise ValueError(message)
 
     directives = ["Type=simple"]
-    if mode == "system":
+    if mode == SYSTEM_MODE:
         directives.extend(("User=bot-obormot", "Group=bot-obormot"))
 
     executable = _quote_systemd_value(str(home / ".venv" / "bin" / "bot-obormot"))
@@ -76,7 +78,7 @@ def render_service_unit(home: Path, *, mode: ServiceMode) -> str:
             "UMask=0077",
         )
     )
-    if mode == "system":
+    if mode == SYSTEM_MODE:
         directives.extend(
             (
                 "",
@@ -96,8 +98,30 @@ def render_service_unit(home: Path, *, mode: ServiceMode) -> str:
     return _UNIT_TEMPLATE.format(
         description="bot-obormot Telegram bot",
         directives="\n".join(directives),
-        wanted_by="multi-user.target" if mode == "system" else "default.target",
+        wanted_by="multi-user.target" if mode == SYSTEM_MODE else "default.target",
     )
+
+
+def _publish_unit_file(
+    descriptor: int,
+    content: str,
+    temporary_path: Path,
+    paths: tuple[Path, Path],
+    *,
+    exists: bool,
+) -> None:
+    """Write the unit to its temporary file and move it into place."""
+    unit_path, backup_path = paths
+    with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+        stream.write(content)
+        stream.flush()
+        os.fsync(stream.fileno())
+    temporary_path.chmod(0o644)
+    if exists:
+        shutil.copy2(unit_path, backup_path)
+        temporary_path.replace(unit_path)
+    else:
+        os.link(temporary_path, unit_path)
 
 
 def install_service_unit(
@@ -127,16 +151,13 @@ def install_service_unit(
     )
     temporary_path = Path(temporary_name)
     try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-            stream.write(content)
-            stream.flush()
-            os.fsync(stream.fileno())
-        temporary_path.chmod(0o644)
-        if exists:
-            shutil.copy2(unit_path, backup_path)
-            temporary_path.replace(unit_path)
-        else:
-            os.link(temporary_path, unit_path)
+        _publish_unit_file(
+            descriptor,
+            content,
+            temporary_path,
+            (unit_path, backup_path),
+            exists=exists,
+        )
     finally:
         temporary_path.unlink(missing_ok=True)
     return unit_path

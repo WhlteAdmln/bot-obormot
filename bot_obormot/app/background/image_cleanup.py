@@ -20,9 +20,9 @@ async def periodic_image_cleanup(database: Database) -> None:
                 retention_days=30,
                 orphan_grace_hours=24,
             )
-            logger.debug("Image cleanup result: %s", result)
-
         except Exception:
             logger.exception("Scheduled image cleanup failed")
+        else:
+            logger.debug("Image cleanup result: %s", result)
 
         await asyncio.sleep(IMAGE_CLEANUP_INTERVAL)

@@ -20,6 +20,18 @@ _TABLE_ROW = re.compile(r"^[ ]{0,3}\|.*\|[ \t]*$")
 _LANGUAGE = re.compile(r"^[A-Za-z0-9_+#.-]{1,32}$")
 _RULE_TEXT = "──────────"
 
+_BACKTICK = "`"
+_BACKSLASH = "\\"
+_OPEN_BRACKET = "["
+_CLOSE_BRACKET = "]"
+_OPEN_PAREN = "("
+_CLOSE_PAREN = ")"
+_TILDE = "~"
+_EXCLAMATION = "!"
+_SPACE = " "
+_STYLE_MARKERS = "*_~"
+_LINK_KIND = "link"
+
 _STRIKE_RUN = 2
 _KINDS_BY_RUN = {1: ("italic",), 2: ("bold",), 3: ("bold", "italic")}
 _SYMBOLS = {"bold": "*", "italic": "_", "strike": "~"}
@@ -53,8 +65,8 @@ def _skip_code_span(text: str, index: int) -> int:
     ticks = _run_length(text, index)
     close = text.find("`" * ticks, index + ticks)
     while close != -1 and (
-        (close > 0 and text[close - 1] == "`")
-        or text[close + ticks : close + ticks + 1] == "`"
+        (close > 0 and text[close - 1] == _BACKTICK)
+        or text[close + ticks : close + ticks + 1] == _BACKTICK
     ):
         close = text.find("`" * ticks, close + 1)
     return index + ticks if close == -1 else close + ticks
@@ -67,9 +79,9 @@ def _closing_run(text: str, start: int, marker: str, size: int) -> int:
     while index < len(text):
         char = text[index]
 
-        if char == "\\":
+        if char == _BACKSLASH:
             index += 2
-        elif char == "`":
+        elif char == _BACKTICK:
             index = _skip_code_span(text, index)
         elif char == marker:
             length = _run_length(text, index)
@@ -96,12 +108,12 @@ def _matching_bracket(text: str, index: int) -> int | None:
 
     while pos < len(text):
         char = text[pos]
-        if char == "\\":
+        if char == _BACKSLASH:
             pos += 2
             continue
-        if char == "[":
+        if char == _OPEN_BRACKET:
             depth += 1
-        elif char == "]":
+        elif char == _CLOSE_BRACKET:
             depth -= 1
             if depth == 0:
                 return pos
@@ -118,15 +130,17 @@ def _link_destination(text: str, start: int) -> tuple[str, int] | None:
 
     while cursor < len(text):
         char = text[cursor]
-        if char == "(":
+        if char == _OPEN_PAREN:
             depth += 1
-        elif char == ")":
+        elif char == _CLOSE_PAREN:
             depth -= 1
-            if depth == 0:
-                end = cursor if url_end is None else url_end
-                return text[start:end], cursor + 1
         elif char.isspace() and depth == 1 and url_end is None:
             url_end = cursor
+
+        if char == _CLOSE_PAREN and depth == 0:
+            end = cursor if url_end is None else url_end
+            return text[start:end], cursor + 1
+
         cursor += 1
 
     return None
@@ -136,7 +150,7 @@ def _find_link(text: str, index: int) -> tuple[str, str, int] | None:
     """Parse ``[label](url)`` at *index*; return label, url and the end."""
     close = _matching_bracket(text, index)
 
-    if close is None or text[close + 1 : close + 2] != "(":
+    if close is None or text[close + 1 : close + 2] != _OPEN_PAREN:
         return None
 
     destination = _link_destination(text, close + 2)
@@ -150,7 +164,7 @@ def _find_link(text: str, index: int) -> tuple[str, str, int] | None:
 
 def _can_open(text: str, index: int, size: int) -> bool:
     """Check that the marker run at *index* may open an emphasis span."""
-    if text[index] == "~":
+    if text[index] == _TILDE:
         valid = size == _STRIKE_RUN
     else:
         before = text[index - 1] if index else ""
@@ -177,7 +191,7 @@ def _emphasis(
     if closer == -1:
         return None
 
-    kinds = ("strike",) if marker == "~" else _KINDS_BY_RUN[size]
+    kinds = ("strike",) if marker == _TILDE else _KINDS_BY_RUN[size]
     content = text[index + size : closer]
     return _wrap(content, kinds, active), closer + size
 
@@ -223,7 +237,7 @@ def _link(
     index: int,
     active: frozenset[str],
 ) -> tuple[str, int] | None:
-    is_image = text[index] == "!"
+    is_image = text[index] == _EXCLAMATION
     parsed = _find_link(text, index + 1 if is_image else index)
 
     if parsed is None:
@@ -237,7 +251,7 @@ def _link(
 
     # A nested ternary here would be harder to read than the two branches.
     if label.strip():  # pylint: disable=consider-ternary-expression
-        shown = _inline(label, active | {"link"})
+        shown = _inline(label, active | {_LINK_KIND})
     else:
         shown = escape_text("image" if is_image else url)
 
@@ -253,22 +267,24 @@ def _inline(text: str, active: frozenset[str] = frozenset()) -> str:
         char = text[index]
         parsed: tuple[str, int] | None = None
 
-        if char == "\\" and text[index + 1 : index + 2] in _MD_ESCAPABLE:
+        if char == _BACKSLASH and text[index + 1 : index + 2] in _MD_ESCAPABLE:
             result.append(escape_text(text[index + 1]))
             index += 2
             continue
 
-        if char == "`":
+        if char == _BACKTICK:
             parsed = _code_span(text, index)
-        elif char in "*_~":
+        elif char in _STYLE_MARKERS:
             parsed = _emphasis(text, index, active)
-        elif (char == "[" or text.startswith("![", index)) and "link" not in active:
+        elif (
+            char == _OPEN_BRACKET or text.startswith("![", index)
+        ) and _LINK_KIND not in active:
             parsed = _link(text, index, active)
 
         if parsed is not None:
             result.append(parsed[0])
             index = parsed[1]
-        elif char == "`" or char in "*_~":
+        elif char == _BACKTICK or char in _STYLE_MARKERS:
             run = _run_length(text, index)
             result.append(escape_text(text[index : index + run]))
             index += run
@@ -285,7 +301,7 @@ def _list_line(line: str) -> str | None:
         indent, rest = bullet.groups()
         task = _TASK.match(rest)
         if task:
-            mark = "☐" if task.group(1) == " " else "☑"
+            mark = "☐" if task.group(1) == _SPACE else "☑"
             return f"{indent}{mark} {_inline(task.group(2))}"
         return f"{indent}• {_inline(rest)}"
 

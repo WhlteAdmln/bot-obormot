@@ -48,6 +48,40 @@ def _extract_text(result: object) -> str:
     return text
 
 
+async def _post_audio(
+    url: str,
+    form: aiohttp.FormData,
+    client_timeout: aiohttp.ClientTimeout,
+    headers: dict[str, str],
+) -> object:
+    """Post the audio form and return the decoded JSON response."""
+    async with (
+        aiohttp.ClientSession(
+            timeout=client_timeout,
+            headers=headers,
+        ) as session,
+        session.post(url, data=form) as response,
+    ):
+        if response.status != HTTPStatus.OK:
+            body = await read_limited_body(response, MAX_ERROR_BODY_BYTES)
+            detail = (body or b"").decode("utf-8", errors="replace")
+            msg = f"audiodoc HTTP {response.status}: {detail[:1000]}"
+            raise AudiodocAPIError(msg)
+
+        body = await read_limited_body(response, MAX_SERVICE_RESPONSE_BYTES)
+
+        if body is None:
+            msg = "audiodoc response is too large"
+            raise AudiodocAPIError(msg)
+
+        try:
+            result: object = json.loads(body)
+        except ValueError as error:
+            msg = "audiodoc returned invalid JSON"
+            raise AudiodocAPIError(msg) from error
+    return result
+
+
 async def transcribe_audio(
     audio_data: bytes,
     filename: str = "audio.ogg",
@@ -82,44 +116,19 @@ async def transcribe_audio(
         else {}
     )
 
+    logger.info(
+        "Sending audio to audiodoc: filename=%s, size=%s",
+        safe_filename,
+        len(audio_data),
+    )
+
     try:
-        logger.info(
-            "Sending audio to audiodoc: filename=%s, size=%s",
-            safe_filename,
-            len(audio_data),
+        result = await _post_audio(
+            _endpoint_url(settings.AUDIODOC_URL, "transcribe"),
+            form,
+            timeout,
+            headers,
         )
-
-        async with (
-            aiohttp.ClientSession(
-                timeout=timeout,
-                headers=headers,
-            ) as session,
-            session.post(
-                _endpoint_url(settings.AUDIODOC_URL, "transcribe"),
-                data=form,
-            ) as response,
-        ):
-            if response.status != HTTPStatus.OK:
-                body = await read_limited_body(response, MAX_ERROR_BODY_BYTES)
-                detail = (body or b"").decode("utf-8", errors="replace")
-                msg = f"audiodoc HTTP {response.status}: {detail[:1000]}"
-                raise AudiodocAPIError(msg)
-
-            body = await read_limited_body(response, MAX_SERVICE_RESPONSE_BYTES)
-
-            if body is None:
-                msg = "audiodoc response is too large"
-                raise AudiodocAPIError(msg)
-
-            try:
-                result = json.loads(body)
-            except ValueError as error:
-                msg = "audiodoc returned invalid JSON"
-                raise AudiodocAPIError(msg) from error
-
-        text = _extract_text(result)
-
-        logger.info("audiodoc transcription received: %d chars", len(text))
 
     except TimeoutError as error:
         msg = "audiodoc request timed out"
@@ -129,4 +138,7 @@ async def transcribe_audio(
         msg = f"audiodoc connection error: {error}"
         raise AudiodocUnavailableError(msg) from error
 
+    text = _extract_text(result)
+
+    logger.info("audiodoc transcription received: %d chars", len(text))
     return text

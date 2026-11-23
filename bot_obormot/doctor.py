@@ -21,6 +21,8 @@ from bot_obormot.services.media.animation.tgs import tgs_support_available
 from bot_obormot.settings import ConfigError, Settings, load_settings
 
 CheckStatus = Literal["OK", "WARN", "FAIL"]
+OK_STATUS: CheckStatus = "OK"
+FAIL_STATUS: CheckStatus = "FAIL"
 
 MIN_PYTHON = (3, 11)
 HTTP_TIMEOUT_SECONDS = 3.0
@@ -183,6 +185,12 @@ def _display_url(url: str) -> str:
     return f"{parts.scheme}://{parts.hostname}{port}"
 
 
+def _open_status(request: urllib.request.Request, timeout: float) -> int:
+    """Open the request and return its HTTP status."""
+    with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
+        return int(response.status)
+
+
 def fetch_status(url: str, headers: Mapping[str, str], timeout: float) -> int:
     """Return the HTTP status of a GET request; raise OSError when unreachable."""
     if urlsplit(url).scheme not in {"http", "https"}:
@@ -190,8 +198,7 @@ def fetch_status(url: str, headers: Mapping[str, str], timeout: float) -> int:
         raise ValueError(message)
     request = urllib.request.Request(url, headers=dict(headers), method="GET")  # noqa: S310
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
-            return int(response.status)
+        return _open_status(request, timeout)
     except urllib.error.HTTPError as error:
         error.close()
         return int(error.code)

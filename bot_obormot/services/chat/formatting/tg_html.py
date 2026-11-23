@@ -7,9 +7,12 @@ import html
 import re
 from collections.abc import Callable
 
+_NUMERIC_ENTITY_MARKER = "#"
+_SPOILER_CLASS = "tg-spoiler"
+
 # Tags supported by Telegram ``parse_mode=HTML``.
 SUPPORTED_TAGS: tuple[str, ...] = (
-    "tg-spoiler",
+    _SPOILER_CLASS,
     "tg-emoji",
     "blockquote",
     "strong",
@@ -83,7 +86,7 @@ def _escape_text(text: str) -> str:
         result.append(_escape_plain(text[position : match.start()]))
         token = match.group(0)
 
-        if token in _TELEGRAM_NAMED_ENTITIES or token[1] == "#":
+        if token in _TELEGRAM_NAMED_ENTITIES or token[1] == _NUMERIC_ENTITY_MARKER:
             result.append(token)
         else:
             decoded = html.unescape(token)
@@ -134,7 +137,7 @@ def _anchor(raw_attributes: str) -> str | None:
 
 def _span(raw_attributes: str) -> str | None:
     css = _attribute_value(raw_attributes, "class")
-    return '<span class="tg-spoiler">' if css == "tg-spoiler" else None
+    return '<span class="tg-spoiler">' if css == _SPOILER_CLASS else None
 
 
 def _emoji(raw_attributes: str) -> str | None:

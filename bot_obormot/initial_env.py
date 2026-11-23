@@ -38,6 +38,24 @@ def render_env_content(*, token: str | None, supervisor: int | None) -> str:
     return content
 
 
+def _publish_env_file(
+    descriptor: int,
+    temporary_path: Path,
+    env_path: Path,
+    content: str,
+    *,
+    force: bool,
+) -> None:
+    """Write the temporary file, protect it, and move or link it into place."""
+    with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+        stream.write(content)
+    temporary_path.chmod(0o600)
+    if force:
+        temporary_path.replace(env_path)
+    else:
+        os.link(temporary_path, env_path)
+
+
 def write_initial_env(
     home: Path,
     *,
@@ -53,13 +71,7 @@ def write_initial_env(
     descriptor, temporary_name = tempfile.mkstemp(prefix=".env.", dir=home)
     temporary_path = Path(temporary_name)
     try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-            stream.write(content)
-        temporary_path.chmod(0o600)
-        if force:
-            temporary_path.replace(env_path)
-        else:
-            os.link(temporary_path, env_path)
+        _publish_env_file(descriptor, temporary_path, env_path, content, force=force)
     finally:
         temporary_path.unlink(missing_ok=True)
 

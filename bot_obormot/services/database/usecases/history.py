@@ -8,6 +8,7 @@ import base64
 import logging
 import sqlite3
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,21 @@ def _decode_data_url(data_url: str) -> bytes:
     return base64.b64decode(encoded, validate=True)
 
 
+def _combine_animation_frames(
+    image_parts: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Merge image parts into a single contact-sheet image part."""
+    frame_data = [_decode_data_url(part["image_url"]["url"]) for part in image_parts]
+    contact_sheet = build_contact_sheet(frame_data)
+    encoded_sheet = base64.b64encode(contact_sheet).decode("ascii")
+    return [
+        {
+            "type": "image_url",
+            "image_url": {"url": f"data:image/jpeg;base64,{encoded_sheet}"},
+        }
+    ]
+
+
 def _build_history_message_content(
     message_id: int,
     current_content: str | None,
@@ -41,18 +57,7 @@ def _build_history_message_content(
         # Older versions stored each animation frame as a separate file.
         # Combine frames into one contact sheet when reading history.
         try:
-            frame_data = [
-                _decode_data_url(part["image_url"]["url"])
-                for part in message_image_parts
-            ]
-            contact_sheet = build_contact_sheet(frame_data)
-            encoded_sheet = base64.b64encode(contact_sheet).decode("ascii")
-            message_image_parts = [
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/jpeg;base64,{encoded_sheet}"},
-                }
-            ]
+            message_image_parts = _combine_animation_frames(message_image_parts)
         except Exception:
             logger.exception(
                 "Could not combine historical animation frames: message_id=%s",
@@ -70,23 +75,30 @@ def _build_history_message_content(
     return current_content
 
 
+@dataclass
+class _PendingMessage:
+    """A history message whose image parts are still being collected."""
+
+    message_id: int | None = None
+    role: str | None = None
+    content: str | None = None
+    image_parts: list[dict[str, Any]] = field(default_factory=list)
+
+
 def _append_history_message(
     history: list[dict[str, Any]],
-    message_id: int | None,
-    role: str | None,
-    content: str | None,
-    image_parts: list[dict[str, Any]],
+    pending: _PendingMessage,
     logger: logging.Logger,
 ) -> None:
-    if message_id is None:
+    if pending.message_id is None:
         return
     history.append(
         {
-            "role": role,
+            "role": pending.role,
             "content": _build_history_message_content(
-                message_id,
-                content,
-                image_parts,
+                pending.message_id,
+                pending.content,
+                pending.image_parts,
                 logger,
             ),
         }
@@ -140,30 +152,18 @@ async def get_history(
     )
 
     history: list[dict[str, Any]] = []
-    current_id: int | None = None
-    current_role: str | None = None
-    current_content: str | None = None
-    image_parts: list[dict[str, Any]] = []
+    pending = _PendingMessage()
 
     for row in rows:
-        message_id = row["id"]
-
-        if message_id != current_id:
-            _append_history_message(
-                history, current_id, current_role, current_content, image_parts, logger
-            )
-            current_id = message_id
-            current_role = row["role"]
-            current_content = row["content"]
-            image_parts = []
+        if row["id"] != pending.message_id:
+            _append_history_message(history, pending, logger)
+            pending = _PendingMessage(row["id"], row["role"], row["content"])
 
         image_part = await _read_image_part(row, read_image_as_base64, logger)
         if image_part is not None:
-            image_parts.append(image_part)
+            pending.image_parts.append(image_part)
 
-    _append_history_message(
-        history, current_id, current_role, current_content, image_parts, logger
-    )
+    _append_history_message(history, pending, logger)
     return history
 
 

@@ -16,6 +16,7 @@ from bot_obormot.services.media.animation import extract_animation_frames
 from bot_obormot.services.media.contact_sheet import build_contact_sheet
 from bot_obormot.services.media.images import prepare_image
 from bot_obormot.services.media.limits import MAX_CONCURRENT_IMAGE_JOBS
+from bot_obormot.services.media.media_types import MEDIA_TYPE_IMAGE
 from bot_obormot.services.media.sniff import verify_declared_type
 from bot_obormot.services.telegram.downloader import download_telegram_file
 
@@ -65,6 +66,24 @@ def _ensure_frames(frames: list[bytes]) -> None:
         raise MediaError(msg)
 
 
+async def _prepare_images(
+    options: MediaPipelineOptions,
+    data: bytes,
+    media_type: str,
+) -> list[str]:
+    """Convert downloaded media into prepared images for the LLM."""
+    if media_type == MEDIA_TYPE_IMAGE:
+        return [await _run_limited(options.image_preparer, data)]
+
+    frames = await options.animation_extractor(data, media_type)
+    _ensure_frames(frames)
+
+    # Send the Vision model one contact sheet with numbered frames,
+    # rather than several independent image_url parts.
+    contact_sheet = await _run_limited(options.contact_sheet_builder, frames)
+    return [await _run_limited(options.image_preparer, contact_sheet)]
+
+
 async def process_media(
     message: Message,
     media_type: str,
@@ -77,16 +96,7 @@ async def process_media(
     verify_declared_type(data, media_type)
 
     try:
-        if media_type == "image":
-            return [await _run_limited(options.image_preparer, data)]
-
-        frames = await options.animation_extractor(data, media_type)
-        _ensure_frames(frames)
-
-        # Send the Vision model one contact sheet with numbered frames,
-        # rather than several independent image_url parts.
-        contact_sheet = await _run_limited(options.contact_sheet_builder, frames)
-        prepared_image = await _run_limited(options.image_preparer, contact_sheet)
+        return await _prepare_images(options, data, media_type)
 
     except MediaError:
         raise
@@ -98,5 +108,3 @@ async def process_media(
         )
         msg = f"Failed to prepare {media_type} media"
         raise MediaError(msg) from error
-
-    return [prepared_image]

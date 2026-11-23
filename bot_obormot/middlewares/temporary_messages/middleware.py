@@ -122,8 +122,8 @@ class TemporaryMessagesCleanupMiddleware(BaseMiddleware):
         message_id: int,
         description: str,
     ) -> None:
+        bot = cast("Bot", event.bot)
         try:
-            bot = cast("Bot", event.bot)
             await bot.delete_message(
                 chat_id=event.chat.id,
                 message_id=message_id,

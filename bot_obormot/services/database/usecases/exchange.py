@@ -25,6 +25,47 @@ class ExchangeContext:
     logger: logging.Logger
 
 
+async def _write_exchange(
+    connection: aiosqlite.Connection,
+    user_id: int,
+    user_text: str,
+    assistant_text: str,
+    saved_files: list[Path],
+) -> None:
+    """Insert the messages and media inside the open transaction and commit."""
+    cursor = await connection.execute(
+        """
+        INSERT INTO messages(user_id, role, content)
+        VALUES (?, 'user', ?)
+        """,
+        (user_id, user_text),
+    )
+    user_message_id = cursor.lastrowid
+
+    for image_path in saved_files:
+        await connection.execute(
+            """
+            INSERT INTO message_media(
+                message_id,
+                file_path,
+                mime_type
+            )
+            VALUES (?, ?, 'image/jpeg')
+            """,
+            (user_message_id, str(image_path)),
+        )
+
+    await connection.execute(
+        """
+        INSERT INTO messages(user_id, role, content)
+        VALUES (?, 'assistant', ?)
+        """,
+        (user_id, assistant_text),
+    )
+
+    await connection.commit()
+
+
 async def _persist_exchange(
     context: ExchangeContext,
     user_id: int,
@@ -34,50 +75,21 @@ async def _persist_exchange(
 ) -> None:
     """Persists the messages and media in one transaction."""
     async with context.lock:
-        transaction_started = False
+        await context.connection.execute("BEGIN IMMEDIATE")
         try:
-            await context.connection.execute("BEGIN IMMEDIATE")
-            transaction_started = True
-
-            cursor = await context.connection.execute(
-                """
-                INSERT INTO messages(user_id, role, content)
-                VALUES (?, 'user', ?)
-                """,
-                (user_id, user_text),
+            await _write_exchange(
+                context.connection,
+                user_id,
+                user_text,
+                assistant_text,
+                saved_files,
             )
-            user_message_id = cursor.lastrowid
-
-            for image_path in saved_files:
-                await context.connection.execute(
-                    """
-                    INSERT INTO message_media(
-                        message_id,
-                        file_path,
-                        mime_type
-                    )
-                    VALUES (?, ?, 'image/jpeg')
-                    """,
-                    (user_message_id, str(image_path)),
-                )
-
-            await context.connection.execute(
-                """
-                INSERT INTO messages(user_id, role, content)
-                VALUES (?, 'assistant', ?)
-                """,
-                (user_id, assistant_text),
-            )
-
-            await context.connection.commit()
-            transaction_started = False
 
         except Exception:
-            if transaction_started:
-                try:
-                    await context.connection.rollback()
-                except aiosqlite.Error:
-                    context.logger.exception("Database rollback failed")
+            try:
+                await context.connection.rollback()
+            except aiosqlite.Error:
+                context.logger.exception("Database rollback failed")
             raise
 
 
@@ -96,6 +108,30 @@ async def _remove_saved_files(
             )
 
 
+async def _save_and_persist(
+    context: ExchangeContext,
+    messages: tuple[int, str, str],
+    media: list[bytes] | None,
+    saved_files: list[Path],
+) -> None:
+    """Save the images, then persist the exchange; track every saved path."""
+    user_id, user_text, assistant_text = messages
+    # Save images without blocking the event loop.
+    for image_data in media or []:
+        filename = f"{uuid.uuid4().hex}.jpg"
+        image_path = context.images_dir / filename
+        saved_files.append(image_path)
+        await asyncio.to_thread(save_image, image_path, image_data)
+
+    await _persist_exchange(
+        context,
+        user_id,
+        user_text,
+        assistant_text,
+        saved_files,
+    )
+
+
 async def add_exchange(
     context: ExchangeContext,
     user_id: int,
@@ -112,18 +148,10 @@ async def add_exchange(
     saved_files: list[Path] = []
 
     try:
-        # Save images without blocking the event loop.
-        for image_data in media or []:
-            filename = f"{uuid.uuid4().hex}.jpg"
-            image_path = context.images_dir / filename
-            saved_files.append(image_path)
-            await asyncio.to_thread(save_image, image_path, image_data)
-
-        await _persist_exchange(
+        await _save_and_persist(
             context,
-            user_id,
-            user_text,
-            assistant_text,
+            (user_id, user_text, assistant_text),
+            media,
             saved_files,
         )
 

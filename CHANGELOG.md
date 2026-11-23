@@ -16,6 +16,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Renovate regenerates the lock with the `pip-compile` manager, leaves Python version changes to humans, updates tightly coupled packages together and no longer merges GitHub Actions, pre-commit hooks, build tooling, major, `0.x` and parser or network minor updates by itself.
 - The pylint configuration checks only the docstring sections that are written, uses `max-try-statements = 1` and drops the `while_used` extension. Several findings in the code are fixed without changing behavior.
 - pylint is pinned to 4.1.4.
+- Magic string and byte values in the code are named constants, every `try` clause wraps a single statement and long functions are split into helpers. Behavior is unchanged.
+- `scripts/coverage_gaps.py` is shared with audiodoc and checked by `scripts/check_vendored.py`; it reads `coverage.xml` with `defusedxml`, which is a new dev dependency.
 - Renovate refreshes the lock on the first day of each month (`renovate/pip-compile-refresh`); a human merges it. The generic lock maintenance job is off because it duplicated that branch.
 - `build_parser` in the CLI module is public so that `scripts/check_docs.py` does not import a private name.
 

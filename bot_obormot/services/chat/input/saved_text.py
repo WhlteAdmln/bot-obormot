@@ -15,6 +15,53 @@ if TYPE_CHECKING:
     from bot_obormot.services.chat.input.models import MessageInfo
 
 
+def _audio_history_text(message: Message, transcribed_text: str | None) -> str:
+    """Describe a voice message by its transcript and caption."""
+    text = texts.AUDIO_HISTORY_TEMPLATE.format(transcribed_text=transcribed_text)
+
+    if message.caption:
+        text = f"{message.caption}\n\n{text}"
+
+    return text
+
+
+def _media_history_text(message: Message, info: MessageInfo) -> str:
+    """Describe an image or animation, followed by the caption."""
+    if info.media_type in {"tgs", "webm", "gif", "mp4"}:
+        text = texts.ANIMATION_HISTORY_TEMPLATE.format(media_type=info.media_type)
+    elif message.photo:
+        text = texts.PHOTO_HISTORY_TEXT
+    elif message.sticker:
+        text = texts.STICKER_HISTORY_TEXT
+    else:
+        text = texts.IMAGE_HISTORY_TEXT
+
+    if message.caption:
+        text += f" {message.caption}"
+
+    return text
+
+
+def _document_history_text(
+    message: Message,
+    info: MessageInfo,
+    document_format: str | None,
+) -> str:
+    """Describe a document by its name and format, followed by the caption."""
+    # has_document is only set when the message carries a document.
+    document = cast("Document", info.document)
+
+    text = texts.DOCUMENT_HISTORY_TEMPLATE.format(
+        filename=document.file_name or "document",
+        document_format=cast("str", document_format).upper(),
+    )
+
+    if message.caption:
+        text += f" {message.caption}"
+
+    return text
+
+
 def build_saved_user_text(
     message: Message,
     info: MessageInfo,
@@ -24,47 +71,13 @@ def build_saved_user_text(
     document_format: str | None,
 ) -> str | None:
     """Build the existing text description of a message for the database."""
-    saved_user_text: str | None
-
     if info.has_audio:
-        saved_user_text = texts.AUDIO_HISTORY_TEMPLATE.format(
-            transcribed_text=transcribed_text
-        )
+        return _audio_history_text(message, transcribed_text)
 
-        if message.caption:
-            saved_user_text = f"{message.caption}\n\n{saved_user_text}"
+    if info.has_media:
+        return _media_history_text(message, info)
 
-    elif info.has_media:
-        if info.media_type in {"tgs", "webm", "gif", "mp4"}:
-            saved_user_text = texts.ANIMATION_HISTORY_TEMPLATE.format(
-                media_type=info.media_type
-            )
+    if info.has_document:
+        return _document_history_text(message, info, document_format)
 
-        elif message.photo:
-            saved_user_text = texts.PHOTO_HISTORY_TEXT
-
-        elif message.sticker:
-            saved_user_text = texts.STICKER_HISTORY_TEXT
-
-        else:
-            saved_user_text = texts.IMAGE_HISTORY_TEXT
-
-        if message.caption:
-            saved_user_text += f" {message.caption}"
-
-    elif info.has_document:
-        # has_document is only set when the message carries a document.
-        document = cast("Document", info.document)
-
-        saved_user_text = texts.DOCUMENT_HISTORY_TEMPLATE.format(
-            filename=document.file_name or "document",
-            document_format=cast("str", document_format).upper(),
-        )
-
-        if message.caption:
-            saved_user_text += f" {message.caption}"
-
-    else:
-        saved_user_text = text_override if text_override is not None else message.text
-
-    return saved_user_text
+    return text_override if text_override is not None else message.text

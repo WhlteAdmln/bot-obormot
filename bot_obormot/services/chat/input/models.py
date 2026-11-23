@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class MessageInfo:
+class MessageInfo:  # pylint: disable=too-many-instance-attributes  # one flag per kind
     """Kinds of content found in an incoming Telegram message."""
 
     file_id: str | None

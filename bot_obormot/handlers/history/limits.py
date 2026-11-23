@@ -84,8 +84,7 @@ async def _set_own_limit(
 def _parse_target_limit(args: list[str], settings: Settings) -> tuple[int, int] | str:
     """Return (target user ID, limit) or the user-facing error text."""
     try:
-        target_user_id = int(args[0])
-        exchange_limit = int(args[1])
+        target_user_id, exchange_limit = int(args[0]), int(args[1])
     except ValueError:
         return texts.TARGET_LIMIT_ARGUMENTS_INVALID
 

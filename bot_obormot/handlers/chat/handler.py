@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from aiogram import Router
@@ -41,6 +42,7 @@ if TYPE_CHECKING:
     from aiogram.types import Message
 
     from bot_obormot.services.chat.aggregation import MessageAggregator
+    from bot_obormot.services.chat.input import MessageInfo
     from bot_obormot.services.database import Database
     from bot_obormot.services.llm.client import LLMClient
     from bot_obormot.settings import Settings
@@ -49,6 +51,54 @@ MAX_PENDING_PER_USER = 3
 
 router = Router()
 logger = logging.getLogger("bot_obormot.handlers.chat")
+
+
+@dataclass(frozen=True)
+class _ChatTurn:
+    """Everything needed to answer one request, which may combine messages."""
+
+    message: Message
+    info: MessageInfo
+    aggregated_text: str | None
+    settings: Settings
+    user_id: int
+    reply_to: ReplyTarget
+    dependencies: ChatPipelineDependencies
+
+
+async def _answer_turn(turn: _ChatTurn, responder: StreamingResponder) -> None:
+    """Prepare the input, get the LLM reply, and deliver the final response."""
+    # Prepare text, audio, images, and documents.
+    prepared = await prepare_message(
+        turn.message,
+        turn.info,
+        text_override=turn.aggregated_text,
+        settings=turn.settings,
+    )
+
+    # Get the response from the LLM.
+    # The full response is saved to the database inside process_chat.
+    response = await process_chat(
+        user_id=turn.user_id,
+        user_content=prepared.user_content,
+        saved_user_text=prepared.saved_user_text,
+        media=prepared.image_bytes,
+        on_update=responder.on_update,
+        dependencies=turn.dependencies,
+    )
+
+    await deliver_final_response(
+        message=turn.message,
+        response=response,
+        status=responder.status,
+        safe_edit=safe_edit,
+        options=DeliveryOptions(
+            preparer=prepare_response,
+            max_message_length=MAX_MESSAGE_LENGTH,
+            user_id=turn.user_id,
+            reply_to=turn.reply_to,
+        ),
+    )
 
 
 @router.message()
@@ -119,41 +169,21 @@ async def handle_message(
         )
         typing_task = asyncio.create_task(keep_typing(message))
 
+        turn = _ChatTurn(
+            message=message,
+            info=info,
+            aggregated_text=aggregated_text,
+            settings=settings,
+            user_id=user_id,
+            reply_to=reply_to,
+            dependencies=ChatPipelineDependencies(
+                llm_client=llm_client,
+                database=database,
+            ),
+        )
+
         try:
-            # Prepare text, audio, images, and documents.
-            prepared = await prepare_message(
-                message,
-                info,
-                text_override=aggregated_text,
-                settings=settings,
-            )
-
-            # Get the response from the LLM.
-            # The full response is saved to the database inside process_chat.
-            response = await process_chat(
-                user_id=user_id,
-                user_content=prepared.user_content,
-                saved_user_text=prepared.saved_user_text,
-                media=prepared.image_bytes,
-                on_update=responder.on_update,
-                dependencies=ChatPipelineDependencies(
-                    llm_client=llm_client,
-                    database=database,
-                ),
-            )
-
-            await deliver_final_response(
-                message=message,
-                response=response,
-                status=responder.status,
-                safe_edit=safe_edit,
-                options=DeliveryOptions(
-                    preparer=prepare_response,
-                    max_message_length=MAX_MESSAGE_LENGTH,
-                    user_id=user_id,
-                    reply_to=reply_to,
-                ),
-            )
+            await _answer_turn(turn, responder)
 
         except asyncio.CancelledError:
             logger.info(

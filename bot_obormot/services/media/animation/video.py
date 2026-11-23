@@ -21,6 +21,7 @@ from bot_obormot.services.media.animation.limits import (
     MAX_VIDEO_PIXELS,
     PROCESS_TIMEOUT,
 )
+from bot_obormot.services.media.sniff import EBML_MAGIC, FTYP_MARKER
 from bot_obormot.services.media.texts import (
     UNSUPPORTED_VIDEO_FORMAT,
     VIDEO_RESOLUTION_TOO_LARGE,
@@ -28,6 +29,8 @@ from bot_obormot.services.media.texts import (
 
 # Minimum number of header bytes needed to see the MP4 "ftyp" marker.
 _MIN_MP4_HEAD_LENGTH = 8
+# The duration reported by ffprobe for streams without a known length.
+_UNKNOWN_DURATION = "N/A"
 
 
 def _command_environment(name: str) -> dict[str, str]:
@@ -46,8 +49,8 @@ def _command_environment(name: str) -> dict[str, str]:
 def _check_container(data: bytes) -> None:
     """Reject data that does not resemble a WEBM or MP4 container."""
     head = data[:12]
-    is_webm = head[:4] == b"\x1a\x45\xdf\xa3"
-    is_mp4 = len(head) >= _MIN_MP4_HEAD_LENGTH and head[4:8] == b"ftyp"
+    is_webm = head[:4] == EBML_MAGIC
+    is_mp4 = len(head) >= _MIN_MP4_HEAD_LENGTH and head[4:8] == FTYP_MARKER
 
     if not (is_webm or is_mp4):
         msg = UNSUPPORTED_VIDEO_FORMAT
@@ -86,8 +89,7 @@ def _probe_dimensions(working_directory: Path) -> tuple[int, int]:
     lines = result.stdout.decode(errors="replace").strip().splitlines()
 
     try:
-        width_text, height_text = lines[0].split("x", 1)
-        width, height = int(width_text), int(height_text)
+        width, height = (int(part) for part in lines[0].split("x", 1))
     except (IndexError, ValueError) as error:
         msg = "Cannot determine video dimensions"
         raise ValueError(msg) from error
@@ -128,7 +130,7 @@ def _probe_duration(working_directory: Path) -> float:
 
     duration_text = probe.stdout.decode().strip()
 
-    if not duration_text or duration_text == "N/A":
+    if not duration_text or duration_text == _UNKNOWN_DURATION:
         msg = "Cannot determine video duration"
         raise ValueError(msg)
 

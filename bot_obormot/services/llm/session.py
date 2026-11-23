@@ -9,6 +9,9 @@ import aiohttp
 
 from bot_obormot.settings import Settings
 
+# The value of LLM_API_KEY that means "no authorization".
+_NO_KEY_PLACEHOLDER = "not-needed"
+
 
 class SessionOwner(Protocol):
     """Object that keeps a reusable HTTP session."""
@@ -25,7 +28,7 @@ def _auth_headers(settings: Settings) -> dict[str, str]:
     """Return the authorization header when an API key is configured."""
     api_key = (settings.LLM_API_KEY or "").strip()
 
-    if not api_key or api_key == "not-needed":
+    if not api_key or api_key == _NO_KEY_PLACEHOLDER:
         return {}
 
     return {"Authorization": f"Bearer {api_key}"}

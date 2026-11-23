@@ -12,6 +12,7 @@ from typing import Any
 import aiohttp
 
 from bot_obormot.services.llm import texts
+from bot_obormot.services.llm.constants import COUNTING_MODE_AUTO
 from bot_obormot.services.llm.context_size import get_context_size as fetch_context_size
 from bot_obormot.services.llm.endpoints import server_url
 from bot_obormot.services.llm.fitting import fit_messages_to_context
@@ -38,7 +39,17 @@ from bot_obormot.services.llm.tokenizer import (
 )
 from bot_obormot.settings import Settings, get_settings
 
+_HEALTH_OK_STATUS = "ok"
+
 logger = logging.getLogger(__name__)
+
+
+async def _json_or_none(response: aiohttp.ClientResponse) -> object:
+    """Decode a JSON response body, or return ``None`` when it is not valid."""
+    try:
+        return await response.json()
+    except (aiohttp.ClientError, ValueError, TypeError):
+        return None
 
 
 class LLMClient:
@@ -149,7 +160,7 @@ class LLMClient:
     async def get_token_counting_mode(self) -> str:
         """Return the selected token counting mode."""
         configured_mode = self.settings.LLM_TOKEN_COUNTING
-        if configured_mode != "auto":
+        if configured_mode != COUNTING_MODE_AUTO:
             return configured_mode
 
         mode = self._token_counting_mode
@@ -208,34 +219,7 @@ class LLMClient:
     async def health_check(self) -> tuple[bool, str]:
         """Check the LLM server using /health or the standard /models endpoint."""
         try:
-            session = await self._get_session()
-
-            try:
-                async with session.get(
-                    f"{self._server_url()}/health",
-                    timeout=aiohttp.ClientTimeout(total=5),
-                ) as response:
-                    if response.status == HTTPStatus.OK:
-                        try:
-                            data = await response.json()
-                        except (aiohttp.ClientError, ValueError, TypeError):
-                            data = None
-                        if isinstance(data, dict) and data.get("status") == "ok":
-                            return True, texts.HEALTH_AVAILABLE
-            except (TimeoutError, aiohttp.ClientError):
-                logger.debug("Optional LLM /health endpoint unavailable", exc_info=True)
-
-            # /v1/models is the standard OpenAI endpoint; HTTP 200 means
-            # the API is available even if the server does not implement /health.
-            async with session.get(
-                f"{self.settings.LLM_BASE_URL}/models",
-                timeout=aiohttp.ClientTimeout(total=5),
-            ) as response:
-                if response.status == HTTPStatus.OK:
-                    return True, texts.HEALTH_AVAILABLE
-                return False, texts.HEALTH_API_UNAVAILABLE.format(
-                    status=response.status
-                )
+            return await self._probe_server()
 
         except TimeoutError:
             return False, texts.HEALTH_TIMEOUT
@@ -246,6 +230,50 @@ class LLMClient:
         except Exception:
             logger.exception("LLM health check failed")
             return False, texts.HEALTH_CHECK_ERROR
+
+    async def _probe_server(self) -> tuple[bool, str]:
+        """Probe /health first, then fall back to the /models endpoint."""
+        session = await self._get_session()
+
+        if await self._probe_health_endpoint(session):
+            return True, texts.HEALTH_AVAILABLE
+
+        return await self._probe_models_endpoint(session)
+
+    async def _probe_health_endpoint(self, session: aiohttp.ClientSession) -> bool:
+        """Return whether the optional /health endpoint reports ``ok``."""
+        try:
+            return await self._read_health_status(session)
+        except (TimeoutError, aiohttp.ClientError):
+            logger.debug("Optional LLM /health endpoint unavailable", exc_info=True)
+            return False
+
+    async def _read_health_status(self, session: aiohttp.ClientSession) -> bool:
+        """Request /health and check for HTTP 200 with ``{"status": "ok"}``."""
+        async with session.get(
+            f"{self._server_url()}/health",
+            timeout=aiohttp.ClientTimeout(total=5),
+        ) as response:
+            if response.status != HTTPStatus.OK:
+                return False
+            data = await _json_or_none(response)
+            return isinstance(data, dict) and data.get("status") == _HEALTH_OK_STATUS
+
+    async def _probe_models_endpoint(
+        self, session: aiohttp.ClientSession
+    ) -> tuple[bool, str]:
+        """Check /v1/models, the standard OpenAI endpoint.
+
+        HTTP 200 means the API is available even if the server does not
+        implement /health.
+        """
+        async with session.get(
+            f"{self.settings.LLM_BASE_URL}/models",
+            timeout=aiohttp.ClientTimeout(total=5),
+        ) as response:
+            if response.status == HTTPStatus.OK:
+                return True, texts.HEALTH_AVAILABLE
+            return False, texts.HEALTH_API_UNAVAILABLE.format(status=response.status)
 
     async def close(self) -> None:
         """Close the HTTP session."""

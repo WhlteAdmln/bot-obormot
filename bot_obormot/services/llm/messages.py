@@ -9,6 +9,11 @@ from collections.abc import Sequence
 from typing import Any
 
 from bot_obormot.errors import LLMUnavailableError
+from bot_obormot.services.llm.constants import (
+    PART_TYPE_IMAGE_URL,
+    PART_TYPE_TEXT,
+    ROLE_SYSTEM,
+)
 
 _LITERALS = (
     "<s>",
@@ -42,7 +47,7 @@ def _neutralize_content(content: object) -> object:
     if isinstance(content, list):
         cleaned: list[Any] = []
         for part in content:
-            if isinstance(part, dict) and part.get("type") == "text":
+            if isinstance(part, dict) and part.get("type") == PART_TYPE_TEXT:
                 cleaned.append(
                     {
                         **part,
@@ -97,7 +102,7 @@ def normalize_messages(messages: Sequence[object]) -> list[dict[str, Any]]:
 
         content: object = normalize_content(message.get("content"))
 
-        if role != "system":
+        if role != ROLE_SYSTEM:
             content = _neutralize_content(content)
 
         normalized.append({**message, "role": role, "content": content})
@@ -123,7 +128,7 @@ def prepare_messages_for_count(
                     continue
 
                 prepared_part = dict(part)
-                if prepared_part.get("type") == "image_url":
+                if prepared_part.get("type") == PART_TYPE_IMAGE_URL:
                     image_url = prepared_part.get("image_url")
                     if isinstance(image_url, dict):
                         prepared_part["image_url"] = {
@@ -152,7 +157,7 @@ def count_images(messages: list[dict[str, Any]]) -> int:
         count += sum(
             1
             for part in content
-            if isinstance(part, dict) and part.get("type") == "image_url"
+            if isinstance(part, dict) and part.get("type") == PART_TYPE_IMAGE_URL
         )
 
     return count

@@ -1,99 +1,162 @@
+# VENDORED: keep identical in bot-obormot and audiodoc. Source of truth: audiodoc.
 # Copyright (c) 2026 Nikolai Zelensky
-# SPDX-License-Identifier: MIT
-
-"""Report files with the lowest branch coverage."""
+"""Report the files with the lowest measured coverage."""
 
 from __future__ import annotations
 
+import argparse
 import re
 import sys
 from pathlib import Path
-from xml.parsers import expat
 
-_BRANCH_COUNTS = re.compile(r"\((\d+)/(\d+)\)")
+from defusedxml import ElementTree
+
+_ROOT = Path(__file__).resolve().parents[1]
+_BRANCH_COUNTS = re.compile(r"\((\d+)/(\d+)\)\s*$")
+_BRANCH_FLAG = "true"
+_LIMIT_ERROR = "Limit must be positive"
+_CLASS_FILENAME_ERROR = "Missing class filename"
+_LINE_HITS_ERROR = "Missing line hit count"
+_BRANCH_METADATA_ERROR = "Missing branch coverage metadata"
+_BRANCH_FORMAT_ERROR = "Invalid branch coverage metadata"
+_BRANCH_COUNTS_ERROR = "Invalid branch coverage counts"
+_EMPTY_REPORT_ERROR = "No file coverage data found"
 
 
-class _UnsupportedDoctypeError(ValueError):
-    """Raised when a coverage report declares a document type."""
+def _source_prefix(root: ElementTree.Element) -> str:
+    source_names = {
+        Path(source.text.strip()).name
+        for source in root.findall("./sources/source")
+        if source.text and source.text.strip()
+    }
+    return next(iter(source_names)) if len(source_names) == 1 else ""
 
-    def __init__(self) -> None:
-        message = "DOCTYPE declarations are not supported."
-        super().__init__(message)
+
+def _relative_filename(filename: str, source_prefix: str) -> str:
+    path = Path(filename)
+    first_part = path.parts[0] if path.parts else ""
+    if source_prefix and not path.is_absolute() and first_part != source_prefix:
+        return (Path(source_prefix) / path).as_posix()
+    return path.as_posix()
 
 
-def find_lowest_branch_coverage(
-    coverage_xml: Path,
-) -> list[tuple[str, int, int]]:
-    """Return files ordered by ascending branch coverage."""
-    totals_by_file: dict[str, list[int]] = {}
-    current_filename: str | None = None
+def _branch_counts(line: ElementTree.Element) -> tuple[int, int]:
+    condition_coverage = line.get("condition-coverage")
+    if line.get("branch") == _BRANCH_FLAG and condition_coverage is None:
+        raise ValueError(_BRANCH_METADATA_ERROR)
+    if condition_coverage is None:
+        return 0, 0
 
-    def reject_doctype(
-        name: str,
-        system_id: str | None,
-        public_id: str | None,
-        has_internal_subset: int,
-    ) -> None:
-        del name, system_id, public_id, has_internal_subset
-        raise _UnsupportedDoctypeError
+    match = _BRANCH_COUNTS.search(condition_coverage)
+    if match is None:
+        raise ValueError(_BRANCH_FORMAT_ERROR)
+    covered, total = (int(value) for value in match.groups())
+    if covered > total:
+        raise ValueError(_BRANCH_COUNTS_ERROR)
+    return total, covered
 
-    def start_element(name: str, attributes: dict[str, str]) -> None:
-        nonlocal current_filename
 
-        if name == "class":
-            current_filename = attributes.get("filename")
-            if current_filename is not None:
-                totals_by_file.setdefault(current_filename, [0, 0])
-        elif name == "line" and current_filename is not None:
-            if attributes.get("branch") != "true":
-                return
+def _line_statistics(line: ElementTree.Element) -> tuple[int, int, int, int]:
+    hits = line.get("hits")
+    if hits is None:
+        raise ValueError(_LINE_HITS_ERROR)
+    covered = int(int(hits) > 0)
+    branches, covered_branches = _branch_counts(line)
+    return 1, covered, branches, covered_branches
 
-            match = _BRANCH_COUNTS.search(attributes.get("condition-coverage", ""))
-            if match is None:
-                return
 
-            covered, total = (int(value) for value in match.groups())
-            totals = totals_by_file[current_filename]
-            totals[0] += covered
-            totals[1] += total
+def _class_statistics(
+    class_element: ElementTree.Element,
+    source_prefix: str,
+) -> tuple[str, list[int]] | None:
+    filename = class_element.get("filename")
+    if not filename:
+        raise ValueError(_CLASS_FILENAME_ERROR)
 
-    def end_element(name: str) -> None:
-        nonlocal current_filename
-        if name == "class":
-            current_filename = None
+    filename = _relative_filename(filename, source_prefix)
+    lines = class_element.findall("./lines/line")
+    if not lines:
+        return None
 
-    parser = expat.ParserCreate()
-    parser.StartElementHandler = start_element
-    parser.EndElementHandler = end_element
-    parser.StartDoctypeDeclHandler = reject_doctype
-    is_final: bool = True
-    parser.Parse(coverage_xml.read_bytes(), is_final)
+    statistics = [0, 0, 0, 0]
+    for line in lines:
+        for index, count in enumerate(_line_statistics(line)):
+            statistics[index] += count
+    return filename, statistics
 
-    rows = [
-        (filename, covered, total)
-        for filename, (covered, total) in totals_by_file.items()
-        if total > 0
+
+def _file_statistics(root: ElementTree.Element) -> dict[str, list[int]]:
+    source_prefix = _source_prefix(root)
+    file_statistics: dict[str, list[int]] = {}
+
+    for class_element in root.findall(".//class"):
+        class_data = _class_statistics(class_element, source_prefix)
+        if class_data is None:
+            continue
+
+        filename, statistics = class_data
+        totals = file_statistics.setdefault(filename, [0, 0, 0, 0])
+        for index, count in enumerate(statistics):
+            totals[index] += count
+
+    if not file_statistics:
+        raise ValueError(_EMPTY_REPORT_ERROR)
+    return file_statistics
+
+
+def _coverage_percentage(statistics: list[int]) -> float:
+    statements, covered_statements, branches, covered_branches = statistics
+    total = statements + branches
+    return 100.0 * (covered_statements + covered_branches) / total
+
+
+def find_coverage_gaps(
+    xml_path: Path,
+    limit: int = 15,
+) -> list[tuple[float, str]]:
+    """Return files ordered by their combined statement and branch coverage.
+
+    Args:
+        xml_path: Path to the coverage.py XML report.
+        limit: Maximum number of files to return.
+
+    Returns:
+        Tuples of coverage percentage and repository-relative file path.
+
+    Raises:
+        OSError: If the report cannot be read.
+        ElementTree.ParseError: If the report is not valid XML.
+        ValueError: If the report contains forbidden XML constructs (defusedxml
+            raises a ``ValueError`` subclass) or the limit or metadata is invalid.
+    """
+    if limit < 1:
+        raise ValueError(_LIMIT_ERROR)
+
+    root = ElementTree.parse(xml_path, forbid_dtd=True).getroot()
+    file_statistics = _file_statistics(root)
+    results = [
+        (_coverage_percentage(statistics), filename)
+        for filename, statistics in file_statistics.items()
     ]
-    return sorted(rows, key=lambda row: (row[1] / row[2], row[0]))[:15]
+    return sorted(results)[:limit]
 
 
 def main() -> int:
-    """Print the 15 files with the lowest branch coverage."""
-    coverage_xml = Path(__file__).resolve().parents[1] / "coverage.xml"
+    """Print the files with the lowest coverage."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--xml", type=Path, default=_ROOT / "coverage.xml")
+    parser.add_argument("--limit", type=int, default=15)
+    args = parser.parse_args()
 
     try:
-        rows = find_lowest_branch_coverage(coverage_xml)
-    except (OSError, expat.ExpatError, ValueError) as exc:
-        sys.stderr.write(f"Cannot read coverage report {coverage_xml}: {exc}\n")
+        results = find_coverage_gaps(args.xml, args.limit)
+    except (OSError, ElementTree.ParseError, ValueError) as exc:
+        sys.stderr.write(f"ERROR: {exc}\n")
         return 1
 
-    if not rows:
-        sys.stdout.write("No branch coverage data found.\n")
-        return 0
-
-    sys.stdout.write("Files with the lowest branch coverage:\n")
-    for filename, covered, total in rows:
-        sys.stdout.write(f"{covered / total:.1%} ({covered}/{total}) {filename}\n")
+    sys.stdout.write(f"Files with lowest coverage (up to {args.limit}):\n")
+    for percentage, filename in results:
+        sys.stdout.write(f"{percentage:7.3f}% {filename}\n")
     return 0
 
 

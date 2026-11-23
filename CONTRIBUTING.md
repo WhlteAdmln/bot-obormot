@@ -19,11 +19,12 @@
 | `make check` | Lint, types, dependency, dead-code and import gates, tests, documentation checks. |
 | `make integration` | Integration tests (tests marked `integration`). |
 | `make installer` | Real-shell installer tests. |
-| `make docs-check` | Links, settings, commands and README section parity. |
+| `make docs-check` | Links, settings, commands, README section parity and changelog section order. |
 | `make docker` | Validate `compose.yaml` and build the image. |
 
-Shared files: `.editorconfig`, `.pre-commit-config.yaml`, `.github/renovate.json5`,
-`scripts/check_lock.py`, `scripts/check_vendored.py`, `scripts/build_release.sh`, `.markdownlint-cli2.yaml`, `AGENTS.md`, the `ruff` and `mypy` tables of
+Shared files: `.editorconfig`, `.pre-commit-config.yaml`, `.github/renovate.json5`, `.markdownlint-cli2.yaml`, `AGENTS.md`,
+`scripts/build_release.sh`, `scripts/check_changelog.py`, `scripts/check_lock.py`, `scripts/check_test_layout.py`,
+`scripts/check_vendored.py`, `scripts/coverage_gaps.py`, `tests/unit/scripts/test_check_changelog.py`, the `ruff`, `mypy` and `pylint` tables of
 `pyproject.toml`, `bot_obormot/log_filters.py` and `bot_obormot/env_readers.py` are copies
 of the audiodoc files. audiodoc is the source of truth: change it there first, copy the
 file here, then run `python scripts/check_vendored.py --other ../audiodoc`.

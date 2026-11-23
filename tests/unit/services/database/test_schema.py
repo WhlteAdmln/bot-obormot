@@ -3,6 +3,8 @@
 
 """Tests for database schema."""
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import aiosqlite
@@ -13,12 +15,19 @@ from bot_obormot.services.database.migrations.admin_ids import migrate_admin_ids
 from bot_obormot.services.database.schema import create_schema
 
 
+@asynccontextmanager
+async def _connection(path: str) -> AsyncIterator[aiosqlite.Connection]:
+    connection = await open_connection(path)
+    try:
+        yield connection
+    finally:
+        await connection.close()
+
+
 @pytest.mark.asyncio
 async def test_create_schema_is_idempotent() -> None:
     """Create schema is idempotent."""
-    connection = await aiosqlite.connect(":memory:")
-
-    try:
+    async with aiosqlite.connect(":memory:") as connection:
         await create_schema(connection)
         await create_schema(connection)
 
@@ -36,8 +45,6 @@ async def test_create_schema_is_idempotent() -> None:
             "message_media",
             "blocked_users",
         } <= tables
-    finally:
-        await connection.close()
 
 
 @pytest.mark.asyncio
@@ -45,9 +52,7 @@ async def test_admin_ids_migration_runs_once_and_excludes_supervisor(
     tmp_path: Path,
 ) -> None:
     """Admin ids migration runs once and excludes supervisor."""
-    connection = await open_connection(str(tmp_path / "admin_ids.db"))
-
-    try:
+    async with _connection(str(tmp_path / "admin_ids.db")) as connection:
         await create_schema(connection)
         await migrate_admin_ids(
             connection,
@@ -56,7 +61,6 @@ async def test_admin_ids_migration_runs_once_and_excludes_supervisor(
         )
         await connection.commit()
 
-        # Изменённая конфигурация не должна повторно запускать миграцию.
         await migrate_admin_ids(
             connection,
             admin_ids={303},
@@ -74,22 +78,17 @@ async def test_admin_ids_migration_runs_once_and_excludes_supervisor(
             ("migrate_admin_ids_to_sqlite",),
         )
         assert (await cursor.fetchone())["total"] == 1
-    finally:
-        await connection.close()
 
 
 @pytest.mark.asyncio
 async def test_open_connection_applies_existing_sqlite_pragmas() -> None:
     """Open connection applies existing sqlite pragmas."""
-    connection = await open_connection(":memory:")
-
-    try:
+    async with _connection(":memory:") as connection:
         assert connection.row_factory is aiosqlite.Row
 
         cursor = await connection.execute("PRAGMA foreign_keys")
         assert (await cursor.fetchone())[0] == 1
 
         cursor = await connection.execute("PRAGMA busy_timeout")
-        assert (await cursor.fetchone())[0] == 5000
-    finally:
-        await connection.close()
+        expected_number = 5000
+        assert (await cursor.fetchone())[0] == expected_number

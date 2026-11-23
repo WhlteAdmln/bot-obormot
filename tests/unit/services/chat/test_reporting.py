@@ -8,6 +8,7 @@ import logging
 import pytest
 
 from bot_obormot.services.chat import reporting
+from tests.support.chat_streaming import FakeReplyMessage
 
 
 @pytest.mark.asyncio
@@ -15,16 +16,12 @@ async def test_reporting_answers_when_no_status_and_logs_send_failure(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Reporting answers when no status and logs send failure."""
-
-    class FakeMessage:
-        async def answer(self, _text: str) -> None:
-            msg = "telegram unavailable"
-            raise RuntimeError(msg)
-
+    message = FakeReplyMessage(failures=[RuntimeError("telegram unavailable")])
     with caplog.at_level(logging.ERROR, logger=reporting.logger.name):
-        await reporting.report_error(FakeMessage(), None, "ошибка")
+        await reporting.report_error(message, None, "ошибка")
 
-    assert "Could not send error message" in caplog.text
+    expected_fragment = "Could not send error message"
+    assert expected_fragment in caplog.text
 
 
 @pytest.mark.asyncio

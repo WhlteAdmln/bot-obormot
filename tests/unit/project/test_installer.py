@@ -105,6 +105,7 @@ def run_installer(
     if extra_env is not None:
         environment.update(extra_env)
 
+    expected_fragment = "--upgrade"
     return subprocess.run(  # noqa: S603 - resolved shell runs the local installer.
         [shell_path, str(INSTALLER), *arguments],
         cwd=PROJECT_ROOT,
@@ -112,7 +113,7 @@ def run_installer(
         capture_output=True,
         text=True,
         env=environment,
-        timeout=600 if "--upgrade" in arguments else 120,
+        timeout=600 if expected_fragment in arguments else 120,
     )
 
 
@@ -234,8 +235,8 @@ def write_checksums(
     (release_dir / "SHA256SUMS").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-@pytest.fixture
-def local_release(tmp_path: Path) -> Iterator[tuple[str, Path]]:
+@pytest.fixture(name="local_release")
+def fixture_local_release(tmp_path: Path) -> Iterator[tuple[str, Path]]:
     """Provide release assets through a local HTTP server."""
     release_dir = tmp_path / "release"
     release_dir.mkdir()
@@ -261,8 +262,8 @@ def local_release(tmp_path: Path) -> Iterator[tuple[str, Path]]:
         server_thread.join(timeout=5)
 
 
-@pytest.fixture
-def user_home(tmp_path: Path) -> Path:
+@pytest.fixture(name="user_home")
+def fixture_user_home(tmp_path: Path) -> Path:
     """Create an isolated user home directory."""
     path = tmp_path / "user"
     path.mkdir()
@@ -278,7 +279,8 @@ def install_version_one(
     )
     assert result.returncode == 0, result.stdout + result.stderr
     app_home = user_home / "bot-obormot"
-    assert installed_version(app_home) == "1.2.3"
+    expected_installed_version = "1.2.3"
+    assert installed_version(app_home) == expected_installed_version
     return app_home
 
 
@@ -335,14 +337,16 @@ def test_fresh_install_runs_init_doctor_and_systemd(
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert (app_home / ".venv" / "bin" / "bot-obormot").is_file()
-    assert (app_home / ".env").stat().st_mode & 0o777 == 0o600
+    expected_number = 0o600
+    assert (app_home / ".env").stat().st_mode & 0o777 == expected_number
     assert (app_home / "service-installed").is_file()
     assert calls_of(app_home) == [
         ["init"],
         ["doctor", "--offline"],
         ["service", "install", "--user"],
     ]
-    assert "does not enable or start" in result.stdout
+    expected_fragment = "does not enable or start"
+    assert expected_fragment in result.stdout
 
 
 def test_fresh_install_succeeds_when_doctor_reports_template_values(
@@ -358,7 +362,8 @@ def test_fresh_install_succeeds_when_doctor_reports_template_values(
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "doctor reported problems" in result.stdout
+    expected_fragment = "doctor reported problems"
+    assert expected_fragment in result.stdout
     assert (user_home / "bot-obormot" / ".env").is_file()
 
 
@@ -371,7 +376,8 @@ def test_with_tgs_installs_the_optional_extra(
     result = run_installer("--with-tgs", release_url=release_url, home=user_home)
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert installed_version(user_home / "bot-obormot") == "1.2.3"
+    expected_installed_version = "1.2.3"
+    assert installed_version(user_home / "bot-obormot") == expected_installed_version
 
 
 def test_checksum_mismatch_stops_the_installation(
@@ -385,7 +391,8 @@ def test_checksum_mismatch_stops_the_installation(
     result = run_installer(release_url=release_url, home=user_home)
 
     assert result.returncode != 0
-    assert "SHA-256 verification failed" in result.stderr
+    expected_fragment = "SHA-256 verification failed"
+    assert expected_fragment in result.stderr
     assert not (user_home / "bot-obormot").exists()
 
 
@@ -403,8 +410,10 @@ def test_release_without_wheel_names_the_tag_and_installer_url(
     )
 
     assert result.returncode != 0
-    assert "v0.1.1 has no wheel asset" in result.stderr
-    assert "/v0.1.1/install.sh" in result.stderr
+    expected_fragment = "v0.1.1 has no wheel asset"
+    assert expected_fragment in result.stderr
+    expected_fragment = "/v0.1.1/install.sh"
+    assert expected_fragment in result.stderr
     assert not (user_home / "bot-obormot").exists()
 
 
@@ -421,8 +430,10 @@ def test_existing_home_is_refused_without_upgrade(
     result = run_installer(release_url=release_url, home=user_home)
 
     assert result.returncode != 0
-    assert "Use --upgrade" in result.stderr
-    assert marker.read_text(encoding="utf-8") == "existing data"
+    expected_fragment = "Use --upgrade"
+    assert expected_fragment in result.stderr
+    expected_text = "existing data"
+    assert marker.read_text(encoding="utf-8") == expected_text
 
 
 def test_upgrade_preserves_env_and_data_and_never_touches_the_unit(
@@ -447,10 +458,12 @@ def test_upgrade_preserves_env_and_data_and_never_touches_the_unit(
     assert sha256_of(env_path) == env_hash
     assert sha256_of(database) == database_hash
     assert not old_marker.exists()
-    assert installed_version(app_home) == "2.0.0"
+    expected_installed_version = "2.0.0"
+    assert installed_version(app_home) == expected_installed_version
     assert not (app_home / ".venv.new").exists()
     assert not (app_home / ".venv.prev").exists()
-    assert "systemctl --user restart bot-obormot.service" in result.stdout
+    expected_fragment = "systemctl --user restart bot-obormot.service"
+    assert expected_fragment in result.stdout
     assert calls_of(app_home)[-1] == ["doctor", "--offline"]
     assert ["service", "install", "--user"] not in calls_of(app_home)
 
@@ -473,7 +486,8 @@ def test_upgrade_leaves_no_staged_path_in_the_environment_files(
         if path.is_file() and not path.is_symlink()
     ]
     assert environment / "bin" / "bot-obormot" in files
-    assert [path.name for path in files if b".venv.new" in path.read_bytes()] == []
+    expected_bytes = b".venv.new"
+    assert [path.name for path in files if expected_bytes in path.read_bytes()] == []
     interpreter = str(environment / "bin" / "python").encode()
     assert interpreter in (environment / "bin" / "bot-obormot").read_bytes()
 
@@ -506,9 +520,12 @@ def test_upgrade_keeps_the_old_version_when_offline_doctor_fails(
     )
 
     assert result.returncode != 0
-    assert "doctor --offline failed" in result.stderr
-    assert old_marker.read_text(encoding="utf-8") == "old"
-    assert installed_version(app_home) == "1.2.3"
+    expected_fragment = "doctor --offline failed"
+    assert expected_fragment in result.stderr
+    expected_text = "old"
+    assert old_marker.read_text(encoding="utf-8") == expected_text
+    expected_installed_version = "1.2.3"
+    assert installed_version(app_home) == expected_installed_version
     assert not (app_home / ".venv.new").exists()
     assert not (app_home / ".venv.prev").exists()
 
@@ -530,8 +547,10 @@ def test_upgrade_refuses_while_the_user_service_is_active(
     )
 
     assert result.returncode != 0
-    assert "user service is active" in result.stderr
-    assert installed_version(app_home) == "1.2.3"
+    expected_fragment = "user service is active"
+    assert expected_fragment in result.stderr
+    expected_installed_version = "1.2.3"
+    assert installed_version(app_home) == expected_installed_version
     assert not (app_home / ".venv.new").exists()
 
 
@@ -539,7 +558,8 @@ def test_embedded_python_snippets_are_valid(tmp_path: Path) -> None:
     """Every here-document in the installer is valid Python and well placed."""
     text = INSTALLER.read_text(encoding="utf-8")
     snippets = re.findall(r"<<'PY'[^\n]*\n(.*?)\nPY\n", text, re.DOTALL)
-    assert len(snippets) == 2
+    expected_count = 2
+    assert len(snippets) == expected_count
     for number, snippet in enumerate(snippets):
         compile(snippet, f"<install.sh snippet {number}>", "exec")
 

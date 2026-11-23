@@ -36,7 +36,8 @@ def _has_language_violations(path: Path) -> bool:
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
             if not CYRILLIC_PATTERN.search(node.value):
                 continue
-            if path.name != "texts.py" and not path.is_relative_to(PROMPTS_ROOT):
+            expected_name = "texts.py"
+            if path.name != expected_name and not path.is_relative_to(PROMPTS_ROOT):
                 return True
 
     return False

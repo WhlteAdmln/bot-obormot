@@ -19,16 +19,16 @@ async def test_fake_telegram_session_records_requests_and_streams_content() -> N
         {SendMessage: response},
         stream_data=b"file-data",
     )
-    bot = Bot(token=make_settings().BOT_TOKEN, session=session)
-
-    try:
+    async with Bot(token=make_settings().BOT_TOKEN, session=session) as bot:
         result = await bot.send_message(chat_id=42, text="Hello")
         assert result == response
         assert len(session.requests) == 1
         request = session.requests[0]
         assert isinstance(request, SendMessage)
-        assert request.chat_id == 42
-        assert request.text == "Hello"
+        expected_chat_id = 42
+        assert request.chat_id == expected_chat_id
+        expected_text = "Hello"
+        assert request.text == expected_text
 
         chunks = [
             chunk
@@ -39,8 +39,6 @@ async def test_fake_telegram_session_records_requests_and_streams_content() -> N
         ]
         assert chunks == [b"file", b"-dat", b"a"]
         assert session.streamed_urls == ["https://telegram.test/file"]
-    finally:
-        await bot.session.close()
 
     assert session.closed
 
@@ -51,5 +49,6 @@ async def test_fake_telegram_session_records_requests_and_streams_content() -> N
         text="Test update",
     )
     update = make_update(update_id=17, message=message)
-    assert update.update_id == 17
+    expected_update_id = 17
+    assert update.update_id == expected_update_id
     assert update.message == message

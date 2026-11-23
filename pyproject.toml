@@ -201,7 +201,7 @@ max-branches = 12
 
 [tool.ruff.lint.per-file-ignores]
 # D1: descriptive test names replace docstrings.
-"tests/*" = ["S101", "PLR2004", "D1", "SLF001"]
+"tests/*" = ["S101", "D1"]
 # The stub mirrors the name of the third-party function.
 "typings/pymupdf/*" = ["A001"]
 

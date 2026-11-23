@@ -16,6 +16,7 @@ from aiohttp import web
 from aiohttp.test_utils import TestServer
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from types import TracebackType
 
 Endpoint: TypeAlias = Literal["transcribe", "process-document"]
@@ -127,12 +128,12 @@ class FakeAudiodoc:
         self.requests: list[FakeRequest] = []
         self.responses: list[tuple[Endpoint, int, dict[str, object]]] = []
 
-        self.app = web.Application()
-        self.app.router.add_get("/health", self._health)
-        self.app.router.add_get("/ready", self._ready)
-        self.app.router.add_post("/transcribe", self._transcribe)
-        self.app.router.add_post("/process-document", self._process_document)
-        self.server = TestServer(self.app)
+        app = web.Application()
+        app.router.add_get("/health", self._health)
+        app.router.add_get("/ready", self._ready)
+        app.router.add_post("/transcribe", self._transcribe)
+        app.router.add_post("/process-document", self._process_document)
+        self.server = TestServer(app)
 
     @property
     def base_url(self) -> str:
@@ -161,10 +162,12 @@ class FakeAudiodoc:
         """Stop the server and release its listening socket."""
         await self.server.close()
 
-    async def _health(self, _request: web.Request) -> web.Response:
+    @staticmethod
+    async def _health(_request: web.Request) -> web.Response:
         return web.json_response({"status": "ok"})
 
-    async def _ready(self, _request: web.Request) -> web.Response:
+    @staticmethod
+    async def _ready(_request: web.Request) -> web.Response:
         return web.json_response({"status": "ready"})
 
     async def _transcribe(self, request: web.Request) -> web.StreamResponse:
@@ -198,37 +201,46 @@ class FakeAudiodoc:
 
         form = await request.post()
         try:
-            self.requests.append(
-                FakeRequest(
-                    method=request.method,
-                    path=request.path,
-                    content_type=request.content_type,
-                    authorization=request.headers.get("Authorization"),
-                    fields={
-                        name: (
-                            value.filename
-                            if isinstance(value, web.FileField)
-                            else str(value)
-                        )
-                        for name, value in form.items()
-                    },
-                )
-            )
-            if "file" not in form:
-                return web.json_response(
-                    {"detail": "Missing file field"},
-                    status=HTTPStatus.UNPROCESSABLE_ENTITY,
-                )
-
-            behavior = self._behaviors[endpoint]
-            if behavior.delay:
-                await asyncio.sleep(behavior.delay)
-
-            return await self._create_response(request, endpoint, behavior)
+            return await self._handle_form(request, endpoint, form)
         finally:
             for value in form.values():
                 if isinstance(value, web.FileField):
                     value.file.close()
+
+    async def _handle_form(
+        self,
+        request: web.Request,
+        endpoint: Endpoint,
+        form: Mapping[str, str | bytes | web.FileField],
+    ) -> web.StreamResponse:
+        self.requests.append(
+            FakeRequest(
+                method=request.method,
+                path=request.path,
+                content_type=request.content_type,
+                authorization=request.headers.get("Authorization"),
+                fields={
+                    name: (
+                        value.filename
+                        if isinstance(value, web.FileField)
+                        else str(value)
+                    )
+                    for name, value in form.items()
+                },
+            )
+        )
+        file_field = "file"
+        if file_field not in form:
+            return web.json_response(
+                {"detail": "Missing file field"},
+                status=HTTPStatus.UNPROCESSABLE_ENTITY,
+            )
+
+        behavior = self._behaviors[endpoint]
+        if behavior.delay:
+            await asyncio.sleep(behavior.delay)
+
+        return await self._create_response(request, endpoint, behavior)
 
     async def _create_response(
         self,
@@ -280,8 +292,8 @@ class FakeAudiodoc:
             headers=headers,
         )
 
+    @staticmethod
     async def _truncated_response(
-        self,
         request: web.Request,
         body: bytes,
     ) -> web.StreamResponse:

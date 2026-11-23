@@ -9,6 +9,7 @@ import threading
 import pytest
 
 from bot_obormot.services.media.animation.concurrency import extract_with_limit
+from tests.support.concurrency import ConcurrencyProbe
 
 
 @pytest.mark.asyncio
@@ -27,27 +28,15 @@ async def test_extract_with_limit_uses_default_semaphore() -> None:
 async def test_extract_with_limit_respects_semaphore_capacity() -> None:
     """Keep the number of concurrent extractors within semaphore capacity."""
     semaphore = asyncio.Semaphore(2)
-    guard = threading.Lock()
-    both_started = threading.Event()
+    probe = ConcurrencyProbe()
     release = threading.Event()
-    active = 0
-    maximum = 0
 
     def extractor(data: bytes, _media_type: str) -> list[bytes]:
-        nonlocal active, maximum
-        with guard:
-            active += 1
-            maximum = max(maximum, active)
-            if active == 2:
-                both_started.set()
-        try:
+        with probe.running():
             if not release.wait(5):
                 msg = "Extractor was not released"
                 raise TimeoutError(msg)
             return [data]
-        finally:
-            with guard:
-                active -= 1
 
     tasks = [
         asyncio.create_task(
@@ -61,14 +50,16 @@ async def test_extract_with_limit_respects_semaphore_capacity() -> None:
         for index in range(4)
     ]
 
-    assert await asyncio.to_thread(both_started.wait, 2)
-    assert maximum == 2
+    assert await asyncio.to_thread(probe.wait_for_active, 2, 2)
+    expected_maximum = 2
+    assert probe.maximum == expected_maximum
     release.set()
 
     results = await asyncio.gather(*tasks)
 
     assert results == [[b"0"], [b"1"], [b"2"], [b"3"]]
-    assert maximum == 2
+    expected_maximum = 2
+    assert probe.maximum == expected_maximum
 
 
 @pytest.mark.asyncio

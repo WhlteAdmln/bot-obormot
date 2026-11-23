@@ -4,130 +4,152 @@
 """Tests for animation video."""
 
 import os
-from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
-from PIL import Image
 
 from bot_obormot.errors import MediaError
 from bot_obormot.services.media.animation import video
+from tests.support.video_tools import FakeVideoTools
 
 
-def test_video_container_sniffer_accepts_webm_and_mp4() -> None:
-    """Video container sniffer accepts webm and mp4."""
-    video._check_container(b"\x1a\x45\xdf\xa3" + b"webm-data")
-    video._check_container(b"\x00\x00\x00\x18ftypmp42" + b"mp4-data")
-
-
-def test_video_container_sniffer_rejects_playlist_and_unknown_data() -> None:
-    """Video container sniffer rejects playlist and unknown data."""
-    for data in (b"#EXTM3U\nhttps://example.invalid/video", b"", b"not-a-video"):
-        with pytest.raises(MediaError, match="формат видео"):
-            video._check_container(data)
-
-
-def test_probe_dimensions_uses_local_file_protocol_and_parses_dimensions(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """Probe dimensions uses local file protocol and parses dimensions."""
-    calls = []
-
-    def fake_run(command: object, **kwargs: object) -> SimpleNamespace:
-        calls.append((command, kwargs))
-        return SimpleNamespace(returncode=0, stdout=b"1920x1080\n", stderr=b"")
-
+def _install(
+    monkeypatch: pytest.MonkeyPatch,
+    tools: FakeVideoTools,
+) -> FakeVideoTools:
     monkeypatch.setattr(video.shutil, "which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr(video.subprocess, "run", fake_run)
-
-    assert video._probe_dimensions(tmp_path) == (1920, 1080)
-    command, kwargs = calls[0]
-    assert command[0] == "/usr/bin/env"
-    assert command[1] == "ffprobe"
-    assert command[command.index("-protocol_whitelist") + 1] == "file"
-    assert command[command.index("-select_streams") + 1] == "v:0"
-    assert kwargs["cwd"] == tmp_path
-    assert kwargs["env"]["PATH"].split(os.pathsep)[0] == "/usr/bin"
+    monkeypatch.setattr(video.subprocess, "run", tools)
+    return tools
 
 
-def test_command_environment_rejects_missing_executable(
+def _extract(monkeypatch: pytest.MonkeyPatch) -> FakeVideoTools:
+    tools = _install(monkeypatch, FakeVideoTools())
+    video.extract_video(b"\x1a\x45\xdf\xa3" + b"fake-webm")
+    return tools
+
+
+@pytest.mark.parametrize(
+    "data",
+    [b"\x1a\x45\xdf\xa3" + b"webm-data", b"\x00\x00\x00\x18ftypmp42" + b"mp4-data"],
+    ids=["webm", "mp4"],
+)
+def test_extract_video_accepts_webm_and_mp4_containers(
+    monkeypatch: pytest.MonkeyPatch,
+    data: bytes,
+) -> None:
+    _install(monkeypatch, FakeVideoTools())
+    frames = video.extract_video(data)
+    assert len(frames) == 1, "a supported container must yield the frame"
+
+
+@pytest.mark.parametrize(
+    "data",
+    [b"#EXTM3U\nhttps://example.invalid/video", b"", b"not-a-video"],
+    ids=["playlist", "empty", "unknown"],
+)
+def test_extract_video_rejects_playlists_and_unknown_data(data: bytes) -> None:
+    with pytest.raises(MediaError, match="формат видео"):
+        video.extract_video(data)
+
+
+def test_extract_video_runs_probes_through_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    tools = _extract(monkeypatch)
+    prefixes = {tuple(command[:2]) for command in tools.commands("ffprobe")}
+    expected = {("/usr/bin/env", "ffprobe")}
+    assert prefixes == expected, "ffprobe must be started through env"
+
+
+def test_extract_video_limits_both_probes_to_local_files(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Command environment rejects missing executable."""
-    monkeypatch.setattr(video.shutil, "which", lambda _name: None)
+    tools = _extract(monkeypatch)
+    protocols = [
+        command[command.index("-protocol_whitelist") + 1]
+        for command in tools.commands("ffprobe")
+    ]
+    expected = ["file", "file"]
+    assert protocols == expected, "every probe must allow only local files"
 
+
+def test_extract_video_probes_the_first_video_stream(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tools = _extract(monkeypatch)
+    option = "-select_streams"
+    streams = [
+        command[command.index(option) + 1]
+        for command in tools.commands("ffprobe")
+        if option in command
+    ]
+    expected = ["v:0"]
+    assert streams == expected, "the size probe must read the first video stream"
+
+
+def test_extract_video_puts_the_resolved_tool_directory_first_in_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tools = _extract(monkeypatch)
+    paths = [str(kwargs["env"]["PATH"]) for _command, kwargs in tools.calls]
+    first_entries = {path.split(os.pathsep, maxsplit=1)[0] for path in paths}
+    expected = {"/usr/bin"}
+    assert first_entries == expected, "PATH must start with the tool directory"
+
+
+def test_extract_video_rejects_a_missing_ffprobe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(video.shutil, "which", lambda _name: None)
     with pytest.raises(FileNotFoundError, match="ffprobe"):
-        video._command_environment("ffprobe")
+        video.extract_video(b"\x1a\x45\xdf\xa3" + b"fake-webm")
 
 
 def test_extract_video_rejects_resolution_before_running_ffmpeg(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Extract video rejects resolution before running ffmpeg."""
-    calls = []
-
-    def fake_run(command: object, **_kwargs: object) -> SimpleNamespace:
-        calls.append(command)
-        if command[1] == "ffprobe" and "format=duration" in command:
-            return SimpleNamespace(returncode=0, stdout=b"1.0\n", stderr=b"")
-        if command[1] == "ffprobe":
-            return SimpleNamespace(returncode=0, stdout=b"3840x2161\n", stderr=b"")
-        msg = "ffmpeg must not run for oversized input"
-        raise AssertionError(msg)
-
-    monkeypatch.setattr(video.shutil, "which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr(video.subprocess, "run", fake_run)
-
+    tools = _install(monkeypatch, FakeVideoTools(size=b"3840x2161\n"))
     with pytest.raises(MediaError, match="Разрешение исходного видео"):
         video.extract_video(b"\x1a\x45\xdf\xa3" + b"fake-webm")
-
-    assert len(calls) == 2
-    assert all(call[0] == "/usr/bin/env" and call[1] == "ffprobe" for call in calls)
+    assert not tools.commands("ffmpeg"), "ffmpeg must not run for oversized input"
 
 
-def test_extract_video_passes_resource_and_protocol_limits(
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("-protocol_whitelist", "file"),
+        ("-max_alloc", "1073741824"),
+        ("-threads", "1"),
+        ("-filter_script:v", "video_filter.txt"),
+    ],
+)
+def test_extract_video_passes_resource_and_protocol_limits_to_ffmpeg(
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    expected: str,
+) -> None:
+    tools = _extract(monkeypatch)
+    assert tools.option("ffmpeg", name) == expected, f"ffmpeg {name} is wrong"
+
+
+def test_extract_video_never_lets_ffmpeg_read_stdin(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Extract video passes resource and protocol limits."""
-    calls = []
-    filter_scripts = []
+    tools = _extract(monkeypatch)
+    flag = "-nostdin"
+    assert flag in tools.commands("ffmpeg")[0], "ffmpeg must not read stdin"
 
-    def fake_run(command: object, **kwargs: object) -> SimpleNamespace:
-        calls.append((command, kwargs))
-        if command[1] == "ffprobe" and "format=duration" in command:
-            return SimpleNamespace(returncode=0, stdout=b"1.0\n", stderr=b"")
-        if command[1] == "ffprobe":
-            return SimpleNamespace(returncode=0, stdout=b"32x24\n", stderr=b"")
 
-        assert command[0] == "/usr/bin/env"
-        assert command[1] == "ffmpeg"
-        working_directory = Path(kwargs["cwd"])
-        filter_path = working_directory / command[command.index("-filter_script:v") + 1]
-        filter_scripts.append(filter_path.read_text(encoding="utf-8"))
-        Image.new("RGB", (16, 12), (20, 40, 60)).save(
-            working_directory / "frame_01.png", format="PNG"
-        )
-        return SimpleNamespace(returncode=0, stdout=b"", stderr=b"")
-
-    monkeypatch.setattr(video.shutil, "which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr(video.subprocess, "run", fake_run)
-
-    frames = video.extract_video(b"\x1a\x45\xdf\xa3" + b"fake-webm")
-
-    assert len(frames) == 1
-    ffprobes = [call for call, _kwargs in calls if call[1] == "ffprobe"]
-    ffmpeg = next(call for call, _kwargs in calls if call[1] == "ffmpeg")
-    assert len(ffprobes) == 2
-    for command in ffprobes:
-        assert command[command.index("-protocol_whitelist") + 1] == "file"
-    assert "-nostdin" in ffmpeg
-    assert ffmpeg[ffmpeg.index("-protocol_whitelist") + 1] == "file"
-    assert ffmpeg[ffmpeg.index("-max_alloc") + 1] == "1073741824"
-    assert ffmpeg[ffmpeg.index("-threads") + 1] == "1"
-    assert ffmpeg[ffmpeg.index("-filter_script:v") + 1] == "video_filter.txt"
-    filter_script = filter_scripts[0]
-    assert "fps=" in filter_script
-    assert f"scale={video.MAX_DIMENSION}:{video.MAX_DIMENSION}:" in filter_script
-    assert "force_original_aspect_ratio=decrease" in filter_script
-    assert f"trim=duration={video.MAX_DURATION}" in filter_script
-    assert f"trim=end_frame={video.MAX_FRAMES}" in filter_script
+@pytest.mark.parametrize(
+    "fragment",
+    [
+        "fps=",
+        f"scale={video.MAX_DIMENSION}:{video.MAX_DIMENSION}:",
+        "force_original_aspect_ratio=decrease",
+        f"trim=duration={video.MAX_DURATION}",
+        f"trim=end_frame={video.MAX_FRAMES}",
+    ],
+)
+def test_extract_video_bounds_the_frames_in_the_filter_script(
+    monkeypatch: pytest.MonkeyPatch,
+    fragment: str,
+) -> None:
+    tools = _extract(monkeypatch)
+    assert fragment in tools.filter_scripts[0], f"the filter must contain {fragment}"

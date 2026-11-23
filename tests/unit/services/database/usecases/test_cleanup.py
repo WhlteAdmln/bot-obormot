@@ -59,7 +59,8 @@ async def test_cleanup_usecase_deletes_old_image_but_keeps_message(
         "SELECT content FROM messages WHERE id = ?",
         (message_id,),
     )
-    assert (await cursor.fetchone())["content"] == "Текст должен сохраниться"
+    expected_content = "Текст должен сохраниться"
+    assert (await cursor.fetchone())["content"] == expected_content
 
 
 @pytest.mark.asyncio
@@ -87,7 +88,8 @@ async def test_cleanup_usecase_removes_only_expired_orphan_images(
     assert result == {"old_images": 0, "orphan_images": 1, "failed": 0}
     assert not expired_orphan.exists()
     assert recent_orphan.exists()
-    assert non_managed_file.read_text(encoding="utf-8") == "keep this file"
+    expected_text = "keep this file"
+    assert non_managed_file.read_text(encoding="utf-8") == expected_text
 
 
 @pytest.mark.asyncio
@@ -144,13 +146,15 @@ async def test_cleanup_skips_old_image_outside_managed_directory(
     )
 
     assert result == {"old_images": 0, "orphan_images": 0, "failed": 0}
-    assert external_image.read_bytes() == b"do-not-delete"
+    expected_read_bytes = b"do-not-delete"
+    assert external_image.read_bytes() == expected_read_bytes
 
     cursor = await test_db.connection.execute(
         "SELECT content FROM messages WHERE id = ?",
         (message_id,),
     )
-    assert (await cursor.fetchone())["content"] == "Старый текст"
+    expected_content = "Старый текст"
+    assert (await cursor.fetchone())["content"] == expected_content
 
 
 @pytest.mark.asyncio

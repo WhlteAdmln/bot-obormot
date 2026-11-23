@@ -52,7 +52,8 @@ async def test_fake_audiodoc_serves_contract_responses_to_real_clients() -> None
                 ("ready", "ready"),
             ):
                 async with session.get(f"{server.base_url}{endpoint}") as response:
-                    assert response.status == 200
+                    expected_status_2 = 200
+                    assert response.status == expected_status_2
                     assert await response.json() == {"status": expected_status}
 
         assert (
@@ -82,7 +83,8 @@ async def test_fake_audiodoc_can_return_configured_http_errors(
             FakeResponseOptions(status=status, retry_after_seconds=17),
         )
 
-        if status == 503:
+        expected_status = 503
+        if status == expected_status:
             form = aiohttp.FormData()
             form.add_field("file", b"audio", filename="audio.ogg")
             async with (
@@ -97,7 +99,8 @@ async def test_fake_audiodoc_can_return_configured_http_errors(
                 ) as response,
             ):
                 assert response.status == status
-                assert response.headers["Retry-After"] == "17"
+                expected_retry_after = "17"
+                assert response.headers["Retry-After"] == expected_retry_after
                 await response.read()
 
         with pytest.raises(AudiodocAPIError, match=f"audiodoc HTTP {status}"):

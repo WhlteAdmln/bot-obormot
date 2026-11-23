@@ -18,7 +18,8 @@ def test_reply_target_stores_ids_and_builds_reply_parameters() -> None:
 
     assert (target.chat_id, target.message_id) == (5, 42)
     assert parameters is not None
-    assert parameters.message_id == 42
+    expected_message_id = 42
+    assert parameters.message_id == expected_message_id
     assert parameters.allow_sending_without_reply is True
 
 

@@ -35,7 +35,8 @@ class _FailingAdminDatabase:
     def __init__(self) -> None:
         self.admin_lookup_calls = 0
 
-    async def get_blocked_ids(self) -> set[int]:
+    @staticmethod
+    async def get_blocked_ids() -> set[int]:
         """Return no blocked users for the access middleware."""
         return set()
 
@@ -86,15 +87,20 @@ async def test_start_routes_users_and_builds_their_command_menu(
     texts = sent_texts(session)
 
     assert len(texts) == 1
-    assert "Привет! 👋 Я бот для работы с LLM в формате чата." in texts[0]
-    assert "/forget_me — удалить все свои данные" in texts[0]
-    assert ("health" in command_names) is expected_admin
+    expected_fragment = "Привет! 👋 Я бот для работы с LLM в формате чата."
+    assert expected_fragment in texts[0]
+    expected_fragment = "/forget_me — удалить все свои данные"
+    assert expected_fragment in texts[0]
+    expected_fragment = "health"
+    assert (expected_fragment in command_names) is expected_admin
     assert ({"ban", "unban"} <= command_names) is expected_admin
-    assert ("🩺 Состояние бота:" in texts[0]) is expected_admin
+    expected_fragment = "🩺 Состояние бота:"
+    assert (expected_fragment in texts[0]) is expected_admin
     assert ({"admin", "admins", "admin_add", "admin_remove"} <= command_names) is (
         expected_supervisor
     )
-    assert ("🛠 Управление администраторами:" in texts[0]) is expected_supervisor
+    expected_fragment = "🛠 Управление администраторами:"
+    assert (expected_fragment in texts[0]) is expected_supervisor
 
 
 @pytest.mark.asyncio
@@ -115,11 +121,16 @@ async def test_start_falls_back_to_regular_menu_when_database_fails(
     texts = sent_texts(session)
 
     assert len(texts) == 1
-    assert "Привет! 👋 Я бот для работы с LLM в формате чата." in texts[0]
-    assert "health" not in command_names
-    assert "🩺 Состояние бота:" not in texts[0]
-    assert "admin" not in command_names
-    assert "🛠 Управление администраторами:" not in texts[0]
+    expected_fragment = "Привет! 👋 Я бот для работы с LLM в формате чата."
+    assert expected_fragment in texts[0]
+    expected_fragment = "health"
+    assert expected_fragment not in command_names
+    expected_fragment = "🩺 Состояние бота:"
+    assert expected_fragment not in texts[0]
+    expected_fragment = "admin"
+    assert expected_fragment not in command_names
+    expected_fragment = "🛠 Управление администраторами:"
+    assert expected_fragment not in texts[0]
 
 
 @pytest.mark.asyncio
@@ -146,8 +157,10 @@ async def test_start_help_and_command_menu_include_forget_me(
     await cmd_start(message, state, settings, test_db)
 
     commands = set_my_commands.await_args.kwargs["commands"]
-    assert any(command.command == "forget_me" for command in commands)
-    assert "/forget_me — удалить все свои данные" in answer.await_args.args[0]
+    expected_command = "forget_me"
+    assert any(command.command == expected_command for command in commands)
+    expected_fragment = "/forget_me — удалить все свои данные"
+    assert expected_fragment in answer.await_args.args[0]
 
 
 @pytest.mark.asyncio
@@ -178,5 +191,7 @@ async def test_start_adds_ban_commands_for_admins(
     }
     assert {"ban", "unban"} <= commands
     help_text = answer.await_args.args[0]
-    assert "/ban ID — заблокировать пользователя" in help_text
-    assert "/unban ID — снять блокировку пользователя" in help_text
+    expected_fragment = "/ban ID — заблокировать пользователя"
+    assert expected_fragment in help_text
+    expected_fragment = "/unban ID — снять блокировку пользователя"
+    assert expected_fragment in help_text

@@ -28,7 +28,8 @@ def test_token_is_redacted_from_log_message() -> None:
 
     assert log_filter.filter(record) is True
     assert bot_key not in record.getMessage()
-    assert "[REDACTED]" in record.getMessage()
+    expected_fragment = "[REDACTED]"
+    assert expected_fragment in record.getMessage()
 
 
 def test_configured_secrets_are_redacted_from_formatted_arguments() -> None:
@@ -46,8 +47,10 @@ def test_configured_secrets_are_redacted_from_formatted_arguments() -> None:
 
     secrets_filter.filter(record)
 
-    assert "llm-secret-value" not in record.getMessage()
-    assert "[REDACTED]" in record.getMessage()
+    expected_fragment = "llm-secret-value"
+    assert expected_fragment not in record.getMessage()
+    expected_fragment = "[REDACTED]"
+    assert expected_fragment in record.getMessage()
 
 
 def _fail_download(bot_key: str) -> None:
@@ -60,24 +63,25 @@ def test_token_is_redacted_from_exception_traceback() -> None:
     bot_key = "123456789:ABCdefGHIjklMNOpqrSTUvwxYZ0123456789"
     secrets_filter = SecretsFilter([bot_key])
 
-    try:
+    with pytest.raises(RuntimeError) as caught:
         _fail_download(bot_key)
-    except RuntimeError:
-        record = logging.LogRecord(
-            "t",
-            logging.ERROR,
-            "f",
-            1,
-            "Telegram request failed",
-            (),
-            __import__("sys").exc_info(),
-        )
+    error = caught.value
+    record = logging.LogRecord(
+        "t",
+        logging.ERROR,
+        "f",
+        1,
+        "Telegram request failed",
+        (),
+        (type(error), error, error.__traceback__),
+    )
 
     secrets_filter.filter(record)
 
-    assert record.exc_text is not None
-    assert bot_key not in record.exc_text
-    assert "[REDACTED]" in record.exc_text
+    exc_text = str(record.exc_text)
+    assert bot_key not in exc_text
+    expected_fragment = "[REDACTED]"
+    assert expected_fragment in exc_text
 
 
 def test_logging_setup_attaches_filter_to_root_handlers(
@@ -110,8 +114,10 @@ def test_bearer_tokens_are_redacted(message: str) -> None:
     record = logging.LogRecord("t", logging.ERROR, "f", 1, message, (), None)
 
     assert log_filter.filter(record) is True
-    assert "secret-value" not in record.getMessage()
-    assert "[REDACTED]" in record.getMessage()
+    expected_fragment = "secret-value"
+    assert expected_fragment not in record.getMessage()
+    expected_fragment = "[REDACTED]"
+    assert expected_fragment in record.getMessage()
 
 
 def test_logging_setup_redacts_every_configured_secret(

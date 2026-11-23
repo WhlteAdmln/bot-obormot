@@ -15,4 +15,5 @@ def test_server_url_removes_trailing_slashes_and_v1() -> None:
         Settings(),
         LLM_BASE_URL="http://localhost:8080/v1///",
     )
-    assert endpoints.server_url(settings) == "http://localhost:8080"
+    expected_server_url = "http://localhost:8080"
+    assert endpoints.server_url(settings) == expected_server_url

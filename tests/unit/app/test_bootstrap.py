@@ -6,8 +6,7 @@
 import asyncio
 import logging
 import os
-from types import SimpleNamespace, TracebackType
-from typing import Self
+from types import SimpleNamespace
 
 import pytest
 
@@ -15,34 +14,21 @@ import bot_obormot.app.routers as app_routers
 import bot_obormot.main as main_module
 from bot_obormot.app import bootstrap, lifecycle
 from bot_obormot.app.background import image_cleanup
+from bot_obormot.middlewares.access import AccessMiddleware
+from bot_obormot.middlewares.temporary_messages import (
+    TemporaryMessagesCleanupMiddleware,
+)
+from bot_obormot.middlewares.throttle import ThrottleMiddleware
 from bot_obormot.services.chat.aggregation import MessageAggregator
 from bot_obormot.settings import ConfigError, Settings
+from tests.support.lifecycle import (
+    FakeLifecycleLLM,
+    FakeRouterDispatcher,
+    LifecycleHarness,
+)
 from tests.support.settings import make_settings
 
 SETTINGS = make_settings()
-
-
-class _FakeRouterDispatcher:
-    def __init__(self) -> None:
-        self.middleware_calls: list[object] = []
-        self.routers: list[object] = []
-        self.workflow_data: dict[str, object] = {}
-        self.message = SimpleNamespace(middleware=self.middleware_calls.append)
-
-    def include_router(self, router: object) -> None:
-        self.routers.append(router)
-
-
-class _FakeThrottleMiddleware:
-    pass
-
-
-class _FakeAccessMiddleware:
-    pass
-
-
-class _FakeCleanupMiddleware:
-    pass
 
 
 def test_dispatcher_registers_middlewares_and_routers_once_in_original_order(
@@ -52,16 +38,9 @@ def test_dispatcher_registers_middlewares_and_routers_once_in_original_order(
     router_refs = {name: object() for name in ("start", "admin", "routers", "chat")}
     for name, router in router_refs.items():
         monkeypatch.setattr(app_routers, name, SimpleNamespace(router=router))
-    monkeypatch.setattr(app_routers, "ThrottleMiddleware", _FakeThrottleMiddleware)
-    monkeypatch.setattr(app_routers, "AccessMiddleware", _FakeAccessMiddleware)
-    monkeypatch.setattr(
-        app_routers,
-        "TemporaryMessagesCleanupMiddleware",
-        _FakeCleanupMiddleware,
-    )
 
-    dispatcher = _FakeRouterDispatcher()
-    llm_client = _FakeLLM([])
+    dispatcher = FakeRouterDispatcher()
+    llm_client = FakeLifecycleLLM([])
     message_aggregator = MessageAggregator()
     database = object()
     configured = app_routers.configure_dispatcher(
@@ -77,10 +56,13 @@ def test_dispatcher_registers_middlewares_and_routers_once_in_original_order(
     assert dispatcher.workflow_data["llm_client"] is llm_client
     assert dispatcher.workflow_data["message_aggregator"] is message_aggregator
     assert dispatcher.workflow_data["database"] is database
-    assert len(dispatcher.middleware_calls) == 3
-    assert isinstance(dispatcher.middleware_calls[0], _FakeThrottleMiddleware)
-    assert isinstance(dispatcher.middleware_calls[1], _FakeAccessMiddleware)
-    assert isinstance(dispatcher.middleware_calls[2], _FakeCleanupMiddleware)
+    expected_count = 3
+    assert len(dispatcher.middleware_calls) == expected_count
+    assert isinstance(dispatcher.middleware_calls[0], ThrottleMiddleware)
+    assert isinstance(dispatcher.middleware_calls[1], AccessMiddleware)
+    assert isinstance(
+        dispatcher.middleware_calls[2], TemporaryMessagesCleanupMiddleware
+    )
     assert dispatcher.routers == [
         router_refs["start"],
         router_refs["admin"],
@@ -95,10 +77,11 @@ def test_periodic_cleanup_uses_existing_policy_and_propagates_cancellation(
     """Periodic cleanup uses existing policy and propagates cancellation."""
     calls: list[dict[str, object]] = []
 
-    class FakeDatabase:
-        async def cleanup_old_images(self, **kwargs: object) -> dict[str, object]:
-            calls.append(kwargs)
-            return {"old_images": 1, "orphan_images": 2, "failed": 0}
+    async def cleanup_old_images(**kwargs: object) -> dict[str, object]:
+        calls.append(kwargs)
+        return {"old_images": 1, "orphan_images": 2, "failed": 0}
+
+    database = SimpleNamespace(cleanup_old_images=cleanup_old_images)
 
     async def stop_after_first_iteration(_delay: object) -> None:
         raise asyncio.CancelledError
@@ -106,7 +89,7 @@ def test_periodic_cleanup_uses_existing_policy_and_propagates_cancellation(
     monkeypatch.setattr(image_cleanup.asyncio, "sleep", stop_after_first_iteration)
 
     with pytest.raises(asyncio.CancelledError):
-        asyncio.run(image_cleanup.periodic_image_cleanup(FakeDatabase()))
+        asyncio.run(image_cleanup.periodic_image_cleanup(database))
 
     assert calls == [{"retention_days": 30, "orphan_grace_hours": 24}]
     assert image_cleanup.IMAGE_CLEANUP_INTERVAL == 24 * 60 * 60
@@ -120,18 +103,20 @@ def test_periodic_cleanup_continues_after_database_error(
     calls: list[dict[str, object]] = []
     sleep_calls = 0
 
-    class FakeDatabase:
-        async def cleanup_old_images(self, **kwargs: object) -> dict[str, object]:
-            calls.append(kwargs)
-            if len(calls) == 1:
-                msg = "temporary database failure"
-                raise RuntimeError(msg)
-            return {"old_images": 0, "orphan_images": 0, "failed": 0}
+    async def cleanup_old_images(**kwargs: object) -> dict[str, object]:
+        calls.append(kwargs)
+        if len(calls) == 1:
+            msg = "temporary database failure"
+            raise RuntimeError(msg)
+        return {"old_images": 0, "orphan_images": 0, "failed": 0}
+
+    database = SimpleNamespace(cleanup_old_images=cleanup_old_images)
 
     async def stop_after_retry(_delay: object) -> None:
         nonlocal sleep_calls
         sleep_calls += 1
-        if sleep_calls == 2:
+        expected_sleep_calls = 2
+        if sleep_calls == expected_sleep_calls:
             raise asyncio.CancelledError
 
     monkeypatch.setattr(image_cleanup.asyncio, "sleep", stop_after_retry)
@@ -140,88 +125,22 @@ def test_periodic_cleanup_continues_after_database_error(
         caplog.at_level(logging.ERROR, logger="bot_obormot.main"),
         pytest.raises(asyncio.CancelledError),
     ):
-        asyncio.run(image_cleanup.periodic_image_cleanup(FakeDatabase()))
+        asyncio.run(image_cleanup.periodic_image_cleanup(database))
 
     assert calls == [
         {"retention_days": 30, "orphan_grace_hours": 24},
         {"retention_days": 30, "orphan_grace_hours": 24},
     ]
-    assert sleep_calls == 2
-    assert "Scheduled image cleanup failed" in caplog.text
+    expected_sleep_calls = 2
+    assert sleep_calls == expected_sleep_calls
+    expected_fragment = "Scheduled image cleanup failed"
+    assert expected_fragment in caplog.text
 
 
-class _LifecycleHarness:
-    """Record the order of resource calls made by ``run_application``."""
-
-    def __init__(self) -> None:
-        self.calls: list[str] = []
-        self.database = _FakeManagedDatabase(self.calls)
-        self.llm = _FakeLLM(self.calls)
-        self.bot = _FakeBot(self.calls)
-        self.dispatcher = _FakeDispatcher(self.calls)
-
-
-class _FakeBot:
-    def __init__(self, calls: list[str]) -> None:
-        async def close_session() -> None:
-            calls.append("telegram.close")
-
-        self.session = SimpleNamespace(close=close_session)
-
-
-class _FakeDispatcher:
-    def __init__(self, calls: list[str]) -> None:
-        self.calls = calls
-
-    async def start_polling(self, bot: object, **kwargs: object) -> None:
-        assert isinstance(bot, _FakeBot)
-        assert kwargs == {"close_bot_session": False}
-        self.calls.append("polling")
-        # Let the just-created background task start before polling returns.
-        await asyncio.sleep(0)
-
-
-class _FakeManagedDatabase:
-    def __init__(self, calls: list[str]) -> None:
-        self.calls = calls
-        self.fail_on_enter = False
-
-    async def __aenter__(self) -> Self:
-        self.calls.append("database.connect")
-        if self.fail_on_enter:
-            msg = "application database unavailable"
-            raise RuntimeError(msg)
-        return self
-
-    async def __aexit__(
-        self,
-        _exc_type: type[BaseException] | None,
-        _exc_value: BaseException | None,
-        _traceback: TracebackType | None,
-    ) -> None:
-        self.calls.append("database.close")
-
-
-class _FakeLLM:
-    def __init__(self, calls: list[str]) -> None:
-        self.calls = calls
-        self.settings: Settings | None = None
-
-    def configure(self, settings: Settings) -> None:
-        self.settings = settings
-        self.calls.append("llm.configure")
-
-    async def start(self) -> None:
-        self.calls.append("llm.start")
-
-    async def close(self) -> None:
-        self.calls.append("llm.close")
-
-
-@pytest.fixture
-def harness(monkeypatch: pytest.MonkeyPatch) -> _LifecycleHarness:
+@pytest.fixture(name="harness")
+def fixture_harness(monkeypatch: pytest.MonkeyPatch) -> LifecycleHarness:
     """Replace the lifecycle resources with recording fakes."""
-    result = _LifecycleHarness()
+    result = LifecycleHarness()
 
     async def fake_periodic_cleanup(database: object) -> None:
         assert database is result.database
@@ -240,7 +159,7 @@ def harness(monkeypatch: pytest.MonkeyPatch) -> _LifecycleHarness:
 
 
 def test_lifecycle_preserves_startup_polling_and_shutdown_order(
-    harness: _LifecycleHarness,
+    harness: LifecycleHarness,
 ) -> None:
     """Lifecycle starts and stops resources in the expected order."""
     asyncio.run(
@@ -265,7 +184,7 @@ def test_lifecycle_preserves_startup_polling_and_shutdown_order(
 
 
 def test_lifecycle_closes_database_and_resources_when_llm_startup_fails(
-    harness: _LifecycleHarness,
+    harness: LifecycleHarness,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Lifecycle closes the database and remaining resources when LLM startup fails."""
@@ -297,7 +216,7 @@ def test_lifecycle_closes_database_and_resources_when_llm_startup_fails(
 
 
 def test_lifecycle_closes_remaining_resources_when_database_startup_fails(
-    harness: _LifecycleHarness,
+    harness: LifecycleHarness,
 ) -> None:
     """Lifecycle closes remaining resources when database startup fails."""
     harness.database.fail_on_enter = True
@@ -320,7 +239,7 @@ def test_lifecycle_closes_remaining_resources_when_database_startup_fails(
 
 
 def test_lifecycle_continues_closing_after_one_cleanup_error(
-    harness: _LifecycleHarness,
+    harness: LifecycleHarness,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Lifecycle continues closing after one cleanup error."""
@@ -345,7 +264,7 @@ def test_lifecycle_continues_closing_after_one_cleanup_error(
 
 
 def test_lifecycle_cancels_running_request_and_background_task_on_shutdown(
-    harness: _LifecycleHarness,
+    harness: LifecycleHarness,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Lifecycle shuts down resources when polling is cancelled during a request."""
@@ -433,7 +352,7 @@ def test_bootstrap_main_loads_env_and_passes_settings_down(
     aggregator_instance = object()
     database_instance = object()
     _patch_main_components(monkeypatch, calls)
-    llm_instance = _FakeLLM(calls)
+    llm_instance = FakeLifecycleLLM(calls)
 
     def load_settings(environ: object) -> Settings:
         assert environ is os.environ
@@ -448,7 +367,7 @@ def test_bootstrap_main_loads_env_and_passes_settings_down(
         calls.append(("database", settings))
         return database_instance
 
-    def create_llm_client(settings: Settings) -> _FakeLLM:
+    def create_llm_client(settings: Settings) -> FakeLifecycleLLM:
         calls.append(("llm_client", settings))
         return llm_instance
 
@@ -458,7 +377,7 @@ def test_bootstrap_main_loads_env_and_passes_settings_down(
 
     def create_dispatcher(
         settings: Settings,
-        llm_client: _FakeLLM,
+        llm_client: FakeLifecycleLLM,
         message_aggregator: object,
         database: object,
     ) -> object:
@@ -468,7 +387,7 @@ def test_bootstrap_main_loads_env_and_passes_settings_down(
     async def run_application(
         bot: object,
         dispatcher: object,
-        llm_client: _FakeLLM,
+        llm_client: FakeLifecycleLLM,
         database: object,
     ) -> None:
         assert bot is bot_instance
@@ -521,44 +440,39 @@ def test_create_dispatcher_passes_settings_to_router_configuration(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Create dispatcher hands the same Settings object to the router wiring."""
+    outer_middlewares: list[object] = []
+    created = SimpleNamespace(
+        update=SimpleNamespace(outer_middleware=outer_middlewares.append),
+    )
 
-    class FakeDispatcher:
-        def __init__(self) -> None:
-            self.outer_middlewares: list[object] = []
-            self.update = SimpleNamespace(
-                outer_middleware=self.outer_middlewares.append
-            )
-
-    llm_client = _FakeLLM([])
+    llm_client = FakeLifecycleLLM([])
     message_aggregator = MessageAggregator()
     database = object()
 
     def configure_dispatcher(
         dispatcher: object,
         settings: Settings,
-        configured_llm: _FakeLLM,
+        configured_llm: FakeLifecycleLLM,
         configured_aggregator: MessageAggregator,
         configured_database: object,
     ) -> object:
-        assert isinstance(dispatcher, FakeDispatcher)
+        assert dispatcher is created
         assert settings is SETTINGS
         assert configured_llm is llm_client
         assert configured_aggregator is message_aggregator
         assert configured_database is database
         return dispatcher
 
-    monkeypatch.setattr(bootstrap, "Dispatcher", FakeDispatcher)
+    monkeypatch.setattr(bootstrap, "Dispatcher", lambda: created)
     monkeypatch.setattr(bootstrap, "configure_dispatcher", configure_dispatcher)
 
     dispatcher = bootstrap.create_dispatcher(
         SETTINGS, llm_client, message_aggregator, database
     )
 
-    assert isinstance(dispatcher, FakeDispatcher)
-    assert len(dispatcher.outer_middlewares) == 1
-    assert isinstance(
-        dispatcher.outer_middlewares[0], bootstrap.CorrelationIdMiddleware
-    )
+    assert dispatcher is created
+    assert len(outer_middlewares) == 1
+    assert isinstance(outer_middlewares[0], bootstrap.CorrelationIdMiddleware)
 
 
 def test_main_module_is_a_thin_entrypoint() -> None:
@@ -604,17 +518,16 @@ def test_log_access_mode_reports_configured_mode(
     )
 
 
-@pytest.fixture
-def created_tokens(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+@pytest.fixture(name="created_tokens")
+def fixture_created_tokens(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     """Replace the Telegram Bot class with a recorder of created tokens."""
     tokens: list[str] = []
 
-    class FakeBot:
-        def __init__(self, token: str) -> None:
-            self.token = token
-            tokens.append(token)
+    def create_bot(token: str) -> SimpleNamespace:
+        tokens.append(token)
+        return SimpleNamespace(token=token)
 
-    monkeypatch.setattr(bootstrap, "Bot", FakeBot)
+    monkeypatch.setattr(bootstrap, "Bot", create_bot)
     return tokens
 
 

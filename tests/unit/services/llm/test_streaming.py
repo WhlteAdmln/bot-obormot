@@ -160,10 +160,13 @@ async def test_stream_unlimited_raises_api_error_with_response_details(
     ):
         await collect(stream_unlimited(client, []))
 
-    assert error.value.status == 503
+    expected_status = 503
+    assert error.value.status == expected_status
     assert error.value.detail == private_detail
-    assert r"prompt fragment\nsecond line" in caplog.text
-    assert "prompt fragment\nsecond line" not in caplog.text
+    expected_fragment = r"prompt fragment\nsecond line"
+    assert expected_fragment in caplog.text
+    expected_fragment = "prompt fragment\nsecond line"
+    assert expected_fragment not in caplog.text
 
 
 @pytest.mark.asyncio
@@ -199,14 +202,12 @@ async def test_stream_unlimited_converts_aiohttp_client_error(
         await collect(stream_unlimited(client, []))
 
 
-@pytest.mark.asyncio
-async def test_llm_client_unlimited_stream_delegates(
+async def _stream_through_patched_module(
     monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Llm client unlimited stream delegates."""
+) -> tuple[list[str], list[tuple[object, object]], LLMClient, list[dict[str, str]]]:
     client = LLMClient(make_settings())
-    messages = [{"role": "user", "content": "hello"}]
-    calls = []
+    messages = [{"role": "user", "content": "Привет, мир"}]
+    calls: list[tuple[object, object]] = []
 
     async def fake_stream(
         client_arg: object, messages_arg: object
@@ -216,30 +217,28 @@ async def test_llm_client_unlimited_stream_delegates(
         yield " world"
 
     monkeypatch.setattr(client_module, "stream_unlimited", fake_stream)
-
-    assert await collect(client._stream_unlimited(messages)) == ["hello", " world"]
-    assert calls == [(client, messages)]
+    tokens = await collect(client.stream(messages))
+    return tokens, calls, client, messages
 
 
 @pytest.mark.asyncio
-async def test_public_stream_keeps_semaphore_wrapping_unlimited_stream(
+async def test_public_stream_yields_the_unlimited_stream_tokens(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Public stream keeps semaphore wrapping unlimited stream."""
-    client = LLMClient(make_settings())
-    messages = [{"role": "user", "content": "hello"}]
-    calls = []
+    tokens, _calls, _client, _messages = await _stream_through_patched_module(
+        monkeypatch
+    )
+    expected = ["hello", " world"]
+    assert tokens == expected, "the public stream must yield every token"
 
-    async def fake_stream(
-        self: object, received_messages: object
-    ) -> AsyncIterator[str]:
-        calls.append((self, received_messages))
-        yield "token"
 
-    monkeypatch.setattr(client, "_stream_unlimited", fake_stream.__get__(client))
-
-    assert await collect(client.stream(messages)) == ["token"]
-    assert calls == [(client, messages)]
+@pytest.mark.asyncio
+async def test_public_stream_passes_the_client_and_messages_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _tokens, calls, client, messages = await _stream_through_patched_module(monkeypatch)
+    expected = [(client, messages)]
+    assert calls == expected, "the unlimited stream must receive the request once"
 
 
 def _client_with_lines(
@@ -275,9 +274,12 @@ async def test_stream_unlimited_reports_reasoning_that_used_the_whole_limit(
     ):
         await collect(stream_unlimited(client, []))
 
-    assert error.value.finish_reason == "length"
-    assert "answer_produced=False, reasoning_seen=True" in caplog.text
-    assert "LLM_MAX_TOKENS" in caplog.text
+    expected_finish_reason = "length"
+    assert error.value.finish_reason == expected_finish_reason
+    expected_fragment = "answer_produced=False, reasoning_seen=True"
+    assert expected_fragment in caplog.text
+    expected_fragment = "LLM_MAX_TOKENS"
+    assert expected_fragment in caplog.text
 
 
 @pytest.mark.asyncio
@@ -297,7 +299,8 @@ async def test_stream_unlimited_warns_but_keeps_an_answer_cut_by_the_limit(
         result = await collect(stream_unlimited(client, []))
 
     assert result == ["| a |"]
-    assert "answer_produced=True" in caplog.text
+    expected_fragment = "answer_produced=True"
+    assert expected_fragment in caplog.text
 
 
 @pytest.mark.asyncio

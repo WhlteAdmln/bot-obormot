@@ -17,6 +17,7 @@ from tests.support.chat_streaming import (
     FakeMessage,
     FakeReplyMessage,
     edit_status,
+    single_answer,
     split_text,
 )
 
@@ -67,9 +68,10 @@ async def test_responder_waits_until_initial_character_checkpoint() -> None:
 
     await responder.on_update("x" * 299)
 
-    assert calls == []
-    assert message.answers == []
-    assert responder.next_token_check_chars == 300
+    assert not calls
+    assert not message.answers
+    expected_next_token_check_chars = 300
+    assert responder.next_token_check_chars == expected_next_token_check_chars
 
 
 @pytest.mark.asyncio
@@ -90,7 +92,8 @@ async def test_responder_checks_token_count_at_threshold_and_creates_status() ->
     assert message.answers == [(text, {})]
     assert responder.status.text == text
     assert responder.last_displayed_text == text
-    assert responder.next_token_check_chars == 428
+    expected_next_token_check_chars = 428
+    assert responder.next_token_check_chars == expected_next_token_check_chars
 
 
 @pytest.mark.asyncio
@@ -112,8 +115,10 @@ async def test_responder_increases_character_checkpoint_after_short_token_count(
     assert responder.status is None
 
     await responder.on_update("c" * 428)
-    assert len(calls) == 2
-    assert responder.next_token_check_chars == 556
+    expected_count = 2
+    assert len(calls) == expected_count
+    expected_next_token_check_chars = 556
+    assert responder.next_token_check_chars == expected_next_token_check_chars
     assert responder.status is None
 
 
@@ -137,7 +142,7 @@ async def test_responder_updates_status_after_interval_only_when_chunk_changes()
     status = responder.status
 
     await responder.on_update("first" + "x" * 295)
-    assert edits == []
+    assert not edits
 
     await responder.on_update("second" + "x" * 294)
     assert edits == [(status, "second" + "x" * 294)]
@@ -167,9 +172,11 @@ async def test_responder_count_failure_does_not_disable_future_streaming(
         await responder.on_update("b" * 427)
         await responder.on_update("c" * 428)
 
-    assert attempts == 2
+    expected_attempts = 2
+    assert attempts == expected_attempts
     assert responder.status is not None
-    assert "Could not count streaming tokens" in caplog.text
+    expected_fragment = "Could not count streaming tokens"
+    assert expected_fragment in caplog.text
 
 
 @pytest.mark.asyncio
@@ -177,20 +184,16 @@ async def test_responder_disables_streaming_after_initial_send_failure(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Responder disables streaming after initial send failure."""
-
-    class BrokenMessage:
-        async def answer(self, *_args: object, **_kwargs: object) -> None:
-            msg = "telegram down"
-            raise RuntimeError(msg)
-
-    responder = _responder(BrokenMessage())
+    failures: list[Exception | None] = [RuntimeError("telegram down")] * 2
+    responder = _responder(FakeReplyMessage(failures=failures))
     with caplog.at_level(logging.WARNING, logger="bot_obormot.handlers.chat"):
         await responder.on_update("x" * 300)
         await responder.on_update("y" * 500)
 
     assert responder.streaming_failed is True
     assert responder.status is None
-    assert "Could not start streaming display" in caplog.text
+    expected_fragment = "Could not start streaming display"
+    assert expected_fragment in caplog.text
 
 
 @pytest.mark.asyncio
@@ -215,7 +218,8 @@ async def test_responder_disables_streaming_after_edit_failure(
         await responder.on_update("z" * 700)
 
     assert responder.streaming_failed is True
-    assert "Streaming message update failed" in caplog.text
+    expected_fragment = "Streaming message update failed"
+    assert expected_fragment in caplog.text
 
 
 @pytest.mark.asyncio
@@ -261,6 +265,8 @@ async def test_streaming_message_is_created_as_a_reply_without_parse_mode() -> N
 
     await responder.on_update("a" * 400)
 
-    ((_, kwargs),) = message.answers
-    assert kwargs["reply_parameters"].message_id == 42
-    assert "parse_mode" not in kwargs
+    _, kwargs = single_answer(message)
+    expected_message_id = 42
+    assert kwargs["reply_parameters"].message_id == expected_message_id
+    expected_fragment = "parse_mode"
+    assert expected_fragment not in kwargs

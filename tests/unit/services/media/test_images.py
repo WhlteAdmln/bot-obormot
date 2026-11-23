@@ -32,8 +32,10 @@ def test_prepare_image_returns_jpeg_data_url_and_composites_transparency() -> No
     assert result.startswith("data:image/jpeg;base64,")
     decoded = base64.b64decode(result.split(",", 1)[1])
     with Image.open(io.BytesIO(decoded)) as image:
-        assert image.format == "JPEG"
-        assert image.mode == "RGB"
+        expected_format = "JPEG"
+        assert image.format == expected_format
+        expected_mode = "RGB"
+        assert image.mode == expected_mode
         assert image.size == (12, 8)
 
 
@@ -77,7 +79,8 @@ def test_prepare_image_applies_exif_rotation() -> None:
     encoded = result.split(",", 1)[1]
     decoded = base64.b64decode(encoded)
     with Image.open(io.BytesIO(decoded)) as image:
-        assert image.format == "JPEG"
+        expected_format = "JPEG"
+        assert image.format == expected_format
         assert image.size == (2, 4)
 
 
@@ -97,8 +100,10 @@ def test_prepare_image_composites_alpha_channels(
     result = media_images.prepare_image(image_data)
     decoded = base64.b64decode(result.split(",", 1)[1])
     with Image.open(io.BytesIO(decoded)) as image:
-        assert image.mode == "RGB"
-        assert min(image.getpixel((0, 0))) >= 245
+        expected_mode = "RGB"
+        assert image.mode == expected_mode
+        expected_min = 245
+        assert min(image.getpixel((0, 0))) >= expected_min
 
 
 def test_prepare_image_handles_palette_transparency() -> None:
@@ -111,8 +116,10 @@ def test_prepare_image_handles_palette_transparency() -> None:
     result = media_images.prepare_image(output.getvalue())
     decoded = base64.b64decode(result.split(",", 1)[1])
     with Image.open(io.BytesIO(decoded)) as image:
-        assert image.mode == "RGB"
-        assert min(image.getpixel((0, 0))) >= 245
+        expected_mode = "RGB"
+        assert image.mode == expected_mode
+        expected_min = 245
+        assert min(image.getpixel((0, 0))) >= expected_min
 
 
 def test_prepare_image_converts_rgb_and_resizes_large_dimensions() -> None:
@@ -122,6 +129,8 @@ def test_prepare_image_converts_rgb_and_resizes_large_dimensions() -> None:
     result = media_images.prepare_image(image_data)
     decoded = base64.b64decode(result.split(",", 1)[1])
     with Image.open(io.BytesIO(decoded)) as image:
-        assert image.format == "JPEG"
-        assert image.mode == "RGB"
+        expected_format = "JPEG"
+        assert image.format == expected_format
+        expected_mode = "RGB"
+        assert image.mode == expected_mode
         assert image.size == (1536, 768)

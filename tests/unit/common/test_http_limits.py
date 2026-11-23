@@ -30,4 +30,5 @@ async def test_read_limited_body_rejects_declared_and_streamed_oversize() -> Non
         content_length=None,
         content=FakeContent(b"1234567890"),
     )
-    assert await read_limited_body(within_limit, 10) == b"1234567890"
+    expected_bytes = b"1234567890"
+    assert await read_limited_body(within_limit, 10) == expected_bytes

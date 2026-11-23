@@ -19,7 +19,8 @@ from tests.support.audio_documents import make_message
 
 def test_validate_audio_duration_keeps_five_minute_boundary() -> None:
     """Validate audio duration keeps five minute boundary."""
-    assert MAX_AUDIO_DURATION == 300
+    expected_max_audio_duration = 300
+    assert expected_max_audio_duration == MAX_AUDIO_DURATION
     validate_audio_duration(make_message(voice=SimpleNamespace(duration=300)))
     with pytest.raises(MediaError, match="Аудиофайл слишком длинный"):
         validate_audio_duration(make_message(voice=SimpleNamespace(duration=301)))

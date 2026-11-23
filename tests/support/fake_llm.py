@@ -7,15 +7,21 @@ from __future__ import annotations
 
 import asyncio
 import json
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any, NamedTuple, Self
 
 from aiohttp import web
 from aiohttp.test_utils import TestServer
 
+from bot_obormot.services.llm import LLMClient
+
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
     from types import TracebackType
+
+    from bot_obormot.settings import Settings
 
 _SUPPORTED_CHAT_STATUSES = {
     HTTPStatus.OK,
@@ -23,16 +29,25 @@ _SUPPORTED_CHAT_STATUSES = {
     HTTPStatus.TOO_MANY_REQUESTS,
     HTTPStatus.INTERNAL_SERVER_ERROR,
 }
+
+
+class _ChatError(NamedTuple):
+    detail: str
+    error_type: str
+
+
 _CHAT_ERRORS = {
-    HTTPStatus.UNAUTHORIZED: ("Invalid API key", "authentication_error"),
-    HTTPStatus.TOO_MANY_REQUESTS: ("Rate limit exceeded", "rate_limit_error"),
-    HTTPStatus.INTERNAL_SERVER_ERROR: ("Internal server error", "server_error"),
+    HTTPStatus.UNAUTHORIZED: _ChatError("Invalid API key", "authentication_error"),
+    HTTPStatus.TOO_MANY_REQUESTS: _ChatError("Rate limit exceeded", "rate_limit_error"),
+    HTTPStatus.INTERNAL_SERVER_ERROR: _ChatError(
+        "Internal server error", "server_error"
+    ),
 }
 _DONE = b"data: [DONE]\n\n"
 
 
 @dataclass(frozen=True, slots=True)
-class FakeLLMOptions:
+class FakeLLMOptions:  # pylint: disable=too-many-instance-attributes  # one flat knob set
     """Configure responses and failures of the fake LLM server."""
 
     chat_status: int = HTTPStatus.OK
@@ -229,7 +244,9 @@ class FakeLLM:
         will_drop = drop_after is not None and drop_after <= len(events)
         headers = {"Content-Type": "text/event-stream"}
         if will_drop:
-            headers["Content-Length"] = str(sum(map(len, events)) + len(_DONE) + 1)
+            headers["Content-Length"] = str(
+                sum(len(event) for event in events) + len(_DONE) + 1
+            )
             headers["Connection"] = "close"
 
         response = web.StreamResponse(headers=headers)
@@ -301,3 +318,13 @@ class FakeLLM:
                     if isinstance(content, str):
                         parts.append(content)
         return web.json_response({"prompt": "\n".join(parts)})
+
+
+@asynccontextmanager
+async def open_llm_client(settings: Settings | None = None) -> AsyncIterator[LLMClient]:
+    """Create a real LLM client and close it when the block ends."""
+    client = LLMClient(settings=settings)
+    try:
+        yield client
+    finally:
+        await client.close()

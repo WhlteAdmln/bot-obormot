@@ -45,7 +45,8 @@ async def test_count_tokens_applies_template_then_tokenizes(
 
     result = await client.count_tokens(messages)
 
-    assert result == 4
+    expected_result = 4
+    assert result == expected_result
     assert [call[0] for call in fake_session.post_calls] == [
         "http://llm.test/apply-template",
         "http://llm.test/tokenize",
@@ -54,7 +55,8 @@ async def test_count_tokens_applies_template_then_tokenizes(
     assert apply_payload["model"] == client.settings.LLM_MODEL
     assert apply_payload["add_generation_prompt"] is True
     image_part = apply_payload["messages"][0]["content"][0]
-    assert image_part["image_url"]["url"] == "data:image/jpeg;base64,"
+    expected_url = "data:image/jpeg;base64,"
+    assert image_part["image_url"]["url"] == expected_url
     assert messages[0]["content"][0]["image_url"]["url"].endswith("PRIVATE")
 
     tokenize_payload = fake_session.post_calls[1][1]["json"]
@@ -82,7 +84,7 @@ async def test_count_tokens_rejects_invalid_normalized_content(
     with pytest.raises(LLMUnavailableError, match="Invalid message content"):
         await client.count_tokens([{"role": "user", "content": "hello"}])
 
-    assert fake_session.post_calls == []
+    assert not fake_session.post_calls
 
 
 @pytest.mark.asyncio
@@ -95,7 +97,8 @@ async def test_count_text_tokens_sends_expected_payload(
 
     result = await client.count_text_tokens("Привет")
 
-    assert result == 3
+    expected_result = 3
+    assert result == expected_result
     assert fake_session.post_calls == [
         (
             "http://llm.test/tokenize",
@@ -155,5 +158,7 @@ async def test_count_text_tokens_logs_sanitized_error_detail(
         await client.count_text_tokens("private request")
 
     assert error.value.detail == private_detail
-    assert r"user prompt\nsecond line" in caplog.text
-    assert "user prompt\nsecond line" not in caplog.text
+    expected_fragment = r"user prompt\nsecond line"
+    assert expected_fragment in caplog.text
+    expected_fragment = "user prompt\nsecond line"
+    assert expected_fragment not in caplog.text

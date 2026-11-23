@@ -37,11 +37,13 @@ class FakeFittingClient:
         """Get context size."""
         return self.context_size
 
-    async def get_token_counting_mode(self) -> str:
+    @staticmethod
+    async def get_token_counting_mode() -> str:
         """Get token counting mode."""
         return "llamacpp"
 
-    def normalize_messages(self, messages: object) -> list[dict[str, object]]:
+    @staticmethod
+    def normalize_messages(messages: object) -> list[dict[str, object]]:
         """Normalize messages."""
         return messages
 
@@ -52,10 +54,11 @@ class FakeFittingClient:
         for message in messages:
             content = message.get("content")
             if isinstance(content, list):
+                expected_get = "image_url"
                 count += sum(
                     1
                     for part in content
-                    if isinstance(part, dict) and part.get("type") == "image_url"
+                    if isinstance(part, dict) and part.get("type") == expected_get
                 )
         return count
 
@@ -99,7 +102,8 @@ async def test_fitting_removes_oldest_complete_exchange_and_keeps_recent_history
         "recent answer",
         "current question",
     ]
-    assert len(client.count_calls) == 2
+    expected_count = 2
+    assert len(client.count_calls) == expected_count
 
 
 @pytest.mark.asyncio
@@ -125,8 +129,10 @@ async def test_fitting_discards_leading_assistant_and_does_not_mutate_history() 
         "assistant",
         "user",
     ]
-    assert len(history) == 3
-    assert history[0]["content"] == "orphan answer"
+    expected_count = 3
+    assert len(history) == expected_count
+    expected_content = "orphan answer"
+    assert history[0]["content"] == expected_content
 
 
 @pytest.mark.asyncio
@@ -174,7 +180,7 @@ async def test_fitting_rejects_context_smaller_than_reserved_tokens() -> None:
     with pytest.raises(InputTooLongError, match="Not enough context space"):
         await fit_messages_to_context(client, "system", [], "question")
 
-    assert client.count_calls == []
+    assert not client.count_calls
 
 
 @pytest.mark.asyncio
@@ -257,7 +263,8 @@ async def test_context_fit_log_distinguishes_window_from_available_budget(
     await fit_messages_to_context(client, "system", [], content)
 
     assert f"input_budget={expected_budget}" in caplog.text
-    assert "context_window=32000" in caplog.text
+    expected_fragment = "context_window=32000"
+    assert expected_fragment in caplog.text
     assert f"images={image_count}" in caplog.text
 
 

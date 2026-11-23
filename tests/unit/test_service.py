@@ -63,7 +63,8 @@ def test_install_writes_a_new_unit_without_touching_systemd(tmp_path: Path) -> N
     assert unit_path.read_text(encoding="utf-8") == _golden("user.service").replace(
         "/home/alice/bot-obormot", "/srv/bot-obormot"
     )
-    assert unit_path.stat().st_mode & 0o777 == 0o644
+    expected_number = 0o644
+    assert unit_path.stat().st_mode & 0o777 == expected_number
     assert list(unit_path.parent.iterdir()) == [unit_path]
 
 
@@ -77,7 +78,8 @@ def test_install_refuses_to_overwrite_without_force(tmp_path: Path) -> None:
             Path("/srv/bot-obormot"), mode="user", unit_directory=tmp_path
         )
 
-    assert unit_path.read_text(encoding="utf-8") == "old"
+    expected_text = "old"
+    assert unit_path.read_text(encoding="utf-8") == expected_text
 
 
 def test_install_with_force_saves_a_backup(tmp_path: Path) -> None:
@@ -89,8 +91,12 @@ def test_install_with_force_saves_a_backup(tmp_path: Path) -> None:
         Path("/srv/bot-obormot"), mode="user", force=True, unit_directory=tmp_path
     )
 
-    assert (tmp_path / f"{service.UNIT_NAME}.bak").read_text(encoding="utf-8") == "old"
-    assert "ExecStart=" in unit_path.read_text(encoding="utf-8")
+    expected_text = "old"
+    assert (tmp_path / f"{service.UNIT_NAME}.bak").read_text(
+        encoding="utf-8"
+    ) == expected_text
+    expected_fragment = "ExecStart="
+    assert expected_fragment in unit_path.read_text(encoding="utf-8")
 
 
 def test_uninstall_removes_only_the_unit_file(tmp_path: Path) -> None:

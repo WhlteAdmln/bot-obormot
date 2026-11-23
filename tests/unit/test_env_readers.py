@@ -97,7 +97,8 @@ def test_get_optional_int_parses_positive_integer(
 ) -> None:
     """Get optional int parses positive integer."""
     monkeypatch.setenv("TEST_OPTIONAL_INT", "32768")
-    assert get_optional_int("TEST_OPTIONAL_INT") == 32768
+    expected_get_optional_int = 32768
+    assert get_optional_int("TEST_OPTIONAL_INT") == expected_get_optional_int
 
 
 @pytest.mark.parametrize("value", ["zero", "0", "-1"])
@@ -155,7 +156,8 @@ def test_boolean_integer_and_id_readers() -> None:
     """Boolean, integer and ID readers validate their inputs."""
     assert env_readers.get_bool("FLAG", environ={"FLAG": "yes"}) is True
     assert env_readers.get_bool("FLAG", default=True, environ={}) is True
-    assert env_readers.get_int("COUNT", "3", 2, environ={}) == 3
+    expected_get_int = 3
+    assert env_readers.get_int("COUNT", "3", 2, environ={}) == expected_get_int
     assert env_readers.get_optional_int("COUNT", environ={"COUNT": ""}) is None
     assert env_readers.parse_ids("IDS", environ={"IDS": "1, 2,2"}) == {1, 2}
 
@@ -169,7 +171,10 @@ def test_boolean_integer_and_id_readers() -> None:
 
 def test_float_reader_checks_finite_values_and_bounds() -> None:
     """Float settings must be finite and remain within configured bounds."""
-    assert env_readers.get_float("RATE", "0.5", 0.0, 1.0, environ={}) == 0.5
+    expected_get_float = 0.5
+    assert (
+        env_readers.get_float("RATE", "0.5", 0.0, 1.0, environ={}) == expected_get_float
+    )
 
     with pytest.raises(ValueError, match="finite number"):
         env_readers.get_float("RATE", "nan", environ={})
@@ -179,5 +184,9 @@ def test_float_reader_checks_finite_values_and_bounds() -> None:
 
 def test_log_level_reader_warns_and_falls_back_to_info() -> None:
     """Invalid log levels warn and use INFO."""
+    expected_get_log_level = "INFO"
     with pytest.warns(RuntimeWarning, match="Falling back to INFO"):
-        assert env_readers.get_log_level(environ={"LOG_LEVEL": "verbose"}) == "INFO"
+        assert (
+            env_readers.get_log_level(environ={"LOG_LEVEL": "verbose"})
+            == expected_get_log_level
+        )

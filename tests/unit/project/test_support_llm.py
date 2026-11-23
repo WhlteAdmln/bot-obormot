@@ -4,16 +4,15 @@
 """Tests for the fake OpenAI-compatible LLM support server."""
 
 import asyncio
-from contextlib import suppress
+from contextlib import aclosing
 from dataclasses import replace
 
 import aiohttp
 import pytest
 
 from bot_obormot.errors import LLMAPIError, LLMTimeoutError, LLMUnavailableError
-from bot_obormot.services.llm import LLMClient
 from bot_obormot.settings import Settings
-from tests.support.fake_llm import FakeLLM, FakeLLMOptions
+from tests.support.fake_llm import FakeLLM, FakeLLMOptions, open_llm_client
 
 
 def _with_token_counting(settings: Settings, mode: str) -> Settings:
@@ -43,38 +42,43 @@ def _configure_client(
 async def test_fake_llm_supports_real_client_and_non_streaming_requests() -> None:
     """Exercise context discovery, tokenization and generation over HTTP."""
     messages = [{"role": "user", "content": "hello world"}]
-    async with FakeLLM() as server:
-        client = LLMClient(settings=_configure_client(server))
-        try:
-            assert await client.get_context_size() == 8192
-            assert await client.get_token_counting_mode() == "llamacpp"
-            assert await client.count_tokens(messages) == 2
-            assert await client.count_text_tokens("hello world") == 2
-            assert [token async for token in client.stream(messages)] == [
-                "Hello",
-                ", world!",
-            ]
-            assert await client.health_check() == (True, "Доступен")
+    async with (
+        FakeLLM() as server,
+        open_llm_client(_configure_client(server)) as client,
+    ):
+        expected_number = 8192
+        assert await client.get_context_size() == expected_number
+        expected_text = "llamacpp"
+        assert await client.get_token_counting_mode() == expected_text
+        expected_number = 2
+        assert await client.count_tokens(messages) == expected_number
+        expected_number = 2
+        assert await client.count_text_tokens("hello world") == expected_number
+        assert [token async for token in client.stream(messages)] == [
+            "Hello",
+            ", world!",
+        ]
+        assert await client.health_check() == (True, "Доступен")
 
-            async with (
-                aiohttp.ClientSession(
-                    headers={"Authorization": f"Bearer {server.api_key}"}
-                ) as session,
-                session.post(
-                    f"{server.base_url}v1/chat/completions",
-                    json={
-                        "model": server.model,
-                        "messages": messages,
-                        "stream": False,
-                    },
-                ) as response,
-            ):
-                assert response.status == 200
-                payload = await response.json()
+        async with (
+            aiohttp.ClientSession(
+                headers={"Authorization": f"Bearer {server.api_key}"}
+            ) as session,
+            session.post(
+                f"{server.base_url}v1/chat/completions",
+                json={
+                    "model": server.model,
+                    "messages": messages,
+                    "stream": False,
+                },
+            ) as response,
+        ):
+            expected_status = 200
+            assert response.status == expected_status
+            payload = await response.json()
 
-            assert payload["choices"][0]["message"]["content"] == "Hello, world!"
-        finally:
-            await client.close()
+        expected_content = "Hello, world!"
+        assert payload["choices"][0]["message"]["content"] == expected_content
 
 
 @pytest.mark.asyncio
@@ -84,106 +88,103 @@ async def test_fake_llm_can_omit_context_metadata_and_tokenizer() -> None:
         include_context_metadata=False,
         tokenizer_available=False,
     )
-    async with FakeLLM(options=options) as server:
-        client = LLMClient(
-            settings=_configure_client(
+    async with (
+        FakeLLM(options=options) as server,
+        open_llm_client(
+            _configure_client(
                 server,
                 context_size=4096,
             )
-        )
-        try:
-            async with (
-                aiohttp.ClientSession(
-                    headers={"Authorization": f"Bearer {server.api_key}"}
-                ) as session,
-                session.get(f"{server.base_url}v1/models") as response,
-            ):
-                payload = await response.json()
-            assert "max_model_len" not in payload["data"][0]
+        ) as client,
+    ):
+        async with (
+            aiohttp.ClientSession(
+                headers={"Authorization": f"Bearer {server.api_key}"}
+            ) as session,
+            session.get(f"{server.base_url}v1/models") as response,
+        ):
+            payload = await response.json()
+        expected_fragment = "max_model_len"
+        assert expected_fragment not in payload["data"][0]
 
-            assert await client.get_context_size() == 4096
-            assert await client.get_token_counting_mode() == "estimate"
-            assert await client.count_text_tokens("abcdef") == 2
-        finally:
-            await client.close()
+        expected_number = 4096
+        assert await client.get_context_size() == expected_number
+        expected_text = "estimate"
+        assert await client.get_token_counting_mode() == expected_text
+        expected_number = 2
+        assert await client.count_text_tokens("abcdef") == expected_number
 
 
 @pytest.mark.parametrize("status", [401, 429, 500])
 @pytest.mark.asyncio
 async def test_fake_llm_can_return_configured_http_errors(status: int) -> None:
     """Return configured OpenAI-compatible generation errors."""
-    async with FakeLLM(options=FakeLLMOptions(chat_status=status)) as server:
-        client = LLMClient(settings=_configure_client(server))
-        try:
-            with pytest.raises(LLMAPIError) as error:
-                async for _token in client.stream(
-                    [{"role": "user", "content": "hello"}]
-                ):
-                    pass
-            assert error.value.status == status
-        finally:
-            await client.close()
+    async with (
+        FakeLLM(options=FakeLLMOptions(chat_status=status)) as server,
+        open_llm_client(_configure_client(server)) as client,
+    ):
+        with pytest.raises(LLMAPIError) as error:
+            async for _token in client.stream([{"role": "user", "content": "hello"}]):
+                pass
+        assert error.value.status == status
 
 
 @pytest.mark.asyncio
 async def test_fake_llm_can_delay_the_first_token() -> None:
     """Exercise the real client's request timeout before the first token."""
     options = FakeLLMOptions(first_token_delay=0.05)
-    async with FakeLLM(options=options) as server:
-        client = LLMClient(
-            settings=_configure_client(
+    async with (
+        FakeLLM(options=options) as server,
+        open_llm_client(
+            _configure_client(
                 server,
                 timeout=0.01,
             )
-        )
-        try:
-            with pytest.raises(LLMTimeoutError):
-                async for _token in client.stream(
-                    [{"role": "user", "content": "hello"}]
-                ):
-                    pass
-        finally:
-            await client.close()
+        ) as client,
+    ):
+        with pytest.raises(LLMTimeoutError):
+            async for _token in client.stream([{"role": "user", "content": "hello"}]):
+                pass
 
 
 @pytest.mark.asyncio
 async def test_fake_llm_can_drop_connection_mid_stream() -> None:
     """Close the connection after sending the first SSE chunk."""
     options = FakeLLMOptions(drop_after_chunks=1)
-    async with FakeLLM(options=options) as server:
-        client = LLMClient(settings=_configure_client(server))
-        try:
-            stream = client.stream([{"role": "user", "content": "hello"}])
-            assert await anext(stream) == "Hello"
-            with pytest.raises(LLMUnavailableError):
-                await anext(stream)
-        finally:
-            await client.close()
+    async with (
+        FakeLLM(options=options) as server,
+        open_llm_client(_configure_client(server)) as client,
+    ):
+        stream = client.stream([{"role": "user", "content": "hello"}])
+        expected_text = "Hello"
+        assert await anext(stream) == expected_text
+        with pytest.raises(LLMUnavailableError):
+            await anext(stream)
 
 
 @pytest.mark.asyncio
 async def test_real_client_session_reuses_and_recreates_closed_session() -> None:
     """Reuse a real HTTP session and recreate it after closure."""
-    async with FakeLLM(api_key=None) as server:
-        client = LLMClient(settings=_configure_client(server))
-        try:
-            await client.start()
-            first = await client.get_session()
-            assert await client.get_session() is first
-            assert first.timeout.total == 5.0
+    async with (
+        FakeLLM(api_key=None) as server,
+        open_llm_client(_configure_client(server)) as client,
+    ):
+        await client.start()
+        first = await client.get_session()
+        assert await client.get_session() is first
+        expected_total = 5.0
+        assert first.timeout.total == expected_total
 
-            await first.close()
-            second = await client.get_session()
+        await first.close()
+        second = await client.get_session()
 
-            assert second is not first
-            assert not second.closed
-            assert await client.health_check() == (True, "Доступен")
+        assert second is not first
+        assert not second.closed
+        assert await client.health_check() == (True, "Доступен")
 
-            await client.close()
-            assert second.closed
-            assert client.session is None
-        finally:
-            await client.close()
+        await client.close()
+        assert second.closed
+        assert client.session is None
 
 
 @pytest.mark.parametrize(
@@ -202,37 +203,26 @@ async def test_real_client_session_configures_auth_header(
 ) -> None:
     """Configure the real session authorization header."""
     settings = replace(Settings(), LLM_API_KEY=api_key)
-    client = LLMClient(settings=settings)
-    try:
+    async with open_llm_client(settings) as client:
         session = await client.get_session()
         assert session.headers.get("Authorization") == expected_header
-    finally:
-        await client.close()
 
 
 @pytest.mark.asyncio
 async def test_stream_can_be_cancelled_by_client() -> None:
     """Cancel a pending stream without invalidating the shared session."""
     options = FakeLLMOptions(first_token_delay=0.1)
-    async with FakeLLM(options=options) as server:
-        client = LLMClient(settings=_configure_client(server))
-        stream = client.stream([{"role": "user", "content": "hello"}])
+    async with (
+        FakeLLM(options=options) as server,
+        open_llm_client(_configure_client(server)) as client,
+        aclosing(client.stream([{"role": "user", "content": "hello"}])) as stream,
+    ):
         pending_token = asyncio.create_task(anext(stream))
-
-        try:
-            await asyncio.wait_for(server.stream_started.wait(), timeout=1)
-            pending_token.cancel()
-            with pytest.raises(asyncio.CancelledError):
-                await pending_token
-
-            assert await client.health_check() == (True, "Доступен")
-        finally:
-            if not pending_token.done():
-                pending_token.cancel()
-                with suppress(asyncio.CancelledError):
-                    await pending_token
-            await stream.aclose()
-            await client.close()
+        await asyncio.wait_for(server.stream_started.wait(), timeout=1)
+        pending_token.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await pending_token
+        assert await client.health_check() == (True, "Доступен")
 
 
 @pytest.mark.asyncio
@@ -243,7 +233,6 @@ async def test_real_client_fits_very_long_history() -> None:
             _configure_client(server),
             LLM_MAX_TOKENS=128,
         )
-        client = LLMClient(settings=settings)
         history: list[dict[str, str]] = []
         for index in range(4):
             history.extend(
@@ -259,43 +248,42 @@ async def test_real_client_fits_very_long_history() -> None:
                 ]
             )
 
-        try:
+        async with open_llm_client(settings) as client:
             result = await client.fit_messages_to_context(
                 "system prompt",
                 history,
                 "current question",
             )
-            assert result[1:5] == history[4:]
-            assert result[-1] == {
-                "role": "user",
-                "content": "current question",
-            }
-            assert len(result) < len(history) + 2
-        finally:
-            await client.close()
+        assert result[1:5] == history[4:]
+        assert result[-1] == {
+            "role": "user",
+            "content": "current question",
+        }
+        assert len(result) < len(history) + 2
 
 
 @pytest.mark.asyncio
 async def test_real_client_estimates_message_tokens_when_tokenizer_is_missing() -> None:
     """Estimate message tokens when the server has no tokenizer."""
     options = FakeLLMOptions(tokenizer_available=False)
-    async with FakeLLM(options=options) as server:
-        client = LLMClient(settings=_configure_client(server))
-        try:
-            messages = [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": "one two three"},
-                        {"type": "image_url"},
-                    ],
-                }
-            ]
+    async with (
+        FakeLLM(options=options) as server,
+        open_llm_client(_configure_client(server)) as client,
+    ):
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "one two three"},
+                    {"type": "image_url"},
+                ],
+            }
+        ]
 
-            assert await client.get_token_counting_mode() == "estimate"
-            assert await client.count_tokens(messages) == 13
-        finally:
-            await client.close()
+        expected_text = "estimate"
+        assert await client.get_token_counting_mode() == expected_text
+        expected_number = 13
+        assert await client.count_tokens(messages) == expected_number
 
 
 @pytest.mark.parametrize(
@@ -317,19 +305,18 @@ async def test_real_client_maps_tokenizer_http_errors(
             _configure_client(server),
             "llamacpp",
         )
-        client = LLMClient(settings=settings)
-        try:
+        async with open_llm_client(settings) as client:
+            expected_operation = "messages"
             request = (
                 client.count_tokens([{"role": "user", "content": "hello world"}])
-                if operation == "messages"
+                if operation == expected_operation
                 else client.count_text_tokens("hello world")
             )
             with pytest.raises(LLMAPIError) as error:
                 await request
 
-            assert error.value.status == 500
-        finally:
-            await client.close()
+            expected_status = 500
+            assert error.value.status == expected_status
 
 
 @pytest.mark.parametrize("operation", ["messages", "text"])
@@ -345,17 +332,15 @@ async def test_real_client_maps_tokenizer_timeout(operation: str) -> None:
             ),
             "llamacpp",
         )
-        client = LLMClient(settings=settings)
-        try:
+        async with open_llm_client(settings) as client:
+            expected_operation = "messages"
             request = (
                 client.count_tokens([{"role": "user", "content": "hello world"}])
-                if operation == "messages"
+                if operation == expected_operation
                 else client.count_text_tokens("hello world")
             )
             with pytest.raises(LLMTimeoutError):
                 await request
-        finally:
-            await client.close()
 
 
 @pytest.mark.asyncio
@@ -366,56 +351,47 @@ async def test_context_size_uses_single_model_fallback_and_caches_result() -> No
             _configure_client(server, context_size=None),
             LLM_MODEL="configured-model",
         )
-        client = LLMClient(settings=settings)
-        try:
-            assert await client.get_context_size() == 8192
-            assert await client.get_context_size() == 8192
-        finally:
-            await client.close()
+        async with open_llm_client(settings) as client:
+            expected_number = 8192
+            assert await client.get_context_size() == expected_number
+            expected_number = 8192
+            assert await client.get_context_size() == expected_number
 
 
 @pytest.mark.asyncio
 async def test_context_size_fails_when_server_has_no_context_metadata() -> None:
     """Require a setting when neither server endpoint reports context size."""
     options = FakeLLMOptions(include_context_metadata=False)
-    async with FakeLLM(options=options) as server:
-        client = LLMClient(
-            settings=_configure_client(
+    async with (
+        FakeLLM(options=options) as server,
+        open_llm_client(
+            _configure_client(
                 server,
                 context_size=None,
             )
-        )
-        try:
-            with pytest.raises(LLMUnavailableError, match="LLM_CONTEXT_SIZE"):
-                await client.get_context_size()
-        finally:
-            await client.close()
+        ) as client,
+    ):
+        with pytest.raises(LLMUnavailableError, match="LLM_CONTEXT_SIZE"):
+            await client.get_context_size()
 
 
 @pytest.mark.asyncio
 async def test_real_client_handles_unavailable_server() -> None:
     """Handle connection failures in context, tokenizer and health requests."""
-    server = FakeLLM(api_key=None)
-    await server.__aenter__()
-    settings = _configure_client(server, context_size=None)
-    await server.__aexit__(None, None, None)
+    async with FakeLLM(api_key=None) as server:
+        settings = _configure_client(server, context_size=None)
 
-    client = LLMClient(settings=settings)
-    try:
+    async with open_llm_client(settings) as client:
         with pytest.raises(LLMUnavailableError, match="LLM_CONTEXT_SIZE"):
             await client.get_context_size()
 
-        assert await client.get_token_counting_mode() == "estimate"
-    finally:
-        await client.close()
+        expected_text = "estimate"
+        assert await client.get_token_counting_mode() == expected_text
 
-    client = LLMClient(settings=_with_token_counting(settings, "llamacpp"))
-    try:
+    async with open_llm_client(_with_token_counting(settings, "llamacpp")) as client:
         with pytest.raises(LLMUnavailableError):
             await client.count_tokens([{"role": "user", "content": "hello"}])
         with pytest.raises(LLMUnavailableError):
             await client.count_text_tokens("hello")
 
         assert await client.health_check() == (False, "LLM-сервер недоступен")
-    finally:
-        await client.close()

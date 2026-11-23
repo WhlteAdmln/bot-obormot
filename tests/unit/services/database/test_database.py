@@ -4,12 +4,10 @@
 """Tests for database database."""
 
 import asyncio
-from collections.abc import AsyncIterator
 from dataclasses import replace
 from pathlib import Path
 
 import pytest
-import pytest_asyncio
 
 import bot_obormot.services.database as database_package
 import bot_obormot.services.database.facade as facade_module
@@ -39,34 +37,13 @@ from tests.support.settings import make_settings
 USER_ID = 111111111
 
 
-@pytest_asyncio.fixture
-async def test_db(
-    tmp_path: Path,
-) -> AsyncIterator[Database]:
-    """Db."""
-    settings = make_settings(
-        DATABASE_PATH=str(tmp_path / "history_test.db"),
-        SUPERVISOR_ID=999999999,
-        ADMIN_IDS=set(),
-        DEFAULT_SYSTEM_PROMPT="Тестовый промпт",
-    )
-
-    database = Database(settings)
-
-    await database.connect()
-
-    try:
-        yield database
-    finally:
-        await database.close()
-
-
 def test_database_package_reexports_facade_api_without_global_instance() -> None:
     """Database package reexports the facade API without a global instance."""
     assert Database is FacadeDatabase
     assert not hasattr(database_package, "db")
     assert not hasattr(facade_module, "db")
-    assert MAX_HISTORY_MEDIA_MESSAGES == 3
+    expected_number = 3
+    assert expected_number == MAX_HISTORY_MEDIA_MESSAGES
     assert callable(handle_database_errors)
     assert callable(read_image_as_base64)
 
@@ -127,7 +104,8 @@ async def test_set_and_delete_history_limit(test_db: Database) -> None:
     """Set and delete history limit."""
     await test_db.set_history_limit(USER_ID, 20)
 
-    assert await test_db.get_history_limit(USER_ID) == 20
+    expected_number = 20
+    assert await test_db.get_history_limit(USER_ID) == expected_number
 
     await test_db.delete_history_limit(USER_ID)
 
@@ -162,7 +140,8 @@ async def test_history_limit_counts_complete_exchanges(test_db: Database) -> Non
 
     history = await test_db.get_history(USER_ID, limit=2)
 
-    assert len(history) == 4
+    expected_count = 4
+    assert len(history) == expected_count
 
     assert [item["content"] for item in history] == [
         "Вопрос 3",
@@ -201,7 +180,8 @@ async def test_history_ignores_incomplete_messages(test_db: Database) -> None:
 
     history = await test_db.get_history(USER_ID, limit=10)
 
-    assert len(history) == 2
+    expected_count = 2
+    assert len(history) == expected_count
 
     assert [item["content"] for item in history] == [
         "Вопрос 1",
@@ -215,8 +195,10 @@ async def test_history_limit_isolated_between_users(test_db: Database) -> None:
     await test_db.set_history_limit(USER_ID, 10)
     await test_db.set_history_limit(USER_ID + 1, 5)
 
-    assert await test_db.get_history_limit(USER_ID) == 10
-    assert await test_db.get_history_limit(USER_ID + 1) == 5
+    expected_number = 10
+    assert await test_db.get_history_limit(USER_ID) == expected_number
+    expected_number = 5
+    assert await test_db.get_history_limit(USER_ID + 1) == expected_number
 
     assert (
         await test_db.get_history_limit(USER_ID + 2)
@@ -244,6 +226,7 @@ async def test_prune_history_keeps_latest_exchanges_and_removes_old_images(
             f"Ответ {number}",
             media=media,
         )
+        expected_number = 4
         if number == 0:
             cursor = await test_db.connection.execute(
                 "SELECT file_path FROM message_media ORDER BY id DESC LIMIT 1"
@@ -260,7 +243,7 @@ async def test_prune_history_keeps_latest_exchanges_and_removes_old_images(
                 (old_message_id, str(external_image_path)),
             )
             await test_db.connection.commit()
-        elif number == 4:
+        elif number == expected_number:
             cursor = await test_db.connection.execute(
                 "SELECT file_path FROM message_media ORDER BY id DESC LIMIT 1"
             )
@@ -293,12 +276,14 @@ async def test_prune_history_keeps_latest_exchanges_and_removes_old_images(
         "SELECT COUNT(*) AS total FROM messages WHERE user_id = ?",
         (other_user_id,),
     )
-    assert (await cursor.fetchone())["total"] == 10
+    expected_total = 10
+    assert (await cursor.fetchone())["total"] == expected_total
     assert old_image_path is not None
     assert not old_image_path.exists()
     assert latest_image_path is not None
     assert latest_image_path.exists()
-    assert external_image_path.read_bytes() == b"must not be deleted"
+    expected_read_bytes = b"must not be deleted"
+    assert external_image_path.read_bytes() == expected_read_bytes
 
     cursor = await test_db.connection.execute(
         "SELECT COUNT(*) AS total FROM message_media mm "
@@ -365,12 +350,17 @@ async def test_forget_user_removes_history_prompt_limit_and_owned_images(
     assert not await asyncio.to_thread(own_image_path.exists)
 
     # Команда одного пользователя не затрагивает данные другого.
-    assert await test_db.get_user_system_prompt(other_user_id) == "Чужой промпт"
-    assert await test_db.get_history_limit(other_user_id) == 23
+    expected_text = "Чужой промпт"
+    assert await test_db.get_user_system_prompt(other_user_id) == expected_text
+    expected_number = 23
+    assert await test_db.get_history_limit(other_user_id) == expected_number
     other_history = await test_db.get_history(other_user_id)
-    assert other_history[0]["content"][0]["text"] == "Чужой вопрос"
-    assert other_history[0]["content"][1]["type"] == "image_url"
-    assert other_history[1]["content"] == "Чужой ответ"
+    expected_text = "Чужой вопрос"
+    assert other_history[0]["content"][0]["text"] == expected_text
+    expected_type = "image_url"
+    assert other_history[0]["content"][1]["type"] == expected_type
+    expected_content = "Чужой ответ"
+    assert other_history[1]["content"] == expected_content
     assert await asyncio.to_thread(other_image_path.exists)
 
 

@@ -77,14 +77,14 @@ def make_message(text: str = "Обычное сообщение") -> Message:
     )
 
 
-@pytest.fixture
-def middleware() -> TemporaryMessagesCleanupMiddleware:
+@pytest.fixture(name="middleware")
+def fixture_middleware() -> TemporaryMessagesCleanupMiddleware:
     """Middleware."""
     return TemporaryMessagesCleanupMiddleware()
 
 
-@pytest.fixture
-def handler() -> AsyncMock:
+@pytest.fixture(name="handler")
+def fixture_handler() -> AsyncMock:
     """Handler."""
     return AsyncMock(return_value="handled")
 
@@ -108,7 +108,8 @@ async def test_delete_status_message(
 
     result = await middleware(handler, event, {"state": state})
 
-    assert result == "handled"
+    expected_result = "handled"
+    assert result == expected_result
     delete_mock.assert_awaited_once_with(
         event,
         500,
@@ -137,7 +138,8 @@ async def test_delete_welcome_message(
 
     result = await middleware(handler, event, {"state": state})
 
-    assert result == "handled"
+    expected_result = "handled"
+    assert result == expected_result
     delete_mock.assert_awaited_once_with(
         event,
         600,
@@ -171,7 +173,8 @@ async def test_delete_status_and_welcome(
 
     await middleware(handler, event, {"state": state})
 
-    assert delete_mock.await_count == 2
+    expected_await_count = 2
+    assert delete_mock.await_count == expected_await_count
     assert delete_mock.await_args_list[0].args == (
         event,
         500,
@@ -213,7 +216,8 @@ async def test_command_after_status_is_not_deleted(
 
     result = await middleware(handler, event, {"state": state})
 
-    assert result == "handled"
+    expected_result = "handled"
+    assert result == expected_result
     cleanup_mock.assert_awaited_once_with(
         event,
         500,
@@ -278,7 +282,8 @@ async def test_messages_are_not_deleted_twice(
 
     await middleware(handler, event, {"state": state})
 
-    assert delete_mock.await_count == 2
+    expected_await_count = 2
+    assert delete_mock.await_count == expected_await_count
 
     delete_mock.reset_mock()
     handler.reset_mock()
@@ -312,7 +317,8 @@ async def test_delete_prompt_flow_messages(
 
     await middleware(handler, event, {"state": state})
 
-    assert delete_mock.await_count == 2
+    expected_await_count = 2
+    assert delete_mock.await_count == expected_await_count
     assert delete_mock.await_args_list[0].args == (
         event,
         301,
@@ -377,7 +383,8 @@ async def test_delete_unknown_command_and_response(
 
     await middleware(handler, event, {"state": state})
 
-    assert delete_mock.await_count == 2
+    expected_await_count = 2
+    assert delete_mock.await_count == expected_await_count
     assert delete_mock.await_args_list[0].args == (
         event,
         700,
@@ -411,7 +418,8 @@ async def test_without_fsm_state(
 
     result = await middleware(handler, event, {})
 
-    assert result == "handled"
+    expected_result = "handled"
+    assert result == expected_result
     delete_mock.assert_not_awaited()
     handler.assert_awaited_once()
 
@@ -434,7 +442,8 @@ async def test_non_message_event(
 
     result = await middleware(handler, event, {})
 
-    assert result == "handled"
+    expected_result = "handled"
+    assert result == expected_result
     delete_mock.assert_not_awaited()
     handler.assert_awaited_once()
 

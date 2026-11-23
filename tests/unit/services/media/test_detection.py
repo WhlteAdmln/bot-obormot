@@ -12,19 +12,6 @@ from bot_obormot.services.media.detection import get_media_info
 from tests.support.media import make_message
 
 
-def make_media_message(**overrides: object) -> SimpleNamespace:
-    """Create a message with empty media fields."""
-    values: dict[str, object] = {
-        "photo": None,
-        "animation": None,
-        "video": None,
-        "sticker": None,
-        "document": None,
-    }
-    values.update(overrides)
-    return SimpleNamespace(**values)
-
-
 def test_get_media_info_prefers_photo_and_uses_largest_photo() -> None:
     """Get media info prefers photo and uses largest photo."""
     message = make_message(
@@ -80,21 +67,21 @@ def test_get_media_info_classifies_video_documents_by_mime_type() -> None:
     ("message", "expected"),
     [
         (
-            make_media_message(photo=[SimpleNamespace(file_id="photo-id")]),
+            make_message(photo=[SimpleNamespace(file_id="photo-id")]),
             ("photo-id", "image"),
         ),
         (
-            make_media_message(
+            make_message(
                 animation=SimpleNamespace(file_id="animation-id"),
             ),
             ("animation-id", "mp4"),
         ),
         (
-            make_media_message(video=SimpleNamespace(file_id="video-id")),
+            make_message(video=SimpleNamespace(file_id="video-id")),
             ("video-id", "mp4"),
         ),
         (
-            make_media_message(
+            make_message(
                 sticker=SimpleNamespace(
                     file_id="animated-id",
                     is_animated=True,
@@ -104,7 +91,7 @@ def test_get_media_info_classifies_video_documents_by_mime_type() -> None:
             ("animated-id", "tgs"),
         ),
         (
-            make_media_message(
+            make_message(
                 sticker=SimpleNamespace(
                     file_id="video-sticker-id",
                     is_animated=False,
@@ -114,7 +101,7 @@ def test_get_media_info_classifies_video_documents_by_mime_type() -> None:
             ("video-sticker-id", "webm"),
         ),
         (
-            make_media_message(
+            make_message(
                 sticker=SimpleNamespace(
                     file_id="static-sticker-id",
                     is_animated=False,
@@ -124,7 +111,7 @@ def test_get_media_info_classifies_video_documents_by_mime_type() -> None:
             ("static-sticker-id", "image"),
         ),
         (
-            make_media_message(
+            make_message(
                 document=SimpleNamespace(
                     file_id="gif-name",
                     file_name="IMAGE.GIF",
@@ -134,7 +121,7 @@ def test_get_media_info_classifies_video_documents_by_mime_type() -> None:
             ("gif-name", "gif"),
         ),
         (
-            make_media_message(
+            make_message(
                 document=SimpleNamespace(
                     file_id="gif-mime",
                     file_name="image.bin",
@@ -144,7 +131,7 @@ def test_get_media_info_classifies_video_documents_by_mime_type() -> None:
             ("gif-mime", "gif"),
         ),
         (
-            make_media_message(
+            make_message(
                 document=SimpleNamespace(
                     file_id="webm-name",
                     file_name="clip.WEBM",
@@ -154,7 +141,7 @@ def test_get_media_info_classifies_video_documents_by_mime_type() -> None:
             ("webm-name", "webm"),
         ),
         (
-            make_media_message(
+            make_message(
                 document=SimpleNamespace(
                     file_id="webm-mime",
                     file_name="clip.bin",
@@ -164,7 +151,7 @@ def test_get_media_info_classifies_video_documents_by_mime_type() -> None:
             ("webm-mime", "webm"),
         ),
         (
-            make_media_message(
+            make_message(
                 document=SimpleNamespace(
                     file_id="mp4-name",
                     file_name="clip.MP4",
@@ -174,7 +161,7 @@ def test_get_media_info_classifies_video_documents_by_mime_type() -> None:
             ("mp4-name", "mp4"),
         ),
         (
-            make_media_message(
+            make_message(
                 document=SimpleNamespace(
                     file_id="mp4-mime",
                     file_name="clip.bin",
@@ -184,7 +171,7 @@ def test_get_media_info_classifies_video_documents_by_mime_type() -> None:
             ("mp4-mime", "mp4"),
         ),
         (
-            make_media_message(
+            make_message(
                 document=SimpleNamespace(
                     file_id="unknown-id",
                     file_name="report.pdf",
@@ -193,7 +180,7 @@ def test_get_media_info_classifies_video_documents_by_mime_type() -> None:
             ),
             (None, None),
         ),
-        (make_media_message(), (None, None)),
+        (make_message(), (None, None)),
     ],
 )
 def test_get_media_info_detects_message_media(

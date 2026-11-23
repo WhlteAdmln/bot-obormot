@@ -22,9 +22,10 @@ async def test_user_settings_repository_crud(test_db: Database) -> None:
         USER_ID,
         "Персональный промпт",
     )
+    expected_text = "Персональный промпт"
     assert (
         await user_settings.get_system_prompt(test_db.connection, USER_ID)
-        == "Персональный промпт"
+        == expected_text
     )
 
     await user_settings.delete_system_prompt(test_db.connection, USER_ID)

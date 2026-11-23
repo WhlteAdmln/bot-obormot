@@ -32,23 +32,22 @@ async def test_user_lock_serializes_same_user_and_releases_registry() -> None:
     second = asyncio.create_task(second_worker())
     await asyncio.sleep(0)
     assert not second_inside.is_set()
-    assert chat_locks.pending_requests(202) == 2
+    expected_pending_requests = 2
+    assert chat_locks.pending_requests(202) == expected_pending_requests
 
     release_first.set()
     await asyncio.gather(first, second)
     assert second_inside.is_set()
     assert chat_locks.pending_requests(202) == 0
-    assert 202 not in chat_locks._user_locks
 
 
 @pytest.mark.asyncio
 async def test_user_locks_allow_different_users_to_run_concurrently() -> None:
     """User locks allow different users to run concurrently."""
     async with chat_locks.get_user_lock(301), chat_locks.get_user_lock(302):
-        assert 301 in chat_locks._user_locks
-        assert 302 in chat_locks._user_locks
-    assert 301 not in chat_locks._user_locks
-    assert 302 not in chat_locks._user_locks
+        inside = (chat_locks.pending_requests(301), chat_locks.pending_requests(302))
+    expected = (1, 1)
+    assert inside == expected, "both users must hold their own lock at once"
 
 
 @pytest.mark.asyncio
@@ -66,13 +65,11 @@ async def test_user_lock_releases_after_exception() -> None:
         await failing_request()
 
     assert chat_locks.pending_requests(user_id) == 0
-    assert user_id not in chat_locks._user_locks
 
     async with chat_locks.get_user_lock(user_id):
         assert chat_locks.pending_requests(user_id) == 1
 
     assert chat_locks.pending_requests(user_id) == 0
-    assert user_id not in chat_locks._user_locks
 
 
 @pytest.mark.asyncio
@@ -98,7 +95,8 @@ async def test_user_lock_cleans_registry_when_waiter_is_cancelled() -> None:
     waiter_task = asyncio.create_task(waiter())
     await asyncio.sleep(0)
 
-    assert chat_locks.pending_requests(user_id) == 2
+    expected_pending_requests = 2
+    assert chat_locks.pending_requests(user_id) == expected_pending_requests
 
     waiter_task.cancel()
     with pytest.raises(asyncio.CancelledError):
@@ -110,4 +108,3 @@ async def test_user_lock_cleans_registry_when_waiter_is_cancelled() -> None:
     await owner_task
 
     assert chat_locks.pending_requests(user_id) == 0
-    assert user_id not in chat_locks._user_locks

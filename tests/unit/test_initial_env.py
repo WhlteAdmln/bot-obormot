@@ -19,8 +19,10 @@ def test_new_file_is_created_with_private_permissions(tmp_path: Path) -> None:
     env_path = initial_env.write_initial_env(home)
 
     assert env_path == home / ".env"
-    assert env_path.stat().st_mode & 0o777 == 0o600
-    assert home.stat().st_mode & 0o777 == 0o700
+    expected_number = 0o600
+    assert env_path.stat().st_mode & 0o777 == expected_number
+    expected_number = 0o700
+    assert home.stat().st_mode & 0o777 == expected_number
     assert [path.name for path in home.iterdir()] == [".env"]
 
 
@@ -31,7 +33,8 @@ def test_existing_file_is_refused_and_kept(tmp_path: Path) -> None:
     with pytest.raises(FileExistsError):
         initial_env.write_initial_env(tmp_path)
 
-    assert (tmp_path / ".env").read_text(encoding="utf-8") == "SECRET=1\n"
+    expected_text = "SECRET=1\n"
+    assert (tmp_path / ".env").read_text(encoding="utf-8") == expected_text
     assert [path.name for path in tmp_path.iterdir()] == [".env"]
 
 
@@ -41,8 +44,10 @@ def test_force_overwrites_the_file(tmp_path: Path) -> None:
 
     env_path = initial_env.write_initial_env(tmp_path, force=True)
 
-    assert "SECRET=1" not in env_path.read_text(encoding="utf-8")
-    assert env_path.stat().st_mode & 0o777 == 0o600
+    expected_fragment = "SECRET=1"
+    assert expected_fragment not in env_path.read_text(encoding="utf-8")
+    expected_number = 0o600
+    assert env_path.stat().st_mode & 0o777 == expected_number
 
 
 def test_placeholders_are_replaced(tmp_path: Path) -> None:
@@ -51,9 +56,12 @@ def test_placeholders_are_replaced(tmp_path: Path) -> None:
     lines = env_path.read_text(encoding="utf-8").splitlines()
 
     assert f"BOT_TOKEN={VALID_TOKEN}" in lines
-    assert "SUPERVISOR_ID=42" in lines
-    assert not any("YOUR_TELEGRAM_BOT_TOKEN" in line for line in lines)
-    assert not any("REPLACE_WITH" in line for line in lines)
+    expected_fragment = "SUPERVISOR_ID=42"
+    assert expected_fragment in lines
+    expected_fragment = "YOUR_TELEGRAM_BOT_TOKEN"
+    assert not any(expected_fragment in line for line in lines)
+    expected_fragment = "REPLACE_WITH"
+    assert not any(expected_fragment in line for line in lines)
 
 
 def test_placeholders_remain_when_values_are_not_given(tmp_path: Path) -> None:

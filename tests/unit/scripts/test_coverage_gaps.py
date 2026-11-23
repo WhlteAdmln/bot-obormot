@@ -1,4 +1,8 @@
 # Copyright (c) 2026 Nikolai Zelensky
+# SPDX-License-Identifier: MIT
+
+"""Tests for the coverage gap report script."""
+
 from pathlib import Path
 
 import pytest
@@ -57,7 +61,8 @@ def test_find_coverage_gaps_returns_at_most_fifteen_files(tmp_path: Path) -> Non
 
     results = find_coverage_gaps(report)
 
-    assert len(results) == 15
+    expected_count = 15
+    assert len(results) == expected_count
     assert [filename for _, filename in results] == [
         f"audiodoc/file_{index:02d}.py" for index in range(15)
     ]
@@ -124,6 +129,5 @@ def test_main_prints_requested_number_of_files(
     )
 
     assert main() == 0
-    assert capsys.readouterr().out == (
-        "Files with lowest coverage (up to 1):\n 50.000% audiodoc/plain.py\n"
-    )
+    expected_out = "Files with lowest coverage (up to 1):\n 50.000% audiodoc/plain.py\n"
+    assert capsys.readouterr().out == expected_out

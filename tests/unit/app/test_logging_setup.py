@@ -34,5 +34,7 @@ def test_configure_logging_redacts_audiodoc_keys(
             settings.AUDIODOC_DOCUMENT_KEY,
         )
 
-    assert "whisper-secret-key" not in caplog.text
-    assert "document-secret-key" not in caplog.text
+    expected_fragment = "whisper-secret-key"
+    assert expected_fragment not in caplog.text
+    expected_fragment = "document-secret-key"
+    assert expected_fragment not in caplog.text

@@ -31,9 +31,11 @@ async def test_context_size_reads_nested_setting_and_caches_result(
     result = await client.get_context_size()
     cached_result = await client.get_context_size()
 
-    assert result == cached_result == 8192
+    expected_size = 8192
+    assert result == cached_result == expected_size
     assert len(fake_session.get_calls) == 1
-    assert fake_session.get_calls[0][0] == "http://llm.test/props"
+    expected_get_calls = "http://llm.test/props"
+    assert fake_session.get_calls[0][0] == expected_get_calls
     assert fake_session.get_calls[0][1]["params"] == {
         "model": client.settings.LLM_MODEL
     }
@@ -47,15 +49,14 @@ async def test_context_size_rejects_boolean_value(
     fake_session = FakeSession([FakeResponse({"n_ctx": True})])
     client = make_client(monkeypatch, fake_session)
 
-    # A bool is not a valid context size; if /models also omits it,
-    # the user receives the actionable configuration error.
     fake_session.responses.append(
         FakeResponse({"data": [{"id": client.settings.LLM_MODEL}]})
     )
     with pytest.raises(LLMUnavailableError, match="LLM_CONTEXT_SIZE"):
         await client.get_context_size()
-
-    assert client._context_size is None
+    expected = 16384
+    fake_session.responses.append(FakeResponse({"n_ctx": expected}))
+    assert await client.get_context_size() == expected, "a failure must not be cached"
 
 
 @pytest.mark.asyncio
@@ -81,7 +82,8 @@ async def test_context_size_falls_back_to_models_metadata(
     )
     client = make_client(monkeypatch, fake_session, settings=settings)
 
-    assert await client.get_context_size() == 32768
+    expected_number = 32768
+    assert await client.get_context_size() == expected_number
     assert [call[0] for call in fake_session.get_calls] == [
         "http://llm.test/props",
         "http://llm.test/v1/models",
@@ -103,8 +105,9 @@ async def test_configured_context_size_skips_server_requests(
     fake_session = FakeSession([])
     client = make_client(monkeypatch, fake_session, settings=settings)
 
-    assert await client.get_context_size() == 16384
-    assert fake_session.get_calls == []
+    expected_number = 16384
+    assert await client.get_context_size() == expected_number
+    assert not fake_session.get_calls
 
 
 @pytest.mark.asyncio
@@ -127,5 +130,7 @@ async def test_context_size_logs_sanitized_error_detail(
     ):
         await client.get_context_size()
 
-    assert r"user prompt\nsecond line" in caplog.text
-    assert "user prompt\nsecond line" not in caplog.text
+    expected_fragment = r"user prompt\nsecond line"
+    assert expected_fragment in caplog.text
+    expected_fragment = "user prompt\nsecond line"
+    assert expected_fragment not in caplog.text

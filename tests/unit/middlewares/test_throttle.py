@@ -49,8 +49,10 @@ async def test_throttle_expires_events_after_window() -> None:
 
     user_data = {"event_from_user": SimpleNamespace(id=42)}
 
-    assert await middleware(handler, "first", user_data) == "handled"
-    assert await middleware(handler, "second", user_data) == "handled"
+    expected_text = "handled"
+    assert await middleware(handler, "first", user_data) == expected_text
+    expected_text = "handled"
+    assert await middleware(handler, "second", user_data) == expected_text
     assert calls == ["first", "second"]
 
 
@@ -64,30 +66,41 @@ async def test_throttle_drops_events_without_sender() -> None:
         calls.append(event)
 
     assert await middleware(handler, "event", {"event_from_user": None}) is None
-    assert calls == []
+    assert not calls
 
 
-@pytest.mark.asyncio
-async def test_throttle_keeps_tracking_registry_bounded() -> None:
-    """Throttle keeps tracking registry bounded."""
+async def _send(middleware: object, user_id: int) -> object:
+    async def handler(event: object, _data: object) -> object:
+        return event
+
+    return await middleware(
+        handler,
+        user_id,
+        {"event_from_user": SimpleNamespace(id=user_id)},
+    )
+
+
+async def _fill_two_slot_registry() -> object:
     middleware = throttle_module.ThrottleMiddleware(
         max_events=1,
         max_tracked_users=2,
     )
+    for user_id in (11, 22, 33):
+        await _send(middleware, user_id)
+    return middleware
 
-    async def handler(event: object, _data: object) -> object:
-        return event
 
-    for user_id in (1, 2, 3):
-        result = await middleware(
-            handler,
-            user_id,
-            {"event_from_user": SimpleNamespace(id=user_id)},
-        )
-        assert result == user_id
+@pytest.mark.asyncio
+async def test_throttle_forgets_the_oldest_user_when_the_registry_is_full() -> None:
+    middleware = await _fill_two_slot_registry()
+    evicted = 11
+    assert await _send(middleware, evicted) == evicted, "an evicted user is fresh"
 
-    assert len(middleware._events) == 2
-    assert list(middleware._events) == [2, 3]
+
+@pytest.mark.asyncio
+async def test_throttle_keeps_tracking_the_newest_user() -> None:
+    middleware = await _fill_two_slot_registry()
+    assert await _send(middleware, 33) is None, "the newest user stays throttled"
 
 
 def test_throttle_rejects_invalid_limits() -> None:

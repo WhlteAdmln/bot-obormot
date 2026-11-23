@@ -23,7 +23,8 @@ def test_build_contact_sheet_combines_frames_into_one_jpeg() -> None:
     result = build_contact_sheet(frames)
 
     with Image.open(io.BytesIO(result)) as sheet:
-        assert sheet.format == "JPEG"
+        expected_format = "JPEG"
+        assert sheet.format == expected_format
         assert sheet.size == (3 * 512, 2 * 384)
 
 

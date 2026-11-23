@@ -18,7 +18,11 @@ async def test_history_limits_repository_crud(test_db: Database) -> None:
     assert await history_limits.get_history_limit(test_db.connection, USER_ID) is None
 
     await history_limits.set_history_limit(test_db.connection, USER_ID, 17)
-    assert await history_limits.get_history_limit(test_db.connection, USER_ID) == 17
+    expected_number = 17
+    assert (
+        await history_limits.get_history_limit(test_db.connection, USER_ID)
+        == expected_number
+    )
 
     await history_limits.delete_history_limit(test_db.connection, USER_ID)
     assert await history_limits.get_history_limit(test_db.connection, USER_ID) is None

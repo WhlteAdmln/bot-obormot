@@ -22,10 +22,11 @@ _ENV_READER_NAMES = {
 
 def _settings_environment_names() -> set[str]:
     tree = ast.parse(SETTINGS_PATH.read_text(encoding="utf-8"))
+    expected_name = "_SettingsLoader"
     settings_loader = next(
         node
         for node in tree.body
-        if isinstance(node, ast.ClassDef) and node.name == "_SettingsLoader"
+        if isinstance(node, ast.ClassDef) and node.name == expected_name
     )
     names: set[str] = set()
 
@@ -34,7 +35,8 @@ def _settings_environment_names() -> set[str]:
             continue
 
         function = node.func
-        if isinstance(function, ast.Name) and function.id == "get_log_level":
+        expected_id = "get_log_level"
+        if isinstance(function, ast.Name) and function.id == expected_id:
             names.add("LOG_LEVEL")
             continue
 
@@ -56,7 +58,12 @@ def _env_example_names() -> tuple[set[str], list[str]]:
 
     for line in ENV_EXAMPLE_PATH.read_text(encoding="utf-8").splitlines():
         stripped = line.strip()
-        if not stripped or stripped.startswith("#") or "=" not in stripped:
+        expected_fragment = "="
+        if (
+            not stripped
+            or stripped.startswith("#")
+            or expected_fragment not in stripped
+        ):
             continue
         name = stripped.split("=", maxsplit=1)[0].strip()
         if name in names:

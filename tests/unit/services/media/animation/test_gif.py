@@ -37,11 +37,14 @@ def test_extract_gif_returns_at_most_six_jpeg_frames() -> None:
 
     extracted = extract_gif(source.getvalue())
 
-    assert len(extracted) == 6
+    expected_count = 6
+    assert len(extracted) == expected_count
     for frame in extracted:
         with Image.open(io.BytesIO(frame)) as image:
-            assert image.format == "JPEG"
-            assert image.mode == "RGB"
+            expected_format = "JPEG"
+            assert image.format == expected_format
+            expected_mode = "RGB"
+            assert image.mode == expected_mode
 
 
 def test_huge_gif_canvas_is_rejected_before_frame_decode() -> None:

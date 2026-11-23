@@ -17,6 +17,9 @@ def test_image_to_bytes_encodes_bounded_jpeg_frame() -> None:
     encoded = image_to_bytes(source)
 
     with Image.open(io.BytesIO(encoded)) as image:
-        assert image.format == "JPEG"
-        assert max(image.size) <= 768
-        assert image.mode == "RGB"
+        expected_format = "JPEG"
+        assert image.format == expected_format
+        expected_max = 768
+        assert max(image.size) <= expected_max
+        expected_mode = "RGB"
+        assert image.mode == expected_mode

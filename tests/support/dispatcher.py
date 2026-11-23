@@ -4,6 +4,7 @@
 """Shared helpers for dispatcher tests."""
 
 from aiogram import Bot, Dispatcher, Router
+from aiogram.dispatcher.middlewares.manager import MiddlewareManager
 from aiogram.methods import (
     SendMessage,
 )
@@ -34,7 +35,7 @@ HISTORY_ADMIN_ID = 444000001
 SETTINGS = make_settings(SUPERVISOR_ID=SUPERVISOR_ID, ALLOW_ALL_USERS=True)
 
 
-class AccessDatabase:
+class AccessDatabase:  # pylint: disable=too-many-instance-attributes  # one recorder per call
     """Provide deterministic database responses for dispatcher tests."""
 
     def __init__(self, admin_ids: set[int] | None = None) -> None:
@@ -167,6 +168,26 @@ class FakeLLM:
         return self.result
 
 
+def _replace_throttles(manager: MiddlewareManager) -> None:
+    registered = list(manager)
+    if not any(isinstance(item, ThrottleMiddleware) for item in registered):
+        return
+    for item in registered:
+        manager.unregister(item)
+    for item in registered:
+        manager.register(_fresh(item))
+
+
+def _fresh(item: object) -> object:
+    if not isinstance(item, ThrottleMiddleware):
+        return item
+    return ThrottleMiddleware(
+        max_events=item.max_events,
+        window_seconds=item.window,
+        max_tracked_users=item.max_tracked_users,
+    )
+
+
 def reset_throttle(dispatcher: Dispatcher) -> None:
     """Reset rate-limit state between isolated dispatcher tests."""
     routers: list[Router] = [dispatcher]
@@ -174,9 +195,7 @@ def reset_throttle(dispatcher: Dispatcher) -> None:
         router = routers.pop()
         for observer in router.observers.values():
             for manager in (observer.outer_middleware, observer.middleware):
-                for middleware in getattr(manager, "_middlewares", ()):
-                    if isinstance(middleware, ThrottleMiddleware):
-                        middleware._events.clear()
+                _replace_throttles(manager)
         routers.extend(router.sub_routers)
 
 
@@ -199,3 +218,9 @@ async def feed_command(
         make_update(message=make_message(user_id=user_id, text=text)),
     )
     return session
+
+
+def detach_router(router: Router) -> None:
+    """Detach a shared application router so another dispatcher can include it."""
+    # pylint: disable-next=protected-access  # aiogram has no public way to detach
+    router._parent_router = None  # noqa: SLF001

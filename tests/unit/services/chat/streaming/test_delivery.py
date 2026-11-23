@@ -23,6 +23,7 @@ from tests.support.chat_streaming import (
     bad_request,
     edit_status,
     network_error,
+    single_answer,
     split_text,
 )
 
@@ -126,7 +127,8 @@ async def test_delivery_falls_back_to_all_chunks_when_status_edit_fails(
         ("abc", {"parse_mode": "HTML"}),
         ("def", {"parse_mode": "HTML"}),
     ]
-    assert "Sending complete response again" in caplog.text
+    expected_fragment = "Sending complete response again"
+    assert expected_fragment in caplog.text
 
 
 @pytest.mark.asyncio
@@ -144,7 +146,7 @@ async def test_delivery_does_nothing_for_empty_formatted_response() -> None:
         ),
     )
 
-    assert message.answers == []
+    assert not message.answers
 
 
 @pytest.mark.asyncio
@@ -176,10 +178,13 @@ async def test_parse_mode_and_reply_parameters_are_sent_together() -> None:
         message, "**hi**", None, edit_status, options=_options()
     )
 
-    ((text, kwargs),) = message.answers
-    assert text == "*hi*"
-    assert kwargs["parse_mode"] == "MarkdownV2"
-    assert kwargs["reply_parameters"].message_id == 42
+    text, kwargs = single_answer(message)
+    expected_text = "*hi*"
+    assert text == expected_text
+    expected_parse_mode = "MarkdownV2"
+    assert kwargs["parse_mode"] == expected_parse_mode
+    expected_message_id = 42
+    assert kwargs["reply_parameters"].message_id == expected_message_id
 
 
 @pytest.mark.asyncio
@@ -191,7 +196,8 @@ async def test_plain_text_is_sent_without_parse_mode() -> None:
         message, "hello", None, edit_status, options=_options()
     )
 
-    assert "parse_mode" not in message.answers[0][1]
+    expected_fragment = "parse_mode"
+    assert expected_fragment not in message.answers[0][1]
 
 
 @pytest.mark.asyncio
@@ -203,11 +209,15 @@ async def test_formatting_error_retries_once_with_original_text_and_reply() -> N
         message, "**hi** a.b", None, edit_status, options=_options()
     )
 
-    assert len(message.answers) == 2
+    expected_count = 2
+    assert len(message.answers) == expected_count
     retry_text, retry_kwargs = message.answers[1]
-    assert retry_text == "**hi** a.b"
-    assert "parse_mode" not in retry_kwargs
-    assert retry_kwargs["reply_parameters"].message_id == 42
+    expected_retry_text = "**hi** a.b"
+    assert retry_text == expected_retry_text
+    expected_fragment = "parse_mode"
+    assert expected_fragment not in retry_kwargs
+    expected_message_id = 42
+    assert retry_kwargs["reply_parameters"].message_id == expected_message_id
 
 
 @pytest.mark.asyncio
@@ -224,8 +234,10 @@ async def test_failed_retry_is_logged_and_not_repeated(
             message, "**hi**", None, edit_status, options=_options()
         )
 
-    assert len(message.answers) == 2
-    assert "Plain-text retry failed" in caplog.text
+    expected_count = 2
+    assert len(message.answers) == expected_count
+    expected_fragment = "Plain-text retry failed"
+    assert expected_fragment in caplog.text
 
 
 @pytest.mark.asyncio
@@ -262,7 +274,7 @@ async def test_status_edit_falls_back_to_original_text() -> None:
     )
 
     assert edits == [("*hi*", "MarkdownV2"), ("**hi**", None)]
-    assert message.answers == []
+    assert not message.answers
 
 
 @pytest.mark.asyncio
@@ -280,7 +292,7 @@ async def test_network_error_on_edit_does_not_send_a_duplicate() -> None:
             message, "hi", SimpleNamespace(), edit, options=_options()
         )
 
-    assert message.answers == []
+    assert not message.answers
 
 
 @pytest.mark.asyncio
@@ -293,8 +305,10 @@ async def test_only_the_first_chunk_is_a_reply() -> None:
     )
 
     assert len(message.answers) > 1
-    assert "reply_parameters" in message.answers[0][1]
-    assert all("reply_parameters" not in kwargs for _, kwargs in message.answers[1:])
+    expected_fragment = "reply_parameters"
+    assert expected_fragment in message.answers[0][1]
+    expected_fragment = "reply_parameters"
+    assert all(expected_fragment not in kwargs for _, kwargs in message.answers[1:])
 
 
 @pytest.mark.asyncio
@@ -310,5 +324,7 @@ async def test_reply_association_does_not_depend_on_completion_order() -> None:
 
     await asyncio.gather(finish(first, 10, 0.05), finish(second, 11, 0))
 
-    assert first.answers[0][1]["reply_parameters"].message_id == 10
-    assert second.answers[0][1]["reply_parameters"].message_id == 11
+    expected_message_id = 10
+    assert first.answers[0][1]["reply_parameters"].message_id == expected_message_id
+    expected_message_id = 11
+    assert second.answers[0][1]["reply_parameters"].message_id == expected_message_id

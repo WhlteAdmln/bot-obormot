@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Fixtures for dispatcher tests."""
+"""Dispatcher fixtures shared by handler, middleware and bootstrap tests."""
 
 from collections.abc import AsyncIterator, Iterator
 

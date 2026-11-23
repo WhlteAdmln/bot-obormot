@@ -1,13 +1,113 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Tests for the vendored environment readers."""
+"""Tests for env readers."""
 
+import importlib
+import importlib.util
 from pathlib import Path
 
 import pytest
 
 from bot_obormot import env_readers
+from bot_obormot.env_readers import get_bool, get_optional_int
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("1", True),
+        ("true", True),
+        (" YES ", True),
+        ("on", True),
+        ("0", False),
+        ("false", False),
+        (" NO ", False),
+        ("off", False),
+    ],
+)
+def test_get_bool_parses_supported_values(
+    monkeypatch: pytest.MonkeyPatch, value: str, expected: object
+) -> None:
+    """Get bool parses supported values."""
+    monkeypatch.setenv("TEST_BOOL_SETTING", value)
+
+    assert get_bool("TEST_BOOL_SETTING") is expected
+
+
+def test_get_bool_uses_default_for_missing_or_empty_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Get bool uses default for missing or empty value."""
+    monkeypatch.delenv("TEST_BOOL_SETTING", raising=False)
+    assert get_bool("TEST_BOOL_SETTING") is False
+    assert get_bool("TEST_BOOL_SETTING", default=True) is True
+
+    monkeypatch.setenv("TEST_BOOL_SETTING", "   ")
+    assert get_bool("TEST_BOOL_SETTING", default=True) is True
+
+
+def test_get_bool_rejects_invalid_value(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Get bool rejects invalid value."""
+    monkeypatch.setenv("TEST_BOOL_SETTING", "sometimes")
+
+    with pytest.raises(ValueError, match="TEST_BOOL_SETTING"):
+        get_bool("TEST_BOOL_SETTING")
+
+
+def test_load_env_file_uses_home_and_working_directory_only(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Load env file reads the application home first, then the current directory."""
+    config_module = importlib.import_module("bot_obormot.config")
+    env_module = importlib.import_module("bot_obormot.env_readers")
+    home = tmp_path / "home"
+    cwd = tmp_path / "cwd"
+    monkeypatch.setenv("BOT_OBORMOT_HOME", str(home))
+    monkeypatch.setattr(Path, "cwd", classmethod(lambda _cls: cwd))
+
+    loaded_paths: list[Path] = []
+    monkeypatch.setattr(
+        env_module,
+        "load_dotenv",
+        lambda path, **_kwargs: loaded_paths.append(Path(path)),
+    )
+
+    config_module.load_env_file()
+
+    assert loaded_paths == [home / ".env", cwd / ".env"]
+
+
+@pytest.mark.parametrize("value", [None, "", "   "])
+def test_get_optional_int_returns_none_for_empty_value(
+    monkeypatch: pytest.MonkeyPatch, value: str | None
+) -> None:
+    """Get optional int returns none for empty value."""
+    if value is None:
+        monkeypatch.delenv("TEST_OPTIONAL_INT", raising=False)
+    else:
+        monkeypatch.setenv("TEST_OPTIONAL_INT", value)
+
+    assert get_optional_int("TEST_OPTIONAL_INT") is None
+
+
+def test_get_optional_int_parses_positive_integer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Get optional int parses positive integer."""
+    monkeypatch.setenv("TEST_OPTIONAL_INT", "32768")
+    assert get_optional_int("TEST_OPTIONAL_INT") == 32768
+
+
+@pytest.mark.parametrize("value", ["zero", "0", "-1"])
+def test_get_optional_int_rejects_invalid_values(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    """Get optional int rejects invalid values."""
+    monkeypatch.setenv("TEST_OPTIONAL_INT", value)
+    with pytest.raises(ValueError, match="TEST_OPTIONAL_INT"):
+        get_optional_int("TEST_OPTIONAL_INT")
 
 
 def test_home_directory_and_relative_paths(

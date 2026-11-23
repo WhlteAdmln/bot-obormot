@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 from scripts.check_docs import (
     DOCUMENTATION_ONLY_ENV_NAMES,
     _settings_environment_names,
+    check_docs,
     check_documented_commands,
     check_markdown_links,
     check_russian_documents,
@@ -137,3 +138,13 @@ def test_telegram_commands_must_appear_in_the_commands_guide(tmp_path: Path) -> 
     errors = check_telegram_commands(tmp_path)
 
     assert errors == ["docs/commands.md: missing commands: /history_limit"]
+
+
+def test_runs_the_changelog_check_with_the_documentation_checks(
+    tmp_path: Path,
+) -> None:
+    expected = "CHANGELOG.md: file not found"
+
+    errors = check_docs(tmp_path)
+
+    assert expected in errors, "check_docs must include the changelog order check"

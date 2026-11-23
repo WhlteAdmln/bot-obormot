@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Tests for database."""
+"""Tests for database database."""
 
 import asyncio
 from collections.abc import AsyncIterator
@@ -11,7 +11,29 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-from bot_obormot.services.database import Database
+import bot_obormot.services.database as database_package
+import bot_obormot.services.database.facade as facade_module
+from bot_obormot.services.database import (
+    MAX_HISTORY_MEDIA_MESSAGES,
+    Database,
+    handle_database_errors,
+    read_image_as_base64,
+)
+from bot_obormot.services.database.decorators import (
+    handle_database_errors as canonical_decorator,
+)
+from bot_obormot.services.database.facade import (
+    Database as FacadeDatabase,
+)
+from bot_obormot.services.database.facade import (
+    handle_database_errors as facade_decorator,
+)
+from bot_obormot.services.database.facade import (
+    read_image_as_base64 as facade_image_reader,
+)
+from bot_obormot.services.database.files.image_storage import (
+    read_image_as_base64 as canonical_image_reader,
+)
 from tests.support.settings import make_settings
 
 USER_ID = 111111111
@@ -37,6 +59,22 @@ async def test_db(
         yield database
     finally:
         await database.close()
+
+
+def test_database_package_reexports_facade_api_without_global_instance() -> None:
+    """Database package reexports the facade API without a global instance."""
+    assert Database is FacadeDatabase
+    assert not hasattr(database_package, "db")
+    assert not hasattr(facade_module, "db")
+    assert MAX_HISTORY_MEDIA_MESSAGES == 3
+    assert callable(handle_database_errors)
+    assert callable(read_image_as_base64)
+
+
+def test_database_helpers_are_reexported_from_their_new_modules() -> None:
+    """Database helpers are reexported from their new modules."""
+    assert handle_database_errors is canonical_decorator is facade_decorator
+    assert read_image_as_base64 is canonical_image_reader is facade_image_reader
 
 
 @pytest.mark.asyncio

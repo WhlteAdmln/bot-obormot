@@ -221,7 +221,13 @@ optional_dependencies_dev_groups = ["dev"]
 known_first_party = ["bot_obormot"]
 extend_exclude = ["scripts"]
 
+# The optional "tgs" extra is not installable on every platform, so deptry
+# cannot read the package metadata and needs the module name spelled out.
+[tool.deptry.package_module_name_map]
+rlottie-python = "rlottie_python"
+
 [tool.deptry.per_rule_ignores]
+# Optional "tgs" extra, loaded dynamically by services/media/animation/tgs.py.
 DEP002 = ["rlottie-python"]
 
 [tool.vulture]

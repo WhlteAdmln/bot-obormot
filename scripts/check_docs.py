@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
 from bot_obormot.cli import build_parser
 from bot_obormot.settings import Settings
+from scripts.check_changelog import check_changelog
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -441,6 +442,7 @@ def check_docs(root: Path = PROJECT_ROOT) -> list[str]:
     errors: list[str] = []
 
     for check in (
+        check_changelog,
         check_markdown_links,
         check_section_parity,
         check_russian_documents,

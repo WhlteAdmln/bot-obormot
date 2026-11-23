@@ -1,26 +1,39 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Tests for access."""
+"""Tests for middlewares access."""
 
 from collections.abc import AsyncIterator, Callable
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 import pytest_asyncio
+from aiogram import Bot, Dispatcher
 from aiogram.enums import ChatType
+from aiogram.methods import (
+    SetMyCommands,
+)
 
 from bot_obormot.handlers.admin import handler as admin_handler
 from bot_obormot.middlewares import access as access_module
 from bot_obormot.services.database import Database
 from bot_obormot.settings import Settings
+from tests.support.dispatcher import ADMIN_ID, SETTINGS, SUPERVISOR_ID, sent_texts
 from tests.support.settings import make_settings
+from tests.support.telegram import (
+    FakeTelegramSession,
+    make_message,
+    make_update,
+)
 
-SUPERVISOR_ID = 999999999
-ADMIN_ID = 111111111
-ALLOWED_USER_ID = 222222222
 OUTSIDER_ID = 333333333
+
+
+ALLOWED_USER_ID = 222222222
+
+
 BLOCKED_USER_ID = 444444444
 
 
@@ -124,6 +137,30 @@ async def run_middleware(
     }
 
     return await middleware(handler, event, data)
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("access_database")
+@pytest.mark.parametrize(
+    "case",
+    [(OUTSIDER_ID, "/start"), (OUTSIDER_ID + 1, "/unknown 123")],
+)
+async def test_dispatcher_denies_commands_without_access(
+    dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
+    case: tuple[int, str],
+) -> None:
+    """Access middleware rejects both known and unknown commands."""
+    dispatcher, bot, session = dispatcher_runtime
+    user_id, command_text = case
+    dispatcher.workflow_data["settings"] = replace(SETTINGS, ALLOW_ALL_USERS=False)
+
+    await dispatcher.feed_update(
+        bot,
+        make_update(message=make_message(user_id=user_id, text=command_text)),
+    )
+
+    assert sent_texts(session) == ["⛔ У тебя нет доступа к этому боту."]
+    assert not any(isinstance(request, SetMyCommands) for request in session.requests)
 
 
 @pytest.mark.asyncio

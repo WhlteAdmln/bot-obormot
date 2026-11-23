@@ -25,6 +25,7 @@ PYPROJECT_FILE = "pyproject.toml"
 VENDORED_FILES = (
     ".editorconfig",
     ".pre-commit-config.yaml",
+    "scripts/check_changelog.py",
     "scripts/check_lock.py",
     "scripts/check_test_layout.py",
     "scripts/check_vendored.py",
@@ -38,6 +39,7 @@ HEADERLESS_VENDORED_FILES = (
     ".github/renovate.json5",
     "AGENTS.md",
     "scripts/build_release.sh",
+    "tests/unit/scripts/test_check_changelog.py",
 )
 PACKAGE_VENDORED_FILES = ("log_filters.py", "env_readers.py")
 # Only style and typing rules are shared. The dependency, dead-code and import

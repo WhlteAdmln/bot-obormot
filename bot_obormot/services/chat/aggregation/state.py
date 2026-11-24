@@ -7,7 +7,10 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from aiogram.types import Message
 
 
 @dataclass
@@ -17,4 +20,4 @@ class _AggregationState:
     event: asyncio.Event = field(default_factory=asyncio.Event)
     future: asyncio.Future[str] | None = None
     # The last message that was added to the aggregation.
-    last_message: Any = None
+    last_message: Message | None = None

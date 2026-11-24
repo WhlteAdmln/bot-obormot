@@ -22,7 +22,6 @@ from tests.support.database_repositories import USER_ID
 async def test_history_usecase_returns_image_parts_and_reset_removes_files(
     test_db: Database,
 ) -> None:
-    """History usecase returns image parts and reset removes files."""
     await test_db.add_exchange(
         USER_ID,
         "Посмотри на изображение",
@@ -53,7 +52,6 @@ async def test_history_usecase_returns_image_parts_and_reset_removes_files(
 async def test_history_combines_all_legacy_animation_frames_into_one_image(
     test_db: Database,
 ) -> None:
-    """History combines all legacy animation frames into one image."""
     frames = []
     for index in range(6):
         output = io.BytesIO()
@@ -70,8 +68,6 @@ async def test_history_combines_all_legacy_animation_frames_into_one_image(
         media=frames,
     )
 
-    # max_images теперь ограничивает число медиа-сообщений, а не кадров
-    # внутри одного сообщения: все шесть исторических кадров загружаются.
     history = await test_db.get_history(USER_ID, max_images=1)
     user_content = history[0]["content"]
 
@@ -94,7 +90,6 @@ async def test_history_combines_all_legacy_animation_frames_into_one_image(
 async def test_reset_history_does_not_delete_unmanaged_or_external_files(
     test_db: Database, tmp_path: Path
 ) -> None:
-    """Reset history does not delete unmanaged or external files."""
     managed_image = test_db.images_dir / f"{uuid.uuid4().hex}.jpg"
     unmanaged_image = test_db.images_dir / "notes.txt"
     external_image = tmp_path / f"{uuid.uuid4().hex}.jpg"
@@ -128,7 +123,6 @@ async def test_reset_history_does_not_delete_unmanaged_or_external_files(
 async def test_history_keeps_image_parts_when_contact_sheet_creation_fails(
     test_db: Database,
 ) -> None:
-    """History keeps original image parts when contact sheet creation fails."""
     await test_db.add_exchange(
         USER_ID,
         "Question",
@@ -175,7 +169,6 @@ async def test_history_skips_images_when_image_read_fails(
     error_type: type[OSError],
     expected_message: str,
 ) -> None:
-    """History skips an image when reading it fails."""
     await test_db.add_exchange(
         USER_ID,
         "Question",
@@ -207,7 +200,6 @@ async def test_reset_history_keeps_database_reset_when_image_delete_fails(
     test_db: Database,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Reset history removes messages even when image deletion fails."""
     await test_db.add_exchange(
         USER_ID,
         "Question",
@@ -233,5 +225,5 @@ async def test_reset_history_keeps_database_reset_when_image_delete_fails(
 
     assert await test_db.get_history(USER_ID) == []
     assert await asyncio.to_thread(image_path.exists)
-    expected_fragment = "Could not remove image during history reset"
-    assert expected_fragment in caplog.text
+    cleanup_warning = "Could not remove image during history reset"
+    assert cleanup_warning in caplog.text

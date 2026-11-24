@@ -15,7 +15,6 @@ from tests.support.message_input import make_info, make_message
 
 @pytest.mark.asyncio
 async def test_prepare_media_decodes_data_urls_to_original_image_bytes() -> None:
-    """Prepare media decodes data urls to original image bytes."""
     image = b"image-data"
     data_url = "data:image/jpeg;base64," + base64.b64encode(image).decode("ascii")
 

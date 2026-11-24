@@ -22,7 +22,6 @@ def no_audio(_message: object) -> tuple[object, ...]:
 
 
 def test_inspect_message_marks_plain_text_and_ignores_commands() -> None:
-    """Inspect message marks plain text and ignores commands."""
     message = make_message(text="Привет")
     info = inspection_module.inspect_message(
         message,
@@ -47,7 +46,6 @@ def test_inspect_message_marks_plain_text_and_ignores_commands() -> None:
 
 
 def test_inspect_message_routes_image_documents_to_media() -> None:
-    """Inspect message routes image documents to media."""
     document = SimpleNamespace(
         file_id="document-image-id",
         file_name="picture.bin",
@@ -68,7 +66,6 @@ def test_inspect_message_routes_image_documents_to_media() -> None:
 
 
 def test_inspect_message_keeps_non_image_documents_as_documents() -> None:
-    """Inspect message keeps non image documents as documents."""
     document = SimpleNamespace(
         file_id="document-id",
         file_name="report.pdf",

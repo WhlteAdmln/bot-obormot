@@ -16,7 +16,6 @@ from tests.support.database_repositories import USER_ID
 async def test_messages_repository_adds_and_fetches_complete_exchanges(
     test_db: Database,
 ) -> None:
-    """Messages repository adds and fetches complete exchanges."""
     await messages.add_message(test_db.connection, USER_ID, "user", "Вопрос")
     await messages.add_message(test_db.connection, USER_ID, "assistant", "Ответ")
     await messages.add_message(test_db.connection, USER_ID, "user", "Без ответа")

@@ -35,7 +35,6 @@ async def test_history_limit_for_another_user_is_audited(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """History limit for another user is audited."""
     actor_id = AUDIT_SETTINGS.SUPERVISOR_ID
     target_id = 123456789
     exchange_limit = 35
@@ -71,7 +70,6 @@ async def test_history_limit_for_another_user_is_audited(
 
 @pytest.mark.asyncio
 async def test_history_limit_command_ignores_messages_without_sender() -> None:
-    """The history limit command returns quietly without a sender."""
     message = FakeMessage(None, "/history_limit 5")
 
     await cmd_history_limit(
@@ -91,7 +89,6 @@ async def test_history_limit_command_ignores_messages_without_sender() -> None:
 async def test_history_limit_without_arguments_shows_usage(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
-    """History limit without arguments displays command usage."""
     session = await feed_command(
         dispatcher_runtime,
         HISTORY_USER_ID + 30,
@@ -123,7 +120,6 @@ async def test_history_limit_sets_own_limit_for_user_admin_and_supervisor(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     case: tuple[int, set[int], int],
 ) -> None:
-    """Users, administrators and supervisor can set their own limit."""
     user_id, admin_ids, limit = case
     access_database.admin_ids = admin_ids
 
@@ -165,7 +161,6 @@ async def test_history_limit_rejects_invalid_own_limits(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     case: tuple[int, str, str],
 ) -> None:
-    """Invalid own limit arguments are rejected with the exact response."""
     user_id, raw_limit, expected_text = case
 
     session = await feed_command(
@@ -183,7 +178,6 @@ async def test_history_limit_rejects_invalid_own_limits(
 async def test_history_limit_denies_non_admin_target_changes(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
-    """Regular users cannot change another user's history limit."""
     session = await feed_command(
         dispatcher_runtime,
         HISTORY_USER_ID + 50,
@@ -200,7 +194,6 @@ async def test_history_limit_allows_admin_to_change_target_limit(
     access_database: AccessDatabase,
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
-    """An administrator can set another user's history limit."""
     user_id = HISTORY_ADMIN_ID + 1
     limit = 25
     access_database.admin_ids = {user_id}
@@ -253,7 +246,6 @@ async def test_history_limit_rejects_invalid_target_arguments(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     case: tuple[int, str, str],
 ) -> None:
-    """Invalid target IDs and limits are rejected."""
     user_id, arguments, expected_text = case
     access_database.admin_ids = {user_id}
 
@@ -272,7 +264,6 @@ async def test_history_limit_rejects_invalid_target_arguments(
 async def test_history_limit_rejects_too_many_arguments(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
-    """History limit rejects commands with more than two arguments."""
     session = await feed_command(
         dispatcher_runtime,
         HISTORY_USER_ID + 70,
@@ -300,7 +291,6 @@ async def test_history_limit_propagates_database_failures(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     case: tuple[int, str, str],
 ) -> None:
-    """History limit commands propagate failures from database operations."""
     user_id, command_text, failed_operation = case
     expected_failed_operation = "get_admin_ids"
     if failed_operation == expected_failed_operation:

@@ -56,6 +56,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `config/model.py` is a package: `schema.py` (the `Settings` dataclass), `readers.py` (`EnvironmentReader`, the typed readers that collect validation errors), `loader.py` (`load_settings` and `ConfigError`) and `cache.py` (`get_settings` and `reset_settings_cache`). `bot_obormot.settings` exports the same names as before; `bot_obormot.config.model` no longer re-exports them, so import them from `bot_obormot.settings`. Behavior is unchanged.
 - The admin handler and config model tests are split by module into `tests/unit/handlers/admin/handler/` and `tests/unit/config/model/`; `EnvironmentReader` has its own tests.
 - The facade tests are split into `tests/unit/services/database/facade/` by module, the package re-export tests moved to `tests/unit/services/test_database.py`, and the new MarkdownV2 modules have their own test files.
+- Tests follow the general test rules: test functions have no docstrings and test files no comments except tool pragmas, the media concurrency test waits on a `threading.Barrier` instead of `time.sleep`, tests named without a verb are renamed, and variables such as `expected_fragment` or `expected_name_2` have names that say what they hold. The `dispatcher` fixture is created for every test instead of once per module; it detaches the shared application routers before it configures a new dispatcher, so `reset_throttle` is gone.
 
 ### Fixed
 

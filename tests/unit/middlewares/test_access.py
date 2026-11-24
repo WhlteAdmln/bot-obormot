@@ -149,7 +149,6 @@ async def test_dispatcher_denies_commands_without_access(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     case: tuple[int, str],
 ) -> None:
-    """Access middleware rejects both known and unknown commands."""
     dispatcher, bot, session = dispatcher_runtime
     user_id, command_text = case
     dispatcher.workflow_data["settings"] = replace(SETTINGS, ALLOW_ALL_USERS=False)
@@ -164,13 +163,12 @@ async def test_dispatcher_denies_commands_without_access(
 
 
 @pytest.mark.asyncio
-async def test_supervisor_access(
+async def test_lets_supervisor_through_with_empty_allowlist(
     test_database: Database,
     configure_allowlist: Callable[..., Settings],
     fake_event: FakeEvent,
     fake_handler: tuple[object, ...],
 ) -> None:
-    """Supervisor всегда получает доступ."""
     settings = configure_allowlist([])
 
     handler, calls = fake_handler
@@ -190,13 +188,12 @@ async def test_supervisor_access(
 
 
 @pytest.mark.asyncio
-async def test_admin_access(
+async def test_lets_database_admin_through(
     test_database: Database,
     configure_allowlist: Callable[..., Settings],
     fake_event: FakeEvent,
     fake_handler: tuple[object, ...],
 ) -> None:
-    """Обычный администратор получает доступ."""
     settings = configure_allowlist([ALLOWED_USER_ID])
 
     await test_database.add_admin(ADMIN_ID)
@@ -218,13 +215,12 @@ async def test_admin_access(
 
 
 @pytest.mark.asyncio
-async def test_allowed_user_access(
+async def test_lets_allowlisted_user_through(
     test_database: Database,
     configure_allowlist: Callable[..., Settings],
     fake_event: FakeEvent,
     fake_handler: tuple[object, ...],
 ) -> None:
-    """Пользователь из ALLOWED_USERS получает доступ."""
     settings = configure_allowlist([ALLOWED_USER_ID])
 
     handler, calls = fake_handler
@@ -244,13 +240,12 @@ async def test_allowed_user_access(
 
 
 @pytest.mark.asyncio
-async def test_outsider_denied(
+async def test_denies_outsider_with_a_notice(
     test_database: Database,
     configure_allowlist: Callable[..., Settings],
     fake_event: FakeEvent,
     fake_handler: tuple[object, ...],
 ) -> None:
-    """Посторонний пользователь получает отказ."""
     settings = configure_allowlist([ALLOWED_USER_ID])
 
     handler, calls = fake_handler
@@ -266,8 +261,8 @@ async def test_outsider_denied(
     assert result is None
     assert calls == []
     assert len(fake_event.answers) == 1
-    expected_fragment = "нет доступа"
-    assert expected_fragment in fake_event.answers[0]
+    denial_text = "нет доступа"
+    assert denial_text in fake_event.answers[0]
 
 
 @pytest.mark.asyncio
@@ -277,7 +272,6 @@ async def test_empty_allowlist_denies_access_by_default(
     fake_event: FakeEvent,
     fake_handler: tuple[object, ...],
 ) -> None:
-    """Пустой allowlist не открывает доступ посторонним."""
     settings = configure_allowlist([])
 
     handler, calls = fake_handler
@@ -293,8 +287,8 @@ async def test_empty_allowlist_denies_access_by_default(
     assert result is None
     assert calls == []
     assert len(fake_event.answers) == 1
-    expected_fragment = "нет доступа"
-    assert expected_fragment in fake_event.answers[0]
+    denial_text = "нет доступа"
+    assert denial_text in fake_event.answers[0]
 
 
 @pytest.mark.asyncio
@@ -304,7 +298,6 @@ async def test_open_access_requires_explicit_flag(
     fake_event: FakeEvent,
     fake_handler: tuple[object, ...],
 ) -> None:
-    """Открытый доступ включается только явным флагом."""
     settings = configure_allowlist([], allow_all=True)
 
     handler, calls = fake_handler
@@ -329,7 +322,6 @@ async def test_admin_changes_apply_immediately(
     configure_allowlist: Callable[..., Settings],
     fake_event: FakeEvent,
 ) -> None:
-    """Добавление и удаление администратора действуют сразу."""
     settings = configure_allowlist([ALLOWED_USER_ID])
 
     middleware = access_module.AccessMiddleware()
@@ -343,12 +335,10 @@ async def test_admin_changes_apply_immediately(
         "database": test_database,
     }
 
-    # До добавления администратора доступ запрещён.
     result = await middleware(handler, fake_event, data)
 
     assert result is None
 
-    # Добавляем администратора.
     await test_database.add_admin(ADMIN_ID)
 
     result = await middleware(handler, fake_event, data)
@@ -356,7 +346,6 @@ async def test_admin_changes_apply_immediately(
     expected_result = "allowed"
     assert result == expected_result
 
-    # Удаляем администратора.
     await test_database.remove_admin(ADMIN_ID)
 
     result = await middleware(handler, fake_event, data)
@@ -371,7 +360,6 @@ async def test_event_without_user_is_rejected(
     fake_event: FakeEvent,
     fake_handler: tuple[object, ...],
 ) -> None:
-    """Событие без пользователя не передаётся обработчикам."""
     settings = configure_allowlist([ALLOWED_USER_ID])
 
     handler, calls = fake_handler
@@ -398,7 +386,6 @@ async def test_group_chat_is_rejected(
     fake_handler: tuple[object, ...],
     chat_type: object,
 ) -> None:
-    """Бот не обрабатывает сообщения в группах и супергруппах."""
     settings = configure_allowlist([ALLOWED_USER_ID])
 
     handler, calls = fake_handler
@@ -423,7 +410,6 @@ async def test_denied_notice_is_rate_limited(
     configure_allowlist: Callable[..., Settings],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Повторный отказ одному пользователю отправляется не чаще минуты."""
     settings = configure_allowlist([])
     middleware = access_module.AccessMiddleware()
     current_time = 100.0
@@ -460,7 +446,6 @@ async def test_block_and_unblock_apply_immediately(
     configure_allowlist: Callable[..., Settings],
     fake_event: FakeEvent,
 ) -> None:
-    """Block and unblock apply immediately."""
     settings = configure_allowlist([ALLOWED_USER_ID], allow_all=True)
     middleware = access_module.AccessMiddleware()
     calls = []
@@ -495,7 +480,6 @@ async def test_supervisor_cannot_be_blocked(
     fake_event: FakeEvent,
     fake_handler: tuple[object, ...],
 ) -> None:
-    """Supervisor cannot be blocked."""
     settings = configure_allowlist([])
     assert await test_database.block_user(SUPERVISOR_ID) is False
     handler, _calls = fake_handler
@@ -577,7 +561,7 @@ def _general_access(role: str, *, allow_all: bool, allowlist_nonempty: bool) -> 
     ids=["ordinary", "admin", "supervisor"],
 )
 @pytest.mark.asyncio
-async def test_access_matrix(
+async def test_applies_access_rules_to_every_role_and_command(
     role: str,
     user_id: int,
     *,

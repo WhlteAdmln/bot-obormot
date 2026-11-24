@@ -88,7 +88,6 @@ async def collect(stream: object) -> list[object]:
 async def test_stream_unlimited_yields_content_and_ignores_non_content_chunks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Stream unlimited yields content and ignores non content chunks."""
     response = FakeResponse(
         [
             b"event: message\n",
@@ -144,7 +143,6 @@ async def test_stream_unlimited_yields_content_and_ignores_non_content_chunks(
 async def test_stream_unlimited_raises_api_error_with_response_details(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Stream unlimited raises api error with response details."""
     private_detail = "prompt fragment\nsecond line"
     session = FakeSession(FakeResponse(status=503, body=private_detail))
     client = LLMClient(make_settings())
@@ -163,17 +161,16 @@ async def test_stream_unlimited_raises_api_error_with_response_details(
     expected_status = 503
     assert error.value.status == expected_status
     assert error.value.detail == private_detail
-    expected_fragment = r"prompt fragment\nsecond line"
-    assert expected_fragment in caplog.text
-    expected_fragment = "prompt fragment\nsecond line"
-    assert expected_fragment not in caplog.text
+    escaped_prompt = r"prompt fragment\nsecond line"
+    assert escaped_prompt in caplog.text
+    raw_prompt = "prompt fragment\nsecond line"
+    assert raw_prompt not in caplog.text
 
 
 @pytest.mark.asyncio
 async def test_stream_unlimited_converts_timeout(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Stream unlimited converts timeout."""
     client = LLMClient(make_settings())
 
     async def get_session() -> None:
@@ -189,7 +186,6 @@ async def test_stream_unlimited_converts_timeout(
 async def test_stream_unlimited_converts_aiohttp_client_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Stream unlimited converts aiohttp client error."""
     client = LLMClient(make_settings())
 
     async def get_session() -> None:
@@ -258,7 +254,6 @@ def _client_with_lines(
 async def test_stream_unlimited_reports_reasoning_that_used_the_whole_limit(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Reasoning without an answer, cut by max_tokens, is a dedicated error."""
     client = _client_with_lines(
         monkeypatch,
         [
@@ -276,17 +271,16 @@ async def test_stream_unlimited_reports_reasoning_that_used_the_whole_limit(
 
     expected_finish_reason = "length"
     assert error.value.finish_reason == expected_finish_reason
-    expected_fragment = "answer_produced=False, reasoning_seen=True"
-    assert expected_fragment in caplog.text
-    expected_fragment = "LLM_MAX_TOKENS"
-    assert expected_fragment in caplog.text
+    stream_state = "answer_produced=False, reasoning_seen=True"
+    assert stream_state in caplog.text
+    max_tokens_setting = "LLM_MAX_TOKENS"
+    assert max_tokens_setting in caplog.text
 
 
 @pytest.mark.asyncio
 async def test_stream_unlimited_warns_but_keeps_an_answer_cut_by_the_limit(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A truncated answer is delivered and the operator gets a warning."""
     client = _client_with_lines(
         monkeypatch,
         [
@@ -299,15 +293,14 @@ async def test_stream_unlimited_warns_but_keeps_an_answer_cut_by_the_limit(
         result = await collect(stream_unlimited(client, []))
 
     assert result == ["| a |"]
-    expected_fragment = "answer_produced=True"
-    assert expected_fragment in caplog.text
+    stream_state = "answer_produced=True"
+    assert stream_state in caplog.text
 
 
 @pytest.mark.asyncio
 async def test_stream_unlimited_leaves_a_normal_empty_stop_to_the_pipeline(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An empty stream that ended normally is not diagnosed by the client."""
     client = _client_with_lines(
         monkeypatch,
         [b'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n'],

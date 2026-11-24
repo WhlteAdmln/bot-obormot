@@ -13,7 +13,6 @@ from tests.support.settings import make_settings
 
 
 def test_token_is_redacted_from_log_message() -> None:
-    """Token is redacted from log message."""
     bot_key = "123456789:ABCdefGHIjklMNOpqrSTUvwxYZ0123456789"
     log_filter = SecretsFilter([bot_key])
     record = logging.LogRecord(
@@ -28,12 +27,11 @@ def test_token_is_redacted_from_log_message() -> None:
 
     assert log_filter.filter(record) is True
     assert bot_key not in record.getMessage()
-    expected_fragment = "[REDACTED]"
-    assert expected_fragment in record.getMessage()
+    redaction_marker = "[REDACTED]"
+    assert redaction_marker in record.getMessage()
 
 
 def test_configured_secrets_are_redacted_from_formatted_arguments() -> None:
-    """Configured secrets are redacted from formatted arguments."""
     secrets_filter = SecretsFilter(["llm-secret-value", "", "short"])
     record = logging.LogRecord(
         "t",
@@ -47,10 +45,10 @@ def test_configured_secrets_are_redacted_from_formatted_arguments() -> None:
 
     secrets_filter.filter(record)
 
-    expected_fragment = "llm-secret-value"
-    assert expected_fragment not in record.getMessage()
-    expected_fragment = "[REDACTED]"
-    assert expected_fragment in record.getMessage()
+    leaked_value = "llm-secret-value"
+    assert leaked_value not in record.getMessage()
+    redaction_marker = "[REDACTED]"
+    assert redaction_marker in record.getMessage()
 
 
 def _fail_download(bot_key: str) -> None:
@@ -59,7 +57,6 @@ def _fail_download(bot_key: str) -> None:
 
 
 def test_token_is_redacted_from_exception_traceback() -> None:
-    """Token is redacted from exception traceback."""
     bot_key = "123456789:ABCdefGHIjklMNOpqrSTUvwxYZ0123456789"
     secrets_filter = SecretsFilter([bot_key])
 
@@ -80,14 +77,13 @@ def test_token_is_redacted_from_exception_traceback() -> None:
 
     exc_text = str(record.exc_text)
     assert bot_key not in exc_text
-    expected_fragment = "[REDACTED]"
-    assert expected_fragment in exc_text
+    redaction_marker = "[REDACTED]"
+    assert redaction_marker in exc_text
 
 
 def test_logging_setup_attaches_filter_to_root_handlers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Logging setup attaches filter to root handlers."""
     logging_setup = importlib.import_module("bot_obormot.app.logging_setup")
 
     handler = logging.StreamHandler()
@@ -109,21 +105,19 @@ def test_logging_setup_attaches_filter_to_root_handlers(
     ],
 )
 def test_bearer_tokens_are_redacted(message: str) -> None:
-    """Bearer values are redacted with or without an authorization prefix."""
     log_filter = SecretsFilter([])
     record = logging.LogRecord("t", logging.ERROR, "f", 1, message, (), None)
 
     assert log_filter.filter(record) is True
-    expected_fragment = "secret-value"
-    assert expected_fragment not in record.getMessage()
-    expected_fragment = "[REDACTED]"
-    assert expected_fragment in record.getMessage()
+    leaked_value = "secret-value"
+    assert leaked_value not in record.getMessage()
+    redaction_marker = "[REDACTED]"
+    assert redaction_marker in record.getMessage()
 
 
 def test_logging_setup_redacts_every_configured_secret(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Logging setup redacts every secret supplied by application settings."""
     logging_setup = importlib.import_module("bot_obormot.app.logging_setup")
     secrets = [
         "bot-token-secret-value",

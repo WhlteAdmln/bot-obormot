@@ -102,40 +102,34 @@ _GENERIC_CODES = {"app_error", "validation_error", "document_error", "llm_error"
 
 
 def test_every_error_class_has_its_own_unique_code() -> None:
-    """Every error class declares a code of its own and no two share one."""
     classes = _app_error_classes()
     codes = [cls.code for cls in classes]
 
     assert len(set(codes)) == len(codes)
     for cls in classes:
-        expected_fragment = "code"
-        assert expected_fragment in vars(cls), (
-            f"{cls.__name__} must declare its own code"
-        )
+        code_field = "code"
+        assert code_field in vars(cls), f"{cls.__name__} must declare its own code"
         assert cls.code == cls.code.lower()
         assert cls.code.replace("_", "").isalnum()
 
 
 def test_every_error_class_has_a_safe_english_public_message() -> None:
-    """Public messages are non-empty English text without internal detail."""
     for cls in _app_error_classes():
-        expected_fragment = "public_message"
-        assert expected_fragment in vars(cls), f"{cls.__name__} lacks public_message"
+        public_message_field = "public_message"
+        assert public_message_field in vars(cls), f"{cls.__name__} lacks public_message"
         assert cls.public_message.strip()
         assert cls.public_message.isascii()
-        expected_fragment = "http"
-        assert expected_fragment not in cls.public_message.lower()
+        http_field = "http"
+        assert http_field not in cls.public_message.lower()
 
 
 def test_every_code_has_a_user_text_and_no_text_is_orphaned() -> None:
-    """The texts table maps exactly the codes that the error classes declare."""
     declared = {cls.code for cls in _app_error_classes()}
 
     assert set(texts.USER_TEXTS) == declared
 
 
 def test_expected_texts_table_covers_every_error_class() -> None:
-    """A new error class must be added to the expected texts of this module."""
     assert set(_EXPECTED_TEXTS) == set(_app_error_classes())
 
 
@@ -145,12 +139,10 @@ def test_expected_texts_table_covers_every_error_class() -> None:
     ids=[cls.code for cls in _EXPECTED_TEXTS],
 )
 def test_user_text_is_chosen_by_error_code(error: AppError, expected: str) -> None:
-    """Each code is turned into its Russian user text by ``texts.user_text``."""
     assert texts.user_text(error) == expected
 
 
 def test_only_generic_codes_use_the_unexpected_error_text() -> None:
-    """Every specific code has its own text; only base codes are generic."""
     generic = {
         error.code
         for error, expected in _EXPECTED_TEXTS.values()
@@ -161,13 +153,11 @@ def test_only_generic_codes_use_the_unexpected_error_text() -> None:
 
 
 def test_user_text_falls_back_for_foreign_and_unmapped_errors() -> None:
-    """Errors without a known code get the unexpected-error text."""
     assert texts.user_text(ValueError("x")) == texts.UNEXPECTED_ERROR
     assert texts.user_text(UnmappedError("x")) == texts.UNEXPECTED_ERROR
 
 
 def test_subclass_without_own_code_uses_the_text_of_its_parent() -> None:
-    """A subclass that declares no code inherits the text of its base class."""
     assert texts.user_text(CustomTimeoutError("x")) == texts.LLM_TIMEOUT
 
 
@@ -180,7 +170,6 @@ def test_subclass_without_own_code_uses_the_text_of_its_parent() -> None:
 async def test_chat_error_handler_reports_text_for_every_code(
     monkeypatch: pytest.MonkeyPatch, error: AppError, expected: str
 ) -> None:
-    """The chat handler sends the text of the error code to the user."""
     captured: list[str] = []
 
     async def fake_report(_message: object, _status: object, text: str) -> None:
@@ -194,14 +183,12 @@ async def test_chat_error_handler_reports_text_for_every_code(
 
 
 def test_every_catalog_rule_targets_a_class_with_a_user_text() -> None:
-    """Catalog rules only describe logging; their types resolve to a text."""
     for rule in catalog.CHAT_ERROR_RULES:
         assert issubclass(rule.error_type, AppError)
         assert rule.error_type.code in texts.USER_TEXTS
 
 
 def test_api_errors_keep_status_and_detail() -> None:
-    """HTTP status and detail stay available for logging."""
     document_error = DocumentAPIError(502, "bad gateway")
     llm_error = LLMAPIError(503, "busy")
 
@@ -214,10 +201,9 @@ def test_api_errors_keep_status_and_detail() -> None:
 
 
 def test_empty_response_text_tells_a_cut_generation_from_a_plain_empty_one() -> None:
-    """A response cut by max_tokens gets its own text for the user."""
     cut = LLMEmptyResponseError("length")
 
     assert texts.user_text(cut) == texts.LLM_LENGTH_LIMIT
     assert texts.user_text(LLMEmptyResponseError("stop")) == texts.LLM_EMPTY_RESPONSE
-    expected_fragment = "length"
-    assert expected_fragment in str(cut)
+    length_word = "length"
+    assert length_word in str(cut)

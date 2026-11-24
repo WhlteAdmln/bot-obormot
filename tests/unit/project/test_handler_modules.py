@@ -16,7 +16,6 @@ from bot_obormot.middlewares.temporary_messages import (
 
 
 def test_fsm_and_middleware_imports_use_canonical_modules() -> None:
-    """Fsm and middleware imports use canonical modules."""
     assert PromptStates.waiting_for_prompt is not None
     expected_prompt_flow_key = "prompt_flow_message_ids"
     assert expected_prompt_flow_key == PROMPT_FLOW_KEY
@@ -27,7 +26,6 @@ def test_fsm_and_middleware_imports_use_canonical_modules() -> None:
 
 
 def test_settings_migrated_modules_do_not_import_legacy_config() -> None:
-    """Migrated handlers and middleware do not import the legacy config proxy."""
     modules = (
         admin_handler,
         history_basic,
@@ -36,5 +34,5 @@ def test_settings_migrated_modules_do_not_import_legacy_config() -> None:
         access_middleware,
     )
 
-    expected_fragment = "config"
-    assert all(expected_fragment not in vars(module) for module in modules)
+    legacy_module = "config"
+    assert all(legacy_module not in vars(module) for module in modules)

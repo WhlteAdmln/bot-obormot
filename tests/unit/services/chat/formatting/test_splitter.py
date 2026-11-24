@@ -33,13 +33,13 @@ def _visible_text(chunk: str) -> str:
 def _assert_markup_tokens_are_whole(chunk: str) -> None:
     """Assert that HTML tags and entities are not fragmented."""
     without_tags = _TAG_PATTERN.sub("", chunk)
-    expected_fragment = "<"
-    assert expected_fragment not in without_tags
-    expected_fragment = ">"
-    assert expected_fragment not in without_tags
+    escaped_less_than = "<"
+    assert escaped_less_than not in without_tags
+    escaped_greater_than = ">"
+    assert escaped_greater_than not in without_tags
     without_entities = _ENTITY_PATTERN.sub("", without_tags)
-    expected_fragment = "&"
-    assert expected_fragment not in without_entities
+    escaped_ampersand = "&"
+    assert escaped_ampersand not in without_entities
 
 
 def _assert_tags_are_balanced(chunk: str) -> None:
@@ -75,7 +75,6 @@ def test_splitter_property_preserves_plain_unicode_text_and_respects_limit(
     text: str,
     max_length: int,
 ) -> None:
-    """Splitting plain Unicode text preserves it and respects the UTF-16 limit."""
     chunks = split_formatted_message(text, max_length=max_length)
 
     assert "".join(chunks) == text
@@ -100,7 +99,6 @@ def test_splitter_property_preserves_markup_and_entities(
     text: str,
     max_length: int,
 ) -> None:
-    """Splitting Telegram HTML preserves visible text and complete markup tokens."""
     formatted = f"<{tag}>{html.escape(text, quote=False)}</{tag}>"
     chunks = split_formatted_message(formatted, max_length=max_length)
 
@@ -124,12 +122,10 @@ def test_splitter_handles_empty_and_single_character_inputs(
     text: str,
     expected: list[str],
 ) -> None:
-    """Splitter handles empty input and single Unicode characters."""
     assert split_formatted_message(text, max_length=2) == expected
 
 
 def test_splitter_splits_very_long_single_word() -> None:
-    """Splitter respects the limit when the input contains one long word."""
     text = "сверхдлинноеслово🚀" * 200
     max_length = 17
 
@@ -141,7 +137,6 @@ def test_splitter_splits_very_long_single_word() -> None:
 
 
 def test_splitter_keeps_unmatched_closing_tag_atomic() -> None:
-    """Splitter keeps an unmatched closing tag intact."""
     chunks = split_formatted_message("</b>abc", max_length=1)
 
     assert chunks[0].startswith("</b>")
@@ -152,7 +147,6 @@ def test_splitter_keeps_unmatched_closing_tag_atomic() -> None:
 
 
 def test_splitter_flushes_before_an_entity_that_exceeds_limit() -> None:
-    """Splitter moves an entity to the next chunk when it exceeds the limit."""
     chunks = split_formatted_message("A&amp;", max_length=1)
 
     assert chunks == ["A", "&amp;"]
@@ -162,12 +156,10 @@ def test_splitter_flushes_before_an_entity_that_exceeds_limit() -> None:
 
 
 def test_html_splitter_treats_a_lone_angle_bracket_as_text() -> None:
-    """Do not fail on a bare "<" inside Telegram HTML."""
     assert split_formatted_message("<b>a < b</b>", max_length=100) == ["<b>a < b</b>"]
 
 
 def test_splitter_closes_and_reopens_html_tags() -> None:
-    """Splitter closes and reopens html tags."""
     assert split_formatted_message("<b>abcd</b>", max_length=2) == [
         "<b>ab</b>",
         "<b>cd</b>",
@@ -175,7 +167,6 @@ def test_splitter_closes_and_reopens_html_tags() -> None:
 
 
 def test_splitter_preserves_entities_and_utf16_characters() -> None:
-    """Splitter preserves entities and utf16 characters."""
     assert split_formatted_message("<b>A&amp;😀B</b>", max_length=3) == [
         "<b>A&amp;</b>",
         "<b>😀B</b>",
@@ -183,11 +174,9 @@ def test_splitter_preserves_entities_and_utf16_characters() -> None:
 
 
 def test_splitter_does_not_split_single_character_larger_than_limit() -> None:
-    """Splitter does not split single character larger than limit."""
     assert split_formatted_message("😀", max_length=1) == ["😀"]
 
 
 def test_splitter_rejects_non_positive_limit() -> None:
-    """Splitter rejects non positive limit."""
     with pytest.raises(ValueError, match=r"^max_length must be greater than zero\.$"):
         split_formatted_message("text", max_length=0)

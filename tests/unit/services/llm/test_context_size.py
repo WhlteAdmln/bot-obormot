@@ -22,7 +22,6 @@ from tests.support.llm_context_tokenizer import (
 async def test_context_size_reads_nested_setting_and_caches_result(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Context size reads nested setting and caches result."""
     fake_session = FakeSession(
         [FakeResponse({"default_generation_settings": {"n_ctx": 8192}})]
     )
@@ -45,7 +44,6 @@ async def test_context_size_reads_nested_setting_and_caches_result(
 async def test_context_size_rejects_boolean_value(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Context size rejects boolean value."""
     fake_session = FakeSession([FakeResponse({"n_ctx": True})])
     client = make_client(monkeypatch, fake_session)
 
@@ -63,7 +61,6 @@ async def test_context_size_rejects_boolean_value(
 async def test_context_size_falls_back_to_models_metadata(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Context size falls back to models metadata."""
     settings = with_token_counting(
         replace(
             Settings(),
@@ -94,7 +91,6 @@ async def test_context_size_falls_back_to_models_metadata(
 async def test_configured_context_size_skips_server_requests(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Configured context size skips server requests."""
     settings = with_token_counting(
         replace(
             Settings(),
@@ -115,7 +111,6 @@ async def test_configured_context_size_skips_server_requests(
 async def test_context_size_logs_sanitized_error_detail(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Context size logs sanitized error detail."""
     private_detail = "user prompt\nsecond line"
     fake_session = FakeSession(
         [
@@ -131,7 +126,7 @@ async def test_context_size_logs_sanitized_error_detail(
     ):
         await client.get_context_size()
 
-    expected_fragment = r"user prompt\nsecond line"
-    assert expected_fragment in caplog.text
-    expected_fragment = "user prompt\nsecond line"
-    assert expected_fragment not in caplog.text
+    escaped_prompt = r"user prompt\nsecond line"
+    assert escaped_prompt in caplog.text
+    raw_prompt = "user prompt\nsecond line"
+    assert raw_prompt not in caplog.text

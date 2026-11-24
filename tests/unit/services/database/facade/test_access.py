@@ -17,44 +17,35 @@ SUPERVISOR_ID = 999999999
 
 
 @pytest.mark.asyncio
-async def test_admin_management(test_db: Database) -> None:
-    """Проверяет управление администраторами."""
+async def test_adds_and_removes_admins_without_duplicates(test_db: Database) -> None:
     db = test_db
 
-    # Сначала администраторов нет.
     assert await db.get_admin_ids() == set()
 
-    # Добавляем администратора.
     assert await db.add_admin(USER_A) is True
 
-    # Повторное добавление не должно создавать дубликат.
     assert await db.add_admin(USER_A) is False
 
     assert await db.get_admin_ids() == {USER_A}
 
-    # Добавляем второго администратора.
     assert await db.add_admin(USER_B) is True
 
     assert await db.get_admin_ids() == {USER_A, USER_B}
 
-    # Удаляем первого.
     assert await db.remove_admin(USER_A) is True
 
     assert await db.get_admin_ids() == {USER_B}
 
-    # Повторное удаление возвращает False.
     assert await db.remove_admin(USER_A) is False
 
-    # Supervisor нельзя добавить или удалить как обычного администратора.
     assert await db.add_admin(SUPERVISOR_ID) is False
     assert await db.remove_admin(SUPERVISOR_ID) is False
 
 
 @pytest.mark.asyncio
-async def test_blocked_users_repository_and_supervisor_protection(
+async def test_blocks_and_unblocks_users_but_never_the_supervisor(
     test_db: Database,
 ) -> None:
-    """Blocked users repository and supervisor protection."""
     user_id = USER_ID + 100
     supervisor_id = 999999999
 

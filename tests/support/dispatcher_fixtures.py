@@ -3,7 +3,7 @@
 
 """Dispatcher fixtures shared by handler, middleware and bootstrap tests."""
 
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator
 
 import pytest
 import pytest_asyncio
@@ -23,8 +23,7 @@ from tests.support.dispatcher import (
     SETTINGS,
     AccessDatabase,
     FakeLLM,
-    detach_router,
-    reset_throttle,
+    detach_application_routers,
 )
 from tests.support.telegram import (
     FakeTelegramSession,
@@ -44,19 +43,15 @@ def fixture_access_database(
     return database
 
 
-@pytest.fixture(scope="module", name="dispatcher")
-def fixture_dispatcher() -> Iterator[Dispatcher]:
-    """Create one configured dispatcher for the test module.
+@pytest.fixture(name="dispatcher")
+def fixture_dispatcher() -> Dispatcher:
+    """Create a configured dispatcher for one test.
 
     The application routers are shared module-level objects, so they are
-    detached afterwards to keep other test modules independent of the order.
+    detached first in case an earlier test left them attached elsewhere.
     """
-    configured = configure_dispatcher(Dispatcher(storage=MemoryStorage()), SETTINGS)
-    yield configured
-
-    for router in configured.sub_routers:
-        detach_router(router)
-    configured.sub_routers.clear()
+    detach_application_routers()
+    return configure_dispatcher(Dispatcher(storage=MemoryStorage()), SETTINGS)
 
 
 @pytest_asyncio.fixture(name="dispatcher_runtime")
@@ -67,7 +62,6 @@ async def fixture_dispatcher_runtime(
     """Create a fake Telegram API session for one dispatcher update."""
     assert isinstance(access_database, AccessDatabase)
     assert dispatcher.workflow_data["settings"] is SETTINGS
-    reset_throttle(dispatcher)
     session = FakeTelegramSession(
         {
             DeleteMessage: True,

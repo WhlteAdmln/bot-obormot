@@ -11,7 +11,6 @@ from bot_obormot.services.media.animation.jpeg import image_to_bytes
 
 
 def test_image_to_bytes_encodes_bounded_jpeg_frame() -> None:
-    """Image to bytes encodes bounded jpeg frame."""
     source = Image.new("RGBA", (1400, 900), (30, 60, 90, 128))
 
     encoded = image_to_bytes(source)

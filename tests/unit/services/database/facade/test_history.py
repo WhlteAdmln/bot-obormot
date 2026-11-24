@@ -19,7 +19,6 @@ USER_A = 111111111
 
 @pytest.mark.asyncio
 async def test_history_limit_counts_complete_exchanges(test_db: Database) -> None:
-    """History limit counts complete exchanges."""
     for number in range(5):
         await test_db.add_exchange(
             USER_ID,
@@ -42,7 +41,6 @@ async def test_history_limit_counts_complete_exchanges(test_db: Database) -> Non
 
 @pytest.mark.asyncio
 async def test_history_limit_zero_returns_empty_history(test_db: Database) -> None:
-    """History limit zero returns empty history."""
     await test_db.add_exchange(
         USER_ID,
         "Вопрос",
@@ -54,7 +52,6 @@ async def test_history_limit_zero_returns_empty_history(test_db: Database) -> No
 
 @pytest.mark.asyncio
 async def test_history_ignores_incomplete_messages(test_db: Database) -> None:
-    """History ignores incomplete messages."""
     await test_db.add_exchange(
         USER_ID,
         "Вопрос 1",
@@ -80,7 +77,6 @@ async def test_history_ignores_incomplete_messages(test_db: Database) -> None:
 
 @pytest.mark.asyncio
 async def test_history_limit_isolated_between_users(test_db: Database) -> None:
-    """History limit isolated between users."""
     await test_db.set_history_limit(USER_ID, 10)
     await test_db.set_history_limit(USER_ID + 1, 5)
 
@@ -100,7 +96,6 @@ async def test_prune_history_keeps_latest_exchanges_and_removes_old_images(
     test_db: Database,
     tmp_path: Path,
 ) -> None:
-    """Prune history keeps latest exchanges and removes old images."""
     test_db.settings = replace(test_db.settings, MAX_STORED_EXCHANGES=2)
     old_image_path = None
     latest_image_path = None
@@ -138,7 +133,6 @@ async def test_prune_history_keeps_latest_exchanges_and_removes_old_images(
             )
             latest_image_path = Path((await cursor.fetchone())["file_path"])
 
-    # История другого пользователя не должна затрагиваться.
     other_user_id = USER_ID + 1
     for number in range(5):
         await test_db.add_exchange(
@@ -186,7 +180,6 @@ async def test_prune_history_keeps_latest_exchanges_and_removes_old_images(
 async def test_forget_user_removes_history_prompt_limit_and_owned_images(
     test_db: Database,
 ) -> None:
-    """Forget user removes history prompt limit and owned images."""
     user_id = USER_ID + 20
     other_user_id = USER_ID + 21
 
@@ -238,7 +231,6 @@ async def test_forget_user_removes_history_prompt_limit_and_owned_images(
     assert await test_db.get_history(user_id) == []
     assert not await asyncio.to_thread(own_image_path.exists)
 
-    # Команда одного пользователя не затрагивает данные другого.
     expected_text = "Чужой промпт"
     assert await test_db.get_user_system_prompt(other_user_id) == expected_text
     expected_number = 23
@@ -254,8 +246,7 @@ async def test_forget_user_removes_history_prompt_limit_and_owned_images(
 
 
 @pytest.mark.asyncio
-async def test_failed_exchange_rollback(test_db: Database) -> None:
-    """Проверяет откат неудачного обмена и удаление изображения."""
+async def test_rolls_back_failed_exchange_with_its_images(test_db: Database) -> None:
     db = test_db
 
     image_data = b"fake-image-data"
@@ -268,10 +259,8 @@ async def test_failed_exchange_rollback(test_db: Database) -> None:
             media=[image_data],
         )
 
-    # Неудачный обмен не должен оставить сообщения.
     assert await db.get_history(USER_A, limit=20) == []
 
-    # Неудачный обмен не должен оставить файлы изображений.
     remaining_files = list(db.images_dir.iterdir())
 
     expected_empty = []

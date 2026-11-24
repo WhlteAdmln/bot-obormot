@@ -73,7 +73,6 @@ def _real_client_settings(server: FakeAudiodoc) -> Settings:
 async def test_bot_transcription_client_accepts_shared_audiodoc_example(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Bot transcription client accepts shared audiodoc example."""
     payload = CONTRACT["transcribe"]
     assert set(payload) == {"text", "language", "duration"}
     assert isinstance(payload["text"], str)
@@ -97,7 +96,6 @@ async def test_bot_transcription_client_accepts_shared_audiodoc_example(
 async def test_bot_document_client_accepts_shared_audiodoc_example(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Bot document client accepts shared audiodoc example."""
     payload = CONTRACT["process_document"]
     assert set(payload) == {"format", "text", "characters", "truncated"}
     assert validate_document_response(payload) is payload
@@ -123,7 +121,6 @@ async def test_bot_document_client_accepts_shared_audiodoc_example(
 
 
 def test_shared_audiodoc_response_examples_match_openapi() -> None:
-    """Validate the shared successful response examples against OpenAPI."""
     _validate_response("/transcribe", 200, CONTRACT["transcribe"])
     _validate_response("/process-document", 200, CONTRACT["process_document"])
 
@@ -160,15 +157,14 @@ def _check_request(request: object, path: str, api_key: str) -> None:
     assert set(resolved_request_schema.get("required", [])) <= request_fields
 
     payload: dict[str, object] = dict(request.fields)
-    expected_fragment = "max_characters"
-    if expected_fragment in payload:
+    limit_field = "max_characters"
+    if limit_field in payload:
         payload["max_characters"] = int(payload["max_characters"])
     OPENAPI_VALIDATOR.evolve(schema=request_schema).validate(payload)
 
 
 @pytest.mark.asyncio
 async def test_real_bot_requests_match_audiodoc_openapi() -> None:
-    """Validate real client requests and response parsing over local HTTP."""
     async with FakeAudiodoc() as server:
         settings = _real_client_settings(server)
 
@@ -204,7 +200,6 @@ async def test_bot_handles_every_documented_audiodoc_error_status(
     path: str,
     status: int,
 ) -> None:
-    """Parse every documented error response through the real HTTP clients."""
     expected_path = "/transcribe"
     endpoint = "transcribe" if path == expected_path else "process-document"
     async with FakeAudiodoc() as server:

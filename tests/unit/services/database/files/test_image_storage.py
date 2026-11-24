@@ -17,7 +17,6 @@ from bot_obormot.services.database.files.image_storage import (
 
 
 def test_read_image_as_base64_returns_data_url(tmp_path: Path) -> None:
-    """Read image as base64 returns data url."""
     image_path = tmp_path / "image.jpg"
     image_data = b"image-bytes"
     image_path.write_bytes(image_data)
@@ -29,7 +28,6 @@ def test_read_image_as_base64_returns_data_url(tmp_path: Path) -> None:
 
 
 def test_save_and_delete_image(tmp_path: Path) -> None:
-    """Save and delete image."""
     image_path = tmp_path / "image.jpg"
     image_data = b"new-image"
 
@@ -39,12 +37,10 @@ def test_save_and_delete_image(tmp_path: Path) -> None:
     delete_image(image_path)
     assert not image_path.exists()
 
-    # Повторное удаление должно оставаться безопасным (missing_ok=True).
     delete_image(image_path)
 
 
 def test_list_image_files_returns_direct_children(tmp_path: Path) -> None:
-    """List image files returns direct children."""
     first = tmp_path / "first.jpg"
     second = tmp_path / "second.jpg"
     first.write_bytes(b"1")
@@ -59,7 +55,6 @@ def test_list_image_files_returns_direct_children(tmp_path: Path) -> None:
 def test_is_managed_image_requires_uuid_jpg_directly_in_images_dir(
     tmp_path: Path,
 ) -> None:
-    """Is managed image requires uuid jpg directly in images dir."""
     images_dir = tmp_path / "images"
     images_dir.mkdir()
     valid = images_dir / f"{uuid.uuid4().hex}.jpg"

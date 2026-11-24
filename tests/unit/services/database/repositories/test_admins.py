@@ -16,7 +16,6 @@ from tests.support.database_repositories import USER_ID
 async def test_admins_repository_is_idempotent_and_facade_excludes_supervisor(
     test_db: Database,
 ) -> None:
-    """Admins repository is idempotent and facade excludes supervisor."""
     assert await admins.add_admin(test_db.connection, USER_ID) is True
     assert await admins.add_admin(test_db.connection, USER_ID) is False
     assert await test_db.get_admin_ids() == {USER_ID}

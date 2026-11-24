@@ -14,7 +14,6 @@ from bot_obormot.settings import load_settings
 def test_configure_logging_redacts_audiodoc_keys(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Startup redacts the configured audiodoc API keys from log output."""
     settings = load_settings(
         {
             "SUPERVISOR_ID": "1",
@@ -32,7 +31,7 @@ def test_configure_logging_redacts_audiodoc_keys(
             settings.AUDIODOC_DOCUMENT_KEY,
         )
 
-    expected_fragment = "whisper-secret-key"
-    assert expected_fragment not in caplog.text
-    expected_fragment = "document-secret-key"
-    assert expected_fragment not in caplog.text
+    whisper_key = "whisper-secret-key"
+    assert whisper_key not in caplog.text
+    document_key = "document-secret-key"
+    assert document_key not in caplog.text

@@ -40,7 +40,6 @@ def _configure_client(
 
 @pytest.mark.asyncio
 async def test_fake_llm_supports_real_client_and_non_streaming_requests() -> None:
-    """Exercise context discovery, tokenization and generation over HTTP."""
     messages = [{"role": "user", "content": "hello world"}]
     async with (
         FakeLLM() as server,
@@ -83,7 +82,6 @@ async def test_fake_llm_supports_real_client_and_non_streaming_requests() -> Non
 
 @pytest.mark.asyncio
 async def test_fake_llm_can_omit_context_metadata_and_tokenizer() -> None:
-    """Expose a standard model card without optional llama.cpp capabilities."""
     options = FakeLLMOptions(
         include_context_metadata=False,
         tokenizer_available=False,
@@ -104,8 +102,8 @@ async def test_fake_llm_can_omit_context_metadata_and_tokenizer() -> None:
             session.get(f"{server.base_url}v1/models") as response,
         ):
             payload = await response.json()
-        expected_fragment = "max_model_len"
-        assert expected_fragment not in payload["data"][0]
+        length_field = "max_model_len"
+        assert length_field not in payload["data"][0]
 
         expected_number = 4096
         assert await client.get_context_size() == expected_number
@@ -118,7 +116,6 @@ async def test_fake_llm_can_omit_context_metadata_and_tokenizer() -> None:
 @pytest.mark.parametrize("status", [401, 429, 500])
 @pytest.mark.asyncio
 async def test_fake_llm_can_return_configured_http_errors(status: int) -> None:
-    """Return configured OpenAI-compatible generation errors."""
     async with (
         FakeLLM(options=FakeLLMOptions(chat_status=status)) as server,
         open_llm_client(_configure_client(server)) as client,
@@ -131,7 +128,6 @@ async def test_fake_llm_can_return_configured_http_errors(status: int) -> None:
 
 @pytest.mark.asyncio
 async def test_fake_llm_can_delay_the_first_token() -> None:
-    """Exercise the real client's request timeout before the first token."""
     options = FakeLLMOptions(first_token_delay=0.05)
     async with (
         FakeLLM(options=options) as server,
@@ -149,7 +145,6 @@ async def test_fake_llm_can_delay_the_first_token() -> None:
 
 @pytest.mark.asyncio
 async def test_fake_llm_can_drop_connection_mid_stream() -> None:
-    """Close the connection after sending the first SSE chunk."""
     options = FakeLLMOptions(drop_after_chunks=1)
     async with (
         FakeLLM(options=options) as server,
@@ -164,7 +159,6 @@ async def test_fake_llm_can_drop_connection_mid_stream() -> None:
 
 @pytest.mark.asyncio
 async def test_real_client_session_reuses_and_recreates_closed_session() -> None:
-    """Reuse a real HTTP session and recreate it after closure."""
     async with (
         FakeLLM(api_key=None) as server,
         open_llm_client(_configure_client(server)) as client,
@@ -201,7 +195,6 @@ async def test_real_client_session_configures_auth_header(
     api_key: str,
     expected_header: str | None,
 ) -> None:
-    """Configure the real session authorization header."""
     settings = replace(Settings(), LLM_API_KEY=api_key)
     async with open_llm_client(settings) as client:
         session = await client.get_session()
@@ -210,7 +203,6 @@ async def test_real_client_session_configures_auth_header(
 
 @pytest.mark.asyncio
 async def test_stream_can_be_cancelled_by_client() -> None:
-    """Cancel a pending stream without invalidating the shared session."""
     options = FakeLLMOptions(first_token_delay=0.1)
     async with (
         FakeLLM(options=options) as server,
@@ -227,7 +219,6 @@ async def test_stream_can_be_cancelled_by_client() -> None:
 
 @pytest.mark.asyncio
 async def test_real_client_fits_very_long_history() -> None:
-    """Prune old exchanges while preserving the newest history."""
     async with FakeLLM() as server:
         settings = replace(
             _configure_client(server),
@@ -264,7 +255,6 @@ async def test_real_client_fits_very_long_history() -> None:
 
 @pytest.mark.asyncio
 async def test_real_client_estimates_message_tokens_when_tokenizer_is_missing() -> None:
-    """Estimate message tokens when the server has no tokenizer."""
     options = FakeLLMOptions(tokenizer_available=False)
     async with (
         FakeLLM(options=options) as server,
@@ -299,7 +289,6 @@ async def test_real_client_maps_tokenizer_http_errors(
     options: FakeLLMOptions,
     operation: str,
 ) -> None:
-    """Map tokenizer endpoint HTTP failures to the public API error."""
     async with FakeLLM(options=options) as server:
         settings = _with_token_counting(
             _configure_client(server),
@@ -322,7 +311,6 @@ async def test_real_client_maps_tokenizer_http_errors(
 @pytest.mark.parametrize("operation", ["messages", "text"])
 @pytest.mark.asyncio
 async def test_real_client_maps_tokenizer_timeout(operation: str) -> None:
-    """Map tokenizer endpoint timeouts to the public timeout error."""
     options = FakeLLMOptions(tokenize_delay=0.05)
     async with FakeLLM(options=options) as server:
         settings = _with_token_counting(
@@ -345,7 +333,6 @@ async def test_real_client_maps_tokenizer_timeout(operation: str) -> None:
 
 @pytest.mark.asyncio
 async def test_context_size_uses_single_model_fallback_and_caches_result() -> None:
-    """Use the only model entry when its ID does not match the setting."""
     async with FakeLLM() as server:
         settings = replace(
             _configure_client(server, context_size=None),
@@ -360,7 +347,6 @@ async def test_context_size_uses_single_model_fallback_and_caches_result() -> No
 
 @pytest.mark.asyncio
 async def test_context_size_fails_when_server_has_no_context_metadata() -> None:
-    """Require a setting when neither server endpoint reports context size."""
     options = FakeLLMOptions(include_context_metadata=False)
     async with (
         FakeLLM(options=options) as server,
@@ -377,7 +363,6 @@ async def test_context_size_fails_when_server_has_no_context_metadata() -> None:
 
 @pytest.mark.asyncio
 async def test_real_client_handles_unavailable_server() -> None:
-    """Handle connection failures in context, tokenizer and health requests."""
     async with FakeLLM(api_key=None) as server:
         settings = _configure_client(server, context_size=None)
 

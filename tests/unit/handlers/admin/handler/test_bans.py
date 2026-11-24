@@ -26,7 +26,6 @@ from tests.support.telegram import (
 async def test_ban_command_blocks_non_admin_and_audits(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Ban command blocks non admin and audits."""
     actor_id = SETTINGS.SUPERVISOR_ID
     target_id = 123456789
     calls = []
@@ -54,7 +53,6 @@ async def test_ban_command_blocks_non_admin_and_audits(
 
 @pytest.mark.asyncio
 async def test_ban_rejects_supervisor_and_admin_targets() -> None:
-    """Ban rejects supervisor and admin targets."""
     actor_id = SETTINGS.SUPERVISOR_ID
     admin_id = 123456789
 
@@ -63,7 +61,6 @@ async def test_ban_rejects_supervisor_and_admin_targets() -> None:
 
     database = SimpleNamespace(get_admin_ids=get_admin_ids)
 
-    # Verify that a protected target never reaches the database.
     async def forbidden_block(_user_id: object) -> None:
         pytest.fail("Нельзя вызывать block_user для защищённой цели")
 
@@ -74,15 +71,14 @@ async def test_ban_rejects_supervisor_and_admin_targets() -> None:
         await bans.cmd_ban(
             message, SimpleNamespace(args=str(target_id)), SETTINGS, database
         )
-        expected_fragment = "заблокировать нельзя"
-        assert expected_fragment in message.answers[0]
+        refusal_text = "заблокировать нельзя"
+        assert refusal_text in message.answers[0]
 
 
 @pytest.mark.asyncio
 async def test_unban_command_removes_block_and_audits(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Unban command removes block and audits."""
     actor_id = SETTINGS.SUPERVISOR_ID
     target_id = 123456789
 
@@ -111,7 +107,6 @@ async def test_unban_command_removes_block_and_audits(
 async def test_database_admin_can_ban_non_admin(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Database admin can ban non admin."""
     actor_id = SETTINGS.SUPERVISOR_ID - 10
     target_id = 123456789
     blocked = []
@@ -138,7 +133,6 @@ async def test_database_admin_can_ban_non_admin(
 
 @pytest.mark.asyncio
 async def test_non_admin_cannot_ban(caplog: pytest.LogCaptureFixture) -> None:
-    """Non admin cannot ban."""
     actor_id = SETTINGS.SUPERVISOR_ID - 10
     target_id = 123456789
 
@@ -177,7 +171,6 @@ async def test_ban_reports_blocked_and_already_blocked_users(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     case: tuple[bool, str],
 ) -> None:
-    """Ban reports both new and existing blocks."""
     result, expected_text = case
     access_database.scenario.results["block_user"] = result
 
@@ -201,7 +194,6 @@ async def test_ban_rejects_invalid_target_ids(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     arguments: str,
 ) -> None:
-    """Ban requires a positive integer Telegram ID."""
     session = await feed_command(
         dispatcher_runtime,
         SUPERVISOR_ID,
@@ -221,7 +213,6 @@ async def test_ban_protects_supervisor_and_administrators(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     target_id: int,
 ) -> None:
-    """Ban refuses to block the supervisor or another administrator."""
     access_database.admin_ids = {8002}
 
     session = await feed_command(
@@ -246,7 +237,6 @@ async def test_ban_propagates_database_failures(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     failed_operation: str,
 ) -> None:
-    """Ban propagates permission lookup and block operation failures."""
     access_database.scenario.failed_operation = failed_operation
 
     with pytest.raises(RuntimeError, match="database unavailable"):
@@ -258,7 +248,6 @@ async def test_unban_reports_success_and_missing_blocks(
     access_database: AccessDatabase,
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
-    """Unban reports successful and unsuccessful unblock operations."""
     session = await feed_command(dispatcher_runtime, SUPERVISOR_ID, "/unban 8001")
     assert sent_texts(session) == ["✅ Блокировка пользователя 8001 снята."]
 
@@ -278,7 +267,6 @@ async def test_unban_rejects_invalid_target_ids(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     arguments: str,
 ) -> None:
-    """Unban requires a positive integer Telegram ID."""
     session = await feed_command(
         dispatcher_runtime,
         SUPERVISOR_ID,
@@ -296,7 +284,6 @@ async def test_unban_propagates_database_failure(
     access_database: AccessDatabase,
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
-    """Unban propagates database failures."""
     access_database.scenario.failed_operation = "unblock_user"
 
     with pytest.raises(RuntimeError, match="database unavailable"):

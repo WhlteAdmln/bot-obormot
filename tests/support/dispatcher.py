@@ -7,12 +7,12 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from aiogram import Bot, Dispatcher, Router
-from aiogram.dispatcher.middlewares.manager import MiddlewareManager
 from aiogram.methods import (
     SendMessage,
 )
 
-from bot_obormot.middlewares.throttle import ThrottleMiddleware
+from bot_obormot.handlers import admin, routers, start
+from bot_obormot.handlers.chat import handler as chat
 from tests.support.settings import make_settings
 from tests.support.telegram import (
     FakeTelegramSession,
@@ -189,37 +189,6 @@ class FakeLLM:
         return self.result
 
 
-def _replace_throttles(manager: MiddlewareManager) -> None:
-    registered = list(manager)
-    if not any(isinstance(item, ThrottleMiddleware) for item in registered):
-        return
-    for item in registered:
-        manager.unregister(item)
-    for item in registered:
-        manager.register(_fresh(item))
-
-
-def _fresh(item: object) -> object:
-    if not isinstance(item, ThrottleMiddleware):
-        return item
-    return ThrottleMiddleware(
-        max_events=item.max_events,
-        window_seconds=item.window,
-        max_tracked_users=item.max_tracked_users,
-    )
-
-
-def reset_throttle(dispatcher: Dispatcher) -> None:
-    """Reset rate-limit state between isolated dispatcher tests."""
-    routers: list[Router] = [dispatcher]
-    while routers:
-        router = routers.pop()
-        for observer in router.observers.values():
-            for manager in (observer.outer_middleware, observer.middleware):
-                _replace_throttles(manager)
-        routers.extend(router.sub_routers)
-
-
 def sent_texts(session: FakeTelegramSession) -> list[str]:
     """Extract text fields from outgoing SendMessage requests."""
     return [
@@ -239,6 +208,12 @@ async def feed_command(
         make_update(message=make_message(user_id=user_id, text=text)),
     )
     return session
+
+
+def detach_application_routers() -> None:
+    """Detach the shared application routers left attached by an earlier test."""
+    for router in (start.router, admin.router, routers.router, chat.router):
+        detach_router(router)
 
 
 def detach_router(router: Router) -> None:

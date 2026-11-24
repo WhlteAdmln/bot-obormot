@@ -10,7 +10,6 @@ from bot_obormot.settings import get_settings
 
 
 def test_legacy_config_proxy_and_config_alias_are_removed() -> None:
-    """The legacy proxy and Config alias are no longer exported."""
     config_module = importlib.import_module("bot_obormot.config")
     settings_module = importlib.import_module("bot_obormot.settings")
     model_module = importlib.import_module("bot_obormot.config.model")
@@ -23,14 +22,12 @@ def test_legacy_config_proxy_and_config_alias_are_removed() -> None:
 
 
 def test_stream_update_interval_is_not_an_environment_setting() -> None:
-    """Stream update interval is not an application setting."""
     settings_class = importlib.import_module("bot_obormot.settings").Settings
 
     assert not hasattr(settings_class, "STREAM_UPDATE_INTERVAL")
 
 
 def test_settings_have_a_single_public_import_path() -> None:
-    """Settings are exported from the settings module only, not from config."""
     settings_module = importlib.import_module("bot_obormot.settings")
     config_module = importlib.import_module("bot_obormot.config")
 
@@ -40,6 +37,5 @@ def test_settings_have_a_single_public_import_path() -> None:
 
 
 def test_bot_settings_reexports_get_settings() -> None:
-    """Bot settings reexports the shared settings getter."""
     cache_module = importlib.import_module("bot_obormot.config.model.cache")
     assert get_settings is cache_module.get_settings

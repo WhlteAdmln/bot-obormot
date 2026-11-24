@@ -18,7 +18,6 @@ from tests.support.database_usecases import USER_ID
 async def test_add_exchange_rolls_back_database_and_removes_saved_images(
     test_db: Database,
 ) -> None:
-    """Add exchange rolls back database and removes saved images."""
     await test_db.connection.execute(
         """
         CREATE TRIGGER reject_assistant_message
@@ -53,7 +52,6 @@ async def test_add_exchange_rolls_back_database_and_removes_saved_images(
     assert list(test_db.images_dir.iterdir()) == expected_empty, (
         "expected an empty list"
     )
-    # Успешный следующий запрос доказывает, что lock был освобождён.
     assert await test_db.health_check() is True
 
 
@@ -61,7 +59,6 @@ async def test_add_exchange_rolls_back_database_and_removes_saved_images(
 async def test_add_exchange_does_not_rollback_transaction_it_did_not_start(
     test_db: Database,
 ) -> None:
-    """Add exchange preserves a transaction that it did not start."""
     await test_db.connection.execute("BEGIN")
 
     with pytest.raises(DatabaseError, match="Could not save message exchange"):
@@ -81,7 +78,6 @@ async def test_add_exchange_handles_rollback_failure(
     test_db: Database,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Add exchange preserves the original error when rollback fails."""
     await test_db.connection.execute(
         """
         CREATE TRIGGER reject_assistant_message
@@ -123,7 +119,6 @@ async def test_add_exchange_reports_image_save_and_cleanup_failures(
     test_db: Database,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Add exchange reports image save failure despite cleanup failure."""
 
     def fail_save_image(_image_path: Path, _image_data: bytes) -> None:
         msg = "disk full"

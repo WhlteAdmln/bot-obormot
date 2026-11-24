@@ -15,7 +15,6 @@ from tests.support.media import make_message
 async def test_process_media_uses_canonical_media_dependencies(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Process media uses canonical media dependencies."""
     message = make_message()
     calls = []
 
@@ -64,7 +63,6 @@ async def test_process_media_uses_canonical_media_dependencies(
 async def test_process_media_wraps_unexpected_pipeline_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Process media wraps unexpected pipeline errors."""
 
     async def fake_download(_message: object, _file_id: object) -> bytes:
         return b"GIF89a" + b"broken-animation"
@@ -82,7 +80,6 @@ async def test_process_media_wraps_unexpected_pipeline_errors(
 
 @pytest.mark.asyncio
 async def test_process_media_rejects_declared_type_mismatch_before_decoder() -> None:
-    """Process media rejects declared type mismatch before decoder."""
     calls = []
 
     async def fake_download(_message: object, _file_id: object) -> bytes:

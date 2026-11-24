@@ -42,7 +42,6 @@ def _make_record() -> logging.LogRecord:
 
 @pytest.mark.asyncio
 async def test_middleware_sets_update_id_on_all_records_and_restores_context() -> None:
-    """Each update gets its own ID and the previous context is restored."""
     observed_ids: list[str | None] = []
     log_filter = CorrelationIdFilter()
 
@@ -70,7 +69,6 @@ async def test_middleware_sets_update_id_on_all_records_and_restores_context() -
 
 @pytest.mark.asyncio
 async def test_middleware_resets_context_when_handler_raises() -> None:
-    """The update ID is reset even when the handler raises an exception."""
 
     async def fail_handler(
         _event: TelegramObject,
@@ -94,7 +92,6 @@ async def test_middleware_resets_context_when_handler_raises() -> None:
 def test_logging_setup_formats_and_populates_correlation_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Configured handlers include the current ID and a default outside updates."""
     stream = StringIO()
     handler = logging.StreamHandler(stream)
     root_logger = logging.getLogger()
@@ -114,7 +111,7 @@ def test_logging_setup_formats_and_populates_correlation_id(
     handler.handle(_make_record())
 
     output = stream.getvalue()
-    expected_fragment = " INFO [123] test.correlation: test message"
-    assert expected_fragment in output
-    expected_fragment = " INFO [-] test.correlation: test message"
-    assert expected_fragment in output
+    tagged_line = " INFO [123] test.correlation: test message"
+    assert tagged_line in output
+    untagged_line = " INFO [-] test.correlation: test message"
+    assert untagged_line in output

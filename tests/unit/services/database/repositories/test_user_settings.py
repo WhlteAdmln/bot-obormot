@@ -13,8 +13,7 @@ from tests.support.database_repositories import USER_ID
 
 
 @pytest.mark.asyncio
-async def test_user_settings_repository_crud(test_db: Database) -> None:
-    """User settings repository crud."""
+async def test_sets_reads_and_deletes_system_prompt(test_db: Database) -> None:
     assert await user_settings.get_system_prompt(test_db.connection, USER_ID) is None
 
     await user_settings.set_system_prompt(

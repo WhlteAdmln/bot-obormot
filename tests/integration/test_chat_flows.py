@@ -73,8 +73,8 @@ async def _assert_voice_history(
 
     expected_count = 2
     assert len(history) == expected_count
-    expected_fragment = "Recognized speech."
-    assert expected_fragment in history[0]["content"]
+    transcript_text = "Recognized speech."
+    assert transcript_text in history[0]["content"]
     assert history[1]["content"] == response
 
 
@@ -82,7 +82,6 @@ async def _assert_voice_history(
 async def test_text_message_streams_answer_and_persists_exchange(
     test_db: Database,
 ) -> None:
-    """Process a text message through Dispatcher, LLM and SQLite."""
     user_id = 712345678
     user_text = "Объясни, пожалуйста, как работает SQLite."
     first_chunk = " ".join(["streamed"] * 180) + " "
@@ -135,8 +134,8 @@ async def test_text_message_streams_answer_and_persists_exchange(
         assert llm_server.stream_started.is_set()
         assert len(sent_messages) == 1
         assert sent_messages[0].text is not None
-        expected_fragment = "streamed"
-        assert expected_fragment in sent_messages[0].text
+        streamed_word = "streamed"
+        assert streamed_word in sent_messages[0].text
         assert edited_texts
         assert edited_texts[-1] == response
 
@@ -151,7 +150,6 @@ async def test_text_message_streams_answer_and_persists_exchange(
 async def test_voice_message_is_transcribed_answered_and_persisted(
     test_db: Database,
 ) -> None:
-    """Process a voice message through Telegram, audiodoc, LLM and SQLite."""
     user_id = 712345679
     first_chunk = " ".join(["streamed"] * 180) + " "
     response = f"{first_chunk}complete"
@@ -206,9 +204,9 @@ def _assert_document_delivery(
     assert edited_texts
     assert edited_texts[-1] == response
     assert llm_server.chat_requests
-    expected_fragment = "Example document text."
+    document_text = "Example document text."
     assert any(
-        expected_fragment in str(request.get("messages", []))
+        document_text in str(request.get("messages", []))
         for request in llm_server.chat_requests
     )
 
@@ -230,7 +228,6 @@ async def _assert_document_history(
 async def test_pdf_document_is_extracted_answered_and_persisted(
     test_db: Database,
 ) -> None:
-    """Process a PDF through Telegram, audiodoc, LLM and SQLite."""
     user_id = 712345680
     first_chunk = " ".join(["streamed"] * 180) + " "
     response = f"{first_chunk}complete"
@@ -339,7 +336,6 @@ async def _assert_photo_history(
 async def test_photo_message_is_processed_by_vision_and_persisted(
     test_db: Database,
 ) -> None:
-    """Process a photo through Telegram, Vision, LLM and SQLite."""
     user_id = 712345681
     first_chunk = " ".join(["streamed"] * 180) + " "
     response = f"{first_chunk}complete"
@@ -403,7 +399,6 @@ async def test_photo_message_is_processed_by_vision_and_persisted(
 async def test_blocked_user_is_denied_before_llm_is_called(
     test_db: Database,
 ) -> None:
-    """Reject a blocked user through Dispatcher without calling the LLM."""
     user_id = 712345682
     denied_text = "⛔ У тебя нет доступа к этому боту."
 
@@ -455,7 +450,6 @@ async def test_throttled_user_is_blocked_before_llm_is_called(
     test_db: Database,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Reject the eleventh message in a burst before calling the LLM."""
     user_id = 712345683
     allowed_questions = [f"Question {index}" for index in range(1, 11)]
     blocked_question = "Question 11"
@@ -532,7 +526,6 @@ async def test_throttled_user_is_blocked_before_llm_is_called(
 async def test_long_answer_is_split_into_multiple_telegram_messages(
     test_db: Database,
 ) -> None:
-    """Split a long streamed answer into Telegram-sized messages and persist it."""
     user_id = 712345684
     user_text = "Напиши очень длинный ответ."
     response = " ".join(["long-answer"] * 1200)
@@ -597,7 +590,6 @@ async def test_long_answer_is_split_into_multiple_telegram_messages(
 async def test_llm_connection_failure_is_reported_without_persisting_exchange(
     test_db: Database,
 ) -> None:
-    """Report LLM connection loss and leave the conversation history unchanged."""
     user_id = 712345685
     error_prefix = "🔌 Не удалось связаться с языковой моделью."
     error_suffix = "Проверь доступность AI-сервера."
@@ -658,7 +650,6 @@ async def test_llm_connection_failure_is_reported_without_persisting_exchange(
 async def test_document_connection_failure_is_reported_without_persisting_exchange(
     test_db: Database,
 ) -> None:
-    """Report audiodoc connection loss without persisting the exchange."""
     user_id = 712345686
     expected_error = "🔌 Не удалось связаться с сервисом обработки документов."
     document_data = b"%PDF-1.7\n% unavailable audiodoc integration document\n"
@@ -827,7 +818,6 @@ async def _assert_history_limit_persistence(
 async def test_history_limit_restricts_llm_context_and_preserves_history(
     test_db: Database,
 ) -> None:
-    """Limit the LLM context without deleting older stored exchanges."""
     user_id = 712345687
     previous_exchanges = [
         ("Previous question 1", "Previous answer 1"),

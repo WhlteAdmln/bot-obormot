@@ -28,7 +28,6 @@ async def test_downloader_accepts_any_buffer_protocol_payload(data: object) -> N
 
 @pytest.mark.asyncio
 async def test_telegram_downloader_returns_file_bytes() -> None:
-    """Telegram downloader returns file bytes."""
     bot = FakeDownloadBot(file_size=13, data=b"hello, telegram")
 
     result = await download_telegram_file(make_message(bot), "file-id")
@@ -40,7 +39,6 @@ async def test_telegram_downloader_returns_file_bytes() -> None:
 
 @pytest.mark.asyncio
 async def test_telegram_downloader_rejects_reported_oversized_file() -> None:
-    """Telegram downloader rejects reported oversized file."""
     bot = FakeDownloadBot(file_size=media.MAX_MEDIA_SIZE + 1)
 
     with pytest.raises(MediaError, match="слишком большой"):
@@ -52,7 +50,6 @@ async def test_telegram_downloader_rejects_reported_oversized_file() -> None:
 
 @pytest.mark.asyncio
 async def test_telegram_downloader_rejects_oversized_download_result() -> None:
-    """Telegram downloader rejects oversized download result."""
     bot = FakeDownloadBot(file_size=10, data=b"x" * (media.MAX_MEDIA_SIZE + 1))
 
     with pytest.raises(MediaError, match="слишком большой"):
@@ -63,7 +60,6 @@ async def test_telegram_downloader_rejects_oversized_download_result() -> None:
 
 @pytest.mark.asyncio
 async def test_telegram_downloader_rejects_unknown_file_size() -> None:
-    """Telegram downloader rejects unknown file size."""
     bot = FakeDownloadBot(file_size=None)
 
     with pytest.raises(MediaError, match="размер файла"):
@@ -75,7 +71,6 @@ async def test_telegram_downloader_rejects_unknown_file_size() -> None:
 
 @pytest.mark.asyncio
 async def test_telegram_downloader_limits_concurrent_downloads() -> None:
-    """Telegram downloader limits concurrent downloads."""
     bot = FakeDownloadBot(file_size=3, data=b"abc", hold=True)
     tasks = [
         asyncio.create_task(download_telegram_file(make_message(bot), f"file-{index}"))

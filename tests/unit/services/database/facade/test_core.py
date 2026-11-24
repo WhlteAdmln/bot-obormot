@@ -15,7 +15,6 @@ from tests.support.settings import make_settings
 async def test_database_context_manager_connects_and_closes(
     tmp_path: Path,
 ) -> None:
-    """Database context manager connects and closes."""
     settings = make_settings(DATABASE_PATH=str(tmp_path / "context.db"))
     database = Database(settings)
 
@@ -31,7 +30,6 @@ async def test_database_context_manager_connects_and_closes(
 async def test_database_context_manager_closes_after_exception(
     tmp_path: Path,
 ) -> None:
-    """Database context manager closes after an exception."""
     settings = make_settings(DATABASE_PATH=str(tmp_path / "context_error.db"))
     database = Database(settings)
 
@@ -50,7 +48,6 @@ async def test_database_context_manager_closes_after_exception(
 def test_database_images_dir_uses_injected_settings_at_instance_creation(
     tmp_path: Path,
 ) -> None:
-    """Database images dir uses injected settings at instance creation."""
     database_path = tmp_path / "custom" / "history.db"
     settings = make_settings(DATABASE_PATH=str(database_path))
 
@@ -62,7 +59,6 @@ def test_database_images_dir_uses_injected_settings_at_instance_creation(
 def test_database_instance_does_not_create_files_before_connect(
     tmp_path: Path,
 ) -> None:
-    """Database instance does not create files before connect."""
     database_path = tmp_path / "not-created" / "history.db"
     settings = make_settings(DATABASE_PATH=str(database_path))
 

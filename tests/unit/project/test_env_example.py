@@ -58,12 +58,8 @@ def _env_example_names() -> tuple[set[str], list[str]]:
 
     for line in ENV_EXAMPLE_PATH.read_text(encoding="utf-8").splitlines():
         stripped = line.strip()
-        expected_fragment = "="
-        if (
-            not stripped
-            or stripped.startswith("#")
-            or expected_fragment not in stripped
-        ):
+        assignment_sign = "="
+        if not stripped or stripped.startswith("#") or assignment_sign not in stripped:
             continue
         name = stripped.split("=", maxsplit=1)[0].strip()
         if name in names:
@@ -74,7 +70,6 @@ def _env_example_names() -> tuple[set[str], list[str]]:
 
 
 def test_env_example_matches_config_environment_variables() -> None:
-    """Env example matches settings environment variables."""
     settings_names = _settings_environment_names()
     example_names, duplicates = _env_example_names()
 

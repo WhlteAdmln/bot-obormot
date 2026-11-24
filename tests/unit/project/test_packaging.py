@@ -12,7 +12,6 @@ from build import ProjectBuilder
 def test_wheel_contains_prompt_and_excludes_development_files(
     tmp_path: Path,
 ) -> None:
-    """Builds a wheel with package data and without repository-only paths."""
     project_root = Path(__file__).resolve().parents[3]
     wheel_directory = tmp_path / "wheel"
     wheel_directory.mkdir()
@@ -25,20 +24,20 @@ def test_wheel_contains_prompt_and_excludes_development_files(
     with ZipFile(wheel_directory / wheel_name) as wheel:
         members = wheel.namelist()
 
-        expected_fragment = "bot_obormot/prompts/systemPrompt.md"
-        assert expected_fragment in members
-        expected_fragment = "bot_obormot/templates/env.example"
-        assert expected_fragment in members
-        expected_fragment = "bot_obormot/__main__.py"
-        assert expected_fragment in members
+        prompt_file = "bot_obormot/prompts/systemPrompt.md"
+        assert prompt_file in members
+        template_file = "bot_obormot/templates/env.example"
+        assert template_file in members
+        main_file = "bot_obormot/__main__.py"
+        assert main_file in members
         assert not any(path.startswith(("tests/", "scripts/")) for path in members)
 
         entry_points = [
             path for path in members if path.endswith(".dist-info/entry_points.txt")
         ]
         assert len(entry_points) == 1
-        expected_fragment = "bot-obormot = bot_obormot.cli:main"
-        assert expected_fragment in wheel.read(
+        entry_point = "bot-obormot = bot_obormot.cli:main"
+        assert entry_point in wheel.read(
             entry_points[0],
         ).decode("utf-8")
 

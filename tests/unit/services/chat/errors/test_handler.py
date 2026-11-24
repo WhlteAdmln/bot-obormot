@@ -23,7 +23,6 @@ from bot_obormot.services.chat.errors import handler as chat_error_handler
 async def test_chat_error_handler_uses_specific_subclass_rule(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Chat error handler uses specific subclass rule."""
     captured = []
 
     async def fake_report(message: object, status: object, text: str) -> None:
@@ -69,7 +68,6 @@ async def test_chat_error_handler_uses_specific_subclass_rule(
 async def test_chat_error_handler_preserves_api_error_log_fields(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Chat error handler preserves api error log fields."""
     captured = []
 
     async def fake_report(_message: object, _status: object, text: str) -> None:
@@ -87,10 +85,10 @@ async def test_chat_error_handler_preserves_api_error_log_fields(
             "Проверь его формат или попробуй другой файл."
         )
     ]
-    expected_fragment = (
+    api_error_line = (
         "Document Engine API error for user_id=909: HTTP 503, upstream unavailable"
     )
-    assert expected_fragment in caplog.text
+    assert api_error_line in caplog.text
 
 
 @pytest.mark.asyncio
@@ -98,7 +96,6 @@ async def test_chat_error_handler_sanitizes_audiodoc_and_llm_error_bodies(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Chat error handler sanitizes audiodoc and llm error bodies."""
 
     async def fake_report(_message: object, _status: object, _text: str) -> None:
         return None
@@ -113,21 +110,20 @@ async def test_chat_error_handler_sanitizes_audiodoc_and_llm_error_bodies(
             object(), None, 909, LLMAPIError(503, "sensitive\nllm response")
         )
 
-    expected_fragment = r"sensitive\nwhisper response"
-    assert expected_fragment in caplog.text
-    expected_fragment = r"sensitive\nllm response"
-    assert expected_fragment in caplog.text
-    expected_fragment = "sensitive\nwhisper response"
-    assert expected_fragment not in caplog.text
-    expected_fragment = "sensitive\nllm response"
-    assert expected_fragment not in caplog.text
+    escaped_whisper_body = r"sensitive\nwhisper response"
+    assert escaped_whisper_body in caplog.text
+    escaped_llm_body = r"sensitive\nllm response"
+    assert escaped_llm_body in caplog.text
+    raw_whisper_body = "sensitive\nwhisper response"
+    assert raw_whisper_body not in caplog.text
+    raw_llm_body = "sensitive\nllm response"
+    assert raw_llm_body not in caplog.text
 
 
 @pytest.mark.asyncio
 async def test_chat_error_handler_formats_media_error_and_unknown_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Chat error handler formats media error and unknown fallback."""
     captured = []
 
     async def fake_report(_message: object, _status: object, text: str) -> None:

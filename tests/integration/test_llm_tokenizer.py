@@ -14,7 +14,6 @@ from tests.support.fake_llm import open_llm_client
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_count_text_tokens() -> None:
-    """Проверяет подсчёт токенов через работающий llama.cpp."""
     test_texts = [
         "Привет!",
         "Это проверка подсчёта токенов.",
@@ -34,7 +33,6 @@ async def test_count_text_tokens() -> None:
 
 @pytest.mark.asyncio
 async def test_count_empty_text() -> None:
-    """Пустой текст не должен отправляться на сервер."""
     async with open_llm_client() as llm_client:
         count = await llm_client.count_text_tokens("")
 

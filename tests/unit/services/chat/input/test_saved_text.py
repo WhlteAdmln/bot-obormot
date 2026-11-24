@@ -12,7 +12,6 @@ from tests.support.message_input import make_info, make_message
 
 
 def test_build_saved_user_text_preserves_media_descriptions_and_caption() -> None:
-    """Build saved user text preserves media descriptions and caption."""
     info = make_info(file_id="file-id", media_type="gif", has_media=True)
     result = history_module.build_saved_user_text(
         make_message(text=None, caption="Подпись"),
@@ -27,7 +26,6 @@ def test_build_saved_user_text_preserves_media_descriptions_and_caption() -> Non
 
 
 def test_build_saved_user_text_preserves_audio_caption() -> None:
-    """Build saved user text preserves audio caption."""
     info = make_info(
         audio_file_id="voice-id", audio_filename="voice.ogg", has_audio=True
     )
@@ -44,7 +42,6 @@ def test_build_saved_user_text_preserves_audio_caption() -> None:
 
 
 def test_build_saved_user_text_distinguishes_photo_from_other_media() -> None:
-    """Build saved user text distinguishes photo from other media."""
     info = make_info(file_id="photo-id", media_type="image", has_media=True)
     result = history_module.build_saved_user_text(
         make_message(text=None, photo=[object()]),
@@ -59,7 +56,6 @@ def test_build_saved_user_text_distinguishes_photo_from_other_media() -> None:
 
 
 def test_build_saved_user_text_preserves_document_format_label() -> None:
-    """Build saved user text preserves document format label."""
     document = SimpleNamespace(file_name="report.pdf")
     info = make_info(document=document, has_document=True)
     result = history_module.build_saved_user_text(

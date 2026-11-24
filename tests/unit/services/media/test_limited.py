@@ -4,7 +4,7 @@
 """Tests for the thread concurrency limit of media work."""
 
 import asyncio
-import time
+import threading
 
 import pytest
 
@@ -16,13 +16,14 @@ from tests.support.concurrency import ConcurrencyProbe
 async def test_run_limited_caps_concurrent_jobs_at_the_semaphore_size() -> None:
     probe = ConcurrencyProbe()
     semaphore = asyncio.Semaphore(2)
+    pair = threading.Barrier(2, timeout=5)
 
     def work(value: int) -> int:
         with probe.running():
-            time.sleep(0.03)
+            pair.wait()
             return value
 
-    await asyncio.gather(*(run_limited(semaphore, work, value) for value in range(7)))
+    await asyncio.gather(*(run_limited(semaphore, work, value) for value in range(6)))
     expected = 2
     assert probe.maximum == expected, "no more than two jobs may run at once"
 

@@ -15,7 +15,6 @@ from bot_obormot.services.media.safety import check_image_size, configure_pillow
 
 
 def test_check_image_size_rejects_invalid_and_oversized_dimensions() -> None:
-    """Check image size rejects invalid and oversized dimensions."""
     with pytest.raises(MediaError):
         check_image_size(SimpleNamespace(size=(0, 10)), 100)
     with pytest.raises(MediaError):
@@ -26,8 +25,6 @@ def test_check_image_size_rejects_invalid_and_oversized_dimensions() -> None:
 def test_configure_pillow_limits_sets_global_decompression_limit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Configure pillow limits sets global decompression limit."""
-    # Не оставляем глобальный warning filter изменённым для других тестов.
     monkeypatch.setattr(warnings, "filters", warnings.filters.copy())
     monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", None)
     configure_pillow_limits()

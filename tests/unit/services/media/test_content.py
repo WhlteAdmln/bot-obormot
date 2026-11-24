@@ -13,7 +13,6 @@ from tests.support.media import make_message
 
 
 def test_get_user_content_describes_animation_contact_sheet() -> None:
-    """Get user content describes animation contact sheet."""
     message = make_message(caption=None, sticker=None, text="ignored")
     content = media.get_user_content(
         message,
@@ -25,14 +24,14 @@ def test_get_user_content_describes_animation_contact_sheet() -> None:
     assert len(content) == expected_count
     expected_url = "data:image/jpeg;base64,combined"
     assert content[1]["image_url"]["url"] == expected_url
-    expected_fragment = "одно нумерованное изображение-монтаж"
-    assert expected_fragment in content[0]["text"]
-    expected_fragment = "сверху вниз"
-    assert expected_fragment in content[0]["text"]
+    contact_sheet_hint = "одно нумерованное изображение-монтаж"
+    assert contact_sheet_hint in content[0]["text"]
+    reading_order_hint = "сверху вниз"
+    assert reading_order_hint in content[0]["text"]
 
 
 @pytest.mark.parametrize(
-    ("image_urls", "media_type", "expected_fragment"),
+    ("image_urls", "media_type", "expected_hint"),
     [
         (
             ["data:image/jpeg;base64,AA=="],
@@ -58,9 +57,8 @@ def test_get_user_content_formats_media_prompts(
     monkeypatch: pytest.MonkeyPatch,
     image_urls: list[str],
     media_type: str,
-    expected_fragment: str | None,
+    expected_hint: str | None,
 ) -> None:
-    """Add animation guidance only for animations or multiple frames."""
     monkeypatch.setattr(
         media_content,
         "get_media_prompt",
@@ -76,8 +74,8 @@ def test_get_user_content_formats_media_prompts(
     assert isinstance(result, list)
     assert result[0]["text"].startswith("Prompt")
     assert [part["image_url"]["url"] for part in result[1:]] == image_urls
-    if expected_fragment is not None:
-        assert expected_fragment in result[0]["text"]
+    if expected_hint is not None:
+        assert expected_hint in result[0]["text"]
     else:
         expected_text = "Prompt"
         assert result[0]["text"] == expected_text
@@ -87,7 +85,6 @@ def test_get_user_content_formats_media_prompts(
 def test_get_user_content_returns_plain_text_without_images(
     image_urls: list[str] | None,
 ) -> None:
-    """Return the original message text when there are no images."""
     message = SimpleNamespace(text="plain text")
 
     expected_get_user_content = "plain text"

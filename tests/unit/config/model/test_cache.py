@@ -20,7 +20,6 @@ def fixture_fresh_settings_cache() -> Iterator[None]:
 
 @pytest.mark.usefixtures("fresh_settings_cache")
 def test_get_settings_is_cached_until_reset(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Get settings returns a cached instance until reset."""
     monkeypatch.setenv("SUPERVISOR_ID", "123")
     first = get_settings()
     monkeypatch.setenv("SUPERVISOR_ID", "456")

@@ -22,7 +22,6 @@ from tests.support.llm_context_tokenizer import (
 async def test_count_tokens_applies_template_then_tokenizes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Count tokens applies template then tokenizes."""
     fake_session = FakeSession(
         [
             FakeResponse({"prompt": "rendered prompt"}),
@@ -72,7 +71,6 @@ async def test_count_tokens_applies_template_then_tokenizes(
 async def test_count_tokens_rejects_invalid_normalized_content(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Count tokens rejects invalid normalized content."""
     fake_session = FakeSession([])
     client = make_client(monkeypatch, fake_session)
     monkeypatch.setattr(
@@ -92,7 +90,6 @@ async def test_count_tokens_rejects_invalid_normalized_content(
 async def test_count_text_tokens_sends_expected_payload(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Count text tokens sends expected payload."""
     fake_session = FakeSession([FakeResponse({"tokens": [1, 2, 3]})])
     client = make_client(monkeypatch, fake_session)
 
@@ -119,7 +116,6 @@ async def test_count_text_tokens_sends_expected_payload(
 async def test_count_text_tokens_empty_text_skips_http(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Count text tokens empty text skips http."""
     client = LLMClient(settings=with_token_counting(Settings(), "llamacpp"))
 
     async def unexpected_session() -> None:
@@ -135,7 +131,6 @@ async def test_count_text_tokens_empty_text_skips_http(
 async def test_count_text_tokens_rejects_invalid_token_list(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Count text tokens rejects invalid token list."""
     fake_session = FakeSession([FakeResponse({"tokens": "not-a-list"})])
     client = make_client(monkeypatch, fake_session)
 
@@ -147,7 +142,6 @@ async def test_count_text_tokens_rejects_invalid_token_list(
 async def test_count_text_tokens_logs_sanitized_error_detail(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Count text tokens logs sanitized error detail."""
     private_detail = "user prompt\nsecond line"
     fake_session = FakeSession([FakeResponse({}, status=503, body=private_detail)])
     client = make_client(monkeypatch, fake_session)
@@ -159,7 +153,7 @@ async def test_count_text_tokens_logs_sanitized_error_detail(
         await client.count_text_tokens("private request")
 
     assert error.value.detail == private_detail
-    expected_fragment = r"user prompt\nsecond line"
-    assert expected_fragment in caplog.text
-    expected_fragment = "user prompt\nsecond line"
-    assert expected_fragment not in caplog.text
+    escaped_prompt = r"user prompt\nsecond line"
+    assert escaped_prompt in caplog.text
+    raw_prompt = "user prompt\nsecond line"
+    assert raw_prompt not in caplog.text

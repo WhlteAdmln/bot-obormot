@@ -93,7 +93,6 @@ def make_openai_only_app() -> tuple[object, ...]:
 async def test_openai_compatible_server_works_without_llama_endpoints(
     openai_settings: Settings,
 ) -> None:
-    """Openai compatible server works without llama endpoints."""
     app, requests = make_openai_only_app()
     async with running_server(app) as base_url:
         settings = replace(openai_settings, LLM_BASE_URL=f"{base_url}/v1")
@@ -125,19 +124,17 @@ async def test_openai_compatible_server_works_without_llama_endpoints(
             assert response == expected_response
             assert await client.health_check() == (True, "Доступен")
 
-    # The only generation endpoint used is the standard OpenAI-compatible one.
     assert ("POST", "/v1/chat/completions") in requests
     assert ("GET", "/v1/models") in requests
-    assert ("POST", "/tokenize") in requests  # one best-effort capability probe
+    assert ("POST", "/tokenize") in requests
     assert ("POST", "/apply-template") not in requests
-    assert ("GET", "/props") not in requests  # explicit LLM_CONTEXT_SIZE wins
+    assert ("GET", "/props") not in requests
 
 
 @pytest.mark.asyncio
 async def test_auto_mode_keeps_llamacpp_tokenization_when_available(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Auto mode keeps llamacpp tokenization when available."""
     requests = []
     app = web.Application()
 
@@ -199,7 +196,6 @@ async def test_auto_mode_keeps_llamacpp_tokenization_when_available(
 async def test_health_check_does_not_return_raw_unexpected_server_payload(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Health check does not return raw unexpected server payload."""
     payload = {"status": "error", "details": "private prompt content"}
     fake_session = FakeSession([FakeResponse(payload), FakeResponse({"data": []})])
     client = make_client(monkeypatch, fake_session)
@@ -207,12 +203,11 @@ async def test_health_check_does_not_return_raw_unexpected_server_payload(
     result = await client.health_check()
 
     assert result == (True, "Доступен")
-    expected_fragment = "private prompt content"
-    assert expected_fragment not in result[1]
+    prompt_text = "private prompt content"
+    assert prompt_text not in result[1]
 
 
 def test_llm_client_exposes_public_methods() -> None:
-    """LLM client exposes its public methods."""
     client = LLMClient()
     assert callable(client.count_tokens)
     assert callable(client.fit_messages_to_context)
@@ -222,7 +217,6 @@ def test_llm_client_exposes_public_methods() -> None:
 def test_client_resolves_process_settings_lazily(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Resolve process settings only when the client first needs them."""
     settings = replace(Settings(), LLM_BASE_URL="http://localhost:8080/v1")
     calls = 0
 
@@ -241,7 +235,6 @@ def test_client_resolves_process_settings_lazily(
 
 
 def test_client_exposes_message_normalization_and_counting_helpers() -> None:
-    """Expose message helpers through the public client methods."""
     client = LLMClient()
     source = [
         {
@@ -259,7 +252,6 @@ def test_client_exposes_message_normalization_and_counting_helpers() -> None:
 
 @pytest.mark.asyncio
 async def test_close_without_open_session_is_safe() -> None:
-    """Close a client that has never opened an HTTP session."""
     client = LLMClient()
 
     await client.close()

@@ -9,7 +9,6 @@ from bot_obormot.services.chat.formatting import (
 
 
 def test_sanitize_html_keeps_supported_tags_and_escapes_the_rest() -> None:
-    """Keep whitelisted tags and attributes; escape everything else."""
     text = (
         '<b>x</b> a<br>b & <a href="javascript:x">l</a> '
         '<a href="https://e.com?a=1&b=2">ok</a> '

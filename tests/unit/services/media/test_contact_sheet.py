@@ -13,7 +13,6 @@ from bot_obormot.services.media.contact_sheet import build_contact_sheet
 
 
 def test_build_contact_sheet_combines_frames_into_one_jpeg() -> None:
-    """Build contact sheet combines frames into one jpeg."""
     frames = []
     for color in ((255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)):
         output = io.BytesIO()
@@ -29,13 +28,11 @@ def test_build_contact_sheet_combines_frames_into_one_jpeg() -> None:
 
 
 def test_build_contact_sheet_returns_single_frame_unchanged() -> None:
-    """Build contact sheet returns single frame unchanged."""
     frame = b"one-frame"
     assert build_contact_sheet([frame]) == frame
 
 
 def test_build_contact_sheet_rejects_empty_or_excessive_frames() -> None:
-    """Build contact sheet rejects empty or excessive frames."""
     with pytest.raises(ValueError, match="without frames"):
         build_contact_sheet([])
     with pytest.raises(ValueError, match="at most"):

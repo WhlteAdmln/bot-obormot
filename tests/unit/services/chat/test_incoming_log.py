@@ -12,7 +12,6 @@ from bot_obormot.services.chat import incoming_log
 
 
 def test_incoming_log_records_message_types(caplog: pytest.LogCaptureFixture) -> None:
-    """Incoming log records message types."""
     document = SimpleNamespace(file_name="doc.pdf", mime_type="application/pdf")
     animation = SimpleNamespace(mime_type="image/gif", file_id="gif-id")
     message = SimpleNamespace(
@@ -27,18 +26,17 @@ def test_incoming_log_records_message_types(caplog: pytest.LogCaptureFixture) ->
     with caplog.at_level(logging.INFO, logger=incoming_log.logger.name):
         incoming_log.log_incoming_message(message)
 
-    expected_fragment = "INCOMING MESSAGE: type=document"
-    assert expected_fragment in caplog.text
-    expected_fragment = "DOCUMENT INFO: filename=doc.pdf"
-    assert expected_fragment in caplog.text
-    expected_fragment = "ANIMATION INFO: mime_type=image/gif"
-    assert expected_fragment in caplog.text
+    message_type_line = "INCOMING MESSAGE: type=document"
+    assert message_type_line in caplog.text
+    document_line = "DOCUMENT INFO: filename=doc.pdf"
+    assert document_line in caplog.text
+    animation_line = "ANIMATION INFO: mime_type=image/gif"
+    assert animation_line in caplog.text
 
 
 def test_incoming_log_sanitizes_user_supplied_document_metadata(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Incoming log sanitizes user supplied document metadata."""
     document = SimpleNamespace(
         file_name="report.pdf\nERROR forged entry",
         mime_type="application/pdf\rINFO forged entry",
@@ -55,11 +53,11 @@ def test_incoming_log_sanitizes_user_supplied_document_metadata(
     with caplog.at_level(logging.INFO, logger=incoming_log.logger.name):
         incoming_log.log_incoming_message(message)
 
-    expected_fragment = r"filename=report.pdf\nERROR forged entry"
-    assert expected_fragment in caplog.text
-    expected_fragment = r"mime_type=application/pdf\rINFO forged entry"
-    assert expected_fragment in caplog.text
-    expected_fragment = "\nERROR forged entry"
-    assert expected_fragment not in caplog.text
-    expected_fragment = "\rINFO forged entry"
-    assert expected_fragment not in caplog.text
+    escaped_filename = r"filename=report.pdf\nERROR forged entry"
+    assert escaped_filename in caplog.text
+    escaped_mime_type = r"mime_type=application/pdf\rINFO forged entry"
+    assert escaped_mime_type in caplog.text
+    forged_error_line = "\nERROR forged entry"
+    assert forged_error_line not in caplog.text
+    forged_info_line = "\rINFO forged entry"
+    assert forged_info_line not in caplog.text

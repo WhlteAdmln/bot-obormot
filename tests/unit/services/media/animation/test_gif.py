@@ -23,7 +23,6 @@ def tiny_gif(width: int, height: int) -> bytes:
 
 
 def test_extract_gif_returns_at_most_six_jpeg_frames() -> None:
-    """Extract gif returns at most six jpeg frames."""
     frames = [Image.new("RGB", (16, 12), (index * 20, 80, 160)) for index in range(9)]
     source = io.BytesIO()
     frames[0].save(
@@ -48,7 +47,6 @@ def test_extract_gif_returns_at_most_six_jpeg_frames() -> None:
 
 
 def test_huge_gif_canvas_is_rejected_before_frame_decode() -> None:
-    """Huge gif canvas is rejected before frame decode."""
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", Image.DecompressionBombWarning)
         with pytest.raises(MediaError, match="слишком большое"):
@@ -56,7 +54,6 @@ def test_huge_gif_canvas_is_rejected_before_frame_decode() -> None:
 
 
 def test_gif_frame_count_limit_is_enforced(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Gif frame count limit is enforced."""
     frames = [Image.new("RGB", (2, 2), (index, 20, 30)) for index in range(3)]
     source = io.BytesIO()
     frames[0].save(

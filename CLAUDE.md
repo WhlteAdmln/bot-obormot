@@ -28,7 +28,7 @@ One issue is one session. Do not start a second issue in the same session unless
 ## Completing an issue
 
 1. Run `make check` (or `make -k check` to see every failure) and `scripts/check_vendored.py --other <path>` in every repository you changed. Every gate must be green. Say which gate could not run on this machine and why; never claim a gate passed without running it. After the final `make check`, run `make clean` in every repository where it ran, so no build, coverage or cache artifacts stay in the working tree.
-2. Add entries under `[Unreleased]` in `CHANGELOG.md`, in the section order Added, Changed, Deprecated, Fixed, Removed, Security (`scripts/check_changelog.py` enforces it).
+2. Add entries under `[Unreleased]` in `CHANGELOG.md`, in the section order Added, Changed, Deprecated, Fixed, Removed, Security (`scripts/check_changelog.py` enforces it). Each entry is one short sentence that starts with a link to the issue (`[#<number>](<issue URL>)`); the details stay in the issue.
 3. Tell the user in plain words that the issue is finished: `#<number> done`, in the user's language, followed by a short summary: what changed, test count and coverage before and after, gates run, assumptions, anything not verified, and which suppressions the issue touched.
 4. Suggest the next issue by the rule of the session start (number and title) and say that it needs a new session. Do not start it.
 

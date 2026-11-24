@@ -16,7 +16,7 @@
 
 | Command | What it does |
 | --- | --- |
-| `make check` | Lint, types, dependency, dead-code and import gates, tests, documentation checks. |
+| `make check` | Every CI gate that needs only Python and network access (see [Checks and CI](#checks-and-ci)). |
 | `make integration` | Integration tests (tests marked `integration`). |
 | `make installer` | Real-shell installer tests. |
 | `make docs-check` | Links, settings, commands, README section parity and changelog section order. |
@@ -28,6 +28,12 @@ Shared files: `.editorconfig`, `.pre-commit-config.yaml`, `.github/renovate.json
 `pyproject.toml`, `bot_obormot/log_filters.py` and `bot_obormot/env_readers.py` are copies
 of the audiodoc files. audiodoc is the source of truth: change it there first, copy the
 file here, then run `python scripts/check_vendored.py --other ../audiodoc`.
+
+## Checks and CI
+
+`make check` runs every CI gate that needs only Python and network access: lint and documentation checks, mypy, pylint, deptry, vulture, import contracts, `pip check`, unit tests with coverage that fail when a test is skipped (`make test-no-skips`), `pip-audit` of the lock (`make audit`) and a release build with verified checksums (`make release-check`). The test dependencies are the `test` extra of `pyproject.toml`; the `dev` extra includes it, and the CI job with the latest allowed dependencies installs it.
+
+Only CI runs the jobs that need system tools or services: integration tests that need an LLM server (`make integration`), the Docker image (`make docker`), the installer smoke test against a locally served release, and the package metadata check that installs the wheel into a clean virtual environment.
 
 ## Documentation checks
 

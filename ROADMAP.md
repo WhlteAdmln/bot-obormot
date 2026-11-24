@@ -66,11 +66,11 @@ Goal: remove deprecated functionality, make the code base uniform with audiodoc 
   - ~~Pointer to AD-03. Done in the audiodoc session; do not start from here.~~
 - Done when: AD-03 is done.
 
-#### BO-07 [shared] `make check` runs every CI gate; one extra for test dependencies
+#### ~~BO-07 [shared] `make check` runs every CI gate; one extra for test dependencies~~
 
 - Needs: none.
 - Scope:
-  - Pointer to AD-04. Done in the audiodoc session; do not start from here.
+  - ~~Pointer to AD-04. Done in the audiodoc session; do not start from here.~~
 - Done when: AD-04 is done.
 
 #### BO-08 Replace mocks with fakes

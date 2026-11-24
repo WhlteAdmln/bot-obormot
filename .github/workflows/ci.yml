@@ -89,11 +89,7 @@ jobs:
         run: python -m pip install -r requirements-dev.txt
       - name: Install latest allowed dependencies
         if: matrix.deps == 'latest'
-        run: |
-          python -m pip install -r requirements.txt \
-            pytest pytest-asyncio pytest-cov \
-            pytest-randomly pytest-timeout packaging defusedxml \
-            hypothesis jsonschema build setuptools==84.2.1 wheel==0.48.0
+        run: python -m pip install -e ".[test]"
       - name: Check installed dependencies
         run: python -m pip check
       - name: Run unit tests with coverage (skips are failures)

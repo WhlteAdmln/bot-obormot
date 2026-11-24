@@ -7,6 +7,8 @@ import re
 import tomllib
 from pathlib import Path
 
+import pytest
+
 from scripts.check_vendored import (
     HEADERLESS_VENDORED_FILES,
     PACKAGE_VENDORED_FILES,
@@ -55,11 +57,9 @@ def test_ci_jobs_call_make_targets() -> None:
         assert target in text, target
 
 
-def test_makefile_defines_every_target_used_by_ci() -> None:
-    """The Makefile declares all the targets CI calls."""
-    makefile = (ROOT_DIR / "Makefile").read_text(encoding="utf-8")
-
-    for target in (
+@pytest.mark.parametrize(
+    "target",
+    [
         "lint",
         "types",
         "pylint",
@@ -73,13 +73,37 @@ def test_makefile_defines_every_target_used_by_ci() -> None:
         "installer",
         "docker",
         "docs-check",
+        "pip-check",
+        "test-no-skips",
+        "release-check",
         "check",
-    ):
-        assert re.search(rf"(?m)^{re.escape(target)}:", makefile), target
-    expected_fragment = (
-        "check: lint types pylint deptry vulture import-lint test docs-check"
-    )
-    assert expected_fragment in makefile
+    ],
+)
+def test_makefile_defines_target_used_by_ci(target: str) -> None:
+    makefile = (ROOT_DIR / "Makefile").read_text(encoding="utf-8")
+    found = re.search(rf"(?m)^{re.escape(target)}:", makefile) is not None
+    assert found, f"the Makefile must define the {target} target"
+
+
+def test_check_target_runs_every_local_ci_gate() -> None:
+    makefile = (ROOT_DIR / "Makefile").read_text(encoding="utf-8")
+    joined = makefile.replace("\\\n", " ")
+    check_line = next(line for line in joined.splitlines() if line.startswith("check:"))
+    gates = check_line.removeprefix("check:").split()
+    expected_gates = [
+        "lint",
+        "types",
+        "pylint",
+        "deptry",
+        "vulture",
+        "import-lint",
+        "pip-check",
+        "test-no-skips",
+        "audit",
+        "release-check",
+        "docs-check",
+    ]
+    assert gates == expected_gates, "make check must run every local CI gate"
 
 
 def test_installer_smoke_test_installs_locked_runtime_dependencies() -> None:

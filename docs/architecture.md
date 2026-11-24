@@ -29,7 +29,7 @@ flowchart LR
 - `bot_obormot/app/bootstrap.py` applies `umask(0o077)`, configures logging and secret filtering, enables Pillow limits, logs the access mode, validates `BOT_TOKEN`, creates the Bot/Dispatcher, and configures routers.
 - `bot_obormot/app/lifecycle.py` connects SQLite, starts the LLM client, starts the named periodic image-cleanup task, and starts Telegram polling. On shutdown it cancels and awaits cleanup, then closes the LLM client, database connection, and Telegram session.
 - `bot_obormot/app/background/image_cleanup.py` invokes image cleanup once per day with a 30-day media-retention period and a 24-hour grace period for orphaned images.
-- `bot_obormot/env_readers.py` (shared with audiodoc) holds the environment readers and `load_env_file()`, which loads `<home>/.env` and then `./.env`. The home directory is `BOT_OBORMOT_HOME` (default `~/bot-obormot`); relative paths such as `DATABASE_PATH` resolve against it. `bot_obormot/config/model.py` builds `Settings` with `load_settings()`; nothing reads the environment at import time.
+- `bot_obormot/env_readers.py` (shared with audiodoc) holds the environment readers and `load_env_file()`, which loads `<home>/.env` and then `./.env`. The home directory is `BOT_OBORMOT_HOME` (default `~/bot-obormot`); relative paths such as `DATABASE_PATH` resolve against it. `bot_obormot/config/model/` builds `Settings` with `load_settings()`: `schema.py` holds the `Settings` dataclass, `readers.py` the typed readers that collect errors, `loader.py` the validation and `ConfigError`, and `cache.py` the process-wide `get_settings()` cache; nothing reads the environment at import time.
 
 ## 3. Telegram layer, access, and administration
 
@@ -46,7 +46,7 @@ The default access mode is closed: with an empty `ALLOWED_USERS` and `ALLOW_ALL_
 ### Handler packages
 
 - `bot_obormot/handlers/start/` — `/start`, per-chat command menu, and help text.
-- `bot_obormot/handlers/admin/` — `/health`, `/admin`, `/admins`, `/admin_add`, `/admin_remove`, `/ban`, `/unban`.
+- `bot_obormot/handlers/admin/` — `/health`, `/admin`, `/admins`, `/admin_add`, `/admin_remove`, `/ban`, `/unban`. The `handler/` package registers them on one router; `access.py` holds the permission checks, `health.py` the health check, `admins.py` the administrator management and `bans.py` the bans.
 - `bot_obormot/handlers/history/` — `/history`, `/history_limit`, `/history_clear`, `/forget_me`.
 - `bot_obormot/handlers/prompt/` — `/prompt`, `/prompt_set`, `/prompt_reset`, `/cancel`, and prompt FSM handling.
 - `bot_obormot/handlers/chat/` — incoming-message coordination and Telegram response delivery.
@@ -138,7 +138,7 @@ The daily image cleanup removes media references/images older than 30 days and u
 - `bot_obormot/app/logging_setup.py` configures root logging and attaches `SecretsFilter` to root handlers. Telegram token patterns and configured LLM and audiodoc secrets are redacted from log messages and exception text.
 - `bot_obormot/common/text.py::log_safe()` escapes CR/LF, replaces non-printable characters, and truncates user-controlled log fields. Audio transcription content is not logged; only the character count is recorded. Service error details are sanitized before logging.
 - `bot_obormot/services/audit.py` writes administrator audit records under the `bot_obormot.audit` logger.
-- `bot_obormot/config/model.py` builds `Settings` from the environment (imported as `bot_obormot.settings`); `bot_obormot/app/bootstrap.py` validates the Telegram token format before creating the Bot.
+- `bot_obormot/config/model/` builds `Settings` from the environment (imported as `bot_obormot.settings`); `bot_obormot/app/bootstrap.py` validates the Telegram token format before creating the Bot.
 - Startup `umask(0o077)` protects newly created files/directories on Unix-like systems. It does not retroactively change permissions of existing database, image, or `.env` files.
 
 The application still depends on host-level protection, correct `.env` permissions, network isolation for local services, and periodic dependency review with `pip-audit`. Automated tests and log filtering do not replace deployment review or manual Telegram checks.

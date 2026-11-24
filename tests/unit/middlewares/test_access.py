@@ -16,7 +16,7 @@ from aiogram.methods import (
     SetMyCommands,
 )
 
-from bot_obormot.handlers.admin import handler as admin_handler
+from bot_obormot.handlers.admin.handler import access as admin_access
 from bot_obormot.middlewares import access as access_module
 from bot_obormot.services.database import Database
 from bot_obormot.settings import Settings
@@ -534,13 +534,13 @@ async def _command_allowed(
 ) -> bool:
     gates = {
         "ordinary": lambda: True,
-        "supervisor": lambda: admin_handler.is_supervisor(
+        "supervisor": lambda: admin_access.is_supervisor(
             SimpleNamespace(from_user=SimpleNamespace(id=user_id)), settings
         ),
     }
     if command_class in gates:
         return gates[command_class]()
-    return await admin_handler.is_admin_or_supervisor(user_id, settings, database)
+    return await admin_access.is_admin_or_supervisor(user_id, settings, database)
 
 
 def _general_access(role: str, *, allow_all: bool, allowlist_nonempty: bool) -> bool:

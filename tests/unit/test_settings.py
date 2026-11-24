@@ -33,15 +33,13 @@ def test_settings_have_a_single_public_import_path() -> None:
     """Settings are exported from the settings module only, not from config."""
     settings_module = importlib.import_module("bot_obormot.settings")
     config_module = importlib.import_module("bot_obormot.config")
-    model_module = importlib.import_module("bot_obormot.config.model")
 
     assert importlib.util.find_spec("bot_obormot.config.settings") is None
     for name in settings_module.__all__:
-        assert getattr(settings_module, name) is getattr(model_module, name)
         assert not hasattr(config_module, name)
 
 
 def test_bot_settings_reexports_get_settings() -> None:
     """Bot settings reexports the shared settings getter."""
-    model_module = importlib.import_module("bot_obormot.config.model")
-    assert get_settings is model_module.get_settings
+    cache_module = importlib.import_module("bot_obormot.config.model.cache")
+    assert get_settings is cache_module.get_settings

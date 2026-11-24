@@ -51,12 +51,12 @@ Goal: remove deprecated functionality, make the code base uniform with audiodoc 
   - ~~Move the tests so that every module has one mirrored test file.~~
 - Done when: the import-linter contracts stay valid, `make check` is green.
 
-#### BO-05 Split `admin/handler.py` and `config/model.py`
+#### ~~BO-05 Split `admin/handler.py` and `config/model.py`~~
 
 - Needs: none.
 - Scope:
-  - Split `bot_obormot/handlers/admin/handler.py` (355 lines) and `bot_obormot/config/model.py` (334 lines) by responsibility.
-  - Move the tests so that every module has one mirrored test file.
+  - ~~Split `bot_obormot/handlers/admin/handler.py` (355 lines) and `bot_obormot/config/model.py` (334 lines) by responsibility.~~
+  - ~~Move the tests so that every module has one mirrored test file.~~
 - Done when: as BO-04. If a split is not clean, list the file in the answer and in `ROADMAP.md`.
 
 #### ~~BO-06 [shared] Split `scripts/check_docs.py` and document its differences~~
@@ -154,7 +154,7 @@ Goal: remove deprecated functionality, make the code base uniform with audiodoc 
 - One assert per test and a message on every assert in all tests, not only the security tests.
 - Unusual inputs instead of `"x"` and `"foo"` in all tests.
 - Remove the pylint `no-docstring-rgx` exemption for tests and the `D1` ignore for `tests/*`.
-- Review the remaining production suppressions: `too-many-instance-attributes` in `config/model.py`, `services/chat/streaming/responder.py` and `services/chat/input/models.py`; `protected-access` in `services/database/decorators.py`; `consider-ternary-expression` in `document_part.py` and `audio_part.py`.
+- Review the remaining production suppressions: `too-many-instance-attributes` in `config/model/schema.py`, `services/chat/streaming/responder.py` and `services/chat/input/models.py`; `protected-access` in `services/database/decorators.py`; `consider-ternary-expression` in `document_part.py` and `audio_part.py`.
 - `FakeLLMOptions` in `tests/support/fake_llm.py` without its `too-many-instance-attributes` suppression.
 
 ### 0.5.0: beta

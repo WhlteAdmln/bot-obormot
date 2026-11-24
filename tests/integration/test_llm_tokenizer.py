@@ -7,7 +7,7 @@ import os
 
 import pytest
 
-from bot_obormot.config.model import load_settings
+from bot_obormot.settings import load_settings
 from tests.support.fake_llm import open_llm_client
 
 

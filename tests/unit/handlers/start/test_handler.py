@@ -3,25 +3,20 @@
 
 """Tests for start handler."""
 
-from types import SimpleNamespace
-from unittest.mock import AsyncMock
-
 import pytest
 from aiogram import Bot, Dispatcher
 from aiogram.methods import (
     SetMyCommands,
 )
 
-from bot_obormot.handlers.start.handler import cmd_start
-from bot_obormot.services.database import Database
 from tests.support.dispatcher import (
     ADMIN_ID,
     SUPERVISOR_ID,
     USER_ID,
     AccessDatabase,
+    feed_command,
     sent_texts,
 )
-from tests.support.settings import make_settings
 from tests.support.telegram import (
     FakeTelegramSession,
     make_message,
@@ -134,64 +129,57 @@ async def test_start_falls_back_to_regular_menu_when_database_fails(
 
 
 @pytest.mark.asyncio
-async def test_start_help_and_command_menu_include_forget_me(
-    monkeypatch: pytest.MonkeyPatch,
-    test_db: Database,
+@pytest.mark.usefixtures("access_database")
+async def test_start_menu_offers_forget_me(
+    dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
-    """Start help and command menu include forget me."""
-    settings = make_settings(SUPERVISOR_ID=999999999)
-    monkeypatch.setattr(test_db, "get_admin_ids", AsyncMock(return_value=set()))
+    session = await feed_command(dispatcher_runtime, USER_ID + 3, "/start")
 
-    user_id = 123456789
-    response = SimpleNamespace(message_id=42)
-    answer = AsyncMock(return_value=response)
-    set_my_commands = AsyncMock()
-    message = SimpleNamespace(
-        from_user=SimpleNamespace(id=user_id),
-        chat=SimpleNamespace(id=user_id),
-        bot=SimpleNamespace(set_my_commands=set_my_commands),
-        answer=answer,
-    )
-    state = SimpleNamespace(update_data=AsyncMock())
-
-    await cmd_start(message, state, settings, test_db)
-
-    commands = set_my_commands.await_args.kwargs["commands"]
     expected_command = "forget_me"
-    assert any(command.command == expected_command for command in commands)
-    expected_fragment = "/forget_me — удалить все свои данные"
-    assert expected_fragment in answer.await_args.args[0]
+    assert expected_command in _sent_command_names(session), "forget_me is missing"
 
 
 @pytest.mark.asyncio
-async def test_start_adds_ban_commands_for_admins(
-    monkeypatch: pytest.MonkeyPatch,
-    test_db: Database,
+@pytest.mark.usefixtures("access_database")
+async def test_start_help_explains_forget_me(
+    dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
-    """Start adds ban commands for admins."""
-    settings = make_settings(SUPERVISOR_ID=999999999)
-    admin_id = 111111111
-    monkeypatch.setattr(test_db, "get_admin_ids", AsyncMock(return_value={admin_id}))
+    session = await feed_command(dispatcher_runtime, USER_ID + 4, "/start")
 
-    response = SimpleNamespace(message_id=42)
-    answer = AsyncMock(return_value=response)
-    set_my_commands = AsyncMock()
-    message = SimpleNamespace(
-        from_user=SimpleNamespace(id=admin_id),
-        chat=SimpleNamespace(id=admin_id),
-        bot=SimpleNamespace(set_my_commands=set_my_commands),
-        answer=answer,
-    )
-    state = SimpleNamespace(update_data=AsyncMock())
+    expected_line = "/forget_me — удалить все свои данные"
+    assert expected_line in sent_texts(session)[0], "help does not explain forget_me"
 
-    await cmd_start(message, state, settings, test_db)
 
-    commands = {
-        command.command for command in set_my_commands.await_args.kwargs["commands"]
-    }
-    assert {"ban", "unban"} <= commands
-    help_text = answer.await_args.args[0]
-    expected_fragment = "/ban ID — заблокировать пользователя"
-    assert expected_fragment in help_text
-    expected_fragment = "/unban ID — снять блокировку пользователя"
-    assert expected_fragment in help_text
+@pytest.mark.asyncio
+async def test_start_menu_offers_ban_commands_to_admins(
+    access_database: AccessDatabase,
+    dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
+) -> None:
+    admin_id = ADMIN_ID + 7
+    access_database.admin_ids = {admin_id}
+
+    session = await feed_command(dispatcher_runtime, admin_id, "/start")
+
+    expected_commands = {"ban", "unban"}
+    assert expected_commands <= _sent_command_names(session), "ban commands missing"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "expected_line",
+    [
+        "/ban ID — заблокировать пользователя",
+        "/unban ID — снять блокировку пользователя",
+    ],
+)
+async def test_start_help_explains_ban_commands_to_admins(
+    access_database: AccessDatabase,
+    dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
+    expected_line: str,
+) -> None:
+    admin_id = ADMIN_ID + 8
+    access_database.admin_ids = {admin_id}
+
+    session = await feed_command(dispatcher_runtime, admin_id, "/start")
+
+    assert expected_line in sent_texts(session)[0], "help misses a ban command"

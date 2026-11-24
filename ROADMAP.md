@@ -73,12 +73,12 @@ Goal: remove deprecated functionality, make the code base uniform with audiodoc 
   - ~~Pointer to AD-04. Done in the audiodoc session; do not start from here.~~
 - Done when: AD-04 is done.
 
-#### BO-08 Replace mocks with fakes
+#### ~~BO-08 Replace mocks with fakes~~
 
 - Needs: none.
 - Scope:
-  - Replace every `unittest.mock`, `MagicMock`, `AsyncMock` and `assert_called*` (46 uses) with fakes in `tests/support/`, one per external collaborator (Whisper client, LLM, aiohttp, Telegram, database, ffmpeg).
-  - Test count does not fall; coverage does not drop.
+  - ~~Replace every `unittest.mock`, `MagicMock`, `AsyncMock` and `assert_called*` (46 uses) with fakes in `tests/support/`, one per external collaborator (Whisper client, LLM, aiohttp, Telegram, database, ffmpeg).~~
+  - ~~Test count does not fall; coverage does not drop.~~
 - Done when: a scan finds no mock; `make check` is green.
 
 #### BO-09 General test rules in bot-obormot

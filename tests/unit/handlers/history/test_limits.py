@@ -5,7 +5,6 @@
 
 import logging
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
 
 import pytest
 from aiogram import Bot, Dispatcher
@@ -73,7 +72,7 @@ async def test_history_limit_for_another_user_is_audited(
 @pytest.mark.asyncio
 async def test_history_limit_command_ignores_messages_without_sender() -> None:
     """The history limit command returns quietly without a sender."""
-    message = SimpleNamespace(from_user=None, answer=AsyncMock())
+    message = FakeMessage(None, "/history_limit 5")
 
     await cmd_history_limit(
         message,
@@ -83,7 +82,8 @@ async def test_history_limit_command_ignores_messages_without_sender() -> None:
         SimpleNamespace(),
     )
 
-    message.answer.assert_not_awaited()
+    expected_empty: list[str] = []
+    assert message.answers == expected_empty, "answered a message without sender"
 
 
 @pytest.mark.asyncio

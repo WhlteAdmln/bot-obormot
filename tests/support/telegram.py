@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, cast
 
 from aiogram.client.session.base import BaseSession
+from aiogram.methods import DeleteMessage
 from aiogram.types import Chat, Message, Update, User
 from typing_extensions import override
 
@@ -99,6 +100,15 @@ def make_message(
         from_user=User(id=user_id, is_bot=False, first_name="Test"),
         text=text,
     )
+
+
+def deleted_messages(session: FakeTelegramSession) -> list[tuple[int | str, int]]:
+    """Return the chat and message IDs of every DeleteMessage request."""
+    return [
+        (request.chat_id, request.message_id)
+        for request in session.requests
+        if isinstance(request, DeleteMessage)
+    ]
 
 
 def make_update(

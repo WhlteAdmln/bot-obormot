@@ -16,6 +16,7 @@ from bot_obormot.config.token import is_valid_bot_token
 from bot_obormot.env_readers import load_env_file
 from bot_obormot.middlewares.correlation_id import CorrelationIdMiddleware
 from bot_obormot.services.chat.aggregation import MessageAggregator
+from bot_obormot.services.chat.locks import UserLocks
 from bot_obormot.services.database import Database
 from bot_obormot.services.llm.client import LLMClient
 from bot_obormot.services.media.animation.tgs import log_tgs_support
@@ -50,12 +51,13 @@ def create_dispatcher(
     llm_client: LLMClient,
     message_aggregator: MessageAggregator,
     database: Database,
+    user_locks: UserLocks,
 ) -> Dispatcher:
     """Create a Dispatcher and attach middleware and routers."""
     dispatcher = Dispatcher()
     dispatcher.update.outer_middleware(CorrelationIdMiddleware())
     return configure_dispatcher(
-        dispatcher, settings, llm_client, message_aggregator, database
+        dispatcher, settings, llm_client, message_aggregator, database, user_locks
     )
 
 
@@ -75,5 +77,8 @@ async def main(env_file: Path | None = None) -> None:
     llm_client = LLMClient(settings)
     message_aggregator = MessageAggregator()
     database = Database(settings)
-    dispatcher = create_dispatcher(settings, llm_client, message_aggregator, database)
+    user_locks = UserLocks()
+    dispatcher = create_dispatcher(
+        settings, llm_client, message_aggregator, database, user_locks
+    )
     await run_application(bot, dispatcher, llm_client, database)

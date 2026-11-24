@@ -9,8 +9,6 @@ without requiring a running Telegram/LLM service.
 """
 
 import asyncio
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 from types import SimpleNamespace
 
 import pytest
@@ -18,7 +16,11 @@ import pytest
 from bot_obormot.handlers.chat import handler as handler_module
 from bot_obormot.services.chat.aggregation import AggregatedText
 from bot_obormot.settings import Settings
-from tests.support.chat_handler import RecordingAggregator, RecordingTokenCounter
+from tests.support.chat_handler import (
+    RecordingAggregator,
+    RecordingTokenCounter,
+    RecordingUserLocks,
+)
 from tests.support.chat_streaming import single_answer
 from tests.support.settings import make_settings
 
@@ -27,11 +29,13 @@ SETTINGS = make_settings()
 
 def _create_chat_handler_state() -> SimpleNamespace:
     calls: list[object] = []
+    user_locks = RecordingUserLocks(calls)
     return SimpleNamespace(
         calls=calls,
         typing_started=asyncio.Event(),
         typing_stopped=asyncio.Event(),
-        lock_entered=asyncio.Event(),
+        lock_entered=user_locks.entered,
+        user_locks=user_locks,
         safe_edits=[],
         error_calls=[],
         pipeline=SimpleNamespace(),
@@ -76,24 +80,6 @@ def _patch_input_stubs(
     monkeypatch.setattr(handler_module, "log_incoming_message", log_incoming)
     monkeypatch.setattr(handler_module, "inspect_message", inspect)
     monkeypatch.setattr(handler_module, "prepare_message", prepare)
-
-
-def _patch_lock_stub(
-    monkeypatch: pytest.MonkeyPatch,
-    calls: list[object],
-    lock_entered: asyncio.Event,
-) -> None:
-    @asynccontextmanager
-    async def user_lock(_user_id: int) -> AsyncIterator[None]:
-        calls.append("lock-enter")
-        lock_entered.set()
-        try:
-            yield
-        finally:
-            calls.append("lock-exit")
-
-    monkeypatch.setattr(handler_module, "get_user_lock", user_lock)
-    monkeypatch.setattr(handler_module, "pending_requests", lambda _user_id: 0)
 
 
 def _patch_typing_stub(
@@ -148,7 +134,6 @@ def fixture_state(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
     """Replace the chat handler dependencies and expose the recorded state."""
     result = _create_chat_handler_state()
     _patch_input_stubs(monkeypatch, result.calls)
-    _patch_lock_stub(monkeypatch, result.calls, result.lock_entered)
     _patch_typing_stub(monkeypatch, result.typing_started, result.typing_stopped)
     _patch_processing_stubs(monkeypatch, result)
     _patch_reporting_stubs(monkeypatch, result)
@@ -198,6 +183,7 @@ async def test_handler_preserves_order_for_short_non_streamed_response(
         llm_client=state.llm_client,
         message_aggregator=state.aggregator,
         database=state.database,
+        user_locks=state.user_locks,
         settings=SETTINGS,
     )
 
@@ -238,6 +224,7 @@ async def test_handler_streams_long_response_and_finalizes_status(
         llm_client=state.llm_client,
         message_aggregator=state.aggregator,
         database=state.database,
+        user_locks=state.user_locks,
         settings=SETTINGS,
     )
 
@@ -269,6 +256,7 @@ async def test_handler_cancellation_updates_status_and_cleans_typing_task(
             llm_client=state.llm_client,
             message_aggregator=state.aggregator,
             database=state.database,
+            user_locks=state.user_locks,
             settings=SETTINGS,
         )
 
@@ -293,6 +281,7 @@ async def test_handler_returns_early_for_aggregated_continuation(
         llm_client=state.llm_client,
         message_aggregator=state.aggregator,
         database=state.database,
+        user_locks=state.user_locks,
         settings=SETTINGS,
     )
 
@@ -305,17 +294,17 @@ async def test_handler_returns_early_for_aggregated_continuation(
 @pytest.mark.asyncio
 async def test_handler_rejects_user_when_pending_request_limit_is_reached(
     state: SimpleNamespace,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Handler rejects user when pending request limit is reached."""
     message = Message()
-    monkeypatch.setattr(handler_module, "pending_requests", lambda _user_id: 3)
+    state.user_locks.pending_count = 3
 
     await handler_module.handle_message(
         message,
         llm_client=state.llm_client,
         message_aggregator=state.aggregator,
         database=state.database,
+        user_locks=state.user_locks,
         settings=SETTINGS,
     )
 
@@ -345,6 +334,7 @@ async def test_handler_routes_processing_error_to_central_error_handler(
         llm_client=state.llm_client,
         message_aggregator=state.aggregator,
         database=state.database,
+        user_locks=state.user_locks,
         settings=SETTINGS,
     )
 
@@ -388,6 +378,7 @@ async def test_handler_preserves_final_answer_after_stream_edit_failure(
         llm_client=state.llm_client,
         message_aggregator=state.aggregator,
         database=state.database,
+        user_locks=state.user_locks,
         settings=SETTINGS,
     )
 
@@ -418,6 +409,7 @@ async def test_handler_routes_llm_connection_loss_with_existing_status(
         llm_client=state.llm_client,
         message_aggregator=state.aggregator,
         database=state.database,
+        user_locks=state.user_locks,
         settings=SETTINGS,
     )
 
@@ -446,6 +438,7 @@ async def test_handler_replies_to_the_incoming_message(
         llm_client=state.llm_client,
         message_aggregator=state.aggregator,
         database=state.database,
+        user_locks=state.user_locks,
         settings=SETTINGS,
     )
 
@@ -478,6 +471,7 @@ async def test_handler_replies_to_the_last_aggregated_message(
         llm_client=state.llm_client,
         message_aggregator=state.aggregator,
         database=state.database,
+        user_locks=state.user_locks,
         settings=SETTINGS,
     )
 

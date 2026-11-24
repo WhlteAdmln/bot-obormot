@@ -2,40 +2,41 @@
 
 @AGENTS.md
 
-This file is shared byte for byte by the sibling repositories listed in `scripts/check_vendored.py`. It holds the development standards and says where the work comes from. It names no project: project facts live in `README.md`, `CONTRIBUTING.md`, `pyproject.toml` and `ROADMAP.md`.
+This file is shared byte for byte by the sibling repositories listed in `scripts/check_vendored.py`. It holds the development standards and says where the work comes from. It names no project: project facts live in `README.md`, `CONTRIBUTING.md` and `pyproject.toml`, and the planned work lives in the GitHub issues of each repository.
 
 ## Language
 
-Answer in the language of the user's messages. Code, comments, documentation, `CHANGELOG.md` and `ROADMAP.md` are in English; a document with a `.ru.md` twin is updated in both languages.
+Answer in the language of the user's messages. Code, comments, documentation, `CHANGELOG.md` and GitHub issues are in English; a document with a `.ru.md` twin is updated in both languages.
 
 ## Session start
 
-1. Read `ROADMAP.md`. It is the only source of truth for what is done and what is next. Do not rely on memory or on earlier conversations.
-2. Run `git status` and `git log --oneline -5` (read-only). If the working tree has uncommitted changes, tell the user and ask whether they belong to the previous task before touching anything.
-3. Find the next task: the first task, in document order, that is not struck through and whose `Needs:` tasks are all done. Tasks of the sibling repository count: read its `ROADMAP.md` (the path is in the shared-files section of `CONTRIBUTING.md`).
-4. Propose that task in two or three lines (ID, title, what will change) and wait for the user to confirm. If the user's first message names another task or asks for something else, follow that instead. If every remaining task is blocked by an open `Needs:` task, say which one and in which repository it has to run first.
-5. A `[shared]` pointer in the repository that is not the source of truth is never started from there. If it is the next task, tell the user which task to run and that the session has to open in the source-of-truth repository.
+1. List the open issues with `gh issue list --state open`. The open GitHub issues of the repository are the only source of truth for planned work. Do not rely on memory or on earlier conversations.
+2. Run `git status` and `git log --oneline -5` (read-only). If the working tree has uncommitted changes, tell the user and ask whether they belong to the previous issue before touching anything.
+3. Show the open issues to the user (number, label, title) and ask whether they pick one or leave the choice to the agent. If the user's first message names an issue or asks for something else, follow that instead.
+4. When the choice is left to the agent, take the label with the highest priority that has open issues, in the order `bug`, `refactor`, `enhancement`, `documentation`, read those issues and pick the one that is easiest to finish. Propose it in two or three lines (number, title, what will change) and wait for the user to confirm.
 
-One task is one session. Do not start a second task in the same session.
+One issue is one session. Do not start a second issue in the same session unless the user asks for it.
 
-## Working on a task
+## Working on an issue
 
-- A task is a heading `#### <ID> <title>` with `Needs:`, `Scope:` and `Done when:`. Do what `Scope:` says and nothing else (rule 12 of `AGENTS.md`). A related finding goes into `ROADMAP.md` as a new task or a backlog item, not into the diff.
-- A task marked `[shared]` changes files that exist in both repositories. It is driven from the source-of-truth repository named in `CONTRIBUTING.md`; the other repository holds a pointer task with the same title. Edit both working trees in one session, then run `scripts/check_vendored.py --other <path>` in both. If the sibling is not reachable, tell the user to restart Claude Code with `--add-dir <path>`.
-- Behavior does not change unless the task says so. If a fix would change behavior or a public API, stop and ask one short question, and continue with the rest meanwhile.
-- If the task turns out to be larger than one session, finish a clean part, split the remainder into new tasks in `ROADMAP.md` and say so.
+- An issue has a title prefix (`[Bug]:`, `[Feature]:`, `[Refactor]:` or `[Docs]:`) and exactly one label: `bug`, `refactor`, `enhancement` or `documentation`. Do what the issue describes (for a bug: the expected behavior; otherwise: the proposed solution) and nothing else (rule 12 of `AGENTS.md`). One issue gets one pull request in its repository.
+- A related finding does not go into the diff. Draft a new issue for it in the same form (title prefix, one label, the sections of the matching template in `.github/ISSUE_TEMPLATE/`), show the draft to the user and create it with `gh issue create` only after the user approves it.
+- An issue never refers to the sibling repository: no links to its issues or pull requests and no instructions to work there. A change to a shared file (see the shared-files section of `CONTRIBUTING.md`) has its own issue in each repository. It is done from the source-of-truth repository named in `CONTRIBUTING.md`: edit both working trees in one session, then run `scripts/check_vendored.py --other <path>` in both; each repository gets its own pull request that closes its own issue. If the sibling is not reachable, tell the user to restart Claude Code with `--add-dir <path>`.
+- Behavior does not change unless the issue says so. If a fix would change behavior or a public API, stop and ask one short question, and continue with the rest meanwhile.
+- If the issue turns out to be larger than one session, finish a clean part, draft new issues for the remainder as described above and say so.
 
-## Completing a task
+## Completing an issue
 
 1. Run `make check` (or `make -k check` to see every failure) and `scripts/check_vendored.py --other <path>` in every repository you changed. Every gate must be green. Say which gate could not run on this machine and why; never claim a gate passed without running it. After the final `make check`, run `make clean` in every repository where it ran, so no build, coverage or cache artifacts stay in the working tree.
 2. Add entries under `[Unreleased]` in `CHANGELOG.md`, in the section order Added, Changed, Deprecated, Fixed, Removed, Security (`scripts/check_changelog.py` enforces it).
-3. Update `ROADMAP.md`: strike through the heading of the finished task and each of its `Scope:` bullets (`~~text~~`), and strike its pointer in the sibling repository. Add newly found work.
-4. Tell the user in plain words that the task is finished: `<ID> done`, in the user's language, followed by a short summary: what changed, test count and coverage before and after, gates run, assumptions, anything not verified, and which suppressions the task touched.
-5. Name the next task (ID and title) and say that it needs a new session. Do not start it.
+3. Tell the user in plain words that the issue is finished: `#<number> done`, in the user's language, followed by a short summary: what changed, test count and coverage before and after, gates run, assumptions, anything not verified, and which suppressions the issue touched.
+4. Suggest the next issue by the rule of the session start (number and title) and say that it needs a new session. Do not start it.
+
+The issue is closed by its pull request: the pull request text contains `Closes #<number>`, so GitHub closes the issue when the pull request is merged. Do not close an issue by hand.
 
 ## Git and CI
 
-Git and CI belong to the user. Without a request in the current session, do not run any command that writes to the repository or to a remote. When the user asks in the session, create a branch from the current state, `git add`, `git commit`, `git push -u origin <branch>` and open a pull request with `gh pr create`; show the pull request text to the user and wait for approval before creating it. When the user asks in the session to merge a pull request, first check with `gh pr checks` and `gh pr view` that every check passed and the pull request is mergeable without conflicts; otherwise report what blocks it and do not merge. Merge with `gh pr merge <number> --merge`, then run `git switch main` and `git pull --ff-only`. Never force-push, rebase, reset, tag, delete a branch, push to `main`, merge without a request in the session or change a pull request the user did not ask about. Read-only commands (`git status`, `diff`, `log`, `show`) are fine. The user watches CI and merges in the web interface unless they ask the agent to merge. Do not rename files, CI workflows or CI jobs without the user's consent; a task whose `Scope:` asks for it counts as consent. Commit and pull request text is English; the pull request text follows `.github/pull_request_template.md` and carries no generated-by attribution line: never add `🤖 Generated with [Claude Code](https://claude.com/claude-code)` or a similar line. Commit and pull request text does not describe the local environment: no local or sibling paths (for example `--other ../<repo>`), user names, machine names or operating system details. Branch names, commit messages and pull request titles and text follow the style of the repository history: read the recent commits (`git log`) and merged pull requests (`gh pr list --state merged`) before writing, and do not add what that history does not use, such as task IDs in titles.
+Git and CI belong to the user. Without a request in the current session, do not run any command that writes to the repository or to a remote. Creating an issue follows the approval rule in "Working on an issue"; do not edit, label or close an issue the user did not ask about. When the user asks in the session, create a branch from the current state, `git add`, `git commit`, `git push -u origin <branch>` and open a pull request with `gh pr create`; show the pull request text to the user and wait for approval before creating it. When the user asks in the session to merge a pull request, first check with `gh pr checks` and `gh pr view` that every check passed and the pull request is mergeable without conflicts; otherwise report what blocks it and do not merge. Merge with `gh pr merge <number> --merge`, then run `git switch main` and `git pull --ff-only`. Never force-push, rebase, reset, tag, delete a branch, push to `main`, merge without a request in the session or change a pull request the user did not ask about. Read-only commands (`git status`, `diff`, `log`, `show`) are fine. The user watches CI and merges in the web interface unless they ask the agent to merge. Do not rename files, CI workflows or CI jobs without the user's consent; an issue that asks for it counts as consent. Commit, issue and pull request text is English; the pull request text follows `.github/pull_request_template.md`, including the `Closes #<number>` line, and carries no generated-by attribution line: never add `🤖 Generated with [Claude Code](https://claude.com/claude-code)` or a similar line. Commit, issue and pull request text does not describe the local environment: no local or sibling paths (for example `--other ../<repo>`), user names, machine names or operating system details. Branch names, commit messages and pull request titles and text follow the style of the repository history: read the recent commits (`git log`) and merged pull requests (`gh pr list --state merged`) before writing, and do not add what that history does not use, such as issue numbers in titles.
 
 ## Standards
 
@@ -51,12 +52,12 @@ Git and CI belong to the user. Without a request in the current session, do not 
 - No new suppression. If one is unavoidable, use the narrowest code and a one-line reason on the same line.
 - pylint: no blanket disables; only `# pylint: disable=<code>  # reason` or `# pylint: disable-next=<code>  # reason`. `I0021` (useless suppression) is fatal, and a duplicated pragma also raises it. A pragma counts towards the line length. `I0011` and `I0020` in the output are the normal report of allowed suppressions.
 - The `ruff`, `mypy` and `pylint` tables of `pyproject.toml`, including `per-file-ignores`, are shared, so a ruff exception for one repository is only possible as an inline `# noqa`.
-- Coverage never drops and `fail_under` is never lowered. A gate that was green does not turn red. The test count does not fall, except for tests of functionality that the task deletes; list them.
+- Coverage never drops and `fail_under` is never lowered. A gate that was green does not turn red. The test count does not fall, except for tests of functionality that the issue deletes; list them.
 - Replace `Any` only where a precise type is obvious.
 
 ### Tests
 
-New and changed tests follow these rules even where older tests do not yet; `ROADMAP.md` tracks the gap.
+New and changed tests follow these rules even where older tests do not yet; open issues track the gap.
 
 - One test file per production unit, at the mirrored path (`pkg/a/b.py` → `tests/unit/a/test_b.py`; a module with several classes gets one file per class). Tests that target no single module live in `tests/unit/project/` or `tests/unit/scripts/`. `scripts/check_test_layout.py` enforces this. Parametrize instead of expanding into files.
 - Test names are sentences that start with a verb (`test_builds_html_page`). No comments (except tool pragmas with a reason) and no docstrings in test functions.
@@ -73,7 +74,7 @@ New and changed tests follow these rules even where older tests do not yet; `ROA
 
 ### Documentation
 
-`README.md`, `CONTRIBUTING.md`, `docs/` and the changelog describe the behavior that exists. Update them in the same task as the code. `scripts/check_docs.py` checks links, settings, commands and section parity of the Russian twins. Every paragraph and list item is one line (markdownlint `MD013` is off).
+`README.md`, `CONTRIBUTING.md`, `docs/` and the changelog describe the behavior that exists. Update them in the same issue as the code. `scripts/check_docs.py` checks links, settings, commands and section parity of the Russian twins. Every paragraph and list item is one line (markdownlint `MD013` is off).
 
 ## Working economy
 

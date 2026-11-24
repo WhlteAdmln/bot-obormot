@@ -107,11 +107,11 @@ Goal: remove deprecated functionality, make the code base uniform with audiodoc 
   - ~~`tests/unit/services/access/test_service.py`, `tests/unit/handlers/admin/test_handler.py`, `tests/unit/services/database/repositories/test_admins.py`.~~
 - Done when: the script passes with these files on the list; coverage did not drop.
 
-#### BO-12 Security tests: limits, validation, audiodoc clients, Telegram input
+#### ~~BO-12 Security tests: limits, validation, audiodoc clients, Telegram input~~
 
 - Needs: BO-10.
 - Scope:
-  - Same standard as BO-11 for `tests/unit/common/` (`test_http_limits.py`, `test_validation.py`, `test_text.py`), `tests/unit/services/audio/` (`test_validation.py`, `test_client.py`), `tests/unit/services/documents/` (`test_client.py`, `test_response.py`), `tests/unit/services/telegram/test_downloader.py`, `tests/unit/services/chat/test_incoming_log.py`, `tests/unit/services/llm/test_messages.py` (prompt-injection markers).
+  - ~~Same standard as BO-11 for `tests/unit/common/` (`test_http_limits.py`, `test_validation.py`, `test_text.py`), `tests/unit/services/audio/` (`test_validation.py`, `test_client.py`), `tests/unit/services/documents/` (`test_client.py`, `test_response.py`), `tests/unit/services/telegram/test_downloader.py`, `tests/unit/services/chat/test_incoming_log.py`, `tests/unit/services/llm/test_messages.py` (prompt-injection markers).~~
 - Done when: as BO-11.
 
 #### BO-13 Security tests: media, log filters, installer
@@ -169,7 +169,10 @@ The scope is not defined yet.
 - FSM updates in the `start`, `prompt` and `fallback` handlers and in the temporary-messages middleware build a `dict[str, Any]` only to unpack it into `state.update_data(**data)`, whose `**kwargs` are `Any`; passing the mapping as the first argument would allow `dict[str, int]`, but the test fakes accept keyword arguments only.
 - Keyword arguments for `message.answer` in `services/chat/streaming/sending.py` and `responder.py` are `dict[str, Any]`; a `TypedDict` with `Unpack` or explicit arguments would type them.
 - `Any` stays where a library signature requires it: `MiddlewareData` and `NextHandler` in `middlewares/aliases.py` follow aiogram's `BaseMiddleware`, and `Coroutine[Any, Any, _R]` in `services/database/decorators.py` is the usual form for a coroutine function.
-- Some tests assert nothing and only check that a call does not raise (`tests/unit/common/test_validation.py`), and many tests still hold several asserts without a failure message (for example `tests/unit/test_doctor.py`, `tests/unit/services/database/facade/test_access.py`); split them into one assert per test with a message.
+- Many tests still hold several asserts without a failure message (for example `tests/unit/test_doctor.py`, `tests/unit/services/database/facade/test_access.py`); split them into one assert per test with a message.
+- The Telegram download semaphore `_download_slots` in `services/telegram/downloader.py` is created at import and binds to the first event loop in which a download has to wait; a download that waits in another event loop of the same process fails with `RuntimeError` (seen in the unit tests, which use one loop per test). This is implicit global state. Agreed solution: create the semaphore per running bot, for example in the dispatcher setup, and pass it to the downloader.
+- `validate_document_response` accepts a boolean (`True`) or a negative `characters` count, because `bool` is a subclass of `int`. The count only goes into a log line, but a nonsensical value means a broken or incompatible audiodoc response. Agreed solution: reject a boolean or negative count as an invalid character count (HTTP 502), the same way the `truncated` flag accepts only a boolean.
+- An audiodoc error body longer than `MAX_ERROR_BODY_BYTES` is dropped completely, so the error message ends after the status code with no detail. Agreed solution: keep minimal information about the event, that is the first `MAX_ERROR_BODY_BYTES` bytes of the body, marked as truncated, so the error still names what happened.
 - Build routers with a factory instead of module-level objects, so tests need no `detach_router` and no `protected-access` suppression (aiogram has no public way to detach a router).
 
 ## Released

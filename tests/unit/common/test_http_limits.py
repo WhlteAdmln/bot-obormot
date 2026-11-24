@@ -11,23 +11,48 @@ from bot_obormot.common.http_limits import read_limited_body
 from tests.support.audio_documents import FakeContent
 
 
+def _response(body: bytes, declared: int | None = None) -> SimpleNamespace:
+    return SimpleNamespace(content_length=declared, content=FakeContent(body))
+
+
 @pytest.mark.asyncio
-async def test_read_limited_body_rejects_declared_and_streamed_oversize() -> None:
-    declared_oversize = SimpleNamespace(
-        content_length=11,
-        content=FakeContent(b"ignored"),
-    )
-    assert await read_limited_body(declared_oversize, 10) is None
+@pytest.mark.parametrize(
+    ("body", "declared", "limit"),
+    [
+        (b"short", 11, 10),
+        (b"12345678901", None, 10),
+        (b"lies-about-size", 3, 10),
+        (b"x" * 70_000, None, 65_536),
+        (b"\x00", None, 0),
+    ],
+    ids=[
+        "declared-oversize",
+        "streamed-oversize",
+        "declared-small-streams-large",
+        "oversize-across-chunks",
+        "zero-limit",
+    ],
+)
+async def test_returns_none_for_a_body_over_the_limit(
+    body: bytes, declared: int | None, limit: int
+) -> None:
+    result = await read_limited_body(_response(body, declared), limit)
+    assert result is None, "a body over the limit must be refused"
 
-    streamed_oversize = SimpleNamespace(
-        content_length=None,
-        content=FakeContent(b"12345678901"),
-    )
-    assert await read_limited_body(streamed_oversize, 10) is None
 
-    within_limit = SimpleNamespace(
-        content_length=None,
-        content=FakeContent(b"1234567890"),
-    )
-    expected_bytes = b"1234567890"
-    assert await read_limited_body(within_limit, 10) == expected_bytes
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("body", "declared", "limit"),
+    [
+        (b"1234567890", None, 10),
+        (b"exact", 5, 5),
+        (b"", 0, 0),
+        (b"y" * 131_072, None, 131_072),
+    ],
+    ids=["at-limit-streamed", "at-limit-declared", "empty", "at-limit-many-chunks"],
+)
+async def test_returns_the_whole_body_within_the_limit(
+    body: bytes, declared: int | None, limit: int
+) -> None:
+    result = await read_limited_body(_response(body, declared), limit)
+    assert result == body, "a body within the limit must be returned whole"

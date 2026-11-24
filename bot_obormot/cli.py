@@ -6,8 +6,6 @@
 import argparse
 import asyncio
 import os
-import shutil
-import subprocess
 import sys
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import suppress
@@ -15,6 +13,7 @@ from importlib.metadata import version as package_version
 from pathlib import Path
 
 from bot_obormot.app.bootstrap import main as run_bot
+from bot_obormot.common.process import run_program
 from bot_obormot.doctor import (
     FAIL_STATUS,
     OK_STATUS,
@@ -289,12 +288,6 @@ def _service_uninstall(mode: ServiceMode) -> int:
 
 def _service_status(mode: ServiceMode) -> int:
     """Show the read-only systemctl status of the service."""
-    systemctl = shutil.which("systemctl")
-    if systemctl is None:
-        message = "systemctl was not found on this system."
-        raise OSError(message)
-    command = [systemctl]
-    if mode == USER_MODE:
-        command.append("--user")
-    command.extend(("status", "--no-pager", UNIT_NAME))
-    return subprocess.run(command, check=False).returncode  # noqa: S603 - fixed argv; shell=False.
+    arguments = ["--user"] if mode == USER_MODE else []
+    arguments.extend(("status", "--no-pager", UNIT_NAME))
+    return run_program("systemctl", arguments).returncode

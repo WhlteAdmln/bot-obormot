@@ -4,14 +4,12 @@
 """Frame extraction from WEBM and MP4 videos through ffmpeg."""
 
 import math
-import os
-import shutil
-import subprocess
 import tempfile
 from pathlib import Path
 
 from PIL import Image
 
+from bot_obormot.common.process import run_program
 from bot_obormot.errors import MediaError
 from bot_obormot.services.media.animation.jpeg import image_to_bytes
 from bot_obormot.services.media.animation.limits import (
@@ -33,19 +31,6 @@ _MIN_MP4_HEAD_LENGTH = 8
 _UNKNOWN_DURATION = "N/A"
 
 
-def _command_environment(name: str) -> dict[str, str]:
-    """Return an environment that resolves the requested executable."""
-    executable = shutil.which(name)
-    if executable is None:
-        msg = f"Required executable not found: {name}"
-        raise FileNotFoundError(msg)
-
-    executable_directory = str(Path(executable).absolute().parent)
-    environment = os.environ.copy()
-    environment["PATH"] = os.pathsep.join((executable_directory, os.defpath))
-    return environment
-
-
 def _check_container(data: bytes) -> None:
     """Reject data that does not resemble a WEBM or MP4 container."""
     head = data[:12]
@@ -59,10 +44,9 @@ def _check_container(data: bytes) -> None:
 
 def _probe_dimensions(working_directory: Path) -> tuple[int, int]:
     """Determine first-stream dimensions without enabling network protocols."""
-    result = subprocess.run(
+    result = run_program(
+        "ffprobe",
         [
-            "/usr/bin/env",
-            "ffprobe",
             "-v",
             "error",
             "-protocol_whitelist",
@@ -77,9 +61,8 @@ def _probe_dimensions(working_directory: Path) -> tuple[int, int]:
         ],
         capture_output=True,
         timeout=PROCESS_TIMEOUT,
-        check=False,
         cwd=working_directory,
-        env=_command_environment("ffprobe"),
+        narrow_path=True,
     )
 
     if result.returncode != 0:
@@ -103,10 +86,9 @@ def _probe_dimensions(working_directory: Path) -> tuple[int, int]:
 
 def _probe_duration(working_directory: Path) -> float:
     """Determine and validate the video duration without enabling network access."""
-    probe = subprocess.run(
+    probe = run_program(
+        "ffprobe",
         [
-            "/usr/bin/env",
-            "ffprobe",
             "-v",
             "error",
             "-protocol_whitelist",
@@ -119,9 +101,8 @@ def _probe_duration(working_directory: Path) -> float:
         ],
         capture_output=True,
         timeout=PROCESS_TIMEOUT,
-        check=False,
         cwd=working_directory,
-        env=_command_environment("ffprobe"),
+        narrow_path=True,
     )
 
     if probe.returncode != 0:
@@ -159,10 +140,9 @@ def _write_filter_script(working_directory: Path, duration: float) -> None:
 
 def _run_ffmpeg(working_directory: Path) -> None:
     """Extract the bounded PNG frames with resource and protocol limits."""
-    result = subprocess.run(
+    result = run_program(
+        "ffmpeg",
         [
-            "/usr/bin/env",
-            "ffmpeg",
             "-hide_banner",
             "-loglevel",
             "error",
@@ -182,9 +162,8 @@ def _run_ffmpeg(working_directory: Path) -> None:
         ],
         capture_output=True,
         timeout=PROCESS_TIMEOUT,
-        check=False,
         cwd=working_directory,
-        env=_command_environment("ffmpeg"),
+        narrow_path=True,
     )
 
     if result.returncode != 0:

@@ -25,7 +25,7 @@ class FakeVideoTools:
     def __call__(self, command: list[str], **kwargs: object) -> SimpleNamespace:
         """Record the command and answer it like the real tool would."""
         self.calls.append((command, kwargs))
-        if command[1] == _FFPROBE:
+        if Path(command[0]).name == _FFPROBE:
             answer = self.duration if _DURATION_PROBE in command else self.size
             return SimpleNamespace(returncode=0, stdout=answer, stderr=b"")
         working_directory = Path(str(kwargs["cwd"]))
@@ -38,7 +38,9 @@ class FakeVideoTools:
 
     def commands(self, tool: str) -> list[list[str]]:
         """Return the recorded commands of one tool."""
-        return [command for command, _kwargs in self.calls if command[1] == tool]
+        return [
+            command for command, _kwargs in self.calls if Path(command[0]).name == tool
+        ]
 
     def option(self, tool: str, name: str) -> str:
         """Return the value that follows an option in the first run of a tool."""

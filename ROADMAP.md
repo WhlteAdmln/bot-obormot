@@ -18,13 +18,13 @@ Goal: remove deprecated functionality, make the code base uniform with audiodoc 
 
 ### Tasks
 
-#### BO-01 Suppressions and subprocess calls
+#### ~~BO-01 Suppressions and subprocess calls~~
 
 - Needs: none.
 - Scope:
-  - Remove the remaining `noqa` suppressions or give each a one-line reason: `S603` in `bot_obormot/cli.py`, two `S310` in `bot_obormot/doctor.py`, `BLE001` in `bot_obormot/handlers/chat/handler.py`.
-  - Run subprocesses through one wrapper with a validated argv and `shutil.which`.
-  - Add a comment to the `DEP002` entry `rlottie-python` in `pyproject.toml`.
+  - ~~Remove the remaining `noqa` suppressions or give each a one-line reason: `S603` in `bot_obormot/cli.py`, two `S310` in `bot_obormot/doctor.py`, `BLE001` in `bot_obormot/handlers/chat/handler.py`.~~
+  - ~~Run subprocesses through one wrapper with a validated argv and `shutil.which`.~~
+  - ~~Add a comment to the `DEP002` entry `rlottie-python` in `pyproject.toml`.~~
 - Done when: no `noqa` without a reason; `make check` is green.
 
 #### BO-02 Precise types instead of `Any`

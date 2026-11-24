@@ -7,6 +7,7 @@ import os
 
 import pytest
 
+from bot_obormot.common import process
 from bot_obormot.errors import MediaError
 from bot_obormot.services.media.animation import video
 from tests.support.video_tools import FakeVideoTools
@@ -16,8 +17,8 @@ def _install(
     monkeypatch: pytest.MonkeyPatch,
     tools: FakeVideoTools,
 ) -> FakeVideoTools:
-    monkeypatch.setattr(video.shutil, "which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr(video.subprocess, "run", tools)
+    monkeypatch.setattr(process.shutil, "which", lambda name: f"/opt/media/{name}")
+    monkeypatch.setattr(process.subprocess, "run", tools)
     return tools
 
 
@@ -51,11 +52,13 @@ def test_extract_video_rejects_playlists_and_unknown_data(data: bytes) -> None:
         video.extract_video(data)
 
 
-def test_extract_video_runs_probes_through_env(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_extract_video_runs_probes_by_the_resolved_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     tools = _extract(monkeypatch)
-    prefixes = {tuple(command[:2]) for command in tools.commands("ffprobe")}
-    expected = {("/usr/bin/env", "ffprobe")}
-    assert prefixes == expected, "ffprobe must be started through env"
+    programs = {command[0] for command in tools.commands("ffprobe")}
+    expected = {"/opt/media/ffprobe"}
+    assert programs == expected, "ffprobe must start by its resolved path"
 
 
 def test_extract_video_limits_both_probes_to_local_files(
@@ -84,20 +87,28 @@ def test_extract_video_probes_the_first_video_stream(
     assert streams == expected, "the size probe must read the first video stream"
 
 
-def test_extract_video_puts_the_resolved_tool_directory_first_in_path(
+def test_extract_video_runs_ffmpeg_by_the_resolved_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     tools = _extract(monkeypatch)
-    paths = [str(kwargs["env"]["PATH"]) for _command, kwargs in tools.calls]
-    first_entries = {path.split(os.pathsep, maxsplit=1)[0] for path in paths}
-    expected = {"/usr/bin"}
-    assert first_entries == expected, "PATH must start with the tool directory"
+    program = tools.commands("ffmpeg")[0][0]
+    expected = "/opt/media/ffmpeg"
+    assert program == expected, "ffmpeg must start by its resolved path"
+
+
+def test_extract_video_narrows_path_of_every_tool_to_its_directory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tools = _extract(monkeypatch)
+    paths = {str(kwargs["env"]["PATH"]) for _command, kwargs in tools.calls}
+    expected = {os.pathsep.join(("/opt/media", os.defpath))}
+    assert paths == expected, "PATH must hold the tool directory and defpath only"
 
 
 def test_extract_video_rejects_a_missing_ffprobe(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(video.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(process.shutil, "which", lambda _name: None)
     with pytest.raises(FileNotFoundError, match="ffprobe"):
         video.extract_video(b"\x1a\x45\xdf\xa3" + b"fake-webm")
 

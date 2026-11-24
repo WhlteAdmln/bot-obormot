@@ -27,11 +27,11 @@ Goal: remove deprecated functionality, make the code base uniform with audiodoc 
   - ~~Add a comment to the `DEP002` entry `rlottie-python` in `pyproject.toml`.~~
 - Done when: no `noqa` without a reason; `make check` is green.
 
-#### BO-02 Precise types instead of `Any`
+#### ~~BO-02 Precise types instead of `Any`~~
 
 - Needs: none.
 - Scope:
-  - Replace `Any` where the precise type is obvious (73 uses left in `bot_obormot/`); leave the others as they are and list the groups that need a design decision.
+  - ~~Replace `Any` where the precise type is obvious (73 uses left in `bot_obormot/`); leave the others as they are and list the groups that need a design decision.~~
 - Done when: mypy strict passes, behavior is unchanged, `make check` is green.
 
 #### BO-03 `UserLocks`
@@ -164,6 +164,11 @@ The scope is not defined yet.
 ## Backlog
 
 - `tests/unit/project/test_env_example.py` keeps its own `_settings_environment_names` helper, a copy of `settings_environment_names` in `scripts/docs_checks/settings.py`; use the public function instead.
+- Type LLM chat messages and content parts (`TypedDict` for a message, a text part and an `image_url` part) instead of `dict[str, Any]`; most of the remaining `Any` uses are these dictionaries in `services/llm/`, `services/media/content.py`, `services/chat/input/user_content.py` and `services/database/usecases/history.py` and `facade.py`.
+- Type the Document Engine response (`text`, `format`, `characters`, optional `truncated`) instead of `dict[str, Any]` in `services/documents/response.py`, `client.py` and `services/chat/input/document_part.py`.
+- FSM updates in the `start`, `prompt` and `fallback` handlers and in the temporary-messages middleware build a `dict[str, Any]` only to unpack it into `state.update_data(**data)`, whose `**kwargs` are `Any`; passing the mapping as the first argument would allow `dict[str, int]`, but the test fakes accept keyword arguments only.
+- Keyword arguments for `message.answer` in `services/chat/streaming/sending.py` and `responder.py` are `dict[str, Any]`; a `TypedDict` with `Unpack` or explicit arguments would type them.
+- `Any` stays where a library signature requires it: `MiddlewareData` and `NextHandler` in `middlewares/aliases.py` follow aiogram's `BaseMiddleware`, and `Coroutine[Any, Any, _R]` in `services/database/decorators.py` is the usual form for a coroutine function.
 - Build routers with a factory instead of module-level objects, so tests need no `detach_router` and no `protected-access` suppression (aiogram has no public way to detach a router).
 
 ## Released

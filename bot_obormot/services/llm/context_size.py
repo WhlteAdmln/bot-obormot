@@ -5,7 +5,7 @@
 
 import logging
 from http import HTTPStatus
-from typing import Any, Protocol
+from typing import Protocol
 
 import aiohttp
 
@@ -42,7 +42,7 @@ class ContextSizeClient(Protocol):
         ...
 
 
-async def _read_json(response: aiohttp.ClientResponse) -> dict[str, Any] | None:
+async def _read_json(response: aiohttp.ClientResponse) -> dict[str, object] | None:
     try:
         data = await response.json()
     except (aiohttp.ClientError, ValueError, TypeError):
@@ -56,7 +56,7 @@ def _positive_int(value: object) -> int | None:
     return value
 
 
-def _extract_context_size(data: dict[str, Any]) -> int | None:
+def _extract_context_size(data: dict[str, object]) -> int | None:
     """Extract known context fields from the server response."""
     for field in _CONTEXT_FIELDS:
         value = _positive_int(data.get(field))
@@ -73,7 +73,7 @@ def _extract_context_size(data: dict[str, Any]) -> int | None:
     return None
 
 
-def _models_payload_context(data: dict[str, Any], model_name: str) -> int | None:
+def _models_payload_context(data: dict[str, object], model_name: str) -> int | None:
     models = data.get("data") or data.get("models")
     if not isinstance(models, list) or not models:
         return None

@@ -45,7 +45,7 @@ def _neutralize_content(content: object) -> object:
         return neutralize_control_tokens(content)
 
     if isinstance(content, list):
-        cleaned: list[Any] = []
+        cleaned: list[object] = []
         for part in content:
             if isinstance(part, dict) and part.get("type") == PART_TYPE_TEXT:
                 cleaned.append(
@@ -63,7 +63,7 @@ def _neutralize_content(content: object) -> object:
     return content
 
 
-def normalize_content(content: object) -> str | list[Any]:
+def normalize_content(content: object) -> str | list[object]:
     """Convert content to a valid API format: a string or a list of parts."""
     if content is None:
         return ""
@@ -72,7 +72,7 @@ def normalize_content(content: object) -> str | list[Any]:
         return content
 
     if isinstance(content, list):
-        normalized = []
+        normalized: list[object] = []
         for part in content:
             if isinstance(part, (str, dict)):
                 normalized.append(part)

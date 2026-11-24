@@ -33,6 +33,5 @@ from bot_obormot.services.chat.formatting import (
         ("```\n**a**\n```\n<b>x</b>", "plain"),
     ],
 )
-def test_detect_format(text: str, expected: str) -> None:
-    """Detect Markdown, HTML, plain text and ambiguous mixtures."""
+def test_detects_text_format(text: str, expected: str) -> None:
     assert detect_format(text) == expected

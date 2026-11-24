@@ -30,8 +30,7 @@ def _environ(tmp_path: Path, **overrides: str) -> dict[str, str]:
     return values
 
 
-def test_python_version_success_and_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Supported Python passes; an old interpreter fails."""
+def test_check_python_version_fails_below_3_11(monkeypatch: pytest.MonkeyPatch) -> None:
     expected_status = "OK"
     assert doctor.check_python_version().status == expected_status
 
@@ -40,12 +39,11 @@ def test_python_version_success_and_failure(monkeypatch: pytest.MonkeyPatch) -> 
 
     expected_status = "FAIL"
     assert result.status == expected_status
-    expected_fragment = "3.11"
-    assert expected_fragment in result.message
+    minimum_version = "3.11"
+    assert minimum_version in result.message
 
 
-def test_env_file_ok_with_private_permissions(tmp_path: Path) -> None:
-    """A private .env file passes."""
+def test_check_env_file_accepts_private_permissions(tmp_path: Path) -> None:
     env_path = tmp_path / ".env"
     env_path.write_text("A=1\n", encoding="utf-8")
     env_path.chmod(0o600)
@@ -55,12 +53,11 @@ def test_env_file_ok_with_private_permissions(tmp_path: Path) -> None:
 
 
 def test_env_file_warns_when_open_or_missing(tmp_path: Path) -> None:
-    """Open permissions and a missing file are warnings, not failures."""
     missing = doctor.check_env_file(_environ(tmp_path))
     expected_status = "WARN"
     assert missing.status == expected_status
-    expected_fragment = "process environment"
-    assert expected_fragment in missing.message
+    environment_source = "process environment"
+    assert environment_source in missing.message
 
     env_path = tmp_path / ".env"
     env_path.write_text("A=1\n", encoding="utf-8")
@@ -68,20 +65,18 @@ def test_env_file_warns_when_open_or_missing(tmp_path: Path) -> None:
     opened = doctor.check_env_file(_environ(tmp_path))
     expected_status = "WARN"
     assert opened.status == expected_status
-    expected_fragment = "chmod 600"
-    assert expected_fragment in opened.message
+    permission_hint = "chmod 600"
+    assert permission_hint in opened.message
 
 
 def test_env_file_fails_for_a_directory(tmp_path: Path) -> None:
-    """A directory in place of the file is a failure."""
     (tmp_path / ".env").mkdir()
 
     expected_status = "FAIL"
     assert doctor.check_env_file(_environ(tmp_path)).status == expected_status
 
 
-def test_settings_success_and_failure_without_secrets(tmp_path: Path) -> None:
-    """Invalid settings are listed by name and values are not echoed."""
+def test_check_settings_names_invalid_fields_without_secrets(tmp_path: Path) -> None:
     ok_check, settings = doctor.check_settings(_environ(tmp_path))
     expected_status = "OK"
     assert ok_check.status == expected_status
@@ -93,12 +88,12 @@ def test_settings_success_and_failure_without_secrets(tmp_path: Path) -> None:
     expected_status = "FAIL"
     assert bad_check.status == expected_status
     assert bad_settings is None
-    expected_fragment = "SUPERVISOR_ID"
-    assert expected_fragment in bad_check.message
-    expected_fragment = "LLM_TIMEOUT"
-    assert expected_fragment in bad_check.message
-    expected_fragment = "secret-value"
-    assert expected_fragment not in bad_check.message
+    invalid_supervisor_field = "SUPERVISOR_ID"
+    assert invalid_supervisor_field in bad_check.message
+    invalid_timeout_field = "LLM_TIMEOUT"
+    assert invalid_timeout_field in bad_check.message
+    leaked_value = "secret-value"
+    assert leaked_value not in bad_check.message
 
 
 @pytest.mark.parametrize(
@@ -110,8 +105,9 @@ def test_settings_success_and_failure_without_secrets(tmp_path: Path) -> None:
         ("not-a-token", "FAIL"),
     ],
 )
-def test_bot_token_format(token: str, status: str) -> None:
-    """The token is accepted only in the Telegram format."""
+def test_check_bot_token_validates_format_without_echoing_token(
+    token: str, status: str
+) -> None:
     result = doctor.check_bot_token({"BOT_TOKEN": token})
 
     assert result.status == status
@@ -119,8 +115,9 @@ def test_bot_token_format(token: str, status: str) -> None:
         assert token not in result.message
 
 
-def test_ffmpeg_success_and_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Missing ffmpeg tools produce a warning that names them."""
+def test_check_ffmpeg_warns_about_missing_programs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(doctor.shutil, "which", lambda name: f"/usr/bin/{name}")
     expected_status = "OK"
     assert doctor.check_ffmpeg().status == expected_status
@@ -134,14 +131,15 @@ def test_ffmpeg_success_and_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     result = doctor.check_ffmpeg()
     expected_status = "WARN"
     assert result.status == expected_status
-    expected_fragment = "ffprobe"
-    assert expected_fragment in result.message
-    expected_fragment = "ffmpeg,"
-    assert expected_fragment not in result.message
+    missing_program = "ffprobe"
+    assert missing_program in result.message
+    present_program = "ffmpeg,"
+    assert present_program not in result.message
 
 
-def test_tgs_support_success_and_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The optional extra is reported as a warning when it is absent."""
+def test_check_tgs_support_warns_without_the_extra(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(doctor, "tgs_support_available", lambda: True)
     expected_status = "OK"
     assert doctor.check_tgs_support().status == expected_status
@@ -150,14 +148,13 @@ def test_tgs_support_success_and_failure(monkeypatch: pytest.MonkeyPatch) -> Non
     result = doctor.check_tgs_support()
     expected_status = "WARN"
     assert result.status == expected_status
-    expected_fragment = "bot-obormot[tgs]"
-    assert expected_fragment in result.message
+    install_extra = "bot-obormot[tgs]"
+    assert install_extra in result.message
 
 
-def test_database_path_success_and_failure(
+def test_check_database_path_fails_without_write_access(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """A creatable path passes; an unwritable ancestor fails."""
     good = Settings(DATABASE_PATH=str(tmp_path / "new" / "data" / "bot.db"))
     expected_status = "OK"
     assert doctor.check_database_path(good).status == expected_status
@@ -172,14 +169,13 @@ def test_database_path_success_and_failure(
     result = doctor.check_database_path(good)
     expected_status = "FAIL"
     assert result.status == expected_status
-    expected_fragment = "DATABASE_PATH"
-    assert expected_fragment in result.message
+    setting_name = "DATABASE_PATH"
+    assert setting_name in result.message
 
 
-def test_llm_server_success_failure_and_offline(
+def test_check_llm_server_reports_success_failure_and_offline(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The LLM probe uses /models with the key and is skipped offline."""
     calls: list[tuple[str, Mapping[str, str]]] = []
 
     def fake_status(url: str, headers: Mapping[str, str], timeout: float) -> int:
@@ -206,21 +202,20 @@ def test_llm_server_success_failure_and_offline(
     failed = doctor.check_llm_server(settings, offline=False)
     expected_status = "FAIL"
     assert failed.status == expected_status
-    expected_fragment = "Bearer"
-    assert expected_fragment not in failed.message
+    auth_scheme = "Bearer"
+    assert auth_scheme not in failed.message
 
     monkeypatch.setattr(doctor, "fetch_status", lambda *_args: pytest.fail("network"))
     skipped = doctor.check_llm_server(settings, offline=True)
     expected_status = "OK"
     assert skipped.status == expected_status
-    expected_fragment = "offline"
-    assert expected_fragment in skipped.message
+    offline_note = "offline"
+    assert offline_note in skipped.message
 
 
-def test_audiodoc_success_failure_unconfigured_and_offline(
+def test_check_audiodoc_reports_success_failure_unconfigured_and_offline(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Audiodoc is optional: unreachable is a warning, unset is fine."""
     seen: list[str] = []
 
     def fake_status(url: str, headers: Mapping[str, str], timeout: float) -> int:
@@ -235,8 +230,8 @@ def test_audiodoc_success_failure_unconfigured_and_offline(
     expected_status = "OK"
     assert result.status == expected_status
     assert seen == ["http://user:pw@audio.test:8000/health"]
-    expected_fragment = "pw"
-    assert expected_fragment not in result.message
+    url_credential = "pw"
+    assert url_credential not in result.message
 
     monkeypatch.setattr(doctor, "fetch_status", lambda *_args: 500)
     expected_status = "WARN"
@@ -251,7 +246,6 @@ def test_audiodoc_success_failure_unconfigured_and_offline(
 def test_fetch_status_rejects_other_schemes_and_maps_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Only http(s) is allowed; URL errors become OSError, HTTP errors a status."""
     with pytest.raises(ValueError, match="http"):
         doctor.fetch_status("file:///etc/passwd", {}, 1.0)
 
@@ -275,7 +269,6 @@ def test_fetch_status_rejects_other_schemes_and_maps_errors(
 def test_collect_runs_every_check_and_skips_network_offline(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """A valid configuration yields all checks and no network access offline."""
     monkeypatch.setattr(doctor, "fetch_status", lambda *_args: pytest.fail("network"))
 
     checks = doctor.collect_doctor_checks(_environ(tmp_path), offline=True)
@@ -299,7 +292,6 @@ def test_collect_runs_every_check_and_skips_network_offline(
 
 
 def test_collect_skips_dependent_checks_for_invalid_settings(tmp_path: Path) -> None:
-    """Invalid settings fail once and the dependent checks are marked skipped."""
     checks = doctor.collect_doctor_checks(
         _environ(tmp_path, SUPERVISOR_ID="x"), offline=True
     )
@@ -310,5 +302,5 @@ def test_collect_skips_dependent_checks_for_invalid_settings(tmp_path: Path) -> 
     for name in ("Database", "LLM server", "audiodoc"):
         expected_status = "WARN"
         assert by_name[name].status == expected_status
-        expected_fragment = "invalid"
-        assert expected_fragment in by_name[name].message
+        invalid_note = "invalid"
+        assert invalid_note in by_name[name].message

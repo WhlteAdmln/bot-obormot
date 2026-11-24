@@ -18,7 +18,6 @@ from tests.support.settings import make_settings
 async def test_prepare_audio_preserves_validation_download_and_transcription_order(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Prepare audio preserves validation download and transcription order."""
     events = []
     info = make_info(
         audio_file_id="voice-id", audio_filename="voice.ogg", has_audio=True
@@ -47,12 +46,12 @@ async def test_prepare_audio_preserves_validation_download_and_transcription_ord
 
     expected_result = "Распознано"
     assert result == expected_result
-    expected_fragment = "Распознано"
-    assert expected_fragment not in caplog.text
-    expected_fragment = "AUDIO: recognized 10 characters"
-    assert expected_fragment in caplog.text
-    expected_fragment = "Recognized audio text"
-    assert expected_fragment not in caplog.text
+    status_text = "Распознано"
+    assert status_text not in caplog.text
+    length_log = "AUDIO: recognized 10 characters"
+    assert length_log in caplog.text
+    transcript_text = "Recognized audio text"
+    assert transcript_text not in caplog.text
     assert events == [
         "validate",
         ("download", "voice-id"),

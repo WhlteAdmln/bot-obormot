@@ -26,7 +26,6 @@ async def _connection(path: str) -> AsyncIterator[aiosqlite.Connection]:
 
 @pytest.mark.asyncio
 async def test_create_schema_is_idempotent() -> None:
-    """Create schema is idempotent."""
     async with aiosqlite.connect(":memory:") as connection:
         await create_schema(connection)
         await create_schema(connection)
@@ -51,7 +50,6 @@ async def test_create_schema_is_idempotent() -> None:
 async def test_admin_ids_migration_runs_once_and_excludes_supervisor(
     tmp_path: Path,
 ) -> None:
-    """Admin ids migration runs once and excludes supervisor."""
     async with _connection(str(tmp_path / "admin_ids.db")) as connection:
         await create_schema(connection)
         await migrate_admin_ids(
@@ -82,7 +80,6 @@ async def test_admin_ids_migration_runs_once_and_excludes_supervisor(
 
 @pytest.mark.asyncio
 async def test_open_connection_applies_existing_sqlite_pragmas() -> None:
-    """Open connection applies existing sqlite pragmas."""
     async with _connection(":memory:") as connection:
         assert connection.row_factory is aiosqlite.Row
 

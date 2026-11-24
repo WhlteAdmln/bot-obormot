@@ -77,7 +77,6 @@ def text(role: str, content: object) -> dict[str, object]:
 async def test_fitting_removes_oldest_complete_exchange_and_keeps_recent_history() -> (
     None
 ):
-    """Fitting removes oldest complete exchange and keeps recent history."""
     client = FakeFittingClient(
         context_size=10_000,
         token_counts=[9_000, 6_000],
@@ -108,7 +107,6 @@ async def test_fitting_removes_oldest_complete_exchange_and_keeps_recent_history
 
 @pytest.mark.asyncio
 async def test_fitting_discards_leading_assistant_and_does_not_mutate_history() -> None:
-    """Fitting discards leading assistant and does not mutate history."""
     client = FakeFittingClient(context_size=10_000, token_counts=[100])
     history = [
         text("assistant", "orphan answer"),
@@ -137,7 +135,6 @@ async def test_fitting_discards_leading_assistant_and_does_not_mutate_history() 
 
 @pytest.mark.asyncio
 async def test_fitting_recalculates_image_reserve_after_removing_old_exchange() -> None:
-    """Fitting recalculates image reserve after removing old exchange."""
     client = FakeFittingClient(
         context_size=10_000,
         token_counts=[6_000, 6_000],
@@ -174,7 +171,6 @@ async def test_fitting_recalculates_image_reserve_after_removing_old_exchange() 
 
 @pytest.mark.asyncio
 async def test_fitting_rejects_context_smaller_than_reserved_tokens() -> None:
-    """Fitting rejects context smaller than reserved tokens."""
     client = FakeFittingClient(context_size=2_000, token_counts=[])
 
     with pytest.raises(InputTooLongError, match="Not enough context space"):
@@ -186,7 +182,6 @@ async def test_fitting_rejects_context_smaller_than_reserved_tokens() -> None:
 
 @pytest.mark.asyncio
 async def test_fitting_rejects_current_message_that_does_not_fit() -> None:
-    """Fitting rejects current message that does not fit."""
     client = FakeFittingClient(context_size=10_000, token_counts=[8_000])
 
     with pytest.raises(InputTooLongError, match="Message is too large"):
@@ -197,7 +192,6 @@ async def test_fitting_rejects_current_message_that_does_not_fit() -> None:
 
 @pytest.mark.asyncio
 async def test_fitting_rejects_history_with_unexpected_role_after_pruning() -> None:
-    """Fitting rejects history with unexpected role after pruning."""
     client = FakeFittingClient(context_size=10_000, token_counts=[9_000, 9_000])
     history = [
         text("user", "question"),
@@ -212,7 +206,6 @@ async def test_fitting_rejects_history_with_unexpected_role_after_pruning() -> N
 async def test_llm_client_method_delegates_without_changing_public_signature(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Llm client method delegates without changing public signature."""
     client = LLMClient()
     expected = [{"role": "system", "content": "system"}]
     received = {}
@@ -250,7 +243,6 @@ async def test_llm_client_method_delegates_without_changing_public_signature(
 async def test_context_fit_log_distinguishes_window_from_available_budget(
     image_count: int, expected_budget: int, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Context fit log distinguishes window from available budget."""
     client = FakeFittingClient(context_size=32_000, token_counts=[100])
     content = [
         {"type": "text", "text": "Incoming media"},
@@ -264,14 +256,13 @@ async def test_context_fit_log_distinguishes_window_from_available_budget(
     await fit_messages_to_context(client, "system", [], content)
 
     assert f"input_budget={expected_budget}" in caplog.text
-    expected_fragment = "context_window=32000"
-    assert expected_fragment in caplog.text
+    context_window_detail = "context_window=32000"
+    assert context_window_detail in caplog.text
     assert f"images={image_count}" in caplog.text
 
 
 @pytest.mark.asyncio
 async def test_estimate_mode_uses_larger_safety_margin() -> None:
-    """Estimate mode uses larger safety margin."""
     settings = replace(Settings(), LLM_MAX_TOKENS=2_048)
     client = FakeFittingClient(
         context_size=10_000,

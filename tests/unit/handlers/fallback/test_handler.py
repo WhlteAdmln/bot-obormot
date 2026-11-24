@@ -30,7 +30,6 @@ async def test_fallback_handles_unknown_commands_through_dispatcher(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     case: tuple[int, str],
 ) -> None:
-    """Unknown slash commands receive the exact fallback response."""
     dispatcher, bot, session = dispatcher_runtime
     user_id, command_text = case
 

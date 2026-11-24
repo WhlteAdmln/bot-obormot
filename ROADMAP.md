@@ -81,14 +81,14 @@ Goal: remove deprecated functionality, make the code base uniform with audiodoc 
   - ~~Test count does not fall; coverage does not drop.~~
 - Done when: a scan finds no mock; `make check` is green.
 
-#### BO-09 General test rules in bot-obormot
+#### ~~BO-09 General test rules in bot-obormot~~
 
 - Needs: BO-06, BO-08.
 - Scope:
-  - Remove comments from test files (38 left, except tool pragmas with a reason), docstrings from test functions, classes defined inside test functions (for example in `tests/unit/handlers/start/test_handler.py`), `time.sleep` for waiting and temporary files outside `tmp_path`.
-  - Remove private access in tests (`detach_router` stays until the router factory in "Backlog").
-  - Review the `dispatcher` fixture in `tests/support/dispatcher_fixtures.py` for shared mutable state and fixtures wider than `function` scope.
-  - Rename tests whose names are not sentences with a verb, and mechanical names such as `expected_fragment` or `expected_text_2`.
+  - ~~Remove comments from test files (38 left, except tool pragmas with a reason), docstrings from test functions, classes defined inside test functions (for example in `tests/unit/handlers/start/test_handler.py`), `time.sleep` for waiting and temporary files outside `tmp_path`.~~
+  - ~~Remove private access in tests (`detach_router` stays until the router factory in "Backlog").~~
+  - ~~Review the `dispatcher` fixture in `tests/support/dispatcher_fixtures.py` for shared mutable state and fixtures wider than `function` scope.~~
+  - ~~Rename tests whose names are not sentences with a verb, and mechanical names such as `expected_fragment` or `expected_text_2`.~~
 - Done when: a throwaway scan finds none of the above; the test count did not fall; `make check` is green.
 
 #### BO-10 [shared] `scripts/check_test_rules.py`
@@ -169,6 +169,7 @@ The scope is not defined yet.
 - FSM updates in the `start`, `prompt` and `fallback` handlers and in the temporary-messages middleware build a `dict[str, Any]` only to unpack it into `state.update_data(**data)`, whose `**kwargs` are `Any`; passing the mapping as the first argument would allow `dict[str, int]`, but the test fakes accept keyword arguments only.
 - Keyword arguments for `message.answer` in `services/chat/streaming/sending.py` and `responder.py` are `dict[str, Any]`; a `TypedDict` with `Unpack` or explicit arguments would type them.
 - `Any` stays where a library signature requires it: `MiddlewareData` and `NextHandler` in `middlewares/aliases.py` follow aiogram's `BaseMiddleware`, and `Coroutine[Any, Any, _R]` in `services/database/decorators.py` is the usual form for a coroutine function.
+- Some tests assert nothing and only check that a call does not raise (`tests/unit/common/test_validation.py`), and many tests still hold several asserts without a failure message (for example `tests/unit/test_doctor.py`, `tests/unit/services/database/facade/test_access.py`); split them into one assert per test with a message.
 - Build routers with a factory instead of module-level objects, so tests need no `detach_router` and no `protected-access` suppression (aiogram has no public way to detach a router).
 
 ## Released

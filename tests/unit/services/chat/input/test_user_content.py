@@ -15,7 +15,6 @@ from tests.support.message_input import make_info, make_message
 
 
 def test_build_user_content_keeps_audio_caption_format() -> None:
-    """Build user content keeps audio caption format."""
     info = make_info(
         audio_file_id="voice-id", audio_filename="voice.ogg", has_audio=True
     )
@@ -33,7 +32,6 @@ def test_build_user_content_keeps_audio_caption_format() -> None:
 
 
 def test_build_user_content_keeps_document_prefix_and_caption() -> None:
-    """Build user content keeps document prefix and caption."""
     document = SimpleNamespace(file_name="report.pdf")
     info = make_info(document=document, has_document=True)
     content = content_module.build_user_content(
@@ -52,7 +50,6 @@ def test_build_user_content_keeps_document_prefix_and_caption() -> None:
 
 
 def test_build_user_content_sanitizes_document_filename() -> None:
-    """Build user content sanitizes document filename."""
     document = SimpleNamespace(file_name="report\n[ERROR forged].pdf")
     info = make_info(document=document, has_document=True)
 
@@ -69,16 +66,15 @@ def test_build_user_content_sanitizes_document_filename() -> None:
         "[Содержимое документа: report ERROR forged .pdf]\n\nСодержимое отчёта"
     )
     assert content == expected_content
-    expected_fragment = "\nERROR forged"
-    assert expected_fragment not in content
-    expected_fragment = "[ERROR forged]"
-    assert expected_fragment not in content
+    forged_line = "\nERROR forged"
+    assert forged_line not in content
+    escaped_forged_line = "[ERROR forged]"
+    assert escaped_forged_line not in content
 
 
 def test_build_user_content_validates_plain_text(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Build user content validates plain text."""
     info = make_info(has_text=True)
     validated = []
     monkeypatch.setattr(
@@ -104,7 +100,6 @@ def test_build_user_content_validates_plain_text(
 def test_build_user_content_rejects_oversized_document(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Build user content rejects oversized document."""
     document = SimpleNamespace(file_name="report.pdf")
     info = make_info(document=document, has_document=True)
     monkeypatch.setattr(content_module, "MAX_INPUT_TEXT_LENGTH", 10)

@@ -12,7 +12,6 @@ from tests.support.audio_documents import make_message
 
 
 def test_get_audio_info_preserves_voice_audio_and_video_note_names() -> None:
-    """Get audio info preserves voice audio and video note names."""
     assert get_audio_info(make_message(voice=SimpleNamespace(file_id="voice-id"))) == (
         "voice-id",
         "voice.ogg",

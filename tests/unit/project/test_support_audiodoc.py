@@ -40,7 +40,6 @@ def _bot_settings(server: FakeAudiodoc, **overrides: object) -> Settings:
 
 @pytest.mark.asyncio
 async def test_fake_audiodoc_serves_contract_responses_to_real_clients() -> None:
-    """Serve fixture responses over HTTP to both real bot clients."""
     contract = json.loads(_FIXTURE_PATH.read_text(encoding="utf-8"))
 
     async with FakeAudiodoc() as server:
@@ -52,8 +51,8 @@ async def test_fake_audiodoc_serves_contract_responses_to_real_clients() -> None
                 ("ready", "ready"),
             ):
                 async with session.get(f"{server.base_url}{endpoint}") as response:
-                    expected_status_2 = 200
-                    assert response.status == expected_status_2
+                    expected_http_status = 200
+                    assert response.status == expected_http_status
                     assert await response.json() == {"status": expected_status}
 
         assert (
@@ -75,7 +74,6 @@ async def test_fake_audiodoc_serves_contract_responses_to_real_clients() -> None
 async def test_fake_audiodoc_can_return_configured_http_errors(
     status: int,
 ) -> None:
-    """Return configured HTTP errors and Retry-After for service unavailability."""
     async with FakeAudiodoc() as server:
         settings = _bot_settings(server)
         server.set_behavior(
@@ -109,7 +107,6 @@ async def test_fake_audiodoc_can_return_configured_http_errors(
 
 @pytest.mark.asyncio
 async def test_fake_audiodoc_can_return_invalid_json() -> None:
-    """Return invalid JSON when the corresponding switch is enabled."""
     async with FakeAudiodoc() as server:
         settings = _bot_settings(server)
         server.set_behavior(
@@ -123,7 +120,6 @@ async def test_fake_audiodoc_can_return_invalid_json() -> None:
 
 @pytest.mark.asyncio
 async def test_fake_audiodoc_can_delay_a_response() -> None:
-    """Delay a response long enough to exercise the real client timeout."""
     async with FakeAudiodoc() as server:
         settings = _bot_settings(server, AUDIODOC_AUDIO_TIMEOUT=0.01)
         server.set_behavior(
@@ -137,7 +133,6 @@ async def test_fake_audiodoc_can_delay_a_response() -> None:
 
 @pytest.mark.asyncio
 async def test_fake_audiodoc_can_truncate_a_response() -> None:
-    """Close a response before its declared content length is received."""
     async with FakeAudiodoc() as server:
         settings = _bot_settings(server)
         server.set_behavior(

@@ -18,7 +18,6 @@ from tests.support.audio_documents import make_message
 
 
 def test_validate_audio_duration_keeps_five_minute_boundary() -> None:
-    """Validate audio duration keeps five minute boundary."""
     expected_max_audio_duration = 300
     assert expected_max_audio_duration == MAX_AUDIO_DURATION
     validate_audio_duration(make_message(voice=SimpleNamespace(duration=300)))
@@ -27,7 +26,6 @@ def test_validate_audio_duration_keeps_five_minute_boundary() -> None:
 
 
 def test_validate_audio_duration_checks_audio_and_video_note() -> None:
-    """Validate audio duration checks audio and video note."""
     with pytest.raises(MediaError):
         validate_audio_duration(make_message(audio=SimpleNamespace(duration=301)))
     with pytest.raises(MediaError):

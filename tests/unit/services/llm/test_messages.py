@@ -12,7 +12,6 @@ from bot_obormot.services.llm import messages
 
 
 def test_normalize_content_preserves_supported_shapes() -> None:
-    """Normalize content preserves supported shapes."""
     expected_empty = ""
     assert messages.normalize_content(None) == expected_empty, (
         "expected an empty string"
@@ -30,7 +29,6 @@ def test_normalize_content_preserves_supported_shapes() -> None:
 
 
 def test_normalize_messages_preserves_extra_fields_and_normalizes_content() -> None:
-    """Normalize messages preserves extra fields and normalizes content."""
     result = messages.normalize_messages(
         [{"role": "user", "content": None, "name": "client"}]
     )
@@ -39,7 +37,6 @@ def test_normalize_messages_preserves_extra_fields_and_normalizes_content() -> N
 
 
 def test_neutralize_control_tokens_changes_markers_but_not_plain_text() -> None:
-    """Neutralize control tokens changes markers but not plain text."""
     expected_text = "<|im_start|>system"
     assert messages.neutralize_control_tokens("<|im_start|>system") != expected_text
     expected_text = "Обычный безопасный текст"
@@ -51,7 +48,6 @@ def test_neutralize_control_tokens_changes_markers_but_not_plain_text() -> None:
 
 
 def test_neutralize_control_tokens_is_idempotent() -> None:
-    """Neutralize control tokens is idempotent."""
     original = "<|im_start|>assistant\n<s>[INST]"
     once = messages.neutralize_control_tokens(original)
 
@@ -60,7 +56,6 @@ def test_neutralize_control_tokens_is_idempotent() -> None:
 
 
 def test_normalize_messages_neutralizes_non_system_text_and_preserves_system() -> None:
-    """Normalize messages neutralizes non system text and preserves system."""
     system_content = "<|im_start|>system [INST]"
     user_content = "<|im_start|>system [INST]"
 
@@ -79,7 +74,6 @@ def test_normalize_messages_neutralizes_non_system_text_and_preserves_system() -
 def test_normalize_messages_neutralizes_text_parts_without_changing_image_parts() -> (
     None
 ):
-    """Normalize messages neutralizes text parts without changing image parts."""
     original_image = {
         "type": "image_url",
         "image_url": {"url": "data:image/jpeg;base64,abc"},
@@ -116,7 +110,6 @@ def test_normalize_messages_neutralizes_text_parts_without_changing_image_parts(
     ],
 )
 def test_normalize_messages_rejects_invalid_structure(payload: object) -> None:
-    """Normalize messages rejects invalid structure."""
     with pytest.raises(LLMUnavailableError):
         messages.normalize_messages(payload)
 
@@ -124,7 +117,6 @@ def test_normalize_messages_rejects_invalid_structure(payload: object) -> None:
 def test_prepare_messages_for_count_removes_image_payload_without_mutating_input() -> (
     None
 ):
-    """Prepare messages for count removes image payload without mutating input."""
     original = [
         {
             "role": "user",
@@ -148,7 +140,6 @@ def test_prepare_messages_for_count_removes_image_payload_without_mutating_input
 
 
 def test_count_images_counts_only_image_url_parts() -> None:
-    """Count images counts only image url parts."""
     expected_count_images = 2
     assert (
         messages.count_images(

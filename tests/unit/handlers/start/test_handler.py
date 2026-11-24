@@ -68,34 +68,27 @@ async def test_start_routes_users_and_builds_their_command_menu(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     case: tuple[int, set[int], bool, bool, str],
 ) -> None:
-    """Start sends the appropriate help and command menu for each role."""
     user_id, admin_ids, expected_admin, expected_supervisor, command_text = case
-    dispatcher, bot, session = dispatcher_runtime
     access_database.admin_ids = admin_ids
 
-    await dispatcher.feed_update(
-        bot,
-        make_update(message=make_message(user_id=user_id, text=command_text)),
-    )
+    session = await feed_command(dispatcher_runtime, user_id, command_text)
 
     command_names = _sent_command_names(session)
     texts = sent_texts(session)
 
     assert len(texts) == 1
-    expected_fragment = "Привет! 👋 Я бот для работы с LLM в формате чата."
-    assert expected_fragment in texts[0]
-    expected_fragment = "/forget_me — удалить все свои данные"
-    assert expected_fragment in texts[0]
-    expected_fragment = "health"
-    assert (expected_fragment in command_names) is expected_admin
-    assert ({"ban", "unban"} <= command_names) is expected_admin
-    expected_fragment = "🩺 Состояние бота:"
-    assert (expected_fragment in texts[0]) is expected_admin
+    greeting = "Привет! 👋 Я бот для работы с LLM в формате чата."
+    assert greeting in texts[0]
+    forget_me_line = "/forget_me — удалить все свои данные"
+    assert forget_me_line in texts[0]
+    assert ({"health", "ban", "unban"} <= command_names) is expected_admin
+    health_section = "🩺 Состояние бота:"
+    assert (health_section in texts[0]) is expected_admin
     assert ({"admin", "admins", "admin_add", "admin_remove"} <= command_names) is (
         expected_supervisor
     )
-    expected_fragment = "🛠 Управление администраторами:"
-    assert (expected_fragment in texts[0]) is expected_supervisor
+    admin_section = "🛠 Управление администраторами:"
+    assert (admin_section in texts[0]) is expected_supervisor
 
 
 @pytest.mark.asyncio
@@ -103,7 +96,6 @@ async def test_start_routes_users_and_builds_their_command_menu(
 async def test_start_falls_back_to_regular_menu_when_database_fails(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
-    """A failed administrator lookup does not prevent the welcome response."""
     dispatcher, bot, session = dispatcher_runtime
     dispatcher.workflow_data["database"] = _FailingAdminDatabase()
 
@@ -116,16 +108,16 @@ async def test_start_falls_back_to_regular_menu_when_database_fails(
     texts = sent_texts(session)
 
     assert len(texts) == 1
-    expected_fragment = "Привет! 👋 Я бот для работы с LLM в формате чата."
-    assert expected_fragment in texts[0]
-    expected_fragment = "health"
-    assert expected_fragment not in command_names
-    expected_fragment = "🩺 Состояние бота:"
-    assert expected_fragment not in texts[0]
-    expected_fragment = "admin"
-    assert expected_fragment not in command_names
-    expected_fragment = "🛠 Управление администраторами:"
-    assert expected_fragment not in texts[0]
+    greeting = "Привет! 👋 Я бот для работы с LLM в формате чата."
+    assert greeting in texts[0]
+    health_command = "health"
+    assert health_command not in command_names
+    health_section = "🩺 Состояние бота:"
+    assert health_section not in texts[0]
+    admin_command = "admin"
+    assert admin_command not in command_names
+    admin_section = "🛠 Управление администраторами:"
+    assert admin_section not in texts[0]
 
 
 @pytest.mark.asyncio

@@ -13,7 +13,6 @@ from tests.support.media import make_message
 
 
 def test_get_media_info_prefers_photo_and_uses_largest_photo() -> None:
-    """Get media info prefers photo and uses largest photo."""
     message = make_message(
         photo=[SimpleNamespace(file_id="small"), SimpleNamespace(file_id="large")],
     )
@@ -22,7 +21,6 @@ def test_get_media_info_prefers_photo_and_uses_largest_photo() -> None:
 
 
 def test_get_media_info_classifies_stickers_and_documents() -> None:
-    """Get media info classifies stickers and documents."""
     animated_sticker = make_message(
         sticker=SimpleNamespace(
             file_id="tgs-id",
@@ -51,7 +49,6 @@ def test_get_media_info_classifies_stickers_and_documents() -> None:
 
 
 def test_get_media_info_classifies_video_documents_by_mime_type() -> None:
-    """Get media info classifies video documents by mime type."""
     message = make_message(
         document=SimpleNamespace(
             file_id="video-id",
@@ -187,5 +184,4 @@ def test_get_media_info_detects_message_media(
     message: SimpleNamespace,
     expected: tuple[str | None, str | None],
 ) -> None:
-    """Detect media types from message fields and document metadata."""
     assert get_media_info(message) == expected

@@ -14,7 +14,6 @@ from tests.support.concurrency import ConcurrencyProbe
 
 @pytest.mark.asyncio
 async def test_extract_with_limit_uses_default_semaphore() -> None:
-    """Use the module semaphore when no explicit semaphore is supplied."""
 
     def extractor(data: bytes, media_type: str) -> list[bytes]:
         return [data + media_type.encode("ascii")]
@@ -26,7 +25,6 @@ async def test_extract_with_limit_uses_default_semaphore() -> None:
 
 @pytest.mark.asyncio
 async def test_extract_with_limit_respects_semaphore_capacity() -> None:
-    """Keep the number of concurrent extractors within semaphore capacity."""
     semaphore = asyncio.Semaphore(2)
     probe = ConcurrencyProbe()
     release = threading.Event()
@@ -64,7 +62,6 @@ async def test_extract_with_limit_respects_semaphore_capacity() -> None:
 
 @pytest.mark.asyncio
 async def test_cancelled_extractor_holds_semaphore_until_thread_finishes() -> None:
-    """Do not release the semaphore while a cancelled worker is still running."""
     semaphore = asyncio.Semaphore(1)
     first_started = threading.Event()
     second_started = threading.Event()

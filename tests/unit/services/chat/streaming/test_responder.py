@@ -56,7 +56,6 @@ def _responder(
 
 @pytest.mark.asyncio
 async def test_responder_waits_until_initial_character_checkpoint() -> None:
-    """Responder waits until initial character checkpoint."""
     calls = []
 
     async def count(text: str) -> int:
@@ -78,7 +77,6 @@ async def test_responder_waits_until_initial_character_checkpoint() -> None:
 
 @pytest.mark.asyncio
 async def test_responder_checks_token_count_at_threshold_and_creates_status() -> None:
-    """Responder checks token count at threshold and creates status."""
     calls = []
     message = FakeMessage()
 
@@ -102,7 +100,6 @@ async def test_responder_checks_token_count_at_threshold_and_creates_status() ->
 async def test_responder_increases_character_checkpoint_after_short_token_count() -> (
     None
 ):
-    """Responder increases character checkpoint after short token count."""
     calls = []
     message = FakeMessage()
 
@@ -128,7 +125,6 @@ async def test_responder_increases_character_checkpoint_after_short_token_count(
 async def test_responder_updates_status_after_interval_only_when_chunk_changes() -> (
     None
 ):
-    """Responder updates status after interval only when chunk changes."""
     edits = []
 
     async def safe_edit(
@@ -156,7 +152,6 @@ async def test_responder_updates_status_after_interval_only_when_chunk_changes()
 async def test_responder_count_failure_does_not_disable_future_streaming(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Responder count failure does not disable future streaming."""
     attempts = 0
     message = FakeMessage()
 
@@ -178,15 +173,14 @@ async def test_responder_count_failure_does_not_disable_future_streaming(
     expected_attempts = 2
     assert attempts == expected_attempts
     assert responder.status is not None
-    expected_fragment = "Could not count streaming tokens"
-    assert expected_fragment in caplog.text
+    warning_text = "Could not count streaming tokens"
+    assert warning_text in caplog.text
 
 
 @pytest.mark.asyncio
 async def test_responder_disables_streaming_after_initial_send_failure(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Responder disables streaming after initial send failure."""
     failures: list[Exception | None] = [RuntimeError("telegram down")] * 2
     responder = _responder(FakeReplyMessage(failures=failures))
     with caplog.at_level(logging.WARNING, logger="bot_obormot.handlers.chat"):
@@ -195,15 +189,14 @@ async def test_responder_disables_streaming_after_initial_send_failure(
 
     assert responder.streaming_failed is True
     assert responder.status is None
-    expected_fragment = "Could not start streaming display"
-    assert expected_fragment in caplog.text
+    warning_text = "Could not start streaming display"
+    assert warning_text in caplog.text
 
 
 @pytest.mark.asyncio
 async def test_responder_disables_streaming_after_edit_failure(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Responder disables streaming after edit failure."""
 
     async def broken_edit(
         _status: object,
@@ -221,13 +214,12 @@ async def test_responder_disables_streaming_after_edit_failure(
         await responder.on_update("z" * 700)
 
     assert responder.streaming_failed is True
-    expected_fragment = "Streaming message update failed"
-    assert expected_fragment in caplog.text
+    warning_text = "Streaming message update failed"
+    assert warning_text in caplog.text
 
 
 @pytest.mark.asyncio
 async def test_responder_cancel_uses_shielded_safe_edit() -> None:
-    """Responder cancel uses shielded safe edit."""
     edits = []
     completed = asyncio.Event()
 
@@ -252,7 +244,6 @@ async def test_responder_cancel_uses_shielded_safe_edit() -> None:
 
 @pytest.mark.asyncio
 async def test_streaming_message_is_created_as_a_reply_without_parse_mode() -> None:
-    """Create the streaming message as a reply and show raw text."""
     message = FakeReplyMessage()
 
     async def count_tokens(_text: str) -> int:
@@ -271,5 +262,5 @@ async def test_streaming_message_is_created_as_a_reply_without_parse_mode() -> N
     _, kwargs = single_answer(message)
     expected_message_id = 42
     assert kwargs["reply_parameters"].message_id == expected_message_id
-    expected_fragment = "parse_mode"
-    assert expected_fragment not in kwargs
+    parse_mode_field = "parse_mode"
+    assert parse_mode_field not in kwargs

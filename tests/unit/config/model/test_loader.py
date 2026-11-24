@@ -12,7 +12,6 @@ from bot_obormot.config.model.loader import ConfigError, load_settings
 
 
 def test_load_settings_uses_the_supplied_environment() -> None:
-    """Load settings reads values from the supplied mapping."""
     settings = load_settings(
         {
             "BOT_TOKEN": " test-token ",
@@ -66,7 +65,6 @@ def test_load_settings_uses_the_supplied_environment() -> None:
 
 
 def test_load_settings_disables_audiodoc_when_no_url_is_configured() -> None:
-    """Audiodoc clients remain disabled when neither URL name is configured."""
     settings = load_settings({"SUPERVISOR_ID": "1"})
 
     expected_empty = ""
@@ -103,7 +101,6 @@ def test_load_settings_disables_audiodoc_when_no_url_is_configured() -> None:
     ],
 )
 def test_load_settings_rejects_each_invalid_setting(name: str, value: str) -> None:
-    """Load settings reports an invalid environment value."""
     with pytest.raises(ConfigError) as error:
         load_settings({"SUPERVISOR_ID": "1", name: value})
 
@@ -111,7 +108,6 @@ def test_load_settings_rejects_each_invalid_setting(name: str, value: str) -> No
 
 
 def test_load_settings_collects_multiple_errors() -> None:
-    """Load settings reports all invalid values in one exception."""
     environ = {
         "SUPERVISOR_ID": "invalid",
         "ADMIN_IDS": "bad-id",
@@ -132,7 +128,6 @@ def test_load_settings_collects_multiple_errors() -> None:
 
 
 def test_system_prompt_path_is_optional_and_keeps_the_built_in_prompt() -> None:
-    """Without SYSTEM_PROMPT_PATH the packaged prompt is the default."""
     settings = load_settings({"SUPERVISOR_ID": "1"})
 
     expected_empty = ""
@@ -141,7 +136,6 @@ def test_system_prompt_path_is_optional_and_keeps_the_built_in_prompt() -> None:
 
 
 def test_system_prompt_path_replaces_the_default_prompt(tmp_path: Path) -> None:
-    """A relative path resolves against the home directory and is read as UTF-8."""
     prompt_file = tmp_path / "systemPrompt.md"
     prompt_file.write_text("\n  Свой системный промпт  \n", encoding="utf-8")
 
@@ -161,7 +155,6 @@ def test_system_prompt_path_replaces_the_default_prompt(tmp_path: Path) -> None:
 def test_system_prompt_file_is_not_limited_like_personal_prompts(
     tmp_path: Path,
 ) -> None:
-    """The administrator's prompt may be longer than a personal prompt."""
     prompt_file = tmp_path / "long.md"
     prompt_file.write_text("а" * 10000, encoding="utf-8")
 
@@ -181,7 +174,6 @@ def test_system_prompt_file_is_not_limited_like_personal_prompts(
 def test_system_prompt_path_rejects_unusable_files(
     tmp_path: Path, content: bytes | None
 ) -> None:
-    """A missing, empty or undecodable prompt file is a configuration error."""
     prompt_file = tmp_path / "systemPrompt.md"
     if content is not None:
         prompt_file.write_bytes(content)
@@ -189,6 +181,6 @@ def test_system_prompt_path_rejects_unusable_files(
     with pytest.raises(ConfigError) as error:
         load_settings({"SUPERVISOR_ID": "1", "SYSTEM_PROMPT_PATH": str(prompt_file)})
 
-    expected_fragment = "SYSTEM_PROMPT_PATH"
-    assert [m for m in error.value.errors if expected_fragment in m]
+    setting_name = "SYSTEM_PROMPT_PATH"
+    assert [m for m in error.value.errors if setting_name in m]
     assert str(prompt_file) in error.value.errors[0]

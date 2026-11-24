@@ -17,7 +17,6 @@ from bot_obormot.services.chat.input import (
 
 
 def test_new_chat_input_package_reexports_the_public_api() -> None:
-    """New chat input package reexports the public api."""
     assert chat_input.MessageInfo is MessageInfo
     assert chat_input.PreparedMessage is PreparedMessage
     expected_name = "inspect_message"
@@ -27,7 +26,6 @@ def test_new_chat_input_package_reexports_the_public_api() -> None:
 
 
 def test_public_api_keeps_original_function_signatures() -> None:
-    """Public api keeps original function signatures."""
     assert list(inspect.signature(inspect_message).parameters) == ["message"]
     assert list(inspect.signature(prepare_message).parameters) == [
         "message",

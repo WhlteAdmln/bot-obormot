@@ -17,7 +17,6 @@ from tests.support.tgs import valid_tgs
 async def test_animation_pipeline_passes_the_polite_error_through(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The public animation API does not wrap the polite message."""
     monkeypatch.setitem(sys.modules, "rlottie_python", None)
 
     with pytest.raises(MediaError, match=TGS_SUPPORT_UNAVAILABLE):

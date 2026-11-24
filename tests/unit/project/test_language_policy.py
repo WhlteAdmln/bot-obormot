@@ -44,7 +44,6 @@ def _has_language_violations(path: Path) -> bool:
 
 
 def test_python_language_policy_has_no_violations() -> None:
-    """Ensure all Python source files follow the language policy."""
     violations = {
         path.relative_to(PROJECT_ROOT).as_posix()
         for path in sorted(BOT_ROOT.rglob("*.py"))

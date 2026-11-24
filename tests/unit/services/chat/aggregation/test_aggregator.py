@@ -31,7 +31,6 @@ def _tasks_named(name: str) -> list[asyncio.Task[object]]:
 async def test_aggregated_text_remembers_the_last_message(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Link the combined request to the last message that was added."""
     monkeypatch.setattr(aggregator_module, "MESSAGE_AGGREGATION_WINDOW", 0.1)
     aggregator = MessageAggregator()
     first = FakeReplyMessage("p" * 4000, message_id=1)
@@ -52,7 +51,6 @@ async def test_aggregated_text_remembers_the_last_message(
 
 @pytest.mark.asyncio
 async def test_aggregator_returns_short_standalone_message_immediately() -> None:
-    """Aggregator returns short standalone message immediately."""
     aggregator = MessageAggregator()
 
     expected_text = "коротко"
@@ -63,7 +61,6 @@ async def test_aggregator_returns_short_standalone_message_immediately() -> None
 async def test_aggregator_combines_continuation_parts_and_cleans_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Aggregator combines continuation parts and cleans state."""
     monkeypatch.setattr(aggregator_module, "MESSAGE_LENGTH_THRESHOLD", 2)
     monkeypatch.setattr(aggregator_module, "MESSAGE_AGGREGATION_WINDOW", 0.03)
     aggregator = MessageAggregator()
@@ -83,7 +80,6 @@ async def test_aggregator_combines_continuation_parts_and_cleans_state(
 async def test_aggregator_caps_accumulated_text_and_tracks_background_task(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Aggregator caps accumulated text and tracks background task."""
     monkeypatch.setattr(aggregator_module, "MESSAGE_LENGTH_THRESHOLD", 1)
     monkeypatch.setattr(aggregator_module, "MESSAGE_AGGREGATION_WINDOW", 0.5)
     aggregator = MessageAggregator()
@@ -108,7 +104,6 @@ async def test_aggregator_caps_accumulated_text_and_tracks_background_task(
 
 @pytest.mark.asyncio
 async def test_aggregator_ignores_messages_without_text_or_user() -> None:
-    """Aggregator ignores messages without text or user."""
     aggregator = MessageAggregator()
 
     assert await aggregator.collect(_message(None, 1)) is None

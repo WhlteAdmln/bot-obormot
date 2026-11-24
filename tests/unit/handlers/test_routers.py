@@ -10,7 +10,6 @@ from bot_obormot.handlers.history import limits as history_limits
 
 
 def test_handler_package_routers_are_exported() -> None:
-    """Handler package routers are exported."""
     assert start.router is not None
     assert admin.router is not None
     assert history_basic.router is not None
@@ -22,7 +21,6 @@ def test_handler_package_routers_are_exported() -> None:
 
 
 def test_routers_module_keeps_original_registration_groups_in_order() -> None:
-    """Routers module keeps original registration groups in order."""
     assert routers.router.sub_routers == [
         history_basic.router,
         prompt.router,
@@ -32,13 +30,11 @@ def test_routers_module_keeps_original_registration_groups_in_order() -> None:
 
 
 def test_unknown_command_router_is_last() -> None:
-    """Unknown command router is last."""
     assert routers.router.sub_routers[-1] is fallback.router
     assert len(fallback.router.message.handlers) == 1
 
 
 def test_routers_module_only_exports_router() -> None:
-    """Routers module only exports router."""
     assert routers.__all__ == ["router"]
     assert set(vars(routers).keys()).isdisjoint(
         {

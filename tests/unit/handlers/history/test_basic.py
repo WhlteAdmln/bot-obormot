@@ -33,7 +33,6 @@ from tests.support.telegram import (
 
 
 def test_forget_me_command_is_registered() -> None:
-    """Forget me command is registered."""
     assert any(
         handler.callback is cmd_forget_me
         for handler in history_basic.router.message.handlers
@@ -55,7 +54,6 @@ def test_forget_me_command_is_registered() -> None:
 async def test_handlers_ignore_messages_without_sender(
     handler: Callable[..., Awaitable[None]],
 ) -> None:
-    """Handlers return quietly when Telegram sends no sender information."""
     message = FakeMessage(None, "Будь краток")
 
     state = SimpleNamespace()
@@ -80,23 +78,22 @@ async def test_handlers_ignore_messages_without_sender(
         (HISTORY_USER_ID + 12, "/history extra", "show"),
     ],
 )
-async def test_history_basic_commands_through_dispatcher(
+async def test_runs_basic_history_commands_through_dispatcher(
     access_database: AccessDatabase,
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     case: tuple[int, str, str],
 ) -> None:
-    """Basic history commands preserve their behavior with extra arguments."""
     user_id, command_text, operation = case
     access_database.history_limits[user_id] = 17
 
     session = await feed_command(dispatcher_runtime, user_id, command_text)
 
-    expected_operation = "clear"
-    expected_operation_2 = "forget"
-    if operation == expected_operation:
+    clear_operation = "clear"
+    forget_operation = "forget"
+    if operation == clear_operation:
         expected_text = "🧹 История диалога очищена."
         assert access_database.log.arguments("reset_history") == [(user_id,)]
-    elif operation == expected_operation_2:
+    elif operation == forget_operation:
         expected_text = "🧹 Все твои данные удалены."
         assert access_database.log.arguments("forget_user") == [(user_id,)]
     else:
@@ -122,7 +119,6 @@ async def test_history_basic_commands_propagate_database_failures(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     case: tuple[int, str, str],
 ) -> None:
-    """Basic history commands propagate database failures."""
     user_id, command_text, failed_operation = case
     access_database.scenario.failed_operation = failed_operation
 
@@ -147,7 +143,6 @@ async def test_history_commands_are_denied_without_access(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     case: tuple[int, str, str],
 ) -> None:
-    """Access middleware denies history commands before database mutations."""
     user_id, command_text, operation = case
     dispatcher_runtime[0].workflow_data["settings"] = replace(
         SETTINGS, ALLOW_ALL_USERS=False

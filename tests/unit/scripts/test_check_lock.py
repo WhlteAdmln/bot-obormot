@@ -9,7 +9,6 @@ from scripts.check_lock import check_lock
 
 
 def test_check_lock_accepts_satisfied_constraints(tmp_path: Path) -> None:
-    """Check lock accepts satisfied constraints."""
     project = tmp_path / "pyproject.toml"
     lock = tmp_path / "requirements-lock.txt"
     project.write_text(
@@ -27,7 +26,6 @@ def test_check_lock_accepts_satisfied_constraints(tmp_path: Path) -> None:
 
 
 def test_check_lock_reports_missing_direct_dependency(tmp_path: Path) -> None:
-    """Check lock reports missing direct dependency."""
     project = tmp_path / "pyproject.toml"
     lock = tmp_path / "requirements-lock.txt"
     project.write_text(
@@ -40,7 +38,6 @@ def test_check_lock_reports_missing_direct_dependency(tmp_path: Path) -> None:
 
 
 def test_check_lock_reports_out_of_range_version(tmp_path: Path) -> None:
-    """Check lock reports out of range version."""
     project = tmp_path / "pyproject.toml"
     lock = tmp_path / "requirements-lock.txt"
     project.write_text(
@@ -55,7 +52,6 @@ def test_check_lock_reports_out_of_range_version(tmp_path: Path) -> None:
 
 
 def test_check_lock_ignores_optional_dependencies(tmp_path: Path) -> None:
-    """Check lock ignores optional dependencies."""
     project = tmp_path / "pyproject.toml"
     lock = tmp_path / "requirements-lock.txt"
     project.write_text(

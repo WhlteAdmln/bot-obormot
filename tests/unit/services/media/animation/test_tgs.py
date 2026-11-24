@@ -24,7 +24,6 @@ from tests.support.tgs import valid_tgs
 def test_missing_decoder_gives_a_polite_media_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A missing optional module is reported with a user-facing message."""
     monkeypatch.setitem(sys.modules, "rlottie_python", None)
 
     with pytest.raises(MediaError, match=TGS_SUPPORT_UNAVAILABLE):
@@ -73,7 +72,6 @@ def test_missing_decoder_does_not_log_on_each_sticker(
 def test_invalid_file_is_still_rejected_before_the_import_check(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Validation errors keep priority over the missing-extra message."""
     monkeypatch.setitem(sys.modules, "rlottie_python", None)
 
     with pytest.raises(MediaError) as error:
@@ -85,20 +83,17 @@ def test_invalid_file_is_still_rejected_before_the_import_check(
 def test_support_check_follows_the_installed_module(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The doctor helper reports whether the optional module can be found."""
     monkeypatch.setitem(sys.modules, "rlottie_python", None)
     assert tgs.tgs_support_available() is False
 
 
 def test_validate_tgs_accepts_bounded_gzip_json() -> None:
-    """Validate tgs accepts bounded gzip json."""
     data = gzip.compress(json.dumps({"w": 512, "h": 512}).encode("utf-8"))
 
     tgs.validate_tgs(data)
 
 
 def test_validate_tgs_rejects_gzip_decompression_bomb() -> None:
-    """Validate tgs rejects gzip decompression bomb."""
     data = gzip.compress(b"0" * (tgs.MAX_TGS_JSON + 1))
 
     with pytest.raises(MediaError, match="после распаковки"):
@@ -106,7 +101,6 @@ def test_validate_tgs_rejects_gzip_decompression_bomb() -> None:
 
 
 def test_validate_tgs_rejects_compressed_data_over_limit() -> None:
-    """Validate tgs rejects compressed data over limit."""
     data = os.urandom(tgs.MAX_TGS_COMPRESSED + 1)
 
     with pytest.raises(MediaError, match="Стикер слишком большой"):
@@ -114,7 +108,6 @@ def test_validate_tgs_rejects_compressed_data_over_limit() -> None:
 
 
 def test_validate_tgs_rejects_invalid_gzip_and_trailing_data() -> None:
-    """Validate tgs rejects invalid gzip and trailing data."""
     with pytest.raises(MediaError, match="Некорректный файл"):
         tgs.validate_tgs(b"not-a-gzip-file")
 
@@ -137,7 +130,6 @@ def test_validate_tgs_rejects_invalid_gzip_and_trailing_data() -> None:
     ],
 )
 def test_validate_tgs_rejects_invalid_canvas(document: object) -> None:
-    """Validate tgs rejects invalid canvas."""
     data = gzip.compress(json.dumps(document).encode("utf-8"))
 
     with pytest.raises(MediaError, match="размер анимации"):
@@ -147,7 +139,6 @@ def test_validate_tgs_rejects_invalid_canvas(document: object) -> None:
 def test_extract_tgs_validates_before_importing_rlottie(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Extract tgs validates before importing rlottie."""
     imported_modules: list[str] = []
     monkeypatch.setattr(tgs.importlib, "import_module", imported_modules.append)
 
@@ -161,13 +152,12 @@ def test_extract_tgs_validates_before_importing_rlottie(
 def test_extract_tgs_imports_rlottie_for_valid_animation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Extract tgs imports rlottie for valid animation."""
 
     def get_total_frames() -> int:
         return 1
 
     def render_frame(frame_num: int) -> Image.Image:
-        _ = frame_num  # Passed by keyword; this fake ignores it.
+        _ = frame_num
         return Image.new("RGB", (1, 1))
 
     fake_animation = SimpleNamespace(

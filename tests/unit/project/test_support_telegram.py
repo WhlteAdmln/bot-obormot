@@ -13,7 +13,6 @@ from tests.support.telegram import FakeTelegramSession, make_message, make_updat
 
 @pytest.mark.asyncio
 async def test_fake_telegram_session_records_requests_and_streams_content() -> None:
-    """Exercise a real aiogram Bot against the canned fake session."""
     response = make_message(message_id=7, chat_id=42, text="Telegram reply")
     session = FakeTelegramSession(
         {SendMessage: response},

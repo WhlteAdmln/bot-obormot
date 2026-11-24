@@ -12,7 +12,6 @@ from bot_obormot.services.documents.response import validate_document_response
 
 
 def test_validate_document_response_accepts_valid_payload_without_copying() -> None:
-    """Validate document response accepts valid payload without copying."""
     payload = {
         "text": "Текст",
         "format": "pdf",
@@ -23,7 +22,6 @@ def test_validate_document_response_accepts_valid_payload_without_copying() -> N
 
 
 def test_validate_document_response_rejects_non_boolean_truncated_flag() -> None:
-    """Validate document response rejects non boolean truncated flag."""
     payload = {
         "text": "Текст",
         "format": "pdf",
@@ -46,6 +44,5 @@ def test_validate_document_response_rejects_non_boolean_truncated_flag() -> None
 def test_validate_document_response_rejects_invalid_payloads(
     payload: object, detail: str
 ) -> None:
-    """Validate document response rejects invalid payloads."""
     with pytest.raises(DocumentAPIError, match=detail):
         validate_document_response(payload)

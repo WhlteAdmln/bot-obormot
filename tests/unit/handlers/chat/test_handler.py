@@ -166,7 +166,6 @@ class Message:
 async def test_handler_preserves_order_for_short_non_streamed_response(
     state: SimpleNamespace,
 ) -> None:
-    """Handler preserves order for short non streamed response."""
     message = Message()
 
     async def process(kwargs: object) -> str:
@@ -208,7 +207,6 @@ async def test_handler_preserves_order_for_short_non_streamed_response(
 async def test_handler_streams_long_response_and_finalizes_status(
     state: SimpleNamespace,
 ) -> None:
-    """Handler streams long response and finalizes status."""
     message = Message()
 
     async def process(kwargs: object) -> str:
@@ -228,7 +226,6 @@ async def test_handler_streams_long_response_and_finalizes_status(
         settings=SETTINGS,
     )
 
-    # First status is edited once during streaming and once for final delivery.
     expected_count = 2
     assert len(state.safe_edits) == expected_count
     expected_safe_edits = "Итоговый ответ"
@@ -241,7 +238,6 @@ async def test_handler_streams_long_response_and_finalizes_status(
 async def test_handler_cancellation_updates_status_and_cleans_typing_task(
     state: SimpleNamespace,
 ) -> None:
-    """Handler cancellation updates status and cleans typing task."""
     message = Message()
 
     async def process(kwargs: object) -> None:
@@ -272,7 +268,6 @@ async def test_handler_cancellation_updates_status_and_cleans_typing_task(
 async def test_handler_returns_early_for_aggregated_continuation(
     state: SimpleNamespace,
 ) -> None:
-    """Handler returns early for aggregated continuation."""
     message = Message()
     state.aggregator.result = None
 
@@ -295,7 +290,6 @@ async def test_handler_returns_early_for_aggregated_continuation(
 async def test_handler_rejects_user_when_pending_request_limit_is_reached(
     state: SimpleNamespace,
 ) -> None:
-    """Handler rejects user when pending request limit is reached."""
     message = Message()
     state.user_locks.pending_count = 3
 
@@ -311,8 +305,8 @@ async def test_handler_rejects_user_when_pending_request_limit_is_reached(
     assert message.answers == [
         ("⏳ Я ещё обрабатываю твои предыдущие сообщения. Подожди немного.", {})
     ]
-    expected_fragment = "lock-enter"
-    assert expected_fragment not in state.calls
+    lock_event = "lock-enter"
+    assert lock_event not in state.calls
     assert not state.typing_started.is_set()
 
 
@@ -320,7 +314,6 @@ async def test_handler_rejects_user_when_pending_request_limit_is_reached(
 async def test_handler_routes_processing_error_to_central_error_handler(
     state: SimpleNamespace,
 ) -> None:
-    """Handler routes processing error to central error handler."""
     message = Message()
 
     async def process(_kwargs: object) -> None:
@@ -352,7 +345,6 @@ async def test_handler_preserves_final_answer_after_stream_edit_failure(
     state: SimpleNamespace,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Handler preserves final answer after stream edit failure."""
     message = Message()
 
     async def broken_edit(
@@ -382,7 +374,6 @@ async def test_handler_preserves_final_answer_after_stream_edit_failure(
         settings=SETTINGS,
     )
 
-    # Первый answer создаёт stream-status; fallback отправляет полный ответ.
     assert message.answers == [
         ("A" * 300, {}),
         ("Финальный ответ не должен потеряться", {}),
@@ -394,7 +385,6 @@ async def test_handler_preserves_final_answer_after_stream_edit_failure(
 async def test_handler_routes_llm_connection_loss_with_existing_status(
     state: SimpleNamespace,
 ) -> None:
-    """Handler routes llm connection loss with existing status."""
     message = Message()
 
     async def process(kwargs: object) -> None:
@@ -425,7 +415,6 @@ async def test_handler_routes_llm_connection_loss_with_existing_status(
 async def test_handler_replies_to_the_incoming_message(
     state: SimpleNamespace,
 ) -> None:
-    """Handler links the response to the incoming message."""
     message = Message(message_id=11)
 
     async def process(_kwargs: object) -> str:
@@ -456,7 +445,6 @@ async def test_handler_replies_to_the_incoming_message(
 async def test_handler_replies_to_the_last_aggregated_message(
     state: SimpleNamespace,
 ) -> None:
-    """Handler links the response to the last message of a combined request."""
     first = Message(message_id=11)
     last = Message(message_id=13)
     state.aggregator.result = AggregatedText("первая\nтретья", last)
@@ -478,7 +466,7 @@ async def test_handler_replies_to_the_last_aggregated_message(
     text, kwargs = single_answer(first)
     expected_text = "ответ"
     assert text == expected_text
-    expected_fragment = "parse_mode"
-    assert expected_fragment not in kwargs
+    parse_mode_field = "parse_mode"
+    assert parse_mode_field not in kwargs
     expected_message_id = 13
     assert kwargs["reply_parameters"].message_id == expected_message_id

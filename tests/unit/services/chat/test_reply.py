@@ -12,7 +12,6 @@ from tests.support.chat_streaming import (
 
 
 def test_reply_target_stores_ids_and_builds_reply_parameters() -> None:
-    """Store chat_id and message_id and allow sending without the reply."""
     target = ReplyTarget.from_message(FakeReplyMessage(message_id=42))
     parameters = target.parameters()
 
@@ -24,5 +23,4 @@ def test_reply_target_stores_ids_and_builds_reply_parameters() -> None:
 
 
 def test_reply_target_without_message_id_has_no_parameters() -> None:
-    """Do not build reply parameters when there is nothing to reply to."""
     assert ReplyTarget.from_message(SimpleNamespace()).parameters() is None

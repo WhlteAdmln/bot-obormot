@@ -28,7 +28,6 @@ def _job_names(name: str) -> set[str]:
 
 
 def test_ci_has_the_required_jobs() -> None:
-    """The CI workflow has every job the release process depends on."""
     assert _job_names("ci.yml") == {
         "lint",
         "test",
@@ -41,7 +40,6 @@ def test_ci_has_the_required_jobs() -> None:
 
 
 def test_ci_jobs_call_make_targets() -> None:
-    """Every job delegates its main work to a Makefile target."""
     text = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
 
     for target in (
@@ -107,36 +105,33 @@ def test_check_target_runs_every_local_ci_gate() -> None:
 
 
 def test_installer_smoke_test_installs_locked_runtime_dependencies() -> None:
-    """Installer smoke tests use the project's locked runtime dependencies."""
     text = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
     installer_step = text.split(
         "      - name: Install installer smoke-test tools\n", maxsplit=1
     )[1].split("\n      - name:", maxsplit=1)[0]
 
-    expected_fragment = "--constraint requirements-lock.txt"
-    assert expected_fragment in installer_step
-    expected_fragment = "-r requirements.txt"
-    assert expected_fragment in installer_step
+    constraint_option = "--constraint requirements-lock.txt"
+    assert constraint_option in installer_step
+    requirements_option = "-r requirements.txt"
+    assert requirements_option in installer_step
 
 
 def test_ci_build_job_verifies_release_assets_and_metadata() -> None:
-    """The build job checks both distributions, checksums and the wheel."""
     text = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
 
-    expected_fragment = "sdists=(dist/bot_obormot-*.tar.gz)"
-    assert expected_fragment in text
-    expected_fragment = "wheels=(dist/bot_obormot-*.whl)"
-    assert expected_fragment in text
-    expected_fragment = "sha256sum --check --status SHA256SUMS"
-    assert expected_fragment in text
-    expected_fragment = "twine check"
-    assert expected_fragment in text
-    expected_fragment = 'bot-obormot" version'
-    assert expected_fragment in text
+    sdist_glob = "sdists=(dist/bot_obormot-*.tar.gz)"
+    assert sdist_glob in text
+    wheel_glob = "wheels=(dist/bot_obormot-*.whl)"
+    assert wheel_glob in text
+    checksum_command = "sha256sum --check --status SHA256SUMS"
+    assert checksum_command in text
+    twine_command = "twine check"
+    assert twine_command in text
+    version_check = 'bot-obormot" version'
+    assert version_check in text
 
 
 def test_ci_pins_every_third_party_action_to_a_commit() -> None:
-    """Actions are referenced by a full commit SHA, never by a moving tag."""
     for workflow in WORKFLOWS.glob("*.yml"):
         for line in workflow.read_text(encoding="utf-8").splitlines():
             match = re.search(r"uses:\s*(\S+)", line)
@@ -146,7 +141,6 @@ def test_ci_pins_every_third_party_action_to_a_commit() -> None:
 
 
 def test_reusable_workflow_references_are_valid() -> None:
-    """Release workflows call CI through a valid self-repository workflow path."""
     pattern = re.compile(
         r"(?m)^  ci:\n"
         r"(?:    name: .*\n)?"
@@ -160,47 +154,43 @@ def test_reusable_workflow_references_are_valid() -> None:
     )
     for name in ("release.yml", "docker-publish.yml"):
         text = (WORKFLOWS / name).read_text(encoding="utf-8")
-        expected_fragment = "$/.github/workflows/ci.yml"
-        assert expected_fragment in text
+        workflow_path = "$/.github/workflows/ci.yml"
+        assert workflow_path in text
         assert pattern.search(text) or pattern_with_permissions_first.search(text), name
 
 
 def test_workflows_contain_no_russian_text() -> None:
-    """Workflow messages are English, like every other log message."""
     for workflow in WORKFLOWS.glob("*.yml"):
         assert re.search(r"[А-Яа-яЁё]", workflow.read_text(encoding="utf-8")) is None
 
 
 def test_release_workflow_builds_and_publishes_the_release_assets() -> None:
-    """The release workflow verifies assets, attests them and creates a draft."""
     text = (WORKFLOWS / "release.yml").read_text(encoding="utf-8")
 
-    expected_fragment = "needs: ci"
-    assert expected_fragment in text
-    expected_fragment = "scripts/release_notes.py"
-    assert expected_fragment in text
-    expected_fragment = "scripts/build_release.sh"
-    assert expected_fragment in text
-    expected_fragment = "actions/attest@"
-    assert expected_fragment in text
-    expected_fragment = "--draft"
-    assert expected_fragment in text
-    expected_fragment = "--prerelease"
-    assert expected_fragment in text
-    expected_fragment = "dry_run"
-    assert expected_fragment in text
-    expected_fragment = "ghcr.io"
-    assert expected_fragment in text
+    ci_dependency = "needs: ci"
+    assert ci_dependency in text
+    notes_script = "scripts/release_notes.py"
+    assert notes_script in text
+    build_script = "scripts/build_release.sh"
+    assert build_script in text
+    attest_action = "actions/attest@"
+    assert attest_action in text
+    draft_option = "--draft"
+    assert draft_option in text
+    prerelease_option = "--prerelease"
+    assert prerelease_option in text
+    dry_run_input = "dry_run"
+    assert dry_run_input in text
+    registry_host = "ghcr.io"
+    assert registry_host in text
 
 
 def test_headerless_vendored_files_exist() -> None:
-    """Shared files without a header are present in the repository."""
     for relative_path in HEADERLESS_VENDORED_FILES:
         assert (ROOT_DIR / relative_path).is_file(), relative_path
 
 
 def test_project_vendored_files_have_required_headers() -> None:
-    """Every vendored file starts with the shared marker line."""
     for relative_path in VENDORED_FILES:
         first_line = (
             (ROOT_DIR / relative_path).read_text(encoding="utf-8").splitlines()[0]
@@ -216,7 +206,6 @@ def test_project_vendored_files_have_required_headers() -> None:
 
 
 def test_version_and_changelog_prepare_release_030() -> None:
-    """Version 0.3.0 is current and documents its removals."""
     pyproject = tomllib.loads((ROOT_DIR / "pyproject.toml").read_text("utf-8"))
     changelog = (ROOT_DIR / "CHANGELOG.md").read_text(encoding="utf-8")
     release_entry = changelog.split("## [0.3.0] - ", maxsplit=1)[1].split(
@@ -227,12 +216,11 @@ def test_version_and_changelog_prepare_release_030() -> None:
     assert pyproject["project"]["version"] == expected_version
     for section in ("### Added", "### Changed", "### Removed"):
         assert section in release_entry
-    expected_fragment = "Deprecated functionality is not supported starting with 0.3.0."
-    assert expected_fragment in release_entry
+    deprecation_note = "Deprecated functionality is not supported starting with 0.3.0."
+    assert deprecation_note in release_entry
 
 
 def test_changelog_keeps_the_release_022_entry() -> None:
-    """Version 0.2.2 keeps its historical changelog entry."""
     changelog = (ROOT_DIR / "CHANGELOG.md").read_text(encoding="utf-8")
     release_entry = changelog.split("## [0.2.2] - ", maxsplit=1)[1].split(
         "\n## [", maxsplit=1
@@ -240,16 +228,15 @@ def test_changelog_keeps_the_release_022_entry() -> None:
 
     for section in ("### Added", "### Fixed"):
         assert section in release_entry
-    expected_fragment = "SYSTEM_PROMPT_PATH"
-    assert expected_fragment in release_entry
-    expected_fragment = "LLM_MAX_TOKENS"
-    assert expected_fragment in release_entry
-    expected_fragment = "LLMEmptyResponseError"
-    assert expected_fragment in release_entry
+    prompt_setting = "SYSTEM_PROMPT_PATH"
+    assert prompt_setting in release_entry
+    max_tokens_setting = "LLM_MAX_TOKENS"
+    assert max_tokens_setting in release_entry
+    error_name = "LLMEmptyResponseError"
+    assert error_name in release_entry
 
 
 def test_version_and_changelog_prepare_release_021() -> None:
-    """Version 0.2.1 keeps its historical changelog entry and required sections."""
     changelog = (ROOT_DIR / "CHANGELOG.md").read_text(encoding="utf-8")
     release_entry = changelog.split("## [0.2.1] - ", maxsplit=1)[1].split(
         "\n## [", maxsplit=1
@@ -257,14 +244,13 @@ def test_version_and_changelog_prepare_release_021() -> None:
 
     for section in ("### Added", "### Changed"):
         assert section in release_entry
-    expected_fragment = "reply_parameters"
-    assert expected_fragment in release_entry
-    expected_fragment = "parse_mode"
-    assert expected_fragment in release_entry
+    reply_field = "reply_parameters"
+    assert reply_field in release_entry
+    parse_mode_field = "parse_mode"
+    assert parse_mode_field in release_entry
 
 
 def test_changelog_keeps_the_release_020_entry() -> None:
-    """Version 0.2.0 keeps its changelog entry with the required sections."""
     changelog = (ROOT_DIR / "CHANGELOG.md").read_text(encoding="utf-8")
     release_entry = changelog.split("## [0.2.0] - ", maxsplit=1)[1].split(
         "\n## [", maxsplit=1
@@ -272,9 +258,9 @@ def test_changelog_keeps_the_release_020_entry() -> None:
 
     for section in ("### Added", "### Changed", "### Deprecated", "### Removed"):
         assert section in release_entry
-    expected_fragment = "WHISPER_"
-    assert expected_fragment in release_entry
-    expected_fragment = "python -m bot.main"
-    assert expected_fragment in release_entry
-    expected_fragment = "0.3.0"
-    assert expected_fragment in release_entry
+    whisper_prefix = "WHISPER_"
+    assert whisper_prefix in release_entry
+    legacy_command = "python -m bot.main"
+    assert legacy_command in release_entry
+    release_version = "0.3.0"
+    assert release_version in release_entry

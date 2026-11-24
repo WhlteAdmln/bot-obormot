@@ -23,7 +23,6 @@ from bot_obormot.services.database.files.image_storage import (
 
 
 def test_database_package_reexports_facade_api_without_global_instance() -> None:
-    """Database package reexports the facade API without a global instance."""
     assert Database is FacadeDatabase
     assert not hasattr(database_package, "db")
     assert not hasattr(facade_module, "db")
@@ -34,6 +33,5 @@ def test_database_package_reexports_facade_api_without_global_instance() -> None
 
 
 def test_database_helpers_are_reexported_from_their_new_modules() -> None:
-    """Database helpers are reexported from their new modules."""
     assert handle_database_errors is canonical_decorator
     assert read_image_as_base64 is canonical_image_reader

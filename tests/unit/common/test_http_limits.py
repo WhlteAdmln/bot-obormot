@@ -13,7 +13,6 @@ from tests.support.audio_documents import FakeContent
 
 @pytest.mark.asyncio
 async def test_read_limited_body_rejects_declared_and_streamed_oversize() -> None:
-    """Read limited body rejects declared and streamed oversize."""
     declared_oversize = SimpleNamespace(
         content_length=11,
         content=FakeContent(b"ignored"),

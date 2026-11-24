@@ -40,7 +40,6 @@ async def test_health_reports_all_component_statuses(
     access_database: AccessDatabase,
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
-    """Health reports Telegram, database and LLM status."""
     access_database.admin_ids = {HISTORY_ADMIN_ID}
 
     session = await feed_command(dispatcher_runtime, HISTORY_ADMIN_ID, "/health extra")
@@ -62,7 +61,6 @@ async def test_health_reports_failed_telegram_database_and_llm(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Health reports failed dependencies without aborting the command."""
 
     async def fail_get_me(_bot: Bot) -> User:
         msg = "Telegram unavailable"
@@ -94,7 +92,6 @@ async def test_health_denies_user_when_admin_lookup_fails(
     access_database: AccessDatabase,
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
-    """Health reports a permission lookup failure to a non-supervisor."""
     access_database.scenario.fail_admin_lookup_on = 2
 
     session = await feed_command(

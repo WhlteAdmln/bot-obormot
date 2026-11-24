@@ -22,7 +22,6 @@ from tests.support.settings import make_settings
 async def test_prepare_message_preserves_processing_order_and_result(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Prepare message preserves processing order and result."""
     events = []
     app_settings = make_settings()
     info = make_info(
@@ -68,8 +67,8 @@ async def test_prepare_message_preserves_processing_order_and_result(
         assert kwargs["image_urls"] == ["data:image/jpeg;base64,AA=="]
         expected_document_text = "Текст документа"
         assert kwargs["document_text"] == expected_document_text
-        expected_fragment = "document_format"
-        assert expected_fragment not in kwargs
+        format_field = "document_format"
+        assert format_field not in kwargs
         return "Содержимое для LLM"
 
     def build_history(_message: object, _info: object, **kwargs: object) -> str:

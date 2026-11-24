@@ -16,7 +16,6 @@ from tests.support.database_repositories import USER_ID
 async def test_media_repository_removes_only_old_media_references(
     test_db: Database,
 ) -> None:
-    """Media repository removes only old media references."""
     cursor = await test_db.connection.execute(
         """
         INSERT INTO messages(user_id, role, content, created_at)

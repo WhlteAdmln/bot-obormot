@@ -25,7 +25,6 @@ from tests.support.telegram import (
 
 @pytest.mark.asyncio
 async def test_admin_add_writes_audit_record(caplog: pytest.LogCaptureFixture) -> None:
-    """Admin add writes audit record."""
     actor_id = SETTINGS.SUPERVISOR_ID
     target_id = 123456789
 
@@ -49,7 +48,6 @@ async def test_admin_add_writes_audit_record(caplog: pytest.LogCaptureFixture) -
 async def test_admin_remove_writes_not_found_result(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Admin remove writes not found result."""
     actor_id = SETTINGS.SUPERVISOR_ID
     target_id = 123456789
 
@@ -74,7 +72,6 @@ async def test_admin_remove_writes_not_found_result(
 async def test_non_supervisor_admin_command_is_audited(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Non supervisor admin command is audited."""
     message = FakeMessage(SETTINGS.SUPERVISOR_ID - 1)
     database = SimpleNamespace()
 
@@ -98,7 +95,6 @@ async def test_supervisor_commands_deny_non_supervisor(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     command_text: str,
 ) -> None:
-    """Supervisor-only commands reject ordinary users."""
     session = await feed_command(
         dispatcher_runtime,
         HISTORY_USER_ID + 101,
@@ -115,7 +111,6 @@ async def test_admin_panel_reports_database_counts(
     access_database: AccessDatabase,
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
-    """Admin panel displays administrator and allowlist counts."""
     access_database.admin_ids = {8003, 8001, 8002}
 
     session = await feed_command(dispatcher_runtime, SUPERVISOR_ID, "/admin extra")
@@ -160,7 +155,6 @@ async def test_admins_lists_sorted_ids_or_empty_state(
     admin_ids: set[int],
     expected_text: str,
 ) -> None:
-    """Admins lists sorted IDs and handles an empty administrator list."""
     access_database.admin_ids = admin_ids
 
     session = await feed_command(dispatcher_runtime, SUPERVISOR_ID, "/admins")
@@ -179,7 +173,6 @@ async def test_admin_read_commands_propagate_database_failures(
     command_text: str,
     operation: str,
 ) -> None:
-    """Admin panel and list propagate database lookup failures."""
     access_database.scenario.failed_operation = operation
 
     with pytest.raises(RuntimeError, match="database unavailable"):
@@ -199,7 +192,6 @@ async def test_admin_add_reports_added_and_existing_users(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     case: tuple[bool, str],
 ) -> None:
-    """Admin add reports both newly added and existing administrators."""
     result, expected_text = case
     access_database.scenario.results["add_admin"] = result
 
@@ -232,7 +224,6 @@ async def test_admin_add_rejects_invalid_arguments_and_supervisor(
     arguments: str,
     expected_text: str,
 ) -> None:
-    """Admin add validates IDs and protects the supervisor."""
     session = await feed_command(
         dispatcher_runtime,
         SUPERVISOR_ID,
@@ -248,7 +239,6 @@ async def test_admin_add_propagates_database_failure(
     access_database: AccessDatabase,
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
-    """Admin add propagates database failures."""
     access_database.scenario.failed_operation = "add_admin"
 
     with pytest.raises(RuntimeError, match="database unavailable"):
@@ -268,7 +258,6 @@ async def test_admin_remove_reports_removed_and_missing_users(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     case: tuple[bool, str],
 ) -> None:
-    """Admin remove reports successful and unsuccessful removals."""
     result, expected_text = case
     access_database.scenario.results["remove_admin"] = result
 
@@ -298,7 +287,6 @@ async def test_admin_remove_rejects_invalid_arguments_and_supervisor(
     arguments: str,
     expected_text: str,
 ) -> None:
-    """Admin remove validates IDs and protects the supervisor."""
     session = await feed_command(
         dispatcher_runtime,
         SUPERVISOR_ID,
@@ -314,7 +302,6 @@ async def test_admin_remove_propagates_database_failure(
     access_database: AccessDatabase,
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
-    """Admin remove propagates database failures."""
     access_database.scenario.failed_operation = "remove_admin"
 
     with pytest.raises(RuntimeError, match="database unavailable"):

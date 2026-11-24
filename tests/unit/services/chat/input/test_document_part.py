@@ -20,7 +20,6 @@ from tests.support.settings import make_settings
 async def test_prepare_document_rejects_empty_extracted_text(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Prepare document rejects empty extracted text."""
     filename = "empty.pdf\nERROR forged entry"
     document = SimpleNamespace(file_id="doc-id", file_name=filename)
     info = make_info(document=document, has_document=True)
@@ -31,7 +30,6 @@ async def test_prepare_document_rejects_empty_extracted_text(
         return b"document-bytes"
 
     async def process(_data: object, actual_filename: object) -> dict[str, object]:
-        # Очистка относится только к логам, а не к имени файла для сервиса.
         assert actual_filename == filename
         return {"text": "  ", "format": "pdf", "characters": 0}
 
@@ -50,15 +48,14 @@ async def test_prepare_document_rejects_empty_extracted_text(
             settings=make_settings(),
         )
 
-    expected_fragment = r"DOCUMENT: starting download: empty.pdf\nERROR forged entry"
-    assert expected_fragment in caplog.text
-    expected_fragment = "\nERROR forged entry"
-    assert expected_fragment not in caplog.text
+    escaped_log_line = r"DOCUMENT: starting download: empty.pdf\nERROR forged entry"
+    assert escaped_log_line in caplog.text
+    forged_line = "\nERROR forged entry"
+    assert forged_line not in caplog.text
 
 
 @pytest.mark.asyncio
 async def test_prepare_document_rejects_truncated_extracted_text() -> None:
-    """Prepare document rejects truncated extracted text."""
     document = SimpleNamespace(file_id="doc-id", file_name="large.pdf")
     info = make_info(document=document, has_document=True)
 

@@ -13,8 +13,7 @@ from tests.support.database_repositories import USER_ID
 
 
 @pytest.mark.asyncio
-async def test_history_limits_repository_crud(test_db: Database) -> None:
-    """History limits repository crud."""
+async def test_sets_reads_and_deletes_history_limit(test_db: Database) -> None:
     assert await history_limits.get_history_limit(test_db.connection, USER_ID) is None
 
     await history_limits.set_history_limit(test_db.connection, USER_ID, 17)

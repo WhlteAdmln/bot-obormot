@@ -51,11 +51,9 @@ async def fixture_test_db(
 
 
 @pytest.mark.asyncio
-async def test_multiuser_isolation(test_db: Database) -> None:
-    """Проверяет изоляцию истории и промптов пользователей."""
+async def test_keeps_histories_and_prompts_of_users_apart(test_db: Database) -> None:
     db = test_db
 
-    # Создаём отдельные истории.
     await db.add_exchange(
         USER_A,
         "Сообщение пользователя A",
@@ -81,18 +79,12 @@ async def test_multiuser_isolation(test_db: Database) -> None:
     expected_content = "Сообщение пользователя B"
     assert history_b[0]["content"] == expected_content
 
-    # Проверяем, что данные пользователей не смешиваются.
-    expected_fragment = "пользователя B"
-    assert all(
-        expected_fragment not in str(message["content"]) for message in history_a
-    )
+    other_user_text = "пользователя B"
+    assert all(other_user_text not in str(message["content"]) for message in history_a)
 
-    expected_fragment = "пользователя A"
-    assert all(
-        expected_fragment not in str(message["content"]) for message in history_b
-    )
+    other_user_text = "пользователя A"
+    assert all(other_user_text not in str(message["content"]) for message in history_b)
 
-    # Сохраняем разные персональные промпты.
     await db.set_system_prompt(
         USER_A,
         "Персональный промпт A",
@@ -108,11 +100,9 @@ async def test_multiuser_isolation(test_db: Database) -> None:
     expected_text = "Персональный промпт B"
     assert await db.get_system_prompt(USER_B) == expected_text
 
-    # У пользователя C должен остаться стандартный промпт.
     expected_text = "Тестовый стандартный промпт"
     assert await db.get_system_prompt(USER_C) == expected_text
 
-    # Удаляем персональный промпт A.
     await db.delete_system_prompt(USER_A)
 
     expected_text = "Тестовый стандартный промпт"
@@ -120,12 +110,10 @@ async def test_multiuser_isolation(test_db: Database) -> None:
     expected_text = "Персональный промпт B"
     assert await db.get_system_prompt(USER_B) == expected_text
 
-    # Очищаем историю A.
     await db.reset_history(USER_A)
 
     assert await db.get_history(USER_A, limit=20) == []
 
-    # История B должна сохраниться.
     history_b = await db.get_history(USER_B, limit=20)
 
     expected_count = 2
@@ -133,8 +121,7 @@ async def test_multiuser_isolation(test_db: Database) -> None:
 
 
 @pytest.mark.asyncio
-async def test_concurrent_users(test_db: Database) -> None:
-    """Проверяет параллельную запись нескольких пользователей."""
+async def test_stores_concurrent_exchanges_of_several_users(test_db: Database) -> None:
     db = test_db
 
     async def write_messages(user_id: int) -> None:
@@ -151,7 +138,6 @@ async def test_concurrent_users(test_db: Database) -> None:
         write_messages(USER_C),
     )
 
-    # Каждый пользователь должен получить свои 20 сообщений.
     for user_id in (USER_A, USER_B, USER_C):
         history = await db.get_history(user_id, limit=100)
 

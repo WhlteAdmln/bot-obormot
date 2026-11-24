@@ -16,7 +16,6 @@ from tests.support.database_lock import LockOwningDatabase
 
 @pytest.mark.asyncio
 async def test_database_error_decorator_translates_sqlite_errors() -> None:
-    """Database error decorator translates sqlite errors."""
 
     @handle_database_errors
     async def operation(_self: object) -> None:
@@ -37,7 +36,6 @@ async def test_database_error_decorator_translates_sqlite_errors() -> None:
 
 @pytest.mark.asyncio
 async def test_database_error_decorator_preserves_database_error() -> None:
-    """Database error decorator preserves database error."""
     original = DatabaseError("specific database failure")
 
     @handle_database_errors
@@ -55,7 +53,6 @@ async def test_database_error_decorator_preserves_database_error() -> None:
 
 
 def test_database_error_decorator_preserves_function_metadata() -> None:
-    """Database error decorator preserves function metadata."""
 
     @handle_database_errors
     async def operation(_self: object) -> None:
@@ -71,7 +68,6 @@ def test_database_error_decorator_preserves_function_metadata() -> None:
 async def test_failed_write_rolls_back_and_next_exchange_succeeds(
     test_db: Database,
 ) -> None:
-    """Ошибка CHECK не должна оставлять транзакцию для следующей записи."""
     with pytest.raises(DatabaseError, match="Database operation failed: add_message"):
         await test_db.add_message(1, "bad-role", "x")
 

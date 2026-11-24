@@ -23,5 +23,4 @@ def test_only_confirmed_parse_errors_are_entity_errors(
     *,
     expected: bool,
 ) -> None:
-    """Recognize only Telegram formatting errors."""
     assert is_entity_parse_error(error) is expected

@@ -11,7 +11,6 @@ from bot_obormot.services.media.animation.dispatcher import dispatch_extraction
 
 
 def test_dispatch_extraction_routes_formats() -> None:
-    """Dispatch extraction routes each format to its decoder."""
     calls: list[tuple[str, bytes]] = []
 
     def gif(data: bytes) -> list[bytes]:
@@ -40,6 +39,5 @@ def test_dispatch_extraction_routes_formats() -> None:
 
 @pytest.mark.asyncio
 async def test_animation_dispatch_errors_are_wrapped_as_media_error() -> None:
-    """Animation dispatch errors are wrapped as media error."""
     with pytest.raises(MediaError, match="Failed to process unknown animation"):
         await animation.extract_animation_frames(b"data", "unknown")

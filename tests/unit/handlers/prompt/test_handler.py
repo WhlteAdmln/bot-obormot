@@ -37,7 +37,6 @@ async def test_prompt_command_shows_the_effective_prompt(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     case: tuple[int, str | None, str, str],
 ) -> None:
-    """Prompt displays the standard or personal system prompt."""
     user_id, personal_prompt, source, effective_prompt = case
     if personal_prompt is not None:
         access_database.user_prompts[user_id] = personal_prompt
@@ -62,7 +61,6 @@ async def test_prompt_command_truncates_a_long_effective_prompt(
     access_database: AccessDatabase,
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
-    """Prompt display truncates prompts longer than the display limit."""
     access_database.default_system_prompt = "x" * 3501
 
     session = await feed_command(
@@ -90,7 +88,6 @@ async def test_prompt_command_truncates_a_long_effective_prompt(
 async def test_prompt_set_starts_the_input_flow(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
-    """Prompt set asks for a new prompt even when arguments are supplied."""
     session = await feed_command(
         dispatcher_runtime,
         PROMPT_USER_ID + 3,
@@ -111,7 +108,6 @@ async def test_prompt_save_persists_the_new_personal_prompt(
     access_database: AccessDatabase,
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
-    """A valid prompt is stored and the prompt flow messages are deleted."""
     user_id = PROMPT_USER_ID + 4
     await feed_command(dispatcher_runtime, user_id, "/prompt_set")
 
@@ -159,7 +155,6 @@ async def test_prompt_save_rejects_invalid_prompt_text(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     case: tuple[int, str, str],
 ) -> None:
-    """Empty and oversized prompts are rejected without saving."""
     user_id, prompt_text, expected_text = case
     await feed_command(dispatcher_runtime, user_id, "/prompt_set")
 
@@ -199,7 +194,6 @@ async def test_prompt_reset_handles_personal_and_standard_prompts(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     case: tuple[int, str | None, str],
 ) -> None:
-    """Prompt reset handles users with and without a personal prompt."""
     user_id, personal_prompt, expected_text = case
     if personal_prompt is not None:
         access_database.user_prompts[user_id] = personal_prompt
@@ -219,7 +213,6 @@ async def test_prompt_reset_handles_personal_and_standard_prompts(
 async def test_prompt_cancel_clears_the_input_flow(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
-    """Cancel ends the prompt input flow and sends its status."""
     user_id = PROMPT_USER_ID + 9
     await feed_command(dispatcher_runtime, user_id, "/prompt_set")
 
@@ -251,7 +244,6 @@ async def test_prompt_view_propagates_database_failures(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     failed_operation: str,
 ) -> None:
-    """Prompt view propagates failures from either prompt lookup."""
     access_database.scenario.failed_operation = failed_operation
 
     with pytest.raises(RuntimeError, match="database unavailable"):
@@ -277,7 +269,6 @@ async def test_prompt_reset_propagates_database_failures(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     case: tuple[str, bool],
 ) -> None:
-    """Prompt reset propagates lookup and deletion failures."""
     failed_operation, has_personal_prompt = case
     user_id = PROMPT_USER_ID + 11
     if has_personal_prompt:
@@ -299,7 +290,6 @@ async def test_prompt_save_propagates_database_failure(
     access_database: AccessDatabase,
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
-    """Saving a personal prompt propagates a database failure."""
     user_id = PROMPT_USER_ID + 12
     session = await feed_command(dispatcher_runtime, user_id, "/prompt_set")
     access_database.scenario.failed_operation = "set_system_prompt"
@@ -334,7 +324,6 @@ async def test_prompt_commands_are_denied_without_access(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     case: tuple[int, str],
 ) -> None:
-    """Access middleware denies prompt commands before handler execution."""
     user_id, command_text = case
     dispatcher_runtime[0].workflow_data["settings"] = replace(
         SETTINGS, ALLOW_ALL_USERS=False

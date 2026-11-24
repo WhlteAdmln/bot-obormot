@@ -35,7 +35,6 @@ SETTINGS = make_settings()
 def test_dispatcher_registers_middlewares_and_routers_once_in_original_order(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Dispatcher registers middlewares and routers once in original order."""
     router_refs = {name: object() for name in ("start", "admin", "routers", "chat")}
     for name, router in router_refs.items():
         monkeypatch.setattr(app_routers, name, SimpleNamespace(router=router))
@@ -94,7 +93,6 @@ def test_configure_dispatcher_creates_user_locks_when_none_is_given() -> None:
 def test_periodic_cleanup_uses_existing_policy_and_propagates_cancellation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Periodic cleanup uses existing policy and propagates cancellation."""
     calls: list[dict[str, object]] = []
 
     async def cleanup_old_images(**kwargs: object) -> dict[str, object]:
@@ -119,7 +117,6 @@ def test_periodic_cleanup_continues_after_database_error(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Periodic cleanup continues after a failed iteration."""
     calls: list[dict[str, object]] = []
     sleep_calls = 0
 
@@ -153,8 +150,8 @@ def test_periodic_cleanup_continues_after_database_error(
     ]
     expected_sleep_calls = 2
     assert sleep_calls == expected_sleep_calls
-    expected_fragment = "Scheduled image cleanup failed"
-    assert expected_fragment in caplog.text
+    cleanup_error = "Scheduled image cleanup failed"
+    assert cleanup_error in caplog.text
 
 
 @pytest.fixture(name="harness")
@@ -181,7 +178,6 @@ def fixture_harness(monkeypatch: pytest.MonkeyPatch) -> LifecycleHarness:
 def test_lifecycle_preserves_startup_polling_and_shutdown_order(
     harness: LifecycleHarness,
 ) -> None:
-    """Lifecycle starts and stops resources in the expected order."""
     asyncio.run(
         lifecycle.run_application(
             harness.bot,
@@ -207,7 +203,6 @@ def test_lifecycle_closes_database_and_resources_when_llm_startup_fails(
     harness: LifecycleHarness,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Lifecycle closes the database and remaining resources when LLM startup fails."""
 
     async def fail_start() -> None:
         harness.calls.append("llm.start")
@@ -238,7 +233,6 @@ def test_lifecycle_closes_database_and_resources_when_llm_startup_fails(
 def test_lifecycle_closes_remaining_resources_when_database_startup_fails(
     harness: LifecycleHarness,
 ) -> None:
-    """Lifecycle closes remaining resources when database startup fails."""
     harness.database.fail_on_enter = True
 
     with pytest.raises(RuntimeError, match="application database unavailable"):
@@ -262,7 +256,6 @@ def test_lifecycle_continues_closing_after_one_cleanup_error(
     harness: LifecycleHarness,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Lifecycle continues closing after one cleanup error."""
 
     async def fail_llm_close() -> None:
         harness.calls.append("llm.close")
@@ -287,7 +280,6 @@ def test_lifecycle_cancels_running_request_and_background_task_on_shutdown(
     harness: LifecycleHarness,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Lifecycle shuts down resources when polling is cancelled during a request."""
     request_started = asyncio.Event()
     request_cancelled = asyncio.Event()
 
@@ -366,7 +358,6 @@ def _patch_main_components(
 def test_bootstrap_main_loads_env_and_passes_settings_down(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Bootstrap main loads the env file once and passes one Settings object down."""
     calls: list[object] = []
     bot_instance = object()
     dispatcher_instance = object()
@@ -448,7 +439,6 @@ def test_bootstrap_main_loads_env_and_passes_settings_down(
 def test_bootstrap_main_stops_on_invalid_settings(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Invalid environment settings abort startup before any component starts."""
     calls: list[object] = []
     _patch_main_components(monkeypatch, calls)
     monkeypatch.delenv("SUPERVISOR_ID", raising=False)
@@ -462,7 +452,6 @@ def test_bootstrap_main_stops_on_invalid_settings(
 def test_create_dispatcher_passes_settings_to_router_configuration(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Create dispatcher hands the same Settings object to the router wiring."""
     outer_middlewares: list[object] = []
     created = SimpleNamespace(
         update=SimpleNamespace(outer_middleware=outer_middlewares.append),
@@ -502,7 +491,6 @@ def test_create_dispatcher_passes_settings_to_router_configuration(
 
 
 def test_main_module_is_a_thin_entrypoint() -> None:
-    """Main module exposes only the bootstrap entrypoint."""
     assert main_module.main is bootstrap.main
     assert main_module.__all__ == ["main"]
 
@@ -532,7 +520,6 @@ def test_log_access_mode_reports_configured_mode(
     expected_message: str,
     expected_level: str,
 ) -> None:
-    """Log access mode reports configured mode."""
     settings = make_settings(ALLOW_ALL_USERS=allow_all, ALLOWED_USERS=allowed_users)
 
     with caplog.at_level(logging.DEBUG, logger="bot_obormot.main"):
@@ -572,7 +559,6 @@ def test_create_bot_rejects_invalid_token(
     created_tokens: list[str],
     token: str,
 ) -> None:
-    """Create bot rejects invalid token."""
     settings = make_settings(BOT_TOKEN=token)
 
     with pytest.raises(RuntimeError, match="BOT_TOKEN has an invalid format"):
@@ -584,7 +570,6 @@ def test_create_bot_rejects_invalid_token(
 def test_create_bot_accepts_token_with_expected_format(
     created_tokens: list[str],
 ) -> None:
-    """Create bot accepts token with expected format."""
     token = "123456789:" + "A_b-9" * 7
     settings = make_settings(BOT_TOKEN=token)
 

@@ -12,7 +12,6 @@ from bot_obormot.middlewares import throttle as throttle_module
 
 @pytest.mark.asyncio
 async def test_throttle_allows_limit_and_drops_next_event() -> None:
-    """Throttle allows limit and drops next event."""
     ticks = iter((1.0, 2.0, 3.0, 4.0))
     middleware = throttle_module.ThrottleMiddleware(
         max_events=3,
@@ -34,7 +33,6 @@ async def test_throttle_allows_limit_and_drops_next_event() -> None:
 
 @pytest.mark.asyncio
 async def test_throttle_expires_events_after_window() -> None:
-    """Throttle expires events after window."""
     ticks = iter((1.0, 12.0))
     middleware = throttle_module.ThrottleMiddleware(
         max_events=1,
@@ -58,7 +56,6 @@ async def test_throttle_expires_events_after_window() -> None:
 
 @pytest.mark.asyncio
 async def test_throttle_drops_events_without_sender() -> None:
-    """Throttle drops events without sender."""
     middleware = throttle_module.ThrottleMiddleware()
     calls = []
 
@@ -105,7 +102,6 @@ async def test_throttle_keeps_tracking_the_newest_user() -> None:
 
 
 def test_throttle_rejects_invalid_limits() -> None:
-    """Throttle rejects invalid limits."""
     with pytest.raises(ValueError, match="max_events"):
         throttle_module.ThrottleMiddleware(max_events=0)
 
@@ -118,7 +114,6 @@ def test_throttle_rejects_invalid_limits() -> None:
 
 @pytest.mark.asyncio
 async def test_throttle_isolates_users() -> None:
-    """One user's burst does not consume another user's event allowance."""
     ticks = iter((1.0, 2.0, 3.0, 4.0, 5.0))
     middleware = throttle_module.ThrottleMiddleware(
         max_events=2,

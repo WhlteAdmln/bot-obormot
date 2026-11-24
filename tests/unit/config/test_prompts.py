@@ -14,7 +14,6 @@ def test_load_default_system_prompt_reports_missing_file_in_english(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Reports a missing system prompt file in English."""
     monkeypatch.setattr(prompts, "files", lambda _: tmp_path)
     prompt_path = tmp_path / "prompts" / "systemPrompt.md"
 
@@ -28,7 +27,6 @@ def test_load_default_system_prompt_reports_empty_file_in_english(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Reports an empty system prompt file in English."""
     monkeypatch.setattr(prompts, "files", lambda _: tmp_path)
     prompt_path = tmp_path / "prompts" / "systemPrompt.md"
     prompt_path.parent.mkdir()

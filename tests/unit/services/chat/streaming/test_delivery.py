@@ -41,7 +41,6 @@ def _options(message_id: int | None = 42) -> DeliveryOptions:
 
 @pytest.mark.asyncio
 async def test_delivery_sends_all_chunks_without_streaming_status() -> None:
-    """Delivery sends all chunks without streaming status."""
     message = FakeMessage()
 
     await deliver_final_response(
@@ -64,7 +63,6 @@ async def test_delivery_sends_all_chunks_without_streaming_status() -> None:
 
 @pytest.mark.asyncio
 async def test_delivery_edits_first_chunk_and_sends_remaining_chunks() -> None:
-    """Delivery edits first chunk and sends remaining chunks."""
     message = FakeMessage()
     edits = []
 
@@ -99,7 +97,6 @@ async def test_delivery_edits_first_chunk_and_sends_remaining_chunks() -> None:
 async def test_delivery_falls_back_to_all_chunks_when_status_edit_fails(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Delivery falls back to all chunks when status edit fails."""
     message = FakeMessage()
 
     async def broken_edit(
@@ -127,13 +124,12 @@ async def test_delivery_falls_back_to_all_chunks_when_status_edit_fails(
         ("abc", {"parse_mode": "HTML"}),
         ("def", {"parse_mode": "HTML"}),
     ]
-    expected_fragment = "Sending complete response again"
-    assert expected_fragment in caplog.text
+    retry_warning = "Sending complete response again"
+    assert retry_warning in caplog.text
 
 
 @pytest.mark.asyncio
 async def test_delivery_does_nothing_for_empty_formatted_response() -> None:
-    """Delivery does nothing for empty formatted response."""
     message = FakeMessage()
 
     await deliver_final_response(
@@ -152,7 +148,6 @@ async def test_delivery_does_nothing_for_empty_formatted_response() -> None:
 
 @pytest.mark.asyncio
 async def test_delivery_splits_response_longer_than_telegram_message_limit() -> None:
-    """Delivery splits response longer than telegram message limit."""
     message = FakeMessage()
     response = "x" * 3901
 
@@ -172,7 +167,6 @@ async def test_delivery_splits_response_longer_than_telegram_message_limit() -> 
 
 @pytest.mark.asyncio
 async def test_parse_mode_and_reply_parameters_are_sent_together() -> None:
-    """Send parse_mode and reply_parameters in one request."""
     message = FakeReplyMessage()
 
     await deliver_final_response(
@@ -190,20 +184,18 @@ async def test_parse_mode_and_reply_parameters_are_sent_together() -> None:
 
 @pytest.mark.asyncio
 async def test_plain_text_is_sent_without_parse_mode() -> None:
-    """Do not pass parse_mode for plain text."""
     message = FakeReplyMessage()
 
     await deliver_final_response(
         message, "hello", None, edit_status, options=_options()
     )
 
-    expected_fragment = "parse_mode"
-    assert expected_fragment not in message.answers[0][1]
+    parse_mode_field = "parse_mode"
+    assert parse_mode_field not in message.answers[0][1]
 
 
 @pytest.mark.asyncio
 async def test_formatting_error_retries_once_with_original_text_and_reply() -> None:
-    """Retry once without parse_mode, with the original text and the reply."""
     message = FakeReplyMessage(failures=[bad_request(PARSE_ERROR), None])
 
     await deliver_final_response(
@@ -215,8 +207,8 @@ async def test_formatting_error_retries_once_with_original_text_and_reply() -> N
     retry_text, retry_kwargs = message.answers[1]
     expected_retry_text = "**hi** a.b"
     assert retry_text == expected_retry_text
-    expected_fragment = "parse_mode"
-    assert expected_fragment not in retry_kwargs
+    parse_mode_field = "parse_mode"
+    assert parse_mode_field not in retry_kwargs
     expected_message_id = 42
     assert retry_kwargs["reply_parameters"].message_id == expected_message_id
 
@@ -225,7 +217,6 @@ async def test_formatting_error_retries_once_with_original_text_and_reply() -> N
 async def test_failed_retry_is_logged_and_not_repeated(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Log the error when the retry fails too and do not retry again."""
     message = FakeReplyMessage(
         failures=[bad_request(PARSE_ERROR), bad_request(PARSE_ERROR)]
     )
@@ -237,8 +228,8 @@ async def test_failed_retry_is_logged_and_not_repeated(
 
     expected_count = 2
     assert len(message.answers) == expected_count
-    expected_fragment = "Plain-text retry failed"
-    assert expected_fragment in caplog.text
+    retry_warning = "Plain-text retry failed"
+    assert retry_warning in caplog.text
 
 
 @pytest.mark.asyncio
@@ -247,7 +238,6 @@ async def test_failed_retry_is_logged_and_not_repeated(
     [bad_request("Bad Request: chat not found"), network_error()],
 )
 async def test_other_errors_do_not_trigger_the_fallback(error: Exception) -> None:
-    """Never retry network errors or unrelated rejections."""
     message = FakeReplyMessage(failures=[error])
 
     with pytest.raises(type(error)):
@@ -260,7 +250,6 @@ async def test_other_errors_do_not_trigger_the_fallback(error: Exception) -> Non
 
 @pytest.mark.asyncio
 async def test_status_edit_falls_back_to_original_text() -> None:
-    """Edit the streaming message again without parse_mode on a parse error."""
     edits: list[tuple[str, str | None]] = []
 
     async def edit(_status: object, text: str, parse_mode: str | None = None) -> None:
@@ -281,7 +270,6 @@ async def test_status_edit_falls_back_to_original_text() -> None:
 
 @pytest.mark.asyncio
 async def test_network_error_on_edit_does_not_send_a_duplicate() -> None:
-    """Do not resend the response when the edit delivery status is unknown."""
 
     async def edit(_status: object, _text: str, parse_mode: str | None = None) -> None:
         del parse_mode
@@ -300,7 +288,6 @@ async def test_network_error_on_edit_does_not_send_a_duplicate() -> None:
 
 @pytest.mark.asyncio
 async def test_only_the_first_chunk_is_a_reply() -> None:
-    """Link only the first part of a long response to the user's message."""
     message = FakeReplyMessage()
 
     await deliver_final_response(
@@ -308,15 +295,14 @@ async def test_only_the_first_chunk_is_a_reply() -> None:
     )
 
     assert len(message.answers) > 1
-    expected_fragment = "reply_parameters"
-    assert expected_fragment in message.answers[0][1]
-    expected_fragment = "reply_parameters"
-    assert all(expected_fragment not in kwargs for _, kwargs in message.answers[1:])
+    reply_field = "reply_parameters"
+    assert reply_field in message.answers[0][1]
+    reply_field = "reply_parameters"
+    assert all(reply_field not in kwargs for _, kwargs in message.answers[1:])
 
 
 @pytest.mark.asyncio
 async def test_reply_association_does_not_depend_on_completion_order() -> None:
-    """Each response keeps the reply target of its own request."""
     first, second = FakeReplyMessage(), FakeReplyMessage()
 
     async def finish(message: FakeReplyMessage, target: int, delay: float) -> None:

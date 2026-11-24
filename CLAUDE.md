@@ -27,7 +27,7 @@ One task is one session. Do not start a second task in the same session.
 
 ## Completing a task
 
-1. Run `make check` (or `make -k check` to see every failure) and `scripts/check_vendored.py --other <path>` in every repository you changed. Every gate must be green. Say which gate could not run on this machine and why; never claim a gate passed without running it.
+1. Run `make check` (or `make -k check` to see every failure) and `scripts/check_vendored.py --other <path>` in every repository you changed. Every gate must be green. Say which gate could not run on this machine and why; never claim a gate passed without running it. After the final `make check`, run `make clean` in every repository where it ran, so no build, coverage or cache artifacts stay in the working tree.
 2. Add entries under `[Unreleased]` in `CHANGELOG.md`, in the section order Added, Changed, Deprecated, Fixed, Removed, Security (`scripts/check_changelog.py` enforces it).
 3. Update `ROADMAP.md`: strike through the heading of the finished task and each of its `Scope:` bullets (`~~text~~`), and strike its pointer in the sibling repository. Add newly found work.
 4. Tell the user in plain words that the task is finished: `<ID> done`, in the user's language, followed by a short summary: what changed, test count and coverage before and after, gates run, assumptions, anything not verified, and which suppressions the task touched.

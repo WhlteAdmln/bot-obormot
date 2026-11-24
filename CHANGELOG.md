@@ -42,6 +42,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `scripts/check_docs.py` is split by responsibility: it runs the checks in `scripts/docs_checks/` (`links.py`, `russian.py`, `settings.py`, `cli_commands.py`, `telegram_commands.py`, with shared helpers in `markdown.py`), and each module has its own test file in `tests/unit/scripts/docs_checks/`. The tests no longer import the private `_settings_environment_names`; it is the public `settings_environment_names`. `CONTRIBUTING.md` describes how the copies in audiodoc and bot-obormot differ. The checks and their messages are unchanged.
 - `CLAUDE.md` forbids renaming files, CI workflows or CI jobs without the user's consent; a task whose `Scope:` asks for it counts as consent.
 - `CLAUDE.md` forbids describing the local environment (local or sibling paths, user and machine names, operating system details) in commit and pull request text.
+- `CLAUDE.md` asks to run `make clean` after the final `make check`, so no build, coverage or cache artifacts stay in the working tree.
 
 ### Fixed
 

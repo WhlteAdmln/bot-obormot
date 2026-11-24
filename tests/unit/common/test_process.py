@@ -12,6 +12,14 @@ from bot_obormot.common import process
 from tests.support.program_runs import FakeProgramRun
 
 
+def _refusal(name: str, arguments: list[str]) -> str:
+    try:
+        process.run_program(name, arguments)
+    except ValueError as error:
+        return str(error)
+    return ""
+
+
 @pytest.fixture(name="fake_run")
 def fixture_fake_run(monkeypatch: pytest.MonkeyPatch) -> FakeProgramRun:
     """Resolve every program under /srv/tools and exit with code 7."""
@@ -76,30 +84,51 @@ def test_run_program_never_raises_on_a_failed_exit_by_default(
 
 @pytest.mark.parametrize(
     "name",
-    ["", "/usr/bin/ffmpeg", "bin/ffprobe", "-rf", "sys\0temctl"],
-    ids=["empty", "absolute", "relative", "option", "nul"],
+    [
+        "",
+        "/usr/bin/ffmpeg",
+        "bin/ffprobe",
+        "-rf",
+        "sys\0temctl",
+        "../ffmpeg",
+    ],
+    ids=[
+        "empty",
+        "absolute",
+        "relative",
+        "option",
+        "nul",
+        "parent",
+    ],
 )
 def test_run_program_rejects_a_name_that_is_not_a_bare_program(
     fake_run: FakeProgramRun, name: str
 ) -> None:
     _ = fake_run
-    with pytest.raises(ValueError, match="Invalid program name"):
-        process.run_program(name, ["--help"])
+    assert _refusal(name, ["--help"]) == f"Invalid program name: {name!r}", (
+        "only a bare program name may run"
+    )
 
 
+@pytest.mark.parametrize(
+    "arguments",
+    [["-i", "clip\0.webm"], ["\0"], ["ok", "-y", "x\0; rm -rf /"]],
+    ids=["inside", "alone", "after-valid-arguments"],
+)
 def test_run_program_rejects_a_nul_byte_in_an_argument(
-    fake_run: FakeProgramRun,
+    fake_run: FakeProgramRun, arguments: list[str]
 ) -> None:
     _ = fake_run
-    with pytest.raises(ValueError, match="NUL byte"):
-        process.run_program("ffmpeg", ["-i", "clip\0.webm"])
+    expected = "Argument of ffmpeg contains a NUL byte"
+    assert _refusal("ffmpeg", arguments) == expected, (
+        "an argument with a NUL byte must be refused"
+    )
 
 
 def test_run_program_does_not_start_anything_for_an_invalid_argv(
     fake_run: FakeProgramRun,
 ) -> None:
-    with pytest.raises(ValueError, match="NUL"):
-        process.run_program("ffprobe", ["movie.mp4\0"])
+    _refusal("ffprobe", ["movie.mp4\0"])
     expected_empty: list[list[str]] = []
     assert fake_run.commands == expected_empty, "an invalid argv must not run"
 
@@ -108,8 +137,10 @@ def test_resolve_program_reports_a_missing_program(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(process.shutil, "which", lambda _name: None)
-    with pytest.raises(FileNotFoundError, match="lilypond was not found"):
+    with pytest.raises(FileNotFoundError) as caught:
         process.resolve_program("lilypond")
+    expected = "lilypond was not found on this system."
+    assert str(caught.value) == expected, "a missing program must be named"
 
 
 def test_resolve_program_returns_an_absolute_path(

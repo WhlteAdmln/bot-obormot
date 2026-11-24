@@ -10,17 +10,20 @@ import pytest
 
 from bot_obormot.app.logging_setup import configure_logging
 from bot_obormot.log_context import CorrelationIdFilter, correlation_id
+from bot_obormot.log_filters import SecretsFilter
 from bot_obormot.settings import load_settings
 from tests.support.settings import make_settings
 
 
-def _configured_handler(monkeypatch: pytest.MonkeyPatch) -> logging.StreamHandler:
+def _configured_handler(
+    monkeypatch: pytest.MonkeyPatch, **values: str
+) -> logging.StreamHandler:
     handler = logging.StreamHandler(StringIO())
     root_logger = logging.getLogger()
     monkeypatch.setattr(root_logger, "handlers", [handler])
     monkeypatch.setattr(root_logger, "level", root_logger.level)
     monkeypatch.setattr(logging, "basicConfig", lambda **_kwargs: None)
-    configure_logging(make_settings())
+    configure_logging(make_settings(**values))
     return handler
 
 
@@ -38,8 +41,13 @@ def _formatted_line(monkeypatch: pytest.MonkeyPatch, context_id: str | None) -> 
     return handler.stream.getvalue()
 
 
+@pytest.mark.parametrize(
+    "key",
+    ["AUDIODOC_AUDIO_KEY", "AUDIODOC_DOCUMENT_KEY"],
+    ids=["audio", "document"],
+)
 def test_configure_logging_redacts_audiodoc_keys(
-    caplog: pytest.LogCaptureFixture,
+    caplog: pytest.LogCaptureFixture, key: str
 ) -> None:
     settings = load_settings(
         {
@@ -49,19 +57,45 @@ def test_configure_logging_redacts_audiodoc_keys(
             "AUDIODOC_DOCUMENT_KEY": "document-secret-key",
         }
     )
-
     with caplog.at_level(logging.WARNING):
         configure_logging(settings)
         logging.getLogger("bot_obormot.main").warning(
-            "Configured keys: %s %s",
-            settings.AUDIODOC_AUDIO_KEY,
-            settings.AUDIODOC_DOCUMENT_KEY,
+            "Configured key: %s", getattr(settings, key)
         )
+    expected = ["Configured key: [REDACTED]"]
+    assert caplog.messages == expected, "an audiodoc key must not reach the log"
 
-    whisper_key = "whisper-secret-key"
-    assert whisper_key not in caplog.text
-    document_key = "document-secret-key"
-    assert document_key not in caplog.text
+
+def test_configure_logging_installs_the_secrets_filter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handler = _configured_handler(monkeypatch)
+    installed = any(isinstance(item, SecretsFilter) for item in handler.filters)
+    assert installed, "the root handler has no secrets filter"
+
+
+@pytest.mark.parametrize(
+    ("name", "secret"),
+    [
+        ("BOT_TOKEN", "bot-token-secret-value"),
+        ("LLM_API_KEY", "llm-api-key-secret-value"),
+        ("AUDIODOC_AUDIO_KEY", "audiodoc-audio-secret"),
+        ("AUDIODOC_DOCUMENT_KEY", "audiodoc-document-secret"),
+    ],
+    ids=["bot-token", "llm-key", "audio-key", "document-key"],
+)
+def test_configure_logging_redacts_every_configured_secret(
+    monkeypatch: pytest.MonkeyPatch, name: str, secret: str
+) -> None:
+    handler = _configured_handler(monkeypatch, **{name: secret})
+    record = logging.LogRecord(
+        "bot", logging.ERROR, __file__, 1, "Leaked: <%s>", (secret,), None
+    )
+    handler.handle(record)
+    redacted_line = "Leaked: <[REDACTED]>"
+    assert redacted_line in handler.stream.getvalue(), (
+        f"{name} must be redacted from the log"
+    )
 
 
 def test_configure_logging_installs_the_correlation_filter(

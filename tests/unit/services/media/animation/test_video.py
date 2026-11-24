@@ -10,7 +10,13 @@ import pytest
 from bot_obormot.common import process
 from bot_obormot.errors import MediaError
 from bot_obormot.services.media.animation import video
+from bot_obormot.services.media.texts import (
+    UNSUPPORTED_VIDEO_FORMAT,
+    VIDEO_RESOLUTION_TOO_LARGE,
+)
 from tests.support.video_tools import FakeVideoTools
+
+WEBM_HEAD = b"\x1a\x45\xdf\xa3"
 
 
 def _install(
@@ -20,6 +26,14 @@ def _install(
     monkeypatch.setattr(process.shutil, "which", lambda name: f"/opt/media/{name}")
     monkeypatch.setattr(process.subprocess, "run", tools)
     return tools
+
+
+def _failure(data: bytes) -> str:
+    try:
+        video.extract_video(data)
+    except (MediaError, ValueError, FileNotFoundError) as error:
+        return f"{type(error).__name__}: {error}"
+    return ""
 
 
 def _extract(monkeypatch: pytest.MonkeyPatch) -> FakeVideoTools:
@@ -44,12 +58,20 @@ def test_extract_video_accepts_webm_and_mp4_containers(
 
 @pytest.mark.parametrize(
     "data",
-    [b"#EXTM3U\nhttps://example.invalid/video", b"", b"not-a-video"],
-    ids=["playlist", "empty", "unknown"],
+    [
+        b"#EXTM3U\nhttps://example.invalid/video",
+        b"",
+        b"not-a-video",
+        b"\x1a\x45\xdf",
+        b"\x00\x00\x00\x18ftyp"[:7],
+        b"GIF89a" + b"\x00\x01",
+        b"concat:/etc/passwd|animation.webm",
+    ],
+    ids=["playlist", "empty", "unknown", "short-ebml", "short-ftyp", "gif", "concat"],
 )
 def test_extract_video_rejects_playlists_and_unknown_data(data: bytes) -> None:
-    with pytest.raises(MediaError, match="формат видео"):
-        video.extract_video(data)
+    expected = f"MediaError: {UNSUPPORTED_VIDEO_FORMAT}"
+    assert _failure(data) == expected, "only WEBM and MP4 containers may pass"
 
 
 def test_extract_video_runs_probes_by_the_resolved_path(
@@ -109,20 +131,71 @@ def test_extract_video_rejects_a_missing_ffprobe(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(process.shutil, "which", lambda _name: None)
-    with pytest.raises(FileNotFoundError, match="ffprobe"):
-        video.extract_video(b"\x1a\x45\xdf\xa3" + b"fake-webm")
+    failure = _failure(WEBM_HEAD + b"fake-webm")
+    assert failure.startswith("FileNotFoundError: ffprobe"), (
+        "a missing ffprobe must be reported"
+    )
 
 
-def test_extract_video_rejects_resolution_before_running_ffmpeg(
+@pytest.mark.parametrize(
+    "size",
+    [b"3840x2161\n", b"8294401x1\n", b"65535x65535\n"],
+    ids=["one-row-over-4k", "thin-strip", "huge"],
+)
+def test_extract_video_rejects_resolution_over_the_pixel_limit(
+    monkeypatch: pytest.MonkeyPatch, size: bytes
+) -> None:
+    _install(monkeypatch, FakeVideoTools(size=size))
+    expected = f"MediaError: {VIDEO_RESOLUTION_TOO_LARGE}"
+    assert _failure(WEBM_HEAD + b"large") == expected, "the resolution is too large"
+
+
+def test_extract_video_does_not_run_ffmpeg_for_an_oversized_video(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    tools = _install(monkeypatch, FakeVideoTools(size=b"3840x2161\n"))
-    with pytest.raises(MediaError, match="Разрешение исходного видео"):
-        video.extract_video(b"\x1a\x45\xdf\xa3" + b"fake-webm")
-    expected_empty = []
+    tools = _install(monkeypatch, FakeVideoTools(size=b"4096x4096\n"))
+    _failure(WEBM_HEAD + b"fake-webm")
+    expected_empty: list[list[str]] = []
     assert tools.commands("ffmpeg") == expected_empty, (
         "ffmpeg must not run for oversized input"
     )
+
+
+def test_extract_video_accepts_exactly_the_4k_pixel_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install(monkeypatch, FakeVideoTools(size=b"3840x2160\n"))
+    expected_empty = ""
+    assert _failure(WEBM_HEAD + b"exact") == expected_empty, "a 4K video must pass"
+
+
+@pytest.mark.parametrize(
+    "duration",
+    [b"N/A\n", b"\n", b"-1.5\n", b"0\n", b"inf\n", b"nan\n"],
+    ids=["unknown", "empty", "negative", "zero", "infinite", "nan"],
+)
+def test_extract_video_rejects_an_invalid_probed_duration(
+    monkeypatch: pytest.MonkeyPatch, duration: bytes
+) -> None:
+    tools = _install(monkeypatch, FakeVideoTools(duration=duration))
+    _failure(WEBM_HEAD + b"odd-duration")
+    expected_empty: list[list[str]] = []
+    assert tools.commands("ffmpeg") == expected_empty, (
+        "ffmpeg must not run without a valid duration"
+    )
+
+
+@pytest.mark.parametrize(
+    "size",
+    [b"\n", b"wide x tall\n", b"0x480\n", b"640x-1\n", b"640\n"],
+    ids=["empty", "words", "zero-width", "negative-height", "one-number"],
+)
+def test_extract_video_rejects_invalid_probed_dimensions(
+    monkeypatch: pytest.MonkeyPatch, size: bytes
+) -> None:
+    _install(monkeypatch, FakeVideoTools(size=size))
+    failure = _failure(WEBM_HEAD + b"odd-size")
+    assert failure.startswith("ValueError:"), "invalid dimensions must be refused"
 
 
 @pytest.mark.parametrize(

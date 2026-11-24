@@ -49,6 +49,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `CLAUDE.md` asks to run `make clean` after the final `make check`, so no build, coverage or cache artifacts stay in the working tree.
 - `CLAUDE.md` asks to name branches and write commit messages and pull request titles and text in the style of the repository history, without additions such as task IDs in titles.
 - `CLAUDE.md` lets the agent merge a pull request when the user asks in the session and every CI check passed, with a merge commit, then switch to `main` and pull; the branch stays.
+- `services/chat/formatting/markdown_v2.py` is a package split by responsibility: `escaping.py` (text, code and URL escaping), `inline.py` (emphasis, code spans and links) and `blocks.py` (fences, headings, lists, quotes, tables and paragraphs); `to_markdown_v2` and `escape_text` keep their import path. The link text is rendered by a helper, so the `consider-ternary-expression` suppression is gone. Output is unchanged.
+- `services/database/facade.py` is a package: `core.py` owns the connection lifecycle, and `history.py`, `user_settings.py` and `access.py` hold the history, personal settings and administrator/block-list operations that `Database` combines. The `Database` API, the lock and the logger name are unchanged, and the `too-many-public-methods` suppression is gone. `bot_obormot.services.database.facade` no longer re-exports `handle_database_errors` and `read_image_as_base64`; import them from `bot_obormot.services.database`.
+- The facade tests are split into `tests/unit/services/database/facade/` by module, the package re-export tests moved to `tests/unit/services/test_database.py`, and the new MarkdownV2 modules have their own test files.
 
 ### Fixed
 

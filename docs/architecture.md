@@ -122,7 +122,7 @@ The video path requires `ffmpeg` and `ffprobe` on `PATH`.
 
 `bot_obormot/services/database/` is organized around a `Database` facade, repositories, use cases, SQL queries, and file storage.
 
-- `facade.py` exposes the application-level database API and serializes operations with a shared `asyncio.Lock`.
+- `facade/` exposes the application-level database API and serializes operations with a shared `asyncio.Lock`. `core.py` owns the connection lifecycle; `history.py`, `user_settings.py` and `access.py` hold the history, personal settings and administrator/block-list operations that the `Database` class combines.
 - `connection.py` opens SQLite with foreign keys enabled, WAL journal mode, a 5-second connection timeout, and a 5-second busy timeout.
 - `schema.py` creates tables for messages, message media, user prompts/settings, personal history limits, administrators, blocked users, and migration tracking. `repositories/blocked_users.py` provides persistent block-list operations.
 - `repositories/` contains parameterized SQL operations; `usecases/` coordinates multi-step history, exchange, and cleanup behavior.

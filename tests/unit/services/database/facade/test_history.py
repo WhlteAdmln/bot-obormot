@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Tests for database database."""
+"""Tests for the history operations of the database facade."""
 
 import asyncio
 from dataclasses import replace
@@ -9,123 +9,12 @@ from pathlib import Path
 
 import pytest
 
-import bot_obormot.services.database as database_package
-import bot_obormot.services.database.facade as facade_module
-from bot_obormot.services.database import (
-    MAX_HISTORY_MEDIA_MESSAGES,
-    Database,
-    handle_database_errors,
-    read_image_as_base64,
-)
-from bot_obormot.services.database.decorators import (
-    handle_database_errors as canonical_decorator,
-)
-from bot_obormot.services.database.facade import (
-    Database as FacadeDatabase,
-)
-from bot_obormot.services.database.facade import (
-    handle_database_errors as facade_decorator,
-)
-from bot_obormot.services.database.facade import (
-    read_image_as_base64 as facade_image_reader,
-)
-from bot_obormot.services.database.files.image_storage import (
-    read_image_as_base64 as canonical_image_reader,
-)
-from tests.support.settings import make_settings
+from bot_obormot.errors import DatabaseError
+from bot_obormot.services.database import Database
 
 USER_ID = 111111111
 
-
-def test_database_package_reexports_facade_api_without_global_instance() -> None:
-    """Database package reexports the facade API without a global instance."""
-    assert Database is FacadeDatabase
-    assert not hasattr(database_package, "db")
-    assert not hasattr(facade_module, "db")
-    expected_number = 3
-    assert expected_number == MAX_HISTORY_MEDIA_MESSAGES
-    assert callable(handle_database_errors)
-    assert callable(read_image_as_base64)
-
-
-def test_database_helpers_are_reexported_from_their_new_modules() -> None:
-    """Database helpers are reexported from their new modules."""
-    assert handle_database_errors is canonical_decorator is facade_decorator
-    assert read_image_as_base64 is canonical_image_reader is facade_image_reader
-
-
-@pytest.mark.asyncio
-async def test_database_context_manager_connects_and_closes(
-    tmp_path: Path,
-) -> None:
-    """Database context manager connects and closes."""
-    settings = make_settings(DATABASE_PATH=str(tmp_path / "context.db"))
-    database = Database(settings)
-
-    async with database as entered_database:
-        assert entered_database is database
-        assert database.connection is not None
-        assert await database.health_check()
-
-    assert database.connection is None
-
-
-@pytest.mark.asyncio
-async def test_database_context_manager_closes_after_exception(
-    tmp_path: Path,
-) -> None:
-    """Database context manager closes after an exception."""
-    settings = make_settings(DATABASE_PATH=str(tmp_path / "context_error.db"))
-    database = Database(settings)
-
-    async def fail_inside_context() -> None:
-        async with database:
-            assert database.connection is not None
-            msg = "context failure"
-            raise RuntimeError(msg)
-
-    with pytest.raises(RuntimeError, match="context failure"):
-        await fail_inside_context()
-
-    assert database.connection is None
-
-
-@pytest.mark.asyncio
-async def test_history_limit_defaults_to_default_value(test_db: Database) -> None:
-    """History limit defaults to default value."""
-    assert (
-        await test_db.get_history_limit(USER_ID)
-        == test_db.settings.DEFAULT_HISTORY_EXCHANGES
-    )
-
-
-@pytest.mark.asyncio
-async def test_set_and_delete_history_limit(test_db: Database) -> None:
-    """Set and delete history limit."""
-    await test_db.set_history_limit(USER_ID, 20)
-
-    expected_number = 20
-    assert await test_db.get_history_limit(USER_ID) == expected_number
-
-    await test_db.delete_history_limit(USER_ID)
-
-    assert (
-        await test_db.get_history_limit(USER_ID)
-        == test_db.settings.DEFAULT_HISTORY_EXCHANGES
-    )
-
-
-@pytest.mark.asyncio
-async def test_history_limit_rejects_invalid_values(test_db: Database) -> None:
-    """History limit rejects invalid values."""
-    with pytest.raises(ValueError, match="Invalid history limit"):
-        await test_db.set_history_limit(USER_ID, 0)
-
-    with pytest.raises(ValueError, match="Invalid history limit"):
-        await test_db.set_history_limit(
-            USER_ID,
-            test_db.settings.MAX_HISTORY_EXCHANGES + 1,
-        )
+USER_A = 111111111
 
 
 @pytest.mark.asyncio
@@ -365,21 +254,25 @@ async def test_forget_user_removes_history_prompt_limit_and_owned_images(
 
 
 @pytest.mark.asyncio
-async def test_blocked_users_repository_and_supervisor_protection(
-    test_db: Database,
-) -> None:
-    """Blocked users repository and supervisor protection."""
-    user_id = USER_ID + 100
-    supervisor_id = 999999999
+async def test_failed_exchange_rollback(test_db: Database) -> None:
+    """Проверяет откат неудачного обмена и удаление изображения."""
+    db = test_db
 
-    assert await test_db.get_blocked_ids() == set()
-    assert await test_db.block_user(user_id) is True
-    assert await test_db.block_user(user_id) is False
-    assert await test_db.get_blocked_ids() == {user_id}
+    image_data = b"fake-image-data"
 
-    assert await test_db.block_user(supervisor_id) is False
-    assert supervisor_id not in await test_db.get_blocked_ids()
+    with pytest.raises(DatabaseError):
+        await db.add_exchange(
+            USER_A,
+            "Тестовое сообщение",
+            None,
+            media=[image_data],
+        )
 
-    assert await test_db.unblock_user(user_id) is True
-    assert await test_db.unblock_user(user_id) is False
-    assert await test_db.get_blocked_ids() == set()
+    # Неудачный обмен не должен оставить сообщения.
+    assert await db.get_history(USER_A, limit=20) == []
+
+    # Неудачный обмен не должен оставить файлы изображений.
+    remaining_files = list(db.images_dir.iterdir())
+
+    expected_empty = []
+    assert remaining_files == expected_empty, "expected an empty list"

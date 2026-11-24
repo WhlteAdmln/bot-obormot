@@ -7,26 +7,47 @@ from types import SimpleNamespace
 
 import pytest
 
-from bot_obormot.errors import (
-    MediaError,
-)
-from bot_obormot.services.audio import (
-    MAX_AUDIO_DURATION,
-    validate_audio_duration,
-)
+from bot_obormot.errors import MediaError
+from bot_obormot.services.audio import validate_audio_duration
 from tests.support.audio_documents import make_message
 
 
-def test_validate_audio_duration_keeps_five_minute_boundary() -> None:
-    expected_max_audio_duration = 300
-    assert expected_max_audio_duration == MAX_AUDIO_DURATION
-    validate_audio_duration(make_message(voice=SimpleNamespace(duration=300)))
-    with pytest.raises(MediaError, match="Аудиофайл слишком длинный"):
-        validate_audio_duration(make_message(voice=SimpleNamespace(duration=301)))
+def _rejection(**media: object) -> str:
+    try:
+        validate_audio_duration(make_message(**media))
+    except MediaError as error:
+        return str(error)
+    return ""
 
 
-def test_validate_audio_duration_checks_audio_and_video_note() -> None:
-    with pytest.raises(MediaError):
-        validate_audio_duration(make_message(audio=SimpleNamespace(duration=301)))
-    with pytest.raises(MediaError):
-        validate_audio_duration(make_message(video_note=SimpleNamespace(duration=301)))
+@pytest.mark.parametrize(
+    "media",
+    [
+        {"voice": SimpleNamespace(duration=301)},
+        {"audio": SimpleNamespace(duration=301)},
+        {"video_note": SimpleNamespace(duration=301)},
+        {"audio": SimpleNamespace(duration=86_400)},
+        {"voice": SimpleNamespace(duration=2**63)},
+    ],
+    ids=["voice", "audio", "video-note", "one-day", "huge"],
+)
+def test_rejects_media_longer_than_five_minutes(media: dict[str, object]) -> None:
+    expected = "Аудиофайл слишком длинный (максимум 5 минут)."
+    assert _rejection(**media) == expected, "long media must be rejected"
+
+
+@pytest.mark.parametrize(
+    "media",
+    [
+        {"voice": SimpleNamespace(duration=300)},
+        {"audio": SimpleNamespace(duration=300)},
+        {"video_note": SimpleNamespace(duration=0)},
+        {"voice": SimpleNamespace(duration=None)},
+        {"voice": SimpleNamespace(duration=-5)},
+        {},
+    ],
+    ids=["voice-at-limit", "audio-at-limit", "zero", "unknown", "negative", "none"],
+)
+def test_accepts_media_up_to_five_minutes(media: dict[str, object]) -> None:
+    expected = ""
+    assert _rejection(**media) == expected, "short media must be accepted"

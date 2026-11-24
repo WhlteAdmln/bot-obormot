@@ -187,8 +187,9 @@ def _display_url(url: str) -> str:
 
 def _open_status(request: urllib.request.Request, timeout: float) -> int:
     """Open the request and return its HTTP status."""
-    # fetch_status accepts only http and https URLs.
-    with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
+    with urllib.request.urlopen(  # noqa: S310 - fetch_status allows only http(s).
+        request, timeout=timeout
+    ) as response:
         return int(response.status)
 
 
@@ -197,7 +198,9 @@ def fetch_status(url: str, headers: Mapping[str, str], timeout: float) -> int:
     if urlsplit(url).scheme not in {"http", "https"}:
         message = "Only http and https URLs are supported."
         raise ValueError(message)
-    request = urllib.request.Request(url, headers=dict(headers), method="GET")  # noqa: S310
+    request = urllib.request.Request(  # noqa: S310 - scheme checked above.
+        url, headers=dict(headers), method="GET"
+    )
     try:
         return _open_status(request, timeout)
     except urllib.error.HTTPError as error:

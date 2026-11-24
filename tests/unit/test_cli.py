@@ -4,15 +4,16 @@
 """Tests for the bot-obormot command-line interface."""
 
 import runpy
-import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
 from bot_obormot import cli
+from bot_obormot.common import process
 from bot_obormot.doctor import DiagnosticCheck
 from bot_obormot.settings import ConfigError
+from tests.support.program_runs import FakeProgramRun
 
 VALID_TOKEN = "123456789:" + "A" * 35
 ENV_EXAMPLE = Path(__file__).resolve().parents[2] / ".env.example"
@@ -334,46 +335,71 @@ def test_service_uninstall_removes_the_unit_and_prints_commands(
     assert expected_fragment in output
 
 
+@pytest.fixture(name="systemctl")
+def fixture_systemctl(monkeypatch: pytest.MonkeyPatch) -> FakeProgramRun:
+    """Resolve systemctl and answer every run with exit code 3."""
+    monkeypatch.setattr(process.shutil, "which", lambda _name: "/usr/bin/systemctl")
+    fake = FakeProgramRun(returncode=3)
+    monkeypatch.setattr(process.subprocess, "run", fake)
+    return fake
+
+
+def test_service_status_returns_the_systemctl_exit_code(
+    systemctl: FakeProgramRun, home: Path
+) -> None:
+    _ = (systemctl, home)
+    expected_code = 3
+    actual = cli.main(["service", "status"])
+    assert actual == expected_code, "status must return the systemctl exit code"
+
+
+@pytest.mark.parametrize(
+    ("arguments", "expected"),
+    [
+        (
+            ["service", "status"],
+            [
+                "/usr/bin/systemctl",
+                "--user",
+                "status",
+                "--no-pager",
+                "bot-obormot.service",
+            ],
+        ),
+        (
+            ["service", "status", "--system"],
+            ["/usr/bin/systemctl", "status", "--no-pager", "bot-obormot.service"],
+        ),
+    ],
+    ids=["user", "system"],
+)
 def test_service_status_runs_a_read_only_systemctl_command(
+    systemctl: FakeProgramRun, home: Path, arguments: list[str], expected: list[str]
+) -> None:
+    _ = home
+    cli.main(arguments)
+    assert systemctl.commands == [expected], "status must only read systemctl status"
+
+
+def test_service_status_without_systemctl_exits_with_a_usage_error(
     monkeypatch: pytest.MonkeyPatch, home: Path
 ) -> None:
-    """Status only calls ``systemctl status`` and returns its exit code."""
     _ = home
-    commands: list[list[str]] = []
-
-    def fake_run(
-        command: list[str], *, check: bool
-    ) -> subprocess.CompletedProcess[str]:
-        assert check is False
-        commands.append(command)
-        return subprocess.CompletedProcess(command, 3)
-
-    monkeypatch.setattr(cli.shutil, "which", lambda _name: "/usr/bin/systemctl")
-    monkeypatch.setattr(cli.subprocess, "run", fake_run)
-
-    expected_main = 3
-    assert cli.main(["service", "status"]) == expected_main
-    expected_main = 3
-    assert cli.main(["service", "status", "--system"]) == expected_main
-    assert commands == [
-        ["/usr/bin/systemctl", "--user", "status", "--no-pager", "bot-obormot.service"],
-        ["/usr/bin/systemctl", "status", "--no-pager", "bot-obormot.service"],
-    ]
+    monkeypatch.setattr(process.shutil, "which", lambda _name: None)
+    expected_code = 2
+    with pytest.raises(SystemExit) as exit_info:
+        cli.main(["service", "status", "--system"])
+    assert exit_info.value.code == expected_code, "missing systemctl must exit with 2"
 
 
-def test_service_status_without_systemctl_is_an_error(
+def test_service_status_without_systemctl_names_the_program(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     home: Path,
 ) -> None:
-    """A system without systemd gets a clear message."""
     _ = home
-    monkeypatch.setattr(cli.shutil, "which", lambda _name: None)
-
-    with pytest.raises(SystemExit) as exit_info:
+    monkeypatch.setattr(process.shutil, "which", lambda _name: None)
+    with pytest.raises(SystemExit):
         cli.main(["service", "status"])
-
-    expected_code = 2
-    assert exit_info.value.code == expected_code
-    expected_fragment = "systemctl"
-    assert expected_fragment in capsys.readouterr().err
+    expected_fragment = "systemctl was not found"
+    assert expected_fragment in capsys.readouterr().err, "the error must name systemctl"

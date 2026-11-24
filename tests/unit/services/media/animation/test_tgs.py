@@ -17,24 +17,76 @@ from PIL import Image
 
 from bot_obormot.errors import MediaError
 from bot_obormot.services.media.animation import tgs
-from bot_obormot.services.media.texts import TGS_SUPPORT_UNAVAILABLE
+from bot_obormot.services.media.texts import (
+    TGS_INVALID_CONTENT,
+    TGS_INVALID_FILE,
+    TGS_INVALID_SIZE,
+    TGS_SUPPORT_UNAVAILABLE,
+    TGS_TOO_LARGE_AFTER_DECOMPRESSION,
+    TGS_TOO_LARGE_OR_EMPTY,
+)
 from tests.support.tgs import valid_tgs
 
 
-def test_missing_decoder_gives_a_polite_media_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def _rejection(data: bytes) -> str:
+    try:
+        tgs.validate_tgs(data)
+    except MediaError as error:
+        return str(error)
+    return ""
+
+
+def _extraction_error(data: bytes) -> str:
+    try:
+        tgs.extract_tgs(data)
+    except MediaError as error:
+        return str(error)
+    return ""
+
+
+def _gzip_json(document: object) -> bytes:
+    return gzip.compress(json.dumps(document).encode("utf-8"))
+
+
+def _fake_rlottie(imports: list[str]) -> object:
+    def get_total_frames() -> int:
+        return 1
+
+    def render_frame(frame_num: int) -> Image.Image:
+        return Image.new("RGB", (1 + frame_num, 1))
+
+    animation = SimpleNamespace(
+        lottie_animation_get_totalframe=get_total_frames,
+        render_pillow_frame=render_frame,
+    )
+
+    def from_tgs(_path: str) -> AbstractContextManager[SimpleNamespace]:
+        return nullcontext(animation)
+
+    def import_module(name: str) -> SimpleNamespace:
+        imports.append(name)
+        return SimpleNamespace(LottieAnimation=SimpleNamespace(from_tgs=from_tgs))
+
+    return import_module
+
+
+@pytest.fixture(name="no_decoder")
+def fixture_no_decoder(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Hide the optional rlottie decoder."""
     monkeypatch.setitem(sys.modules, "rlottie_python", None)
 
-    with pytest.raises(MediaError, match=TGS_SUPPORT_UNAVAILABLE):
-        tgs.extract_tgs(valid_tgs())
+
+@pytest.mark.usefixtures("no_decoder")
+def test_missing_decoder_gives_a_polite_media_error() -> None:
+    assert _extraction_error(valid_tgs()) == TGS_SUPPORT_UNAVAILABLE, (
+        "a missing decoder must give the polite message"
+    )
 
 
+@pytest.mark.usefixtures("no_decoder")
 def test_startup_check_warns_when_decoder_is_missing(
-    monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    monkeypatch.setitem(sys.modules, "rlottie_python", None)
     with caplog.at_level(logging.WARNING, logger=tgs.logger.name):
         tgs.log_tgs_support()
     hint = "bot-obormot[tgs]"
@@ -55,67 +107,101 @@ def test_startup_check_is_silent_when_decoder_is_installed(
     assert actual == expected, "an installed decoder must not produce log records"
 
 
+@pytest.mark.usefixtures("no_decoder")
 def test_missing_decoder_does_not_log_on_each_sticker(
-    monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    monkeypatch.setitem(sys.modules, "rlottie_python", None)
     with caplog.at_level(logging.DEBUG, logger=tgs.logger.name):
         for _ in range(3):
-            with pytest.raises(MediaError):
-                tgs.extract_tgs(valid_tgs())
+            _extraction_error(valid_tgs())
     expected: list[str] = []
     actual = [record.getMessage() for record in caplog.records]
     assert actual == expected, "the missing extra is reported at startup only"
 
 
-def test_invalid_file_is_still_rejected_before_the_import_check(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setitem(sys.modules, "rlottie_python", None)
-
-    with pytest.raises(MediaError) as error:
-        tgs.extract_tgs(b"not-a-gzip-file")
-
-    assert str(error.value) != TGS_SUPPORT_UNAVAILABLE
+@pytest.mark.usefixtures("no_decoder")
+def test_invalid_file_is_still_rejected_before_the_import_check() -> None:
+    assert _extraction_error(b"not-a-gzip-file") == TGS_INVALID_FILE, (
+        "an invalid file must be refused before the decoder check"
+    )
 
 
-def test_support_check_follows_the_installed_module(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setitem(sys.modules, "rlottie_python", None)
-    assert tgs.tgs_support_available() is False
+@pytest.mark.usefixtures("no_decoder")
+def test_support_check_follows_the_installed_module() -> None:
+    assert tgs.tgs_support_available() is False, "a blocked module is not available"
 
 
-def test_validate_tgs_accepts_bounded_gzip_json() -> None:
-    data = gzip.compress(json.dumps({"w": 512, "h": 512}).encode("utf-8"))
+@pytest.mark.parametrize(
+    "document",
+    [
+        {"w": 512, "h": 512},
+        {"w": 1, "h": 1},
+        {"w": tgs.MAX_TGS_SIDE, "h": tgs.MAX_TGS_SIDE},
+        {"w": 100, "h": 200, "layers": [], "nm": "\N{RIGHT-TO-LEFT OVERRIDE}evil"},
+    ],
+    ids=["regular", "smallest", "largest", "extra-keys"],
+)
+def test_validate_tgs_accepts_bounded_gzip_json(document: object) -> None:
+    expected_empty = ""
+    assert _rejection(_gzip_json(document)) == expected_empty, (
+        "a bounded sticker must pass"
+    )
 
-    tgs.validate_tgs(data)
+
+@pytest.mark.parametrize(
+    "data",
+    [b"", b"\x1f" * (tgs.MAX_TGS_COMPRESSED + 1)],
+    ids=["empty", "over-limit"],
+)
+def test_validate_tgs_rejects_empty_or_oversized_compressed_data(data: bytes) -> None:
+    assert _rejection(data) == TGS_TOO_LARGE_OR_EMPTY, (
+        "empty or oversized data must be refused before decompression"
+    )
 
 
-def test_validate_tgs_rejects_gzip_decompression_bomb() -> None:
-    data = gzip.compress(b"0" * (tgs.MAX_TGS_JSON + 1))
-
-    with pytest.raises(MediaError, match="после распаковки"):
-        tgs.validate_tgs(data)
-
-
-def test_validate_tgs_rejects_compressed_data_over_limit() -> None:
+def test_validate_tgs_rejects_random_data_over_the_compressed_limit() -> None:
     data = os.urandom(tgs.MAX_TGS_COMPRESSED + 1)
+    assert _rejection(data) == TGS_TOO_LARGE_OR_EMPTY, (
+        "random data over the limit must be refused"
+    )
 
-    with pytest.raises(MediaError, match="Стикер слишком большой"):
-        tgs.validate_tgs(data)
+
+@pytest.mark.parametrize(
+    "size",
+    [tgs.MAX_TGS_JSON + 1, tgs.MAX_TGS_JSON * 8],
+    ids=["one-byte-over", "eight-times-over"],
+)
+def test_validate_tgs_rejects_a_gzip_decompression_bomb(size: int) -> None:
+    data = gzip.compress(b"0" * size)
+    assert _rejection(data) == TGS_TOO_LARGE_AFTER_DECOMPRESSION, (
+        "a decompression bomb must be refused"
+    )
 
 
-def test_validate_tgs_rejects_invalid_gzip_and_trailing_data() -> None:
-    with pytest.raises(MediaError, match="Некорректный файл"):
-        tgs.validate_tgs(b"not-a-gzip-file")
+@pytest.mark.parametrize(
+    "data",
+    [
+        b"not-a-gzip-file",
+        _gzip_json({"w": 512, "h": 512}) + b"trailing-data",
+        _gzip_json({"w": 512, "h": 512})[:-3],
+        _gzip_json({"w": 512, "h": 512}) + _gzip_json({"w": 1, "h": 1}),
+        b"\x1f\x8b",
+    ],
+    ids=["not-gzip", "trailing-data", "truncated", "concatenated", "magic-only"],
+)
+def test_validate_tgs_rejects_a_damaged_gzip_stream(data: bytes) -> None:
+    assert _rejection(data) == TGS_INVALID_FILE, "a damaged stream must be refused"
 
-    valid = gzip.compress(json.dumps({"w": 512, "h": 512}).encode("utf-8"))
-    with pytest.raises(MediaError, match="Некорректный файл"):
-        tgs.validate_tgs(valid + b"trailing-data")
-    with pytest.raises(MediaError, match="Некорректный файл"):
-        tgs.validate_tgs(valid[:-3])
+
+@pytest.mark.parametrize(
+    "payload",
+    [b"{not json", b"\xff\xfe", b"[" * 100_000, b""],
+    ids=["broken-json", "not-utf8", "deep-nesting", "empty-json"],
+)
+def test_validate_tgs_rejects_content_that_is_not_json(payload: bytes) -> None:
+    assert _rejection(gzip.compress(payload)) == TGS_INVALID_CONTENT, (
+        "content that is not JSON must be refused"
+    )
 
 
 @pytest.mark.parametrize(
@@ -126,63 +212,58 @@ def test_validate_tgs_rejects_invalid_gzip_and_trailing_data() -> None:
         {"w": 512, "h": -1},
         {"w": True, "h": 512},
         {"w": 512.0, "h": 512},
+        {"w": "512", "h": 512},
+        {"w": 512},
+        {"w": 2**63, "h": 2**63},
         [512, 512],
+        None,
+    ],
+    ids=[
+        "zero",
+        "too-wide",
+        "negative",
+        "bool",
+        "float",
+        "string",
+        "missing-height",
+        "huge",
+        "list",
+        "null",
     ],
 )
-def test_validate_tgs_rejects_invalid_canvas(document: object) -> None:
-    data = gzip.compress(json.dumps(document).encode("utf-8"))
-
-    with pytest.raises(MediaError, match="размер анимации"):
-        tgs.validate_tgs(data)
+def test_validate_tgs_rejects_an_invalid_canvas(document: object) -> None:
+    assert _rejection(_gzip_json(document)) == TGS_INVALID_SIZE, (
+        "an invalid canvas must be refused"
+    )
 
 
 def test_extract_tgs_validates_before_importing_rlottie(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    imported_modules: list[str] = []
-    monkeypatch.setattr(tgs.importlib, "import_module", imported_modules.append)
-
-    with pytest.raises(MediaError, match="Некорректный файл"):
-        tgs.extract_tgs(b"not-a-gzip-file")
-
-    expected_empty = []
-    assert imported_modules == expected_empty, "expected an empty list"
+    imports: list[str] = []
+    monkeypatch.setattr(tgs.importlib, "import_module", _fake_rlottie(imports))
+    _extraction_error(gzip.compress(b"0" * (tgs.MAX_TGS_JSON + 1)))
+    expected_empty: list[str] = []
+    assert imports == expected_empty, "a bomb must never reach the native decoder"
 
 
-def test_extract_tgs_imports_rlottie_for_valid_animation(
+def test_extract_tgs_imports_rlottie_for_a_valid_animation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-
-    def get_total_frames() -> int:
-        return 1
-
-    def render_frame(frame_num: int) -> Image.Image:
-        _ = frame_num
-        return Image.new("RGB", (1, 1))
-
-    fake_animation = SimpleNamespace(
-        lottie_animation_get_totalframe=get_total_frames,
-        render_pillow_frame=render_frame,
-    )
-
-    def fake_from_tgs(_path: str) -> AbstractContextManager[SimpleNamespace]:
-        return nullcontext(fake_animation)
-
     imports: list[str] = []
+    monkeypatch.setattr(tgs.importlib, "import_module", _fake_rlottie(imports))
+    tgs.extract_tgs(_gzip_json({"w": 64, "h": 48}))
+    expected = ["rlottie_python"]
+    assert imports == expected, "a valid sticker must load the decoder once"
 
-    def fake_import_module(name: str) -> SimpleNamespace:
-        imports.append(name)
-        return SimpleNamespace(
-            LottieAnimation=SimpleNamespace(from_tgs=fake_from_tgs),
-        )
 
-    monkeypatch.setattr(tgs.importlib, "import_module", fake_import_module)
-    data = gzip.compress(json.dumps({"w": 512, "h": 512}).encode("utf-8"))
-
-    frames = tgs.extract_tgs(data)
-
-    assert imports == ["rlottie_python"]
-    assert len(frames) == 1
-    with Image.open(io.BytesIO(frames[0])) as image:
-        expected_format = "JPEG"
-        assert image.format == expected_format
+def test_extract_tgs_returns_jpeg_frames(monkeypatch: pytest.MonkeyPatch) -> None:
+    imports: list[str] = []
+    monkeypatch.setattr(tgs.importlib, "import_module", _fake_rlottie(imports))
+    frames = tgs.extract_tgs(_gzip_json({"w": 300, "h": 200}))
+    formats = []
+    for frame in frames:
+        with Image.open(io.BytesIO(frame)) as image:
+            formats.append(image.format)
+    expected = ["JPEG"]
+    assert formats == expected, "every frame must be a JPEG"

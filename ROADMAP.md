@@ -114,12 +114,12 @@ Goal: remove deprecated functionality, make the code base uniform with audiodoc 
   - ~~Same standard as BO-11 for `tests/unit/common/` (`test_http_limits.py`, `test_validation.py`, `test_text.py`), `tests/unit/services/audio/` (`test_validation.py`, `test_client.py`), `tests/unit/services/documents/` (`test_client.py`, `test_response.py`), `tests/unit/services/telegram/test_downloader.py`, `tests/unit/services/chat/test_incoming_log.py`, `tests/unit/services/llm/test_messages.py` (prompt-injection markers).~~
 - Done when: as BO-11.
 
-#### BO-13 Security tests: media, log filters, installer
+#### ~~BO-13 Security tests: media, log filters, installer~~
 
 - Needs: BO-10.
 - Scope:
-  - Same standard as BO-11 for `tests/unit/services/media/` (`test_sniff.py`, `test_safety.py`, `test_limited.py`, `animation/test_tgs.py`, `animation/test_video.py`), `tests/unit/test_log_filters.py` and `tests/unit/project/test_installer.py`.
-  - Review the whole test tree once more against the security criteria (limits, authentication and permissions, dangerous files, masking of secrets and logs, subprocesses, installation) and add files that qualify.
+  - ~~Same standard as BO-11 for `tests/unit/services/media/` (`test_sniff.py`, `test_safety.py`, `test_limited.py`, `animation/test_tgs.py`, `animation/test_video.py`), `tests/unit/test_log_filters.py` and `tests/unit/project/test_installer.py`.~~
+  - ~~Review the whole test tree once more against the security criteria (limits, authentication and permissions, dangerous files, masking of secrets and logs, subprocesses, installation) and add files that qualify.~~
 - Done when: as BO-11.
 
 #### BO-14 [shared] Release 0.3.0
@@ -173,6 +173,7 @@ The scope is not defined yet.
 - The Telegram download semaphore `_download_slots` in `services/telegram/downloader.py` is created at import and binds to the first event loop in which a download has to wait; a download that waits in another event loop of the same process fails with `RuntimeError` (seen in the unit tests, which use one loop per test). This is implicit global state. Agreed solution: create the semaphore per running bot, for example in the dispatcher setup, and pass it to the downloader.
 - `validate_document_response` accepts a boolean (`True`) or a negative `characters` count, because `bool` is a subclass of `int`. The count only goes into a log line, but a nonsensical value means a broken or incompatible audiodoc response. Agreed solution: reject a boolean or negative count as an invalid character count (HTTP 502), the same way the `truncated` flag accepts only a boolean.
 - An audiodoc error body longer than `MAX_ERROR_BODY_BYTES` is dropped completely, so the error message ends after the status code with no detail. Agreed solution: keep minimal information about the event, that is the first `MAX_ERROR_BODY_BYTES` bytes of the body, marked as truncated, so the error still names what happened.
+- `SecretsFilter` in the shared `log_filters.py` finds a Telegram token by pattern only when a word boundary surrounds it, so it misses the most common form, `bot<token>` inside a Telegram API URL, and a token that ends with `-` or `_` before a `/`. Today the configured `BOT_TOKEN` is still redacted because `configure_logging` passes it as a secret, but a token that is not configured (for example another bot's) stays in the log. Proposed solution: replace `\b` with lookarounds that only exclude digits before and token characters after; a `[shared]` task, changed in audiodoc first.
 - Build routers with a factory instead of module-level objects, so tests need no `detach_router` and no `protected-access` suppression (aiogram has no public way to detach a router).
 
 ## Released

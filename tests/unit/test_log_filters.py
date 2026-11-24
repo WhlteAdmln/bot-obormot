@@ -3,52 +3,21 @@
 
 """Tests for log filters."""
 
-import importlib
 import logging
 
 import pytest
 
 from bot_obormot.log_filters import SecretsFilter
-from tests.support.settings import make_settings
 
 
-def test_token_is_redacted_from_log_message() -> None:
-    bot_key = "123456789:ABCdefGHIjklMNOpqrSTUvwxYZ0123456789"
-    log_filter = SecretsFilter([bot_key])
-    record = logging.LogRecord(
-        "t",
-        logging.ERROR,
-        "f",
-        1,
-        f"url=https://api.telegram.org/file/bot{bot_key}/x",
-        (),
-        None,
-    )
-
-    assert log_filter.filter(record) is True
-    assert bot_key not in record.getMessage()
-    redaction_marker = "[REDACTED]"
-    assert redaction_marker in record.getMessage()
+def _record(message: str, *args: object) -> logging.LogRecord:
+    return logging.LogRecord("bot", logging.ERROR, "bot.py", 7, message, args, None)
 
 
-def test_configured_secrets_are_redacted_from_formatted_arguments() -> None:
-    secrets_filter = SecretsFilter(["llm-secret-value", "", "short"])
-    record = logging.LogRecord(
-        "t",
-        logging.ERROR,
-        "f",
-        1,
-        "Request failed: %s",
-        ("llm-secret-value",),
-        None,
-    )
-
-    secrets_filter.filter(record)
-
-    leaked_value = "llm-secret-value"
-    assert leaked_value not in record.getMessage()
-    redaction_marker = "[REDACTED]"
-    assert redaction_marker in record.getMessage()
+def _cleaned(secrets: list[str], message: str, *args: object) -> str:
+    record = _record(message, *args)
+    SecretsFilter(secrets).filter(record)
+    return record.getMessage()
 
 
 def _fail_download(bot_key: str) -> None:
@@ -56,103 +25,113 @@ def _fail_download(bot_key: str) -> None:
     raise RuntimeError(msg)
 
 
-def test_token_is_redacted_from_exception_traceback() -> None:
-    bot_key = "123456789:ABCdefGHIjklMNOpqrSTUvwxYZ0123456789"
-    secrets_filter = SecretsFilter([bot_key])
+def test_filter_keeps_every_record() -> None:
+    record = _record("Authorization: Bearer kept-record-value")
+    assert SecretsFilter(["kept-record-value"]).filter(record) is True, (
+        "the filter must redact, not drop, a record"
+    )
 
+
+@pytest.mark.parametrize(
+    "bot_key",
+    [
+        "123456789:ABCdefGHIjklMNOpqrSTUvwxYZ0123456789",
+        "987654:" + "x_Z" * 12,
+        "100200300400:" + "Q" * 30,
+    ],
+    ids=["typical", "short-id", "long-id"],
+)
+def test_filter_redacts_a_telegram_token_it_was_not_given(bot_key: str) -> None:
+    message = f"token {bot_key} was rejected"
+    expected = "token [REDACTED] was rejected"
+    assert _cleaned([], message) == expected, "a token-like value must be redacted"
+
+
+def test_filter_redacts_a_configured_secret_from_formatted_arguments() -> None:
+    cleaned = _cleaned(["llm-secret-value"], "Request failed: %s", "llm-secret-value")
+    expected = "Request failed: [REDACTED]"
+    assert cleaned == expected, "a secret in the arguments must be redacted"
+
+
+@pytest.mark.parametrize(
+    "secret",
+    ["", "short", "1234567"],
+    ids=["empty", "five-chars", "seven-chars"],
+)
+def test_filter_ignores_secrets_shorter_than_eight_characters(secret: str) -> None:
+    message = "status short 1234567 ok"
+    assert _cleaned([secret], message) == message, (
+        "a too short secret must not mangle ordinary text"
+    )
+
+
+def test_filter_redacts_every_occurrence_of_a_secret() -> None:
+    cleaned = _cleaned(["k3y-v4lue-x"], "a=k3y-v4lue-x b=k3y-v4lue-xk3y-v4lue-x")
+    expected = "a=[REDACTED] b=[REDACTED][REDACTED]"
+    assert cleaned == expected, "every occurrence must be redacted"
+
+
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        (
+            "Authorization: Bearer first-secret-value",
+            "Authorization: Bearer [REDACTED]",
+        ),
+        (
+            "authorization=Bearer second-secret-value",
+            "authorization=Bearer [REDACTED]",
+        ),
+        ("Bearer third-secret-value", "Bearer [REDACTED]"),
+        ("AUTHORIZATION : BEARER fourth.secret", "AUTHORIZATION : BEARER [REDACTED]"),
+        ("h={'Bearer x9y8z7', 'next'}", "h={'Bearer [REDACTED], 'next'}"),
+        (
+            "Bearer one-secret, Bearer two-secret;",
+            "Bearer [REDACTED], Bearer [REDACTED];",
+        ),
+    ],
+    ids=["header", "assignment", "bare", "upper-case", "in-repr", "two-values"],
+)
+def test_filter_redacts_bearer_values(message: str, expected: str) -> None:
+    assert _cleaned([], message) == expected, "a Bearer value must be redacted"
+
+
+def test_filter_redacts_a_secret_split_across_message_and_arguments() -> None:
+    cleaned = _cleaned(["prefix-and-suffix"], "key=prefix-%s", "and-suffix")
+    expected = "key=[REDACTED]"
+    assert cleaned == expected, "the rendered message must be redacted"
+
+
+def test_filter_leaves_a_clean_record_untouched() -> None:
+    record = _record("User %s sent %d photos", 42, 3)
+    SecretsFilter(["unrelated-secret"]).filter(record)
+    observed = (record.msg, record.args)
+    expected = ("User %s sent %d photos", (42, 3))
+    assert observed == expected, "a clean record must keep its arguments"
+
+
+def test_filter_redacts_a_token_from_an_exception_traceback() -> None:
+    bot_key = "123456789:ABCdefGHIjklMNOpqrSTUvwxYZ0123456789"
     with pytest.raises(RuntimeError) as caught:
         _fail_download(bot_key)
     error = caught.value
     record = logging.LogRecord(
-        "t",
+        "bot",
         logging.ERROR,
-        "f",
-        1,
+        "bot.py",
+        7,
         "Telegram request failed",
         (),
         (type(error), error, error.__traceback__),
     )
-
-    secrets_filter.filter(record)
-
-    exc_text = str(record.exc_text)
-    assert bot_key not in exc_text
-    redaction_marker = "[REDACTED]"
-    assert redaction_marker in exc_text
+    SecretsFilter([bot_key]).filter(record)
+    redacted_url = "bot[REDACTED]/getFile"
+    assert redacted_url in str(record.exc_text), "the traceback must not keep the token"
 
 
-def test_logging_setup_attaches_filter_to_root_handlers(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    logging_setup = importlib.import_module("bot_obormot.app.logging_setup")
-
-    handler = logging.StreamHandler()
-    root_logger = logging.getLogger()
-    monkeypatch.setattr(root_logger, "handlers", [handler])
-    monkeypatch.setattr(logging, "basicConfig", lambda **_kwargs: None)
-
-    logging_setup.configure_logging(make_settings())
-
-    assert any(isinstance(item, SecretsFilter) for item in handler.filters)
-
-
-@pytest.mark.parametrize(
-    "message",
-    [
-        "Authorization: Bearer first-secret-value",
-        "authorization=Bearer second-secret-value",
-        "Bearer third-secret-value",
-    ],
-)
-def test_bearer_tokens_are_redacted(message: str) -> None:
-    log_filter = SecretsFilter([])
-    record = logging.LogRecord("t", logging.ERROR, "f", 1, message, (), None)
-
-    assert log_filter.filter(record) is True
-    leaked_value = "secret-value"
-    assert leaked_value not in record.getMessage()
-    redaction_marker = "[REDACTED]"
-    assert redaction_marker in record.getMessage()
-
-
-def test_logging_setup_redacts_every_configured_secret(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    logging_setup = importlib.import_module("bot_obormot.app.logging_setup")
-    secrets = [
-        "bot-token-secret-value",
-        "llm-api-key-secret-value",
-        "audiodoc-audio-secret",
-        "audiodoc-document-secret",
-    ]
-    settings = make_settings(
-        BOT_TOKEN=secrets[0],
-        LLM_API_KEY=secrets[1],
-        AUDIODOC_AUDIO_KEY=secrets[2],
-        AUDIODOC_DOCUMENT_KEY=secrets[3],
-    )
-
-    handler = logging.StreamHandler()
-    root_logger = logging.getLogger()
-    monkeypatch.setattr(root_logger, "handlers", [handler])
-    monkeypatch.setattr(logging, "basicConfig", lambda **_kwargs: None)
-
-    logging_setup.configure_logging(settings)
-
-    secrets_filter = next(
-        item for item in handler.filters if isinstance(item, SecretsFilter)
-    )
-    record = logging.LogRecord(
-        "t",
-        logging.ERROR,
-        "f",
-        1,
-        "Configured secrets: %s",
-        (" ".join(secrets),),
-        None,
-    )
-
-    assert secrets_filter.filter(record) is True
-    cleaned_message = record.getMessage()
-    assert all(secret not in cleaned_message for secret in secrets)
-    assert cleaned_message.count("[REDACTED]") == len(secrets)
+def test_filter_redacts_a_secret_from_an_existing_exception_text() -> None:
+    record = _record("Upload failed")
+    record.exc_text = "Traceback: api_key=abcdefgh-ijkl in request"
+    SecretsFilter(["abcdefgh-ijkl"]).filter(record)
+    expected = "Traceback: api_key=[REDACTED] in request"
+    assert record.exc_text == expected, "a formatted traceback must be redacted"

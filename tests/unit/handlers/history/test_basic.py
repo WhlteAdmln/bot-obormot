@@ -6,7 +6,6 @@
 from collections.abc import Awaitable, Callable
 from dataclasses import replace
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
 
 import pytest
 from aiogram import Bot, Dispatcher
@@ -26,6 +25,7 @@ from tests.support.dispatcher import (
     feed_command,
     sent_texts,
 )
+from tests.support.handler_messages import FakeMessage
 from tests.support.settings import make_settings
 from tests.support.telegram import (
     FakeTelegramSession,
@@ -56,7 +56,7 @@ async def test_handlers_ignore_messages_without_sender(
     handler: Callable[..., Awaitable[None]],
 ) -> None:
     """Handlers return quietly when Telegram sends no sender information."""
-    message = SimpleNamespace(from_user=None, text="prompt", answer=AsyncMock())
+    message = FakeMessage(None, "Будь краток")
 
     state = SimpleNamespace()
     database = SimpleNamespace()
@@ -67,7 +67,8 @@ async def test_handlers_ignore_messages_without_sender(
     else:
         await handler(message, state, database)
 
-    message.answer.assert_not_awaited()
+    expected_empty: list[str] = []
+    assert message.answers == expected_empty, "answered a message without sender"
 
 
 @pytest.mark.asyncio

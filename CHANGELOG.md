@@ -37,6 +37,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `PROMPT_RESET_ALREADY_DEFAULT` writes the invisible variation selector of its emoji as `\ufe0f`, so the line fits the length limit without a `line-too-long` suppression. The text is unchanged.
 - `bot_obormot.services.database` re-exports `handle_database_errors` and `read_image_as_base64` from their defining modules instead of through the facade.
 - `scripts/check_docs.py` is split by responsibility: it runs the checks in `scripts/docs_checks/` (`links.py`, `russian.py`, `settings.py`, `cli_commands.py`, `telegram_commands.py`, with shared helpers in `markdown.py`), and each module has its own test file in `tests/unit/scripts/docs_checks/`. The tests no longer import the private `_settings_environment_names`; it is the public `settings_environment_names`. `CONTRIBUTING.md` describes how the copies in audiodoc and bot-obormot differ. The checks and their messages are unchanged.
+- `CLAUDE.md` forbids renaming files, CI workflows or CI jobs without the user's consent.
 
 ### Fixed
 

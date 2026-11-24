@@ -98,13 +98,13 @@ Goal: remove deprecated functionality, make the code base uniform with audiodoc 
   - ~~Pointer to AD-06. Done in the audiodoc session; do not start from here.~~
 - Done when: AD-06 is done.
 
-#### BO-11 Security tests: access control and administration
+#### ~~BO-11 Security tests: access control and administration~~
 
 - Needs: BO-10.
 - Scope:
-  - Bring these files to the full standard: one assert per test, a message on every assert, hostile and unusual inputs, public entry points only, and add them to the list of `check_test_rules.py`.
-  - `tests/unit/middlewares/`: `test_access.py`, `test_throttle.py`, `test_correlation_id.py`.
-  - `tests/unit/services/access/test_service.py`, `tests/unit/handlers/admin/test_handler.py`, `tests/unit/services/database/repositories/test_admins.py`.
+  - ~~Bring these files to the full standard: one assert per test, a message on every assert, hostile and unusual inputs, public entry points only, and add them to the list of `check_test_rules.py`.~~
+  - ~~`tests/unit/middlewares/`: `test_access.py`, `test_throttle.py`, `test_correlation_id.py`.~~
+  - ~~`tests/unit/services/access/test_service.py`, `tests/unit/handlers/admin/test_handler.py`, `tests/unit/services/database/repositories/test_admins.py`.~~
 - Done when: the script passes with these files on the list; coverage did not drop.
 
 #### BO-12 Security tests: limits, validation, audiodoc clients, Telegram input

@@ -45,6 +45,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Removed
 
 - The private `LLMClient` static methods `_normalize_content`, `_prepare_messages_for_count` and `_count_images`; only tests used them, and the public `normalize_messages`, `prepare_messages_for_count` and `count_images` remain.
+- `bot_obormot/services/chat/formatting/roleplay.py`. Nothing has imported it since 0.2.1 removed `format_roleplay`, but the file was left behind.
 
 ## [0.3.0] - 2026-11-21
 

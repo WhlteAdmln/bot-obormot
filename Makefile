@@ -2,6 +2,7 @@ PYTHON_VERSION ?= 3.13
 PYTHON_BOOTSTRAP ?= python$(PYTHON_VERSION)
 PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
 VERSION ?= dev
+PROJECT_VERSION = $(shell $(PYTHON) -c "import tomllib; from pathlib import Path; print(tomllib.loads(Path('pyproject.toml').read_text(encoding='utf-8'))['project']['version'])")
 PYTHON_SCRIPTS_DIR = $(shell $(PYTHON) -c "import sysconfig; print(sysconfig.get_path('scripts'))")
 
 LOCK_PYTHON_VERSION ?= 3.11
@@ -10,7 +11,8 @@ LOCK_MIN_RELEASE_AGE_DAYS ?= 14
 
 .PHONY: venv install-dev lint fix types pylint deptry vulture import-lint test \
         test-integration integration audit build docker installer \
-        cov docs-check lock check clean
+        cov docs-check lock check clean pip-check test-no-skips \
+        release-check
 
 venv:
 	@set -eu; \
@@ -104,7 +106,28 @@ docs-check:
 	$(PYTHON) -m scripts.check_docs
 	$(PYTHON) -m pre_commit run --all-files
 
-check: lint types pylint deptry vulture import-lint test docs-check
+check: lint types pylint deptry vulture import-lint pip-check test-no-skips audit \
+       release-check docs-check
+
+pip-check:
+	$(PYTHON) -m pip check
+
+test-no-skips:
+	@log="$$(mktemp)"; status=0; \
+	$(MAKE) --no-print-directory test >"$$log" 2>&1 || status=$$?; \
+	cat "$$log"; \
+	if grep -q '^SKIPPED' "$$log"; then \
+		echo "Unit tests must not be skipped." >&2; \
+		status=1; \
+	fi; \
+	rm -f "$$log"; \
+	exit $$status
+
+release-check:
+	PATH="$(PYTHON_SCRIPTS_DIR):$$PATH" bash scripts/build_release.sh "$(PROJECT_VERSION)"
+	test -s dist/constraints.txt
+	test -s dist/SHA256SUMS
+	cd dist && sha256sum --check --status SHA256SUMS
 
 build:
 	bash scripts/build_release.sh "$(VERSION)"

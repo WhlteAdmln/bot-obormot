@@ -31,7 +31,7 @@ dependencies = [
 
 [project.optional-dependencies]
 tgs = ["rlottie-python>=1.3.8,<2.0.0"]
-dev = [
+test = [
     "hypothesis==6.170.15",
     "pytest==9.2.0",
     "jsonschema==4.26.0",
@@ -39,9 +39,16 @@ dev = [
     "pytest-cov==7.1.0",
     "pytest-randomly==5.1.0",
     "pytest-timeout==2.4.0",
+    "defusedxml==0.7.1",
+    "packaging==26.3",
+    "build>=1.6.1,<2.0",
+    "setuptools==84.2.1",
+    "wheel==0.48.0",
+]
+dev = [
+    "bot-obormot[test]",
     "ruff==0.17.4",
     "deptry==0.25.1",
-    "defusedxml==0.7.1",
     "import-linter==2.16",
     "vulture==2.16",
     "mypy==2.4.1",
@@ -50,10 +57,6 @@ dev = [
     "shfmt-py==4.2.0",
     "shellcheck-py==0.11.0.1",
     "pre-commit==4.7.0",
-    "packaging==26.3",
-    "build>=1.6.1,<2.0",
-    "setuptools==84.2.1",
-    "wheel==0.48.0",
 ]
 
 [project.scripts]
@@ -217,7 +220,7 @@ fail_under = 92.1
 exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError", '\.\.\.']
 
 [tool.deptry]
-optional_dependencies_dev_groups = ["dev"]
+optional_dependencies_dev_groups = ["dev", "test"]
 known_first_party = ["bot_obormot"]
 extend_exclude = ["scripts"]
 

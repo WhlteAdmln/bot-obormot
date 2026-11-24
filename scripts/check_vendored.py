@@ -28,6 +28,7 @@ VENDORED_FILES = (
     "scripts/check_changelog.py",
     "scripts/check_lock.py",
     "scripts/check_test_layout.py",
+    "scripts/check_test_rules.py",
     "scripts/check_vendored.py",
     "scripts/coverage_gaps.py",
     PYPROJECT_FILE,
@@ -41,6 +42,7 @@ HEADERLESS_VENDORED_FILES = (
     "CLAUDE.md",
     "scripts/build_release.sh",
     "tests/unit/scripts/test_check_changelog.py",
+    "tests/unit/scripts/test_check_test_rules.py",
 )
 PACKAGE_VENDORED_FILES = ("log_filters.py", "env_readers.py")
 # Only style and typing rules are shared. The dependency, dead-code and import

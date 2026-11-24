@@ -39,7 +39,7 @@ def test_render_rejects_relative_home_and_unknown_mode() -> None:
     with pytest.raises(ValueError, match="absolute"):
         service.render_service_unit(Path("relative"), mode="user")
     with pytest.raises(ValueError, match="Unsupported"):
-        service.render_service_unit(Path("/srv/app"), mode="global")  # type: ignore[arg-type]
+        service.render_service_unit(Path("/srv/app"), mode="global")  # type: ignore[arg-type]  # invalid mode
 
 
 def test_render_rejects_line_breaks_in_paths() -> None:

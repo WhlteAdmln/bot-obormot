@@ -91,11 +91,11 @@ Goal: remove deprecated functionality, make the code base uniform with audiodoc 
   - ~~Rename tests whose names are not sentences with a verb, and mechanical names such as `expected_fragment` or `expected_text_2`.~~
 - Done when: a throwaway scan finds none of the above; the test count did not fall; `make check` is green.
 
-#### BO-10 [shared] `scripts/check_test_rules.py`
+#### ~~BO-10 [shared] `scripts/check_test_rules.py`~~
 
 - Needs: none.
 - Scope:
-  - Pointer to AD-06. Done in the audiodoc session; do not start from here.
+  - ~~Pointer to AD-06. Done in the audiodoc session; do not start from here.~~
 - Done when: AD-06 is done.
 
 #### BO-11 Security tests: access control and administration

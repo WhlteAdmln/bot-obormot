@@ -45,6 +45,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `CLAUDE.md` forbids renaming files, CI workflows or CI jobs without the user's consent; a task whose `Scope:` asks for it counts as consent.
 - `CLAUDE.md` forbids describing the local environment (local or sibling paths, user and machine names, operating system details) in commit and pull request text.
 - `CLAUDE.md` asks to run `make clean` after the final `make check`, so no build, coverage or cache artifacts stay in the working tree.
+- `CLAUDE.md` asks to name branches and write commit messages and pull request titles and text in the style of the repository history, without additions such as task IDs in titles.
 
 ### Fixed
 

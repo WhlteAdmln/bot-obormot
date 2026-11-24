@@ -1,20 +1,14 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Tests for config model."""
+"""Tests for the settings loader."""
 
-from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 
 from bot_obormot.config import load_default_system_prompt
-from bot_obormot.config.model import (
-    ConfigError,
-    get_settings,
-    load_settings,
-    reset_settings_cache,
-)
+from bot_obormot.config.model.loader import ConfigError, load_settings
 
 
 def test_load_settings_uses_the_supplied_environment() -> None:
@@ -135,30 +129,6 @@ def test_load_settings_collects_multiple_errors() -> None:
     assert len(error.value.errors) == len(environ)
     for name in environ:
         assert name in str(error.value)
-
-
-@pytest.fixture(name="fresh_settings_cache")
-def fixture_fresh_settings_cache() -> Iterator[None]:
-    """Start with an empty settings cache and leave none behind."""
-    reset_settings_cache()
-    yield
-    reset_settings_cache()
-
-
-@pytest.mark.usefixtures("fresh_settings_cache")
-def test_get_settings_is_cached_until_reset(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Get settings returns a cached instance until reset."""
-    monkeypatch.setenv("SUPERVISOR_ID", "123")
-    first = get_settings()
-    monkeypatch.setenv("SUPERVISOR_ID", "456")
-
-    assert get_settings() is first
-    expected_supervisor_id = 123
-    assert expected_supervisor_id == get_settings().SUPERVISOR_ID
-
-    reset_settings_cache()
-    expected_supervisor_id = 456
-    assert expected_supervisor_id == get_settings().SUPERVISOR_ID
 
 
 def test_system_prompt_path_is_optional_and_keeps_the_built_in_prompt() -> None:

@@ -29,7 +29,7 @@ flowchart LR
 - `bot_obormot/app/bootstrap.py` устанавливает `umask(0o077)`, настраивает логирование и фильтр секретов, включает лимиты Pillow, записывает режим доступа, проверяет `BOT_TOKEN`, создаёт Bot/Dispatcher и подключает роутеры.
 - `bot_obormot/app/lifecycle.py` подключает SQLite, запускает LLM-клиент, создаёт именованную фоновую задачу периодической очистки изображений и запускает Telegram polling. При завершении задача очистки отменяется и дожидается остановки; затем закрываются LLM-клиент, соединение БД и Telegram-сессия.
 - `bot_obormot/app/background/image_cleanup.py` вызывает очистку раз в сутки с периодом хранения медиа 30 дней и защитным периодом 24 часа для осиротевших изображений.
-- `bot_obormot/env_readers.py` (общий с audiodoc) содержит читалки окружения и `load_env_file()`, которая загружает `<home>/.env`, а затем `./.env`. Домашний каталог задаёт `BOT_OBORMOT_HOME` (по умолчанию `~/bot-obormot`); относительные пути, например `DATABASE_PATH`, считаются от него. `bot_obormot/config/model.py` строит `Settings` через `load_settings()`; при импорте окружение никто не читает.
+- `bot_obormot/env_readers.py` (общий с audiodoc) содержит читалки окружения и `load_env_file()`, которая загружает `<home>/.env`, а затем `./.env`. Домашний каталог задаёт `BOT_OBORMOT_HOME` (по умолчанию `~/bot-obormot`); относительные пути, например `DATABASE_PATH`, считаются от него. `bot_obormot/config/model/` строит `Settings` через `load_settings()`: `schema.py` содержит dataclass `Settings`, `readers.py` — типизированные читалки, собирающие ошибки, `loader.py` — проверку и `ConfigError`, `cache.py` — общий для процесса кэш `get_settings()`; при импорте окружение никто не читает.
 
 ## 3. Telegram-слой, доступ и администрирование
 
@@ -46,7 +46,7 @@ flowchart LR
 ### Пакеты обработчиков
 
 - `bot_obormot/handlers/start/` — `/start`, персональное меню команд и справка.
-- `bot_obormot/handlers/admin/` — `/health`, `/admin`, `/admins`, `/admin_add`, `/admin_remove`, `/ban`, `/unban`.
+- `bot_obormot/handlers/admin/` — `/health`, `/admin`, `/admins`, `/admin_add`, `/admin_remove`, `/ban`, `/unban`. Пакет `handler/` регистрирует их на одном роутере; `access.py` содержит проверки прав, `health.py` — проверку состояния, `admins.py` — управление администраторами, `bans.py` — блокировки.
 - `bot_obormot/handlers/history/` — `/history`, `/history_limit`, `/history_clear`, `/forget_me`.
 - `bot_obormot/handlers/prompt/` — `/prompt`, `/prompt_set`, `/prompt_reset`, `/cancel` и FSM-обработка системного промпта.
 - `bot_obormot/handlers/chat/` — координация входящего сообщения и отправка ответа Telegram.
@@ -138,7 +138,7 @@ flowchart LR
 - `bot_obormot/app/logging_setup.py` настраивает корневое логирование и устанавливает `SecretsFilter` на root handlers. Шаблоны Telegram-токена и заданные секреты LLM и audiodoc маскируются в сообщениях лога и тексте исключений.
 - `bot_obormot/common/text.py::log_safe()` экранирует CR/LF, заменяет непечатаемые символы и обрезает пользовательские поля логов. Текст распознанной речи не записывается; фиксируется только число символов. Детали ответов сервисов очищаются перед логированием.
 - `bot_obormot/services/audit.py` записывает действия администраторов через логгер `bot_obormot.audit`.
-- `bot_obormot/config/model.py` строит `Settings` из окружения (импортируется как `bot_obormot.settings`); `bot_obormot/app/bootstrap.py` проверяет формат Telegram-токена до создания Bot.
+- `bot_obormot/config/model/` строит `Settings` из окружения (импортируется как `bot_obormot.settings`); `bot_obormot/app/bootstrap.py` проверяет формат Telegram-токена до создания Bot.
 - `umask(0o077)` при запуске ограничивает права новых файлов/каталогов в Unix-подобных системах. Он не меняет права существующих файлов БД, изображений или `.env`.
 
 Приложение также зависит от защиты хоста, корректных прав `.env`, сетевой изоляции локальных сервисов и периодической проверки зависимостей через `pip-audit`. Автотесты и фильтрация логов не заменяют проверку развёртывания и ручной чек-лист Telegram.

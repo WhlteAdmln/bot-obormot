@@ -7,16 +7,16 @@ import ast
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-SETTINGS_PATH = PROJECT_ROOT / "bot_obormot" / "config" / "model.py"
+SETTINGS_PATH = PROJECT_ROOT / "bot_obormot" / "config" / "model" / "loader.py"
 ENV_EXAMPLE_PATH = PROJECT_ROOT / ".env.example"
 
 _ENV_READER_NAMES = {
-    "_read_bool",
-    "_read_float",
-    "_read_ids",
-    "_read_int",
-    "_read_optional_int",
-    "_read_str",
+    "read_bool",
+    "read_float",
+    "read_ids",
+    "read_int",
+    "read_optional_int",
+    "read_str",
 }
 
 

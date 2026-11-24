@@ -8,9 +8,7 @@ import logging
 import pytest
 
 from bot_obormot.app.logging_setup import configure_logging
-from bot_obormot.config.model import (
-    load_settings,
-)
+from bot_obormot.settings import load_settings
 
 
 def test_configure_logging_redacts_audiodoc_keys(

@@ -10,11 +10,9 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-from bot_obormot.errors import DatabaseError
 from bot_obormot.services.database import (
     Database,
 )
-from tests.support.database_repositories import USER_ID
 from tests.support.settings import make_settings
 
 USER_A = 111111111
@@ -50,44 +48,6 @@ async def fixture_test_db(
     yield database
 
     await database.close()
-
-
-@pytest.mark.asyncio
-async def test_facade_system_prompt_methods_preserve_default_behavior(
-    test_db: Database,
-) -> None:
-    """Facade system prompt methods preserve default behavior."""
-    assert (
-        await test_db.get_system_prompt(USER_ID)
-        == test_db.settings.DEFAULT_SYSTEM_PROMPT
-    )
-    await test_db.set_system_prompt(USER_ID, "Новый промпт")
-    expected_text = "Новый промпт"
-    assert await test_db.get_user_system_prompt(USER_ID) == expected_text
-
-
-def test_database_images_dir_uses_injected_settings_at_instance_creation(
-    tmp_path: Path,
-) -> None:
-    """Database images dir uses injected settings at instance creation."""
-    database_path = tmp_path / "custom" / "history.db"
-    settings = make_settings(DATABASE_PATH=str(database_path))
-
-    database = Database(settings)
-
-    assert database.images_dir == database_path.resolve().parent / "images"
-
-
-def test_database_instance_does_not_create_files_before_connect(
-    tmp_path: Path,
-) -> None:
-    """Database instance does not create files before connect."""
-    database_path = tmp_path / "not-created" / "history.db"
-    settings = make_settings(DATABASE_PATH=str(database_path))
-
-    Database(settings)
-
-    assert not database_path.parent.exists()
 
 
 @pytest.mark.asyncio
@@ -173,40 +133,6 @@ async def test_multiuser_isolation(test_db: Database) -> None:
 
 
 @pytest.mark.asyncio
-async def test_admin_management(test_db: Database) -> None:
-    """Проверяет управление администраторами."""
-    db = test_db
-
-    # Сначала администраторов нет.
-    assert await db.get_admin_ids() == set()
-
-    # Добавляем администратора.
-    assert await db.add_admin(USER_A) is True
-
-    # Повторное добавление не должно создавать дубликат.
-    assert await db.add_admin(USER_A) is False
-
-    assert await db.get_admin_ids() == {USER_A}
-
-    # Добавляем второго администратора.
-    assert await db.add_admin(USER_B) is True
-
-    assert await db.get_admin_ids() == {USER_A, USER_B}
-
-    # Удаляем первого.
-    assert await db.remove_admin(USER_A) is True
-
-    assert await db.get_admin_ids() == {USER_B}
-
-    # Повторное удаление возвращает False.
-    assert await db.remove_admin(USER_A) is False
-
-    # Supervisor нельзя добавить или удалить как обычного администратора.
-    assert await db.add_admin(SUPERVISOR_ID) is False
-    assert await db.remove_admin(SUPERVISOR_ID) is False
-
-
-@pytest.mark.asyncio
 async def test_concurrent_users(test_db: Database) -> None:
     """Проверяет параллельную запись нескольких пользователей."""
     db = test_db
@@ -243,28 +169,3 @@ async def test_concurrent_users(test_db: Database) -> None:
         assert (
             sum(message["role"] == expected_role for message in history) == expected_sum
         )
-
-
-@pytest.mark.asyncio
-async def test_failed_exchange_rollback(test_db: Database) -> None:
-    """Проверяет откат неудачного обмена и удаление изображения."""
-    db = test_db
-
-    image_data = b"fake-image-data"
-
-    with pytest.raises(DatabaseError):
-        await db.add_exchange(
-            USER_A,
-            "Тестовое сообщение",
-            None,
-            media=[image_data],
-        )
-
-    # Неудачный обмен не должен оставить сообщения.
-    assert await db.get_history(USER_A, limit=20) == []
-
-    # Неудачный обмен не должен оставить файлы изображений.
-    remaining_files = list(db.images_dir.iterdir())
-
-    expected_empty = []
-    assert remaining_files == expected_empty, "expected an empty list"

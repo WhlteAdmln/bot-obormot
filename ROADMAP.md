@@ -42,13 +42,13 @@ Goal: remove deprecated functionality, make the code base uniform with audiodoc 
   - ~~Tests check that no entry leaks after a request, including after an error.~~
 - Done when: no module-level mutable state is left in the locks module; `make check` is green.
 
-#### BO-04 Split `markdown_v2.py` and `database/facade.py`
+#### ~~BO-04 Split `markdown_v2.py` and `database/facade.py`~~
 
 - Needs: none.
 - Scope:
-  - Split `bot_obormot/services/chat/formatting/markdown_v2.py` (451 lines) and `bot_obormot/services/database/facade.py` (386 lines) by responsibility.
-  - Remove the `consider-ternary-expression` suppression in `markdown_v2.py` if the split makes it unnecessary.
-  - Move the tests so that every module has one mirrored test file.
+  - ~~Split `bot_obormot/services/chat/formatting/markdown_v2.py` (451 lines) and `bot_obormot/services/database/facade.py` (386 lines) by responsibility.~~
+  - ~~Remove the `consider-ternary-expression` suppression in `markdown_v2.py` if the split makes it unnecessary.~~
+  - ~~Move the tests so that every module has one mirrored test file.~~
 - Done when: the import-linter contracts stay valid, `make check` is green.
 
 #### BO-05 Split `admin/handler.py` and `config/model.py`
@@ -154,7 +154,7 @@ Goal: remove deprecated functionality, make the code base uniform with audiodoc 
 - One assert per test and a message on every assert in all tests, not only the security tests.
 - Unusual inputs instead of `"x"` and `"foo"` in all tests.
 - Remove the pylint `no-docstring-rgx` exemption for tests and the `D1` ignore for `tests/*`.
-- Review the remaining production suppressions: `too-many-instance-attributes` in `config/model.py`, `services/chat/streaming/responder.py` and `services/chat/input/models.py`; `too-many-public-methods` in `services/database/facade.py`; `protected-access` in `services/database/decorators.py`; `consider-ternary-expression` in `document_part.py` and `audio_part.py`.
+- Review the remaining production suppressions: `too-many-instance-attributes` in `config/model.py`, `services/chat/streaming/responder.py` and `services/chat/input/models.py`; `protected-access` in `services/database/decorators.py`; `consider-ternary-expression` in `document_part.py` and `audio_part.py`.
 - `FakeLLMOptions` in `tests/support/fake_llm.py` without its `too-many-instance-attributes` suppression.
 
 ### 0.5.0: beta
@@ -164,7 +164,7 @@ The scope is not defined yet.
 ## Backlog
 
 - `tests/unit/project/test_env_example.py` keeps its own `_settings_environment_names` helper, a copy of `settings_environment_names` in `scripts/docs_checks/settings.py`; use the public function instead.
-- Type LLM chat messages and content parts (`TypedDict` for a message, a text part and an `image_url` part) instead of `dict[str, Any]`; most of the remaining `Any` uses are these dictionaries in `services/llm/`, `services/media/content.py`, `services/chat/input/user_content.py` and `services/database/usecases/history.py` and `facade.py`.
+- Type LLM chat messages and content parts (`TypedDict` for a message, a text part and an `image_url` part) instead of `dict[str, Any]`; most of the remaining `Any` uses are these dictionaries in `services/llm/`, `services/media/content.py`, `services/chat/input/user_content.py` and `services/database/usecases/history.py` and `facade/history.py`.
 - Type the Document Engine response (`text`, `format`, `characters`, optional `truncated`) instead of `dict[str, Any]` in `services/documents/response.py`, `client.py` and `services/chat/input/document_part.py`.
 - FSM updates in the `start`, `prompt` and `fallback` handlers and in the temporary-messages middleware build a `dict[str, Any]` only to unpack it into `state.update_data(**data)`, whose `**kwargs` are `Any`; passing the mapping as the first argument would allow `dict[str, int]`, but the test fakes accept keyword arguments only.
 - Keyword arguments for `message.answer` in `services/chat/streaming/sending.py` and `responder.py` are `dict[str, Any]`; a `TypedDict` with `Unpack` or explicit arguments would type them.

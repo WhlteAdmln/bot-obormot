@@ -59,11 +59,11 @@ Goal: remove deprecated functionality, make the code base uniform with audiodoc 
   - Move the tests so that every module has one mirrored test file.
 - Done when: as BO-04. If a split is not clean, list the file in the answer and in `ROADMAP.md`.
 
-#### BO-06 [shared] Split `scripts/check_docs.py` and document its differences
+#### ~~BO-06 [shared] Split `scripts/check_docs.py` and document its differences~~
 
 - Needs: none.
 - Scope:
-  - Pointer to AD-03. Done in the audiodoc session; do not start from here.
+  - ~~Pointer to AD-03. Done in the audiodoc session; do not start from here.~~
 - Done when: AD-03 is done.
 
 #### BO-07 [shared] `make check` runs every CI gate; one extra for test dependencies
@@ -163,6 +163,7 @@ The scope is not defined yet.
 
 ## Backlog
 
+- `tests/unit/project/test_env_example.py` keeps its own `_settings_environment_names` helper, a copy of `settings_environment_names` in `scripts/docs_checks/settings.py`; use the public function instead.
 - Build routers with a factory instead of module-level objects, so tests need no `detach_router` and no `protected-access` suppression (aiogram has no public way to detach a router).
 
 ## Released

@@ -34,12 +34,12 @@ Goal: remove deprecated functionality, make the code base uniform with audiodoc 
   - ~~Replace `Any` where the precise type is obvious (73 uses left in `bot_obormot/`); leave the others as they are and list the groups that need a design decision.~~
 - Done when: mypy strict passes, behavior is unchanged, `make check` is green.
 
-#### BO-03 `UserLocks`
+#### ~~BO-03 `UserLocks`~~
 
 - Needs: none.
 - Scope:
-  - Replace the module-level dictionary in `bot_obormot/services/chat/locks.py` with an explicit `UserLocks` object that has `__len__`; the application creates it and passes it down.
-  - Tests check that no entry leaks after a request, including after an error.
+  - ~~Replace the module-level dictionary in `bot_obormot/services/chat/locks.py` with an explicit `UserLocks` object that has `__len__`; the application creates it and passes it down.~~
+  - ~~Tests check that no entry leaks after a request, including after an error.~~
 - Done when: no module-level mutable state is left in the locks module; `make check` is green.
 
 #### BO-04 Split `markdown_v2.py` and `database/facade.py`

@@ -20,7 +20,6 @@ from bot_obormot.services.chat.formatting import (
 )
 from bot_obormot.services.chat.incoming_log import log_incoming_message
 from bot_obormot.services.chat.input import inspect_message, prepare_message
-from bot_obormot.services.chat.locks import get_user_lock, pending_requests
 from bot_obormot.services.chat.pipeline import (
     ChatPipelineDependencies,
     process_chat,
@@ -43,6 +42,7 @@ if TYPE_CHECKING:
 
     from bot_obormot.services.chat.aggregation import MessageAggregator
     from bot_obormot.services.chat.input import MessageInfo
+    from bot_obormot.services.chat.locks import UserLocks
     from bot_obormot.services.database import Database
     from bot_obormot.services.llm.client import LLMClient
     from bot_obormot.settings import Settings
@@ -109,6 +109,7 @@ async def handle_message(
     llm_client: LLMClient,
     message_aggregator: MessageAggregator,
     database: Database,
+    user_locks: UserLocks,
 ) -> None:
     """Processes an incoming chat message and streams the LLM reply."""
     if settings is None:
@@ -143,7 +144,7 @@ async def handle_message(
         if aggregated_text is None:
             return
 
-    if pending_requests(user_id) >= MAX_PENDING_PER_USER:
+    if user_locks.pending(user_id) >= MAX_PENDING_PER_USER:
         await message.answer(PENDING_REQUESTS_MESSAGE)
         return
 
@@ -159,7 +160,7 @@ async def handle_message(
         reply_to.message_id,
     )
 
-    async with get_user_lock(user_id):
+    async with user_locks.hold(user_id):
         responder = StreamingResponder(
             message=message,
             user_id=user_id,
@@ -216,7 +217,6 @@ __all__ = [
     "MAX_PENDING_PER_USER",
     "STREAM_TOKEN_THRESHOLD",
     "STREAM_UPDATE_INTERVAL",
-    "get_user_lock",
     "handle_chat_error",
     "handle_message",
     "inspect_message",

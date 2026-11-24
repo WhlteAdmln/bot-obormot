@@ -13,6 +13,7 @@ from bot_obormot.middlewares.temporary_messages import (
 )
 from bot_obormot.middlewares.throttle import ThrottleMiddleware
 from bot_obormot.services.chat.aggregation import MessageAggregator
+from bot_obormot.services.chat.locks import UserLocks
 from bot_obormot.services.database import Database
 from bot_obormot.services.llm.client import LLMClient
 from bot_obormot.settings import Settings, get_settings
@@ -24,6 +25,7 @@ def configure_dispatcher(
     llm_client: LLMClient | None = None,
     message_aggregator: MessageAggregator | None = None,
     database: Database | None = None,
+    user_locks: UserLocks | None = None,
 ) -> Dispatcher:
     """Attach middleware and routers to the configured Dispatcher."""
     if settings is None:
@@ -36,6 +38,9 @@ def configure_dispatcher(
     dispatcher.workflow_data["message_aggregator"] = message_aggregator
     if database is not None:
         dispatcher.workflow_data["database"] = database
+    if user_locks is None:
+        user_locks = UserLocks()
+    dispatcher.workflow_data["user_locks"] = user_locks
 
     # Apply throttling first, then check access
     # and clean up temporary messages.

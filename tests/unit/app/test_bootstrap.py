@@ -20,6 +20,7 @@ from bot_obormot.middlewares.temporary_messages import (
 )
 from bot_obormot.middlewares.throttle import ThrottleMiddleware
 from bot_obormot.services.chat.aggregation import MessageAggregator
+from bot_obormot.services.chat.locks import UserLocks
 from bot_obormot.settings import ConfigError, Settings
 from tests.support.lifecycle import (
     FakeLifecycleLLM,
@@ -69,6 +70,25 @@ def test_dispatcher_registers_middlewares_and_routers_once_in_original_order(
         router_refs["routers"],
         router_refs["chat"],
     ]
+
+
+def test_configure_dispatcher_shares_given_user_locks_with_handlers() -> None:
+    dispatcher = FakeRouterDispatcher()
+    user_locks = UserLocks()
+
+    app_routers.configure_dispatcher(dispatcher, SETTINGS, user_locks=user_locks)
+
+    stored = dispatcher.workflow_data["user_locks"]
+    assert stored is user_locks, "handlers must receive the user locks of the app"
+
+
+def test_configure_dispatcher_creates_user_locks_when_none_is_given() -> None:
+    dispatcher = FakeRouterDispatcher()
+
+    app_routers.configure_dispatcher(dispatcher, SETTINGS)
+
+    stored = dispatcher.workflow_data["user_locks"]
+    assert isinstance(stored, UserLocks), "handlers must always receive user locks"
 
 
 def test_periodic_cleanup_uses_existing_policy_and_propagates_cancellation(
@@ -381,6 +401,7 @@ def test_bootstrap_main_loads_env_and_passes_settings_down(
         llm_client: FakeLifecycleLLM,
         message_aggregator: object,
         database: object,
+        _user_locks: UserLocks,
     ) -> object:
         calls.append(("dispatcher", settings, llm_client, message_aggregator, database))
         return dispatcher_instance
@@ -450,6 +471,7 @@ def test_create_dispatcher_passes_settings_to_router_configuration(
     llm_client = FakeLifecycleLLM([])
     message_aggregator = MessageAggregator()
     database = object()
+    user_locks = UserLocks()
 
     def configure_dispatcher(
         dispatcher: object,
@@ -457,19 +479,21 @@ def test_create_dispatcher_passes_settings_to_router_configuration(
         configured_llm: FakeLifecycleLLM,
         configured_aggregator: MessageAggregator,
         configured_database: object,
+        configured_user_locks: UserLocks,
     ) -> object:
         assert dispatcher is created
         assert settings is SETTINGS
         assert configured_llm is llm_client
         assert configured_aggregator is message_aggregator
         assert configured_database is database
+        assert configured_user_locks is user_locks
         return dispatcher
 
     monkeypatch.setattr(bootstrap, "Dispatcher", lambda: created)
     monkeypatch.setattr(bootstrap, "configure_dispatcher", configure_dispatcher)
 
     dispatcher = bootstrap.create_dispatcher(
-        SETTINGS, llm_client, message_aggregator, database
+        SETTINGS, llm_client, message_aggregator, database, user_locks
     )
 
     assert dispatcher is created

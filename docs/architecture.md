@@ -39,7 +39,7 @@ flowchart LR
 - `bot_obormot/middlewares/access.py` rejects events without a sender and ignores non-private chats. Denial notifications are sent at most once per user per 60 seconds; the tracking dictionary is bounded.
 - `bot_obormot/services/access/roles.py` contains pure Supervisor/admin/allowlist membership helpers.
 - `bot_obormot/services/access/service.py` applies access policy. The Supervisor is always admitted. For other users, persistent SQLite blocks are checked before database-admin, `ALLOW_ALL_USERS`, and `ALLOWED_USERS` admission.
-- `bot_obormot/services/chat/locks.py` serializes work per user and counts active/waiting requests. `bot_obormot/handlers/chat/handler.py` allows at most 3 pending/active requests for one user.
+- `UserLocks` in `bot_obormot/services/chat/locks.py` serializes work per user and counts active/waiting requests. The application creates one instance at startup and passes it to the chat handler through the dispatcher. `bot_obormot/handlers/chat/handler.py` allows at most 3 pending/active requests for one user.
 
 The default access mode is closed: with an empty `ALLOWED_USERS` and `ALLOW_ALL_USERS=false`, only the Supervisor and database administrators can use the bot. `ALLOW_ALL_USERS=true` is an explicit opt-in. `/ban` cannot target the Supervisor or a database administrator; administrators must first be removed with `/admin_remove`. The Supervisor bypasses normal block checks and cannot be blocked through the command or database facade.
 

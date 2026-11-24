@@ -1,110 +1,176 @@
 # Copyright (c) 2026 Nikolai Zelensky
 # SPDX-License-Identifier: MIT
 
-"""Tests for chat locks."""
+"""Tests for UserLocks."""
 
 import asyncio
 
 import pytest
 
-from bot_obormot.services.chat import locks as chat_locks
+from bot_obormot.services.chat.locks import UserLocks
+
+
+@pytest.fixture(name="user_locks")
+def fixture_user_locks() -> UserLocks:
+    """Return locks that no request has used yet."""
+    return UserLocks()
+
+
+async def _hold_until(
+    user_locks: UserLocks,
+    user_id: int,
+    entered: asyncio.Event,
+    release: asyncio.Event,
+) -> None:
+    async with user_locks.hold(user_id):
+        entered.set()
+        await release.wait()
+
+
+async def _fail_inside(user_locks: UserLocks, user_id: int) -> None:
+    async with user_locks.hold(user_id):
+        msg = "model backend went away"
+        raise RuntimeError(msg)
 
 
 @pytest.mark.asyncio
-async def test_user_lock_serializes_same_user_and_releases_registry() -> None:
-    """User lock serializes same user and releases registry."""
-    first_inside = asyncio.Event()
-    release_first = asyncio.Event()
-    second_inside = asyncio.Event()
-
-    async def first_worker() -> None:
-        async with chat_locks.get_user_lock(202):
-            first_inside.set()
-            await release_first.wait()
-
-    async def second_worker() -> None:
-        async with chat_locks.get_user_lock(202):
-            second_inside.set()
-
-    first = asyncio.create_task(first_worker())
-    await first_inside.wait()
-    assert chat_locks.pending_requests(202) == 1
-    second = asyncio.create_task(second_worker())
+async def test_counts_waiting_request_of_same_user(user_locks: UserLocks) -> None:
+    user_id = 202
+    entered = asyncio.Event()
+    release = asyncio.Event()
+    owner = asyncio.create_task(_hold_until(user_locks, user_id, entered, release))
+    await entered.wait()
+    waiter = asyncio.create_task(
+        _hold_until(user_locks, user_id, asyncio.Event(), asyncio.Event())
+    )
     await asyncio.sleep(0)
-    assert not second_inside.is_set()
-    expected_pending_requests = 2
-    assert chat_locks.pending_requests(202) == expected_pending_requests
 
-    release_first.set()
+    pending = user_locks.pending(user_id)
+
+    waiter.cancel()
+    release.set()
+    await asyncio.gather(owner, waiter, return_exceptions=True)
+    expected_pending = 2
+    assert pending == expected_pending, "the holder and the waiter must be counted"
+
+
+@pytest.mark.asyncio
+async def test_keeps_second_request_of_same_user_waiting(
+    user_locks: UserLocks,
+) -> None:
+    user_id = 417
+    first_entered = asyncio.Event()
+    second_entered = asyncio.Event()
+    release = asyncio.Event()
+    first = asyncio.create_task(
+        _hold_until(user_locks, user_id, first_entered, release)
+    )
+    await first_entered.wait()
+    second = asyncio.create_task(
+        _hold_until(user_locks, user_id, second_entered, release)
+    )
+    await asyncio.sleep(0)
+
+    second_ran_early = second_entered.is_set()
+
+    release.set()
     await asyncio.gather(first, second)
-    assert second_inside.is_set()
-    assert chat_locks.pending_requests(202) == 0
+    assert second_ran_early is False, "a user must not run two requests at once"
 
 
 @pytest.mark.asyncio
-async def test_user_locks_allow_different_users_to_run_concurrently() -> None:
-    """User locks allow different users to run concurrently."""
-    async with chat_locks.get_user_lock(301), chat_locks.get_user_lock(302):
-        inside = (chat_locks.pending_requests(301), chat_locks.pending_requests(302))
-    expected = (1, 1)
-    assert inside == expected, "both users must hold their own lock at once"
+async def test_lets_different_users_hold_locks_at_once(
+    user_locks: UserLocks,
+) -> None:
+    first_user = 301
+    second_user = 30_299
+
+    async with user_locks.hold(first_user), user_locks.hold(second_user):
+        held = len(user_locks)
+
+    expected_held = 2
+    assert held == expected_held, "both users must hold their own lock at once"
 
 
 @pytest.mark.asyncio
-async def test_user_lock_releases_after_exception() -> None:
-    """User lock is released when the protected operation fails."""
+async def test_leaves_no_entry_after_request(user_locks: UserLocks) -> None:
+    user_id = 8_812
+
+    async with user_locks.hold(user_id):
+        pass
+
+    assert len(user_locks) == 0, "a finished request must not leave a lock behind"
+
+
+@pytest.mark.asyncio
+async def test_leaves_no_entry_after_failed_request(user_locks: UserLocks) -> None:
     user_id = 303
 
-    async def failing_request() -> None:
-        async with chat_locks.get_user_lock(user_id):
-            assert chat_locks.pending_requests(user_id) == 1
-            msg = "request failed"
-            raise RuntimeError(msg)
+    with pytest.raises(RuntimeError, match="model backend went away"):
+        await _fail_inside(user_locks, user_id)
 
-    with pytest.raises(RuntimeError, match="request failed"):
-        await failing_request()
-
-    assert chat_locks.pending_requests(user_id) == 0
-
-    async with chat_locks.get_user_lock(user_id):
-        assert chat_locks.pending_requests(user_id) == 1
-
-    assert chat_locks.pending_requests(user_id) == 0
+    assert len(user_locks) == 0, "a failed request must not leave a lock behind"
 
 
 @pytest.mark.asyncio
-async def test_user_lock_cleans_registry_when_waiter_is_cancelled() -> None:
-    """Cancelling a waiting request removes its lock registry entry."""
+async def test_releases_lock_after_failed_request(user_locks: UserLocks) -> None:
+    user_id = 5_150
+    with pytest.raises(RuntimeError, match="model backend went away"):
+        await _fail_inside(user_locks, user_id)
+
+    async with asyncio.timeout(1), user_locks.hold(user_id):
+        pending = user_locks.pending(user_id)
+
+    assert pending == 1, "the next request must get the lock after a failure"
+
+
+@pytest.mark.asyncio
+async def test_drops_cancelled_waiter_from_pending(user_locks: UserLocks) -> None:
     user_id = 304
-    owner_started = asyncio.Event()
-    release_owner = asyncio.Event()
-
-    async def owner() -> None:
-        async with chat_locks.get_user_lock(user_id):
-            owner_started.set()
-            await release_owner.wait()
-
-    async def waiter() -> None:
-        async with chat_locks.get_user_lock(user_id):
-            msg = "The waiter must not acquire the occupied lock."
-            raise AssertionError(msg)
-
-    owner_task = asyncio.create_task(owner())
-    await owner_started.wait()
-
-    waiter_task = asyncio.create_task(waiter())
+    entered = asyncio.Event()
+    release = asyncio.Event()
+    owner = asyncio.create_task(_hold_until(user_locks, user_id, entered, release))
+    await entered.wait()
+    waiter = asyncio.create_task(
+        _hold_until(user_locks, user_id, asyncio.Event(), asyncio.Event())
+    )
     await asyncio.sleep(0)
+    waiter.cancel()
+    await asyncio.gather(waiter, return_exceptions=True)
 
-    expected_pending_requests = 2
-    assert chat_locks.pending_requests(user_id) == expected_pending_requests
+    pending = user_locks.pending(user_id)
 
-    waiter_task.cancel()
-    with pytest.raises(asyncio.CancelledError):
-        await waiter_task
+    release.set()
+    await owner
+    assert pending == 1, "a cancelled waiter must not stay counted"
 
-    assert chat_locks.pending_requests(user_id) == 1
 
-    release_owner.set()
-    await owner_task
+@pytest.mark.asyncio
+async def test_leaves_no_entry_after_cancelled_waiter(
+    user_locks: UserLocks,
+) -> None:
+    user_id = 7_723
+    entered = asyncio.Event()
+    release = asyncio.Event()
+    owner = asyncio.create_task(_hold_until(user_locks, user_id, entered, release))
+    await entered.wait()
+    waiter = asyncio.create_task(
+        _hold_until(user_locks, user_id, asyncio.Event(), asyncio.Event())
+    )
+    await asyncio.sleep(0)
+    waiter.cancel()
+    await asyncio.gather(waiter, return_exceptions=True)
+    release.set()
+    await owner
 
-    assert chat_locks.pending_requests(user_id) == 0
+    assert len(user_locks) == 0, "a cancelled waiter must not leave a lock behind"
+
+
+def test_reports_no_pending_requests_for_unknown_user(
+    user_locks: UserLocks,
+) -> None:
+    user_id = 99_001
+
+    pending = user_locks.pending(user_id)
+
+    assert pending == 0, "a user without requests must have none pending"

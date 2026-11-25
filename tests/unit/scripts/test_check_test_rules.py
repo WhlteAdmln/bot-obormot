@@ -62,6 +62,14 @@ def project_fixture(tmp_path: Path) -> Path:
             "def test_casts_value():\n    int('4')  # type: ignore[arg-type]\n",
             "2: comment in a test function; only a pragma with a reason",
         ),
+        (
+            "def test_merges_chunks():\n    '''Merge two chunks.'''\n",
+            "2: docstring in a test function; the test name describes it",
+        ),
+        (
+            'class TestLedger:\n    def test_books(self):\n        """Books."""\n',
+            "3: docstring in a test function; the test name describes it",
+        ),
     ],
 )
 def test_reports_rule_violation(source: str, expected: str) -> None:
@@ -78,6 +86,7 @@ def test_reports_rule_violation(source: str, expected: str) -> None:
         "import time\n\ndef _wait():\n    time.sleep(0.05)\n",
         "def test_counts_rows():\n    assert 2 == 2\n    assert 5 > 1\n",
         "class TestQueue:\n    def test_pops(self):\n        assert 1, 'pop'\n",
+        "def build_route():\n    '''Build a route for the map.'''\n",
     ],
 )
 def test_accepts_module_that_follows_the_rules(source: str) -> None:

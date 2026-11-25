@@ -10,6 +10,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - [#130](https://github.com/WhlteAdmln/bot-obormot/issues/130) CI reports the number of changed lines of a pull request against the 256-line limit without failing.
 - [#129](https://github.com/WhlteAdmln/bot-obormot/issues/129) Contributors can read the shared development principles in `docs/development-principles.md` and its Russian twin.
 
+### Fixed
+
+- [#115](https://github.com/WhlteAdmln/bot-obormot/issues/115) Logs redact a Telegram token inside a bot API URL or one that ends with `-`.
+
 ## [0.3.0] - 2026-11-24
 
 Deprecated functionality is not supported starting with 0.3.0.

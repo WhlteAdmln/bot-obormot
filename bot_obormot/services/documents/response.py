@@ -30,7 +30,13 @@ def validate_document_response(result: object) -> dict[str, Any]:
             "Document Engine returned invalid format",
         )
 
-    if not isinstance(result.get("characters"), int):
+    characters = result.get("characters")
+    # bool is a subclass of int, so a JSON true would pass a bare int check.
+    if (
+        not isinstance(characters, int)
+        or isinstance(characters, bool)
+        or characters < 0
+    ):
         raise DocumentAPIError(
             502,
             "Document Engine returned invalid character count",

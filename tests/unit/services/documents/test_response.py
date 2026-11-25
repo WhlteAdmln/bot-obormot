@@ -55,6 +55,14 @@ def test_returns_a_valid_payload_without_copying(payload: dict[str, object]) -> 
             "Document Engine returned invalid character count",
         ),
         (
+            {"text": "x", "format": "pdf", "characters": True},
+            "Document Engine returned invalid character count",
+        ),
+        (
+            {"text": "x", "format": "pdf", "characters": -7},
+            "Document Engine returned invalid character count",
+        ),
+        (
             {"text": "x", "format": "pdf", "characters": 1, "truncated": "false"},
             "Document Engine returned invalid truncated flag",
         ),
@@ -77,6 +85,8 @@ def test_returns_a_valid_payload_without_copying(payload: dict[str, object]) -> 
         "numeric-format",
         "missing-count",
         "string-count",
+        "boolean-count",
+        "negative-count",
         "string-flag",
         "null-flag",
         "integer-flag",

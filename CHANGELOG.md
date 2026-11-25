@@ -12,6 +12,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- [#113](https://github.com/WhlteAdmln/bot-obormot/issues/113) A Document Engine response with a boolean or negative character count is rejected as invalid.
 - [#115](https://github.com/WhlteAdmln/bot-obormot/issues/115) Logs redact a Telegram token inside a bot API URL or one that ends with `-`.
 
 ## [0.3.0] - 2026-11-24

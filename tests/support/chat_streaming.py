@@ -52,6 +52,7 @@ class FakeReplyMessage:
         message_id: int | None = 1,
         failures: list[Exception | None] | None = None,
     ) -> None:
+        """Store the message fields and the queued failures."""
         self.text = text
         self.message_id = message_id
         self.chat = SimpleNamespace(id=5)

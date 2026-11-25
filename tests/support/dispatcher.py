@@ -80,6 +80,7 @@ class AccessDatabase:
     """Provide deterministic database responses for dispatcher tests."""
 
     def __init__(self, admin_ids: set[int] | None = None) -> None:
+        """Start with the given admins and an empty database state."""
         self.admin_ids = set(admin_ids or ())
         self.blocked_user_ids: set[int] = set()
         self.history_limits: dict[int, int] = {}
@@ -182,6 +183,7 @@ class FakeLLM:
     """Provide an offline LLM health-check response."""
 
     def __init__(self, result: tuple[bool, str] = (True, "Доступен")) -> None:
+        """Store the health-check result to return."""
         self.result = result
 
     async def health_check(self) -> tuple[bool, str]:

@@ -14,4 +14,4 @@ Every rule below is mandatory for any LLM agent working in this repository.
 10. Run `make check` and fix every failure before declaring the work done.
 11. Regenerate lock files with the project tooling, never edit them by hand.
 12. Do only what the task asks; report related findings instead of fixing them.
-13. Give test functions a descriptive name and no docstring; this is technical debt that a later release removes.
+13. Give test functions a descriptive name and no docstring; the name describes the test.

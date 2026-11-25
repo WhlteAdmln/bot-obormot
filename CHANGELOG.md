@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- [#129](https://github.com/WhlteAdmln/bot-obormot/issues/129) Contributors can read the shared development principles in `docs/development-principles.md` and its Russian twin.
+
 ## [0.3.0] - 2026-11-24
 
 Deprecated functionality is not supported starting with 0.3.0.

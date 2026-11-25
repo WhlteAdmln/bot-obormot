@@ -18,14 +18,20 @@ async def test_prepare_media_decodes_data_urls_to_original_image_bytes() -> None
     image = b"image-data"
     data_url = "data:image/jpeg;base64," + base64.b64encode(image).decode("ascii")
 
-    async def process(_message: object, media_type: str, file_id: str) -> list[object]:
-        assert (media_type, file_id) == ("image", "image-id")
+    async def download(_message: object, _file_id: str) -> bytes:
+        return image
+
+    async def process(
+        _message: object, media_type: str, file_id: str, *, downloader: object
+    ) -> list[object]:
+        assert (media_type, file_id, downloader) == ("image", "image-id", download)
         return [data_url]
 
     info = make_info(file_id="image-id", media_type="image", has_media=True)
     urls, image_bytes = await media_module.prepare_media(
         make_message(),
         info,
+        downloader=download,
         media_processor=process,
     )
 

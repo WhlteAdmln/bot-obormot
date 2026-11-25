@@ -15,6 +15,7 @@ import pytest
 
 from bot_obormot.handlers.chat import handler as handler_module
 from bot_obormot.services.chat.aggregation import AggregatedText
+from bot_obormot.services.telegram import TelegramDownloader
 from bot_obormot.settings import Settings
 from tests.support.chat_handler import (
     RecordingAggregator,
@@ -30,6 +31,7 @@ SETTINGS = make_settings()
 def _create_chat_handler_state() -> SimpleNamespace:
     calls: list[object] = []
     user_locks = RecordingUserLocks(calls)
+    aggregator = RecordingAggregator(calls)
     return SimpleNamespace(
         calls=calls,
         typing_started=asyncio.Event(),
@@ -39,7 +41,12 @@ def _create_chat_handler_state() -> SimpleNamespace:
         safe_edits=[],
         error_calls=[],
         pipeline=SimpleNamespace(),
-        aggregator=RecordingAggregator(calls),
+        aggregator=aggregator,
+        chat_runtime=handler_module.ChatRuntime(
+            message_aggregator=aggregator,
+            user_locks=user_locks,
+            downloader=TelegramDownloader(),
+        ),
         llm_client=RecordingTokenCounter(calls),
         database=object(),
     )
@@ -67,7 +74,10 @@ def _patch_input_stubs(
         _info: object,
         text_override: str | None = None,
         settings: Settings | None = None,
+        *,
+        downloader: object,
     ) -> SimpleNamespace:
+        assert isinstance(downloader, TelegramDownloader)
         assert settings is SETTINGS
         calls.append(("prepare", text_override))
         await asyncio.sleep(0)
@@ -180,9 +190,8 @@ async def test_handler_preserves_order_for_short_non_streamed_response(
     await handler_module.handle_message(
         message,
         llm_client=state.llm_client,
-        message_aggregator=state.aggregator,
         database=state.database,
-        user_locks=state.user_locks,
+        chat_runtime=state.chat_runtime,
         settings=SETTINGS,
     )
 
@@ -220,9 +229,8 @@ async def test_handler_streams_long_response_and_finalizes_status(
     await handler_module.handle_message(
         message,
         llm_client=state.llm_client,
-        message_aggregator=state.aggregator,
         database=state.database,
-        user_locks=state.user_locks,
+        chat_runtime=state.chat_runtime,
         settings=SETTINGS,
     )
 
@@ -250,9 +258,8 @@ async def test_handler_cancellation_updates_status_and_cleans_typing_task(
         await handler_module.handle_message(
             message,
             llm_client=state.llm_client,
-            message_aggregator=state.aggregator,
             database=state.database,
-            user_locks=state.user_locks,
+            chat_runtime=state.chat_runtime,
             settings=SETTINGS,
         )
 
@@ -274,9 +281,8 @@ async def test_handler_returns_early_for_aggregated_continuation(
     await handler_module.handle_message(
         message,
         llm_client=state.llm_client,
-        message_aggregator=state.aggregator,
         database=state.database,
-        user_locks=state.user_locks,
+        chat_runtime=state.chat_runtime,
         settings=SETTINGS,
     )
 
@@ -296,9 +302,8 @@ async def test_handler_rejects_user_when_pending_request_limit_is_reached(
     await handler_module.handle_message(
         message,
         llm_client=state.llm_client,
-        message_aggregator=state.aggregator,
         database=state.database,
-        user_locks=state.user_locks,
+        chat_runtime=state.chat_runtime,
         settings=SETTINGS,
     )
 
@@ -325,9 +330,8 @@ async def test_handler_routes_processing_error_to_central_error_handler(
     await handler_module.handle_message(
         message,
         llm_client=state.llm_client,
-        message_aggregator=state.aggregator,
         database=state.database,
-        user_locks=state.user_locks,
+        chat_runtime=state.chat_runtime,
         settings=SETTINGS,
     )
 
@@ -368,9 +372,8 @@ async def test_handler_preserves_final_answer_after_stream_edit_failure(
     await handler_module.handle_message(
         message,
         llm_client=state.llm_client,
-        message_aggregator=state.aggregator,
         database=state.database,
-        user_locks=state.user_locks,
+        chat_runtime=state.chat_runtime,
         settings=SETTINGS,
     )
 
@@ -397,9 +400,8 @@ async def test_handler_routes_llm_connection_loss_with_existing_status(
     await handler_module.handle_message(
         message,
         llm_client=state.llm_client,
-        message_aggregator=state.aggregator,
         database=state.database,
-        user_locks=state.user_locks,
+        chat_runtime=state.chat_runtime,
         settings=SETTINGS,
     )
 
@@ -425,9 +427,8 @@ async def test_handler_replies_to_the_incoming_message(
     await handler_module.handle_message(
         message,
         llm_client=state.llm_client,
-        message_aggregator=state.aggregator,
         database=state.database,
-        user_locks=state.user_locks,
+        chat_runtime=state.chat_runtime,
         settings=SETTINGS,
     )
 
@@ -457,9 +458,8 @@ async def test_handler_replies_to_the_last_aggregated_message(
     await handler_module.handle_message(
         first,
         llm_client=state.llm_client,
-        message_aggregator=state.aggregator,
         database=state.database,
-        user_locks=state.user_locks,
+        chat_runtime=state.chat_runtime,
         settings=SETTINGS,
     )
 

@@ -34,7 +34,6 @@ async def test_process_media_uses_canonical_media_dependencies(
         calls.append(("prepare", image_data))
         return f"encoded:{image_data.decode()}"
 
-    monkeypatch.setattr(media, "download_telegram_file", fake_download)
     monkeypatch.setattr(media, "extract_animation_frames", fake_extract)
     monkeypatch.setattr(media, "prepare_image", fake_prepare)
 
@@ -43,7 +42,7 @@ async def test_process_media_uses_canonical_media_dependencies(
         "gif",
         "file-id",
         options=media_pipeline.MediaPipelineOptions(
-            downloader=media.download_telegram_file,
+            downloader=fake_download,
             animation_extractor=media.extract_animation_frames,
             image_preparer=media.prepare_image,
             contact_sheet_builder=fake_contact_sheet,
@@ -71,11 +70,12 @@ async def test_process_media_wraps_unexpected_pipeline_errors(
         msg = "decoder failed"
         raise ValueError(msg)
 
-    monkeypatch.setattr(media, "download_telegram_file", fake_download)
     monkeypatch.setattr(media, "extract_animation_frames", fake_extract)
 
     with pytest.raises(MediaError, match="Failed to prepare gif media"):
-        await media.process_media(make_message(), "gif", "file-id")
+        await media.process_media(
+            make_message(), "gif", "file-id", downloader=fake_download
+        )
 
 
 @pytest.mark.asyncio

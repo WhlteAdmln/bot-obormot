@@ -54,7 +54,8 @@ def test_dispatcher_registers_middlewares_and_routers_once_in_original_order(
     assert configured is dispatcher
     assert dispatcher.workflow_data["settings"] is SETTINGS
     assert dispatcher.workflow_data["llm_client"] is llm_client
-    assert dispatcher.workflow_data["message_aggregator"] is message_aggregator
+    runtime = dispatcher.workflow_data["chat_runtime"]
+    assert runtime.message_aggregator is message_aggregator
     assert dispatcher.workflow_data["database"] is database
     expected_count = 3
     assert len(dispatcher.middleware_calls) == expected_count
@@ -77,7 +78,7 @@ def test_configure_dispatcher_shares_given_user_locks_with_handlers() -> None:
 
     app_routers.configure_dispatcher(dispatcher, SETTINGS, user_locks=user_locks)
 
-    stored = dispatcher.workflow_data["user_locks"]
+    stored = dispatcher.workflow_data["chat_runtime"].user_locks
     assert stored is user_locks, "handlers must receive the user locks of the app"
 
 
@@ -86,8 +87,20 @@ def test_configure_dispatcher_creates_user_locks_when_none_is_given() -> None:
 
     app_routers.configure_dispatcher(dispatcher, SETTINGS)
 
-    stored = dispatcher.workflow_data["user_locks"]
+    stored = dispatcher.workflow_data["chat_runtime"].user_locks
     assert isinstance(stored, UserLocks), "handlers must always receive user locks"
+
+
+def test_configure_dispatcher_gives_each_dispatcher_its_own_downloader() -> None:
+    first = FakeRouterDispatcher()
+    second = FakeRouterDispatcher()
+
+    app_routers.configure_dispatcher(first, SETTINGS)
+    app_routers.configure_dispatcher(second, SETTINGS)
+
+    first_downloader = first.workflow_data["chat_runtime"].downloader
+    second_downloader = second.workflow_data["chat_runtime"].downloader
+    assert first_downloader is not second_downloader, "bots must not share slots"
 
 
 def test_periodic_cleanup_uses_existing_policy_and_propagates_cancellation(

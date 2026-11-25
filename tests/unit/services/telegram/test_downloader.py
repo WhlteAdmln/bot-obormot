@@ -12,13 +12,13 @@ from aiogram.methods import GetFile
 from bot_obormot.errors import AppError
 from bot_obormot.services import media
 from bot_obormot.services.telegram.constants import MAX_CONCURRENT_DOWNLOADS
-from bot_obormot.services.telegram.downloader import download_telegram_file
+from bot_obormot.services.telegram.downloader import TelegramDownloader
 from tests.support.telegram_downloads import FakeDownloadBot, make_message
 
 
 async def _failure(bot: FakeDownloadBot, file_id: str) -> tuple[str, str]:
     try:
-        await download_telegram_file(make_message(bot), file_id)
+        await TelegramDownloader()(make_message(bot), file_id)
     except AppError as error:
         return error.code, str(error)
     return "", ""
@@ -26,8 +26,9 @@ async def _failure(bot: FakeDownloadBot, file_id: str) -> tuple[str, str]:
 
 async def _concurrency_trace(count: int) -> tuple[int, int, list[bytes]]:
     bot = FakeDownloadBot(file_size=3, data=b"abc", hold=True)
+    downloader = TelegramDownloader()
     tasks = [
-        asyncio.create_task(download_telegram_file(make_message(bot), f"file-{index}"))
+        asyncio.create_task(downloader(make_message(bot), f"file-{index}"))
         for index in range(count)
     ]
     await asyncio.wait_for(bot.wait_for_active(MAX_CONCURRENT_DOWNLOADS), timeout=1)
@@ -44,7 +45,7 @@ async def _concurrency_trace(count: int) -> tuple[int, int, list[bytes]]:
 @pytest.mark.asyncio
 async def test_downloader_accepts_any_buffer_protocol_payload(data: object) -> None:
     bot = FakeDownloadBot(file_size=3, data=data)
-    result = await download_telegram_file(make_message(bot), "buffer")
+    result = await TelegramDownloader()(make_message(bot), "buffer")
     expected = b"abc"
     assert result == expected, "every bytes-like payload must be stored"
 
@@ -52,7 +53,7 @@ async def test_downloader_accepts_any_buffer_protocol_payload(data: object) -> N
 @pytest.mark.asyncio
 async def test_returns_the_file_bytes() -> None:
     bot = FakeDownloadBot(file_size=15, data=b"hello, telegram")
-    result = await download_telegram_file(make_message(bot), "file-id")
+    result = await TelegramDownloader()(make_message(bot), "file-id")
     expected = b"hello, telegram"
     assert result == expected, "the downloaded bytes are wrong"
 
@@ -60,7 +61,7 @@ async def test_returns_the_file_bytes() -> None:
 @pytest.mark.asyncio
 async def test_downloads_the_path_telegram_reported() -> None:
     bot = FakeDownloadBot(file_size=13, data=b"hello, telegram")
-    await download_telegram_file(make_message(bot), "AgACAgIAAxkBAAI")
+    await TelegramDownloader()(make_message(bot), "AgACAgIAAxkBAAI")
     expected = ["files/AgACAgIAAxkBAAI"]
     assert bot.download_calls == expected, "the wrong file path was downloaded"
 
@@ -69,7 +70,7 @@ async def test_downloads_the_path_telegram_reported() -> None:
 async def test_accepts_a_file_of_exactly_the_maximum_size() -> None:
     data = b"z" * media.MAX_MEDIA_SIZE
     bot = FakeDownloadBot(file_size=media.MAX_MEDIA_SIZE, data=data)
-    result = await download_telegram_file(make_message(bot), "edge")
+    result = await TelegramDownloader()(make_message(bot), "edge")
     assert len(result) == media.MAX_MEDIA_SIZE, "a file at the limit must be kept"
 
 
@@ -151,3 +152,11 @@ async def test_queues_downloads_over_the_limit_and_finishes_them() -> None:
     trace = await _concurrency_trace(count)
     expected = (MAX_CONCURRENT_DOWNLOADS, MAX_CONCURRENT_DOWNLOADS, [b"abc"] * count)
     assert trace == expected, "the downloads were not limited or a download was lost"
+
+
+def test_limits_downloads_again_in_a_second_event_loop() -> None:
+    count = MAX_CONCURRENT_DOWNLOADS + 3
+    asyncio.run(_concurrency_trace(count))
+    trace = asyncio.run(_concurrency_trace(count))
+    expected = (MAX_CONCURRENT_DOWNLOADS, MAX_CONCURRENT_DOWNLOADS, [b"abc"] * count)
+    assert trace == expected, "a second event loop could not wait for a free slot"

@@ -22,8 +22,14 @@ class FakeFSMContext:
         """Return a copy of the stored data."""
         return dict(self.data)
 
-    async def update_data(self, **kwargs: object) -> dict[str, object]:
+    async def update_data(
+        self,
+        data: Mapping[str, object] | None = None,
+        **kwargs: object,
+    ) -> dict[str, object]:
         """Merge new values into the stored data and return the result."""
+        if data:
+            kwargs.update(data)
         self.data.update(kwargs)
         return dict(self.data)
 

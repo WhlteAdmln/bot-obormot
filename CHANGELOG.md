@@ -16,6 +16,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- [#120](https://github.com/WhlteAdmln/bot-obormot/issues/120) FSM updates in the `start`, `prompt` and `fallback` handlers and the temporary-messages middleware pass a typed mapping to `state.update_data` instead of unpacking `dict[str, Any]`.
 - [#121](https://github.com/WhlteAdmln/bot-obormot/issues/121) The optional `message.answer` arguments of streamed responses are typed with the `AnswerOptions` TypedDict instead of `dict[str, Any]`.
 - [#117](https://github.com/WhlteAdmln/bot-obormot/issues/117) The `.env.example` test reads the environment names from the public `settings_environment_names` instead of its own copy.
 - [#109](https://github.com/WhlteAdmln/bot-obormot/issues/109) Ruff and pylint exempt only test functions from docstrings, and test support `__init__` methods have docstrings.

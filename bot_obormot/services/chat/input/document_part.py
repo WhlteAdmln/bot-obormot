@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING, Any, cast
 from bot_obormot.common.text import log_safe
 from bot_obormot.errors import DocumentAPIError, DocumentTooLongError
 from bot_obormot.services.documents import process_document
-from bot_obormot.services.telegram.downloader import download_telegram_file
 from bot_obormot.settings import Settings, get_settings
 
 if TYPE_CHECKING:
@@ -28,16 +27,13 @@ async def prepare_document(
     message: Message,
     info: MessageInfo,
     *,
-    downloader: Callable[..., Awaitable[bytes]] | None = None,
+    downloader: Callable[..., Awaitable[bytes]],
     document_processor: Callable[..., Awaitable[dict[str, Any]]] | None = None,
     settings: Settings | None = None,
 ) -> tuple[str, str]:
     """Download a document and retrieve its extracted text."""
     if settings is None:
         settings = get_settings()
-
-    if downloader is None:
-        downloader = download_telegram_file
 
     # has_document is only set when the message carries a document.
     document = cast("Document", info.document)

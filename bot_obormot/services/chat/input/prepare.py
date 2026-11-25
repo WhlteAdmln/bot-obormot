@@ -17,6 +17,8 @@ from bot_obormot.services.chat.input.user_content import build_user_content
 from bot_obormot.settings import Settings, get_settings
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
     from aiogram.types import Message
 
 logger = logging.getLogger("bot_obormot.services.chat.input.prepare")
@@ -27,6 +29,8 @@ async def prepare_message(
     info: MessageInfo,
     text_override: str | None = None,
     settings: Settings | None = None,
+    *,
+    downloader: Callable[[Message, str], Awaitable[bytes]],
 ) -> PreparedMessage:
     """Download and process incoming content."""
     if settings is None:
@@ -40,14 +44,18 @@ async def prepare_message(
 
     # The processing order is intentional: audio, media, then document.
     if info.has_audio:
-        transcribed_text = await prepare_audio(message, info, settings=settings)
+        transcribed_text = await prepare_audio(
+            message, info, downloader=downloader, settings=settings
+        )
 
     if info.has_media:
-        image_urls, image_bytes = await prepare_media(message, info)
+        image_urls, image_bytes = await prepare_media(
+            message, info, downloader=downloader
+        )
 
     if info.has_document:
         document_text, document_format = await prepare_document(
-            message, info, settings=settings
+            message, info, downloader=downloader, settings=settings
         )
 
     user_content = build_user_content(

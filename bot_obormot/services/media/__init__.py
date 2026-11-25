@@ -15,7 +15,6 @@ from bot_obormot.services.media.images import prepare_image
 from bot_obormot.services.media.limits import MAX_IMAGE_DIMENSION, MAX_IMAGE_PIXELS
 from bot_obormot.services.media.prompts import get_media_prompt
 from bot_obormot.services.telegram.constants import MAX_MEDIA_SIZE
-from bot_obormot.services.telegram.downloader import download_telegram_file
 
 logger = logging.getLogger("bot_obormot.services.media")
 
@@ -24,6 +23,8 @@ async def process_media(
     message: Message,
     media_type: str,
     file_id: str,
+    *,
+    downloader: _pipeline.Downloader,
 ) -> list[str]:
     """Download and process media through a dedicated pipeline."""
     return await _pipeline.process_media(
@@ -31,7 +32,7 @@ async def process_media(
         media_type,
         file_id,
         options=_pipeline.MediaPipelineOptions(
-            downloader=download_telegram_file,
+            downloader=downloader,
             animation_extractor=extract_animation_frames,
             image_preparer=prepare_image,
         ),
@@ -42,7 +43,6 @@ __all__ = [
     "MAX_IMAGE_DIMENSION",
     "MAX_IMAGE_PIXELS",
     "MAX_MEDIA_SIZE",
-    "download_telegram_file",
     "extract_animation_frames",
     "get_media_info",
     "get_media_prompt",

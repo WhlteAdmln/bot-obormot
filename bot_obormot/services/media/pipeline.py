@@ -19,7 +19,6 @@ from bot_obormot.services.media.limited import run_limited
 from bot_obormot.services.media.limits import MAX_CONCURRENT_IMAGE_JOBS
 from bot_obormot.services.media.media_types import MEDIA_TYPE_IMAGE
 from bot_obormot.services.media.sniff import verify_declared_type
-from bot_obormot.services.telegram.downloader import download_telegram_file
 
 logger = logging.getLogger("bot_obormot.services.media")
 _image_jobs = asyncio.Semaphore(MAX_CONCURRENT_IMAGE_JOBS)
@@ -36,13 +35,10 @@ ContactSheetBuilder = Callable[[list[bytes]], bytes]
 class MediaPipelineOptions:
     """Dependencies for media downloading and image preparation."""
 
-    downloader: Downloader = download_telegram_file
+    downloader: Downloader
     animation_extractor: AnimationExtractor = extract_animation_frames
     image_preparer: ImagePreparer = prepare_image
     contact_sheet_builder: ContactSheetBuilder = build_contact_sheet
-
-
-_DEFAULT_MEDIA_PIPELINE_OPTIONS: MediaPipelineOptions = MediaPipelineOptions()
 
 
 async def _run_limited(func: Callable[..., _T], *args: object) -> _T:
@@ -80,7 +76,7 @@ async def process_media(
     media_type: str,
     file_id: str,
     *,
-    options: MediaPipelineOptions = _DEFAULT_MEDIA_PIPELINE_OPTIONS,
+    options: MediaPipelineOptions,
 ) -> list[str]:
     """Download and convert media into images for the LLM."""
     data = await options.downloader(message, file_id)

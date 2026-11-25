@@ -36,17 +36,24 @@ async def test_prepare_message_preserves_processing_order_and_result(
     )
     image_bytes = [b"image-bytes"]
 
+    async def download(_message: object, _file_id: str) -> bytes:
+        return b"never-downloaded"
+
     async def prepare_audio(
         _message: object,
         _info: object,
         *,
+        downloader: object,
         settings: object,
     ) -> str:
-        assert settings is app_settings
+        assert (downloader, settings) == (download, app_settings)
         events.append("audio")
         return "Распознано"
 
-    async def prepare_media(_message: object, _info: object) -> tuple[object, ...]:
+    async def prepare_media(
+        _message: object, _info: object, *, downloader: object
+    ) -> tuple[object, ...]:
+        assert downloader is download
         events.append("media")
         return ["data:image/jpeg;base64,AA=="], image_bytes
 
@@ -54,9 +61,10 @@ async def test_prepare_message_preserves_processing_order_and_result(
         _message: object,
         _info: object,
         *,
+        downloader: object,
         settings: object,
     ) -> tuple[object, ...]:
-        assert settings is app_settings
+        assert (downloader, settings) == (download, app_settings)
         events.append("document")
         return "Текст документа", "pdf"
 
@@ -88,6 +96,7 @@ async def test_prepare_message_preserves_processing_order_and_result(
         info,
         text_override=None,
         settings=app_settings,
+        downloader=download,
     )
 
     assert events == ["audio", "media", "document", "content", "history"]

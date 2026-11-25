@@ -7,6 +7,7 @@ from aiogram import Dispatcher
 
 from bot_obormot.handlers import admin, routers, start
 from bot_obormot.handlers.chat import handler as chat
+from bot_obormot.handlers.chat.handler import ChatRuntime
 from bot_obormot.middlewares.access import AccessMiddleware
 from bot_obormot.middlewares.temporary_messages import (
     TemporaryMessagesCleanupMiddleware,
@@ -16,6 +17,7 @@ from bot_obormot.services.chat.aggregation import MessageAggregator
 from bot_obormot.services.chat.locks import UserLocks
 from bot_obormot.services.database import Database
 from bot_obormot.services.llm.client import LLMClient
+from bot_obormot.services.telegram import TelegramDownloader
 from bot_obormot.settings import Settings, get_settings
 
 
@@ -35,12 +37,16 @@ def configure_dispatcher(
         dispatcher.workflow_data["llm_client"] = llm_client
     if message_aggregator is None:
         message_aggregator = MessageAggregator()
-    dispatcher.workflow_data["message_aggregator"] = message_aggregator
     if database is not None:
         dispatcher.workflow_data["database"] = database
     if user_locks is None:
         user_locks = UserLocks()
-    dispatcher.workflow_data["user_locks"] = user_locks
+    # One downloader per bot keeps its download limit in the bot's event loop.
+    dispatcher.workflow_data["chat_runtime"] = ChatRuntime(
+        message_aggregator=message_aggregator,
+        user_locks=user_locks,
+        downloader=TelegramDownloader(),
+    )
 
     # Apply throttling first, then check access
     # and clean up temporary messages.

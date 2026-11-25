@@ -45,12 +45,22 @@ if TYPE_CHECKING:
     from bot_obormot.services.chat.locks import UserLocks
     from bot_obormot.services.database import Database
     from bot_obormot.services.llm.client import LLMClient
+    from bot_obormot.services.telegram import TelegramDownloader
     from bot_obormot.settings import Settings
 
 MAX_PENDING_PER_USER = 3
 
 router = Router()
 logger = logging.getLogger("bot_obormot.handlers.chat")
+
+
+@dataclass(frozen=True)
+class ChatRuntime:
+    """Objects that live as long as one running bot and serve the chat handler."""
+
+    message_aggregator: MessageAggregator
+    user_locks: UserLocks
+    downloader: TelegramDownloader
 
 
 @dataclass(frozen=True)
@@ -66,7 +76,11 @@ class _ChatTurn:
     dependencies: ChatPipelineDependencies
 
 
-async def _answer_turn(turn: _ChatTurn, responder: StreamingResponder) -> None:
+async def _answer_turn(
+    turn: _ChatTurn,
+    responder: StreamingResponder,
+    downloader: TelegramDownloader,
+) -> None:
     """Prepare the input, get the LLM reply, and deliver the final response."""
     # Prepare text, audio, images, and documents.
     prepared = await prepare_message(
@@ -74,6 +88,7 @@ async def _answer_turn(turn: _ChatTurn, responder: StreamingResponder) -> None:
         turn.info,
         text_override=turn.aggregated_text,
         settings=turn.settings,
+        downloader=downloader,
     )
 
     # Get the response from the LLM.
@@ -107,9 +122,8 @@ async def handle_message(
     settings: Settings | None = None,
     *,
     llm_client: LLMClient,
-    message_aggregator: MessageAggregator,
     database: Database,
-    user_locks: UserLocks,
+    chat_runtime: ChatRuntime,
 ) -> None:
     """Processes an incoming chat message and streams the LLM reply."""
     if settings is None:
@@ -137,14 +151,14 @@ async def handle_message(
         and not info.has_audio
         and not info.has_document
     ):
-        aggregated_text = await message_aggregator.collect(message)
+        aggregated_text = await chat_runtime.message_aggregator.collect(message)
 
         # This is a continuation of the previous part.
         # It will be handled by the handler for the first message.
         if aggregated_text is None:
             return
 
-    if user_locks.pending(user_id) >= MAX_PENDING_PER_USER:
+    if chat_runtime.user_locks.pending(user_id) >= MAX_PENDING_PER_USER:
         await message.answer(PENDING_REQUESTS_MESSAGE)
         return
 
@@ -160,7 +174,7 @@ async def handle_message(
         reply_to.message_id,
     )
 
-    async with user_locks.hold(user_id):
+    async with chat_runtime.user_locks.hold(user_id):
         responder = StreamingResponder(
             message=message,
             user_id=user_id,
@@ -184,7 +198,7 @@ async def handle_message(
         )
 
         try:
-            await _answer_turn(turn, responder)
+            await _answer_turn(turn, responder, chat_runtime.downloader)
 
         except asyncio.CancelledError:
             logger.info(
@@ -217,6 +231,7 @@ __all__ = [
     "MAX_PENDING_PER_USER",
     "STREAM_TOKEN_THRESHOLD",
     "STREAM_UPDATE_INTERVAL",
+    "ChatRuntime",
     "handle_chat_error",
     "handle_message",
     "inspect_message",

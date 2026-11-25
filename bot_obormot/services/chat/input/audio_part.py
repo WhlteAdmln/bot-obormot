@@ -9,7 +9,6 @@ import logging
 from typing import TYPE_CHECKING, cast
 
 from bot_obormot.services.audio import transcribe_audio, validate_audio_duration
-from bot_obormot.services.telegram.downloader import download_telegram_file
 from bot_obormot.settings import Settings, get_settings
 
 if TYPE_CHECKING:
@@ -27,7 +26,7 @@ async def prepare_audio(
     info: MessageInfo,
     *,
     duration_validator: Callable[..., object] | None = None,
-    downloader: Callable[..., Awaitable[bytes]] | None = None,
+    downloader: Callable[..., Awaitable[bytes]],
     transcriber: Callable[..., Awaitable[str]] | None = None,
     settings: Settings | None = None,
 ) -> str:
@@ -37,9 +36,6 @@ async def prepare_audio(
 
     if duration_validator is None:
         duration_validator = validate_audio_duration
-
-    if downloader is None:
-        downloader = download_telegram_file
 
     duration_validator(message)
 

@@ -25,7 +25,7 @@
 
 Shared files: `.editorconfig`, `.pre-commit-config.yaml`, `.github/renovate.json5`, `.markdownlint-cli2.yaml`, `AGENTS.md`, `CLAUDE.md`, `docs/development-principles.md`, `docs/development-principles.ru.md`,
 `scripts/build_release.sh`, `scripts/check_changelog.py`, `scripts/check_lock.py`, `scripts/check_test_layout.py`,
-`scripts/check_test_rules.py`, `scripts/check_vendored.py`, `scripts/coverage_gaps.py`, `tests/unit/scripts/test_check_changelog.py`, `tests/unit/scripts/test_check_test_rules.py`, the `ruff`, `mypy` and `pylint` tables of
+`scripts/check_test_rules.py`, `scripts/check_vendored.py`, `scripts/coverage_gaps.py`, `scripts/report_pr_size.py`, `tests/unit/scripts/test_check_changelog.py`, `tests/unit/scripts/test_check_test_rules.py`, `tests/unit/scripts/test_report_pr_size.py`, the `ruff`, `mypy` and `pylint` tables of
 `pyproject.toml`, `bot_obormot/log_filters.py` and `bot_obormot/env_readers.py` are copies
 of the audiodoc files. audiodoc is the source of truth: change it there first, copy the
 file here, then run `python scripts/check_vendored.py --other ../audiodoc`.
@@ -37,6 +37,8 @@ file here, then run `python scripts/check_vendored.py --other ../audiodoc`.
 `make lint` also runs `scripts/check_test_layout.py` and `scripts/check_test_rules.py`. The second one fails when a `test_*.py` or `conftest.py` module under `tests/` uses mocks (`unittest.mock`, `mock`, the `mocker` fixture or `assert_called*`), defines a class inside a function, imports `tempfile` or `time.sleep`, when a test function calls `time.sleep`, or when a comment inside a test function is not a `# noqa`, `# pylint:`, `# type:` or `# pragma:` pragma followed by a reason. The files listed in `tests/strict_test_files.txt` must also have exactly one assert per test and a failure message on every assert; the list only grows.
 
 Only CI runs the jobs that need system tools or services: integration tests that need an LLM server (`make integration`), the Docker image (`make docker`), the installer smoke test against a locally served release, and the package metadata check that installs the wheel into a clean virtual environment.
+
+On a pull request the `pr-size` CI job runs `scripts/report_pr_size.py --base HEAD^1` and prints the number of changed lines (insertions plus deletions) next to the 256-line limit of [the development principles](docs/development-principles.md). `requirements-lock.txt`, `*.ru.md` translations and files marked `linguist-generated` in `.gitattributes` are not counted. The job only reports and never fails.
 
 ## Documentation checks
 

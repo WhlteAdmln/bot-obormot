@@ -151,6 +151,20 @@ jobs:
             exit 1
           fi
 
+  pr-size:
+    name: Pull request size (report only)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Report changed lines against the base branch
+        run: python3 scripts/report_pr_size.py --base HEAD^1
+
   audit:
     name: Dependency audit
     runs-on: ubuntu-latest

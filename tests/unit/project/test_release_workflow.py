@@ -32,6 +32,7 @@ def test_ci_has_the_required_jobs() -> None:
         "lint",
         "test",
         "integration",
+        "pr-size",
         "audit",
         "build",
         "installer",

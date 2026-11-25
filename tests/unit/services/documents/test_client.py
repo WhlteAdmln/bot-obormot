@@ -207,8 +207,8 @@ async def test_rejects_a_missing_url() -> None:
     ("status", "body", "expected"),
     [
         (415, b"unsupported file type", "HTTP 415: unsupported file type"),
-        (500, b"E" * 1500, "HTTP 500: " + "E" * 1000),
-        (500, b"E" * 3000, "HTTP 500: "),
+        (500, b"E" * 1500, "HTTP 500: " + "E" * 1000 + " [truncated]"),
+        (500, b"E" * 3000, "HTTP 500: " + "E" * 1000 + " [truncated]"),
         (
             200,
             b"<html>gateway</html>",

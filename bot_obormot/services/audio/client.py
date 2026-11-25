@@ -51,7 +51,7 @@ async def _post_audio(
     """Post the audio form and return the decoded JSON response."""
     response = await post_form(url, form, client_timeout, headers)
     if response.status != HTTPStatus.OK:
-        msg = f"audiodoc HTTP {response.status}: {response.detail[:1000]}"
+        msg = f"audiodoc HTTP {response.status}: {response.detail}"
         raise AudiodocAPIError(msg)
 
     if response.body is None:

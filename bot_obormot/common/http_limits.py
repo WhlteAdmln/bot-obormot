@@ -29,3 +29,23 @@ async def read_limited_body(
         chunks.append(chunk)
 
     return b"".join(chunks)
+
+
+async def read_body_prefix(
+    response: aiohttp.ClientResponse,
+    limit: int,
+) -> tuple[bytes, bool]:
+    """Return at most ``limit`` bytes of the body and whether more bytes followed."""
+    chunks: list[bytes] = []
+    total = 0
+
+    async for chunk in response.content.iter_chunked(64 * 1024):
+        room = limit - total
+        if len(chunk) > room:
+            chunks.append(chunk[:room])
+            return b"".join(chunks), True
+
+        chunks.append(chunk)
+        total += len(chunk)
+
+    return b"".join(chunks), False

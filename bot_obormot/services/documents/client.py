@@ -44,7 +44,7 @@ async def _post_document(
     """Post the document form and return the decoded JSON response."""
     response = await post_form(url, form, client_timeout, headers)
     if response.status != HTTPStatus.OK:
-        raise DocumentAPIError(response.status, response.detail[:1000])
+        raise DocumentAPIError(response.status, response.detail)
 
     if response.body is None:
         raise DocumentAPIError(

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, TypedDict
 
 from aiogram.exceptions import (
     TelegramBadRequest,
@@ -16,7 +16,7 @@ from aiogram.exceptions import (
 )
 
 if TYPE_CHECKING:
-    from aiogram.types import Message
+    from aiogram.types import Message, ReplyParameters
 
     from bot_obormot.services.chat.formatting import FormattedChunk
     from bot_obormot.services.chat.reply import ReplyTarget
@@ -38,11 +38,22 @@ def is_entity_parse_error(error: BaseException) -> bool:
     )
 
 
+class AnswerOptions(TypedDict, total=False):
+    """Optional keyword arguments of ``Message.answer``.
+
+    A key is left out instead of set to None: an omitted ``parse_mode``
+    keeps the bot default, while None disables formatting.
+    """
+
+    parse_mode: str
+    reply_parameters: ReplyParameters
+
+
 def _send_kwargs(
     parse_mode: str | None,
     reply_to: ReplyTarget | None,
-) -> dict[str, Any]:
-    kwargs: dict[str, Any] = {}
+) -> AnswerOptions:
+    kwargs: AnswerOptions = {}
 
     if parse_mode is not None:
         kwargs["parse_mode"] = parse_mode
@@ -119,6 +130,7 @@ async def edit_chunk(
 
 __all__ = [
     "UNKNOWN_DELIVERY_ERRORS",
+    "AnswerOptions",
     "edit_chunk",
     "is_entity_parse_error",
     "send_chunk",

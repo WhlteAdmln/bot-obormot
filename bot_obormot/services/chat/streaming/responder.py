@@ -7,7 +7,7 @@ import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING
 
 from aiogram.types import Message
 
@@ -19,6 +19,9 @@ from bot_obormot.services.chat.streaming.settings import (
     STREAM_UPDATE_INTERVAL,
 )
 from bot_obormot.services.chat.streaming.texts import REQUEST_CANCELLED_TEXT
+
+if TYPE_CHECKING:
+    from bot_obormot.services.chat.streaming.sending import AnswerOptions
 
 logger = logging.getLogger("bot_obormot.handlers.chat")
 
@@ -143,7 +146,7 @@ class StreamingResponder:  # pylint: disable=too-many-instance-attributes  # rep
         reply_parameters = (
             self.reply_to.parameters() if self.reply_to is not None else None
         )
-        kwargs: dict[str, Any] = {}
+        kwargs: AnswerOptions = {}
         if reply_parameters is not None:
             kwargs["reply_parameters"] = reply_parameters
 

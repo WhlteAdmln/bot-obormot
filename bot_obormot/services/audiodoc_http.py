@@ -13,9 +13,13 @@ import aiohttp
 from bot_obormot.common.http_limits import (
     MAX_ERROR_BODY_BYTES,
     MAX_SERVICE_RESPONSE_BYTES,
+    read_body_prefix,
     read_limited_body,
 )
 from bot_obormot.settings import Settings, get_settings
+
+MAX_ERROR_DETAIL_CHARS = 1000
+TRUNCATED_MARKER = " [truncated]"
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,11 +28,15 @@ class FormResponse:
 
     status: int
     body: bytes | None
+    truncated: bool = False
 
     @property
     def detail(self) -> str:
-        """Return the body as text for an error message."""
-        return (self.body or b"").decode("utf-8", errors="replace")
+        """Return the body as text for an error message, marked when cut short."""
+        text = (self.body or b"").decode("utf-8", errors="replace")
+        if self.truncated or len(text) > MAX_ERROR_DETAIL_CHARS:
+            return text[:MAX_ERROR_DETAIL_CHARS] + TRUNCATED_MARKER
+        return text
 
     def json(self) -> object:
         """Decode the body as JSON; raise ``ValueError`` when it is not JSON."""
@@ -79,8 +87,9 @@ async def post_form(
 ) -> FormResponse:
     """Post the form and read a size-limited body.
 
-    Error bodies are read up to the smaller error limit; a success body that
-    exceeds the response limit is returned as ``None``.
+    An error body keeps its first bytes up to the smaller error limit and is
+    marked as truncated when it is longer; a success body that exceeds the
+    response limit is returned as ``None``.
     """
     async with (
         aiohttp.ClientSession(
@@ -89,10 +98,9 @@ async def post_form(
         ) as session,
         session.post(url, data=form) as response,
     ):
-        limit = (
-            MAX_SERVICE_RESPONSE_BYTES
-            if response.status == HTTPStatus.OK
-            else MAX_ERROR_BODY_BYTES
-        )
-        body = await read_limited_body(response, limit)
-        return FormResponse(response.status, body)
+        if response.status == HTTPStatus.OK:
+            body = await read_limited_body(response, MAX_SERVICE_RESPONSE_BYTES)
+            return FormResponse(response.status, body)
+
+        prefix, truncated = await read_body_prefix(response, MAX_ERROR_BODY_BYTES)
+        return FormResponse(response.status, prefix, truncated)

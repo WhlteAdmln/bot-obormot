@@ -224,9 +224,13 @@ async def test_rejects_a_missing_audiodoc_url() -> None:
         (
             500,
             b"E" * 1500,
-            ("audiodoc_api_error", "audiodoc HTTP 500: " + "E" * 1000),
+            ("audiodoc_api_error", "audiodoc HTTP 500: " + "E" * 1000 + " [truncated]"),
         ),
-        (500, b"E" * 3000, ("audiodoc_api_error", "audiodoc HTTP 500: ")),
+        (
+            500,
+            b"E" * 3000,
+            ("audiodoc_api_error", "audiodoc HTTP 500: " + "E" * 1000 + " [truncated]"),
+        ),
         (
             200,
             b"<html>gateway</html>",

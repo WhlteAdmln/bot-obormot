@@ -3,11 +3,11 @@
 
 """Extract frames from animations and videos."""
 
+import asyncio
 import logging
 
 from bot_obormot.errors import MediaError
 from bot_obormot.services.media.animation import concurrency as _concurrency
-from bot_obormot.services.media.animation.concurrency import _animation_semaphore
 from bot_obormot.services.media.animation.dispatcher import dispatch_extraction
 from bot_obormot.services.media.animation.limits import (
     MAX_CONCURRENT_ANIMATIONS,
@@ -24,6 +24,7 @@ logger = logging.getLogger("bot_obormot.services.media.animation")
 async def extract_animation_frames(
     data: bytes,
     media_type: str,
+    semaphore: asyncio.Semaphore,
 ) -> list[bytes]:
     """Extract frames and convert processing errors to MediaError."""
     try:
@@ -31,7 +32,7 @@ async def extract_animation_frames(
             data,
             media_type,
             dispatch_extraction,
-            semaphore=_animation_semaphore,
+            semaphore=semaphore,
         )
 
     except MediaError:

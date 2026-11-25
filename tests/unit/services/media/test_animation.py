@@ -3,6 +3,7 @@
 
 """Tests for media animation."""
 
+import asyncio
 import sys
 
 import pytest
@@ -20,4 +21,4 @@ async def test_animation_pipeline_passes_the_polite_error_through(
     monkeypatch.setitem(sys.modules, "rlottie_python", None)
 
     with pytest.raises(MediaError, match=TGS_SUPPORT_UNAVAILABLE):
-        await extract_animation_frames(valid_tgs(), "tgs")
+        await extract_animation_frames(valid_tgs(), "tgs", asyncio.Semaphore(1))

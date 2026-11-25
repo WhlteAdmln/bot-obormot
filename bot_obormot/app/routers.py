@@ -17,6 +17,7 @@ from bot_obormot.services.chat.aggregation import MessageAggregator
 from bot_obormot.services.chat.locks import UserLocks
 from bot_obormot.services.database import Database
 from bot_obormot.services.llm.client import LLMClient
+from bot_obormot.services.media import MediaSlots
 from bot_obormot.services.telegram import TelegramDownloader
 from bot_obormot.settings import Settings, get_settings
 
@@ -41,11 +42,13 @@ def configure_dispatcher(
         dispatcher.workflow_data["database"] = database
     if user_locks is None:
         user_locks = UserLocks()
-    # One downloader per bot keeps its download limit in the bot's event loop.
+    # One downloader and one set of media slots per bot keep their limits
+    # in the bot's event loop.
     dispatcher.workflow_data["chat_runtime"] = ChatRuntime(
         message_aggregator=message_aggregator,
         user_locks=user_locks,
         downloader=TelegramDownloader(),
+        media_slots=MediaSlots(),
     )
 
     # Apply throttling first, then check access

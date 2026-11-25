@@ -15,6 +15,7 @@ import pytest
 
 from bot_obormot.handlers.chat import handler as handler_module
 from bot_obormot.services.chat.aggregation import AggregatedText
+from bot_obormot.services.media import MediaSlots
 from bot_obormot.services.telegram import TelegramDownloader
 from bot_obormot.settings import Settings
 from tests.support.chat_handler import (
@@ -46,6 +47,7 @@ def _create_chat_handler_state() -> SimpleNamespace:
             message_aggregator=aggregator,
             user_locks=user_locks,
             downloader=TelegramDownloader(),
+            media_slots=MediaSlots(),
         ),
         llm_client=RecordingTokenCounter(calls),
         database=object(),
@@ -76,8 +78,10 @@ def _patch_input_stubs(
         settings: Settings | None = None,
         *,
         downloader: object,
+        media_slots: object,
     ) -> SimpleNamespace:
         assert isinstance(downloader, TelegramDownloader)
+        assert isinstance(media_slots, MediaSlots)
         assert settings is SETTINGS
         calls.append(("prepare", text_override))
         await asyncio.sleep(0)

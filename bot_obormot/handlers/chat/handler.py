@@ -45,6 +45,7 @@ if TYPE_CHECKING:
     from bot_obormot.services.chat.locks import UserLocks
     from bot_obormot.services.database import Database
     from bot_obormot.services.llm.client import LLMClient
+    from bot_obormot.services.media import MediaSlots
     from bot_obormot.services.telegram import TelegramDownloader
     from bot_obormot.settings import Settings
 
@@ -61,6 +62,7 @@ class ChatRuntime:
     message_aggregator: MessageAggregator
     user_locks: UserLocks
     downloader: TelegramDownloader
+    media_slots: MediaSlots
 
 
 @dataclass(frozen=True)
@@ -79,7 +81,7 @@ class _ChatTurn:
 async def _answer_turn(
     turn: _ChatTurn,
     responder: StreamingResponder,
-    downloader: TelegramDownloader,
+    runtime: ChatRuntime,
 ) -> None:
     """Prepare the input, get the LLM reply, and deliver the final response."""
     # Prepare text, audio, images, and documents.
@@ -88,7 +90,8 @@ async def _answer_turn(
         turn.info,
         text_override=turn.aggregated_text,
         settings=turn.settings,
-        downloader=downloader,
+        downloader=runtime.downloader,
+        media_slots=runtime.media_slots,
     )
 
     # Get the response from the LLM.
@@ -198,7 +201,7 @@ async def handle_message(
         )
 
         try:
-            await _answer_turn(turn, responder, chat_runtime.downloader)
+            await _answer_turn(turn, responder, chat_runtime)
 
         except asyncio.CancelledError:
             logger.info(

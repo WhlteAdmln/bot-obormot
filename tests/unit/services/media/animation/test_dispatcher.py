@@ -3,6 +3,8 @@
 
 """Tests for animation dispatcher."""
 
+import asyncio
+
 import pytest
 
 from bot_obormot.errors import MediaError
@@ -40,4 +42,6 @@ def test_dispatch_extraction_routes_formats() -> None:
 @pytest.mark.asyncio
 async def test_animation_dispatch_errors_are_wrapped_as_media_error() -> None:
     with pytest.raises(MediaError, match="Failed to process unknown animation"):
-        await animation.extract_animation_frames(b"data", "unknown")
+        await animation.extract_animation_frames(
+            b"data", "unknown", asyncio.Semaphore(1)
+        )

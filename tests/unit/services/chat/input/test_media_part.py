@@ -10,6 +10,7 @@ import base64
 import pytest
 
 from bot_obormot.services.chat.input import media_part as media_module
+from bot_obormot.services.media.slots import MediaSlots
 from tests.support.message_input import make_info, make_message
 
 
@@ -21,10 +22,18 @@ async def test_prepare_media_decodes_data_urls_to_original_image_bytes() -> None
     async def download(_message: object, _file_id: str) -> bytes:
         return image
 
+    media_slots = MediaSlots()
+
     async def process(
-        _message: object, media_type: str, file_id: str, *, downloader: object
+        _message: object,
+        media_type: str,
+        file_id: str,
+        *,
+        downloader: object,
+        slots: object,
     ) -> list[object]:
-        assert (media_type, file_id, downloader) == ("image", "image-id", download)
+        received = (media_type, file_id, downloader, slots)
+        assert received == ("image", "image-id", download, media_slots)
         return [data_url]
 
     info = make_info(file_id="image-id", media_type="image", has_media=True)
@@ -32,6 +41,7 @@ async def test_prepare_media_decodes_data_urls_to_original_image_bytes() -> None
         make_message(),
         info,
         downloader=download,
+        media_slots=media_slots,
         media_processor=process,
     )
 

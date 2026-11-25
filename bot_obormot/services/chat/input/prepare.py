@@ -21,6 +21,8 @@ if TYPE_CHECKING:
 
     from aiogram.types import Message
 
+    from bot_obormot.services.media.slots import MediaSlots
+
 logger = logging.getLogger("bot_obormot.services.chat.input.prepare")
 
 
@@ -31,6 +33,7 @@ async def prepare_message(
     settings: Settings | None = None,
     *,
     downloader: Callable[[Message, str], Awaitable[bytes]],
+    media_slots: MediaSlots,
 ) -> PreparedMessage:
     """Download and process incoming content."""
     if settings is None:
@@ -50,7 +53,7 @@ async def prepare_message(
 
     if info.has_media:
         image_urls, image_bytes = await prepare_media(
-            message, info, downloader=downloader
+            message, info, downloader=downloader, media_slots=media_slots
         )
 
     if info.has_document:

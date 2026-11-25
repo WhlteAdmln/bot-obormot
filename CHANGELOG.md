@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- [#116](https://github.com/WhlteAdmln/bot-obormot/issues/116) `scripts/check_vendored.py` also compares the shared `docs_checks` modules `links.py`, `markdown.py`, `russian.py` and their tests.
 - [#131](https://github.com/WhlteAdmln/bot-obormot/issues/131) `scripts/check_vendored.py` has its own shared unit tests in `tests/unit/scripts/test_check_vendored.py`.
 - [#130](https://github.com/WhlteAdmln/bot-obormot/issues/130) CI reports the number of changed lines of a pull request against the 256-line limit without failing.
 - [#129](https://github.com/WhlteAdmln/bot-obormot/issues/129) Contributors can read the shared development principles in `docs/development-principles.md` and its Russian twin.

@@ -31,6 +31,9 @@ VENDORED_FILES = (
     "scripts/check_test_rules.py",
     "scripts/check_vendored.py",
     "scripts/coverage_gaps.py",
+    "scripts/docs_checks/links.py",
+    "scripts/docs_checks/markdown.py",
+    "scripts/docs_checks/russian.py",
     "scripts/report_pr_size.py",
     PYPROJECT_FILE,
     ".markdownlint-cli2.yaml",
@@ -48,6 +51,9 @@ HEADERLESS_VENDORED_FILES = (
     "tests/unit/scripts/test_check_test_rules.py",
     "tests/unit/scripts/test_check_vendored.py",
     "tests/unit/scripts/test_report_pr_size.py",
+    "tests/unit/scripts/docs_checks/test_links.py",
+    "tests/unit/scripts/docs_checks/test_markdown.py",
+    "tests/unit/scripts/docs_checks/test_russian.py",
 )
 PACKAGE_VENDORED_FILES = ("log_filters.py", "env_readers.py")
 # Only style and typing rules are shared. The dependency, dead-code and import

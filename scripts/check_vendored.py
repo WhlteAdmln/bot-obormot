@@ -54,6 +54,7 @@ HEADERLESS_VENDORED_FILES = (
     "tests/unit/scripts/docs_checks/test_links.py",
     "tests/unit/scripts/docs_checks/test_markdown.py",
     "tests/unit/scripts/docs_checks/test_russian.py",
+    "tests/unit/scripts/docs_checks/test_settings.py",
 )
 PACKAGE_VENDORED_FILES = ("log_filters.py", "env_readers.py")
 # Only style and typing rules are shared. The dependency, dead-code and import

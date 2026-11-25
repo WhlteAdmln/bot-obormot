@@ -8,6 +8,7 @@ tests/unit/middlewares/test_access.py
 tests/unit/middlewares/test_correlation_id.py
 tests/unit/middlewares/test_throttle.py
 tests/unit/project/test_installer.py
+tests/unit/scripts/test_check_vendored.py
 tests/unit/scripts/test_report_pr_size.py
 tests/unit/services/access/test_roles.py
 tests/unit/services/access/test_service.py

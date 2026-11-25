@@ -46,6 +46,7 @@ HEADERLESS_VENDORED_FILES = (
     "scripts/build_release.sh",
     "tests/unit/scripts/test_check_changelog.py",
     "tests/unit/scripts/test_check_test_rules.py",
+    "tests/unit/scripts/test_check_vendored.py",
     "tests/unit/scripts/test_report_pr_size.py",
 )
 PACKAGE_VENDORED_FILES = ("log_filters.py", "env_readers.py")

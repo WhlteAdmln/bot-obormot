@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 import json
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, NamedTuple, Self
 
@@ -47,36 +47,56 @@ _DONE = b"data: [DONE]\n\n"
 
 
 @dataclass(frozen=True, slots=True)
-class FakeLLMOptions:  # pylint: disable=too-many-instance-attributes  # one flat knob set
-    """Configure responses and failures of the fake LLM server."""
+class FakeChatOptions:
+    """Configure chat completion responses and failures of the fake LLM server."""
 
-    chat_status: int = HTTPStatus.OK
-    include_context_metadata: bool = True
-    context_size: int = 8192
-    tokenizer_available: bool = True
-    tokenize_status: int = HTTPStatus.OK
-    tokenize_delay: float = 0.0
-    apply_template_status: int = HTTPStatus.OK
+    status: int = HTTPStatus.OK
     first_token_delay: float = 0.0
     drop_after_chunks: int | None = None
     chunks: tuple[str, ...] = ("Hello", ", world!")
 
     def __post_init__(self) -> None:
-        """Validate fake server options."""
-        if self.chat_status not in _SUPPORTED_CHAT_STATUSES:
+        """Validate fake chat options."""
+        if self.status not in _SUPPORTED_CHAT_STATUSES:
             msg = "Unsupported fake LLM chat status"
-            raise ValueError(msg)
-        if self.context_size <= 0:
-            msg = "Context size must be positive"
             raise ValueError(msg)
         if self.first_token_delay < 0:
             msg = "First token delay cannot be negative"
             raise ValueError(msg)
+        if self.drop_after_chunks is not None and self.drop_after_chunks < 1:
+            msg = "Drop position must be positive"
+            raise ValueError(msg)
+
+
+@dataclass(frozen=True, slots=True)
+class FakeTokenizerOptions:
+    """Configure tokenizer and template responses of the fake LLM server."""
+
+    available: bool = True
+    tokenize_status: int = HTTPStatus.OK
+    tokenize_delay: float = 0.0
+    apply_template_status: int = HTTPStatus.OK
+
+    def __post_init__(self) -> None:
+        """Validate fake tokenizer options."""
         if self.tokenize_delay < 0:
             msg = "Tokenizer delay cannot be negative"
             raise ValueError(msg)
-        if self.drop_after_chunks is not None and self.drop_after_chunks < 1:
-            msg = "Drop position must be positive"
+
+
+@dataclass(frozen=True, slots=True)
+class FakeLLMOptions:
+    """Configure responses and failures of the fake LLM server."""
+
+    chat: FakeChatOptions = field(default_factory=FakeChatOptions)
+    tokenizer: FakeTokenizerOptions = field(default_factory=FakeTokenizerOptions)
+    include_context_metadata: bool = True
+    context_size: int = 8192
+
+    def __post_init__(self) -> None:
+        """Validate fake model options."""
+        if self.context_size <= 0:
+            msg = "Context size must be positive"
             raise ValueError(msg)
 
 
@@ -179,7 +199,7 @@ class FakeLLM:
         if error is not None:
             return error
 
-        status = self.options.chat_status
+        status = self.options.chat.status
         if status != HTTPStatus.OK:
             detail, error_type = _CHAT_ERRORS[HTTPStatus(status)]
             return web.json_response(
@@ -193,7 +213,7 @@ class FakeLLM:
         if isinstance(payload, dict) and payload.get("stream") is True:
             return await self._stream_response(request)
 
-        content = "".join(self.options.chunks)
+        content = "".join(self.options.chat.chunks)
         return web.json_response(
             {
                 "id": "chatcmpl-test",
@@ -208,8 +228,8 @@ class FakeLLM:
                 ],
                 "usage": {
                     "prompt_tokens": 0,
-                    "completion_tokens": len(self.options.chunks),
-                    "total_tokens": len(self.options.chunks),
+                    "completion_tokens": len(self.options.chat.chunks),
+                    "total_tokens": len(self.options.chat.chunks),
                 },
             }
         )
@@ -237,10 +257,10 @@ class FakeLLM:
                 )
                 + "\n\n"
             ).encode("utf-8")
-            for content in self.options.chunks
+            for content in self.options.chat.chunks
         ]
 
-        drop_after = self.options.drop_after_chunks
+        drop_after = self.options.chat.drop_after_chunks
         will_drop = drop_after is not None and drop_after <= len(events)
         headers = {"Content-Type": "text/event-stream"}
         if will_drop:
@@ -256,8 +276,8 @@ class FakeLLM:
         self.stream_started.set()
 
         for index, event in enumerate(events, start=1):
-            if index == 1 and self.options.first_token_delay:
-                await asyncio.sleep(self.options.first_token_delay)
+            if index == 1 and self.options.chat.first_token_delay:
+                await asyncio.sleep(self.options.chat.first_token_delay)
             try:
                 await response.write(event)
             except ConnectionResetError:
@@ -277,18 +297,18 @@ class FakeLLM:
         error = self._authorization_error(request)
         if error is not None:
             return error
-        if not self.options.tokenizer_available:
+        if not self.options.tokenizer.available:
             return web.json_response(
                 {"error": "Tokenizer unavailable"},
                 status=HTTPStatus.NOT_FOUND,
             )
 
-        if self.options.tokenize_delay:
-            await asyncio.sleep(self.options.tokenize_delay)
-        if self.options.tokenize_status != HTTPStatus.OK:
+        if self.options.tokenizer.tokenize_delay:
+            await asyncio.sleep(self.options.tokenizer.tokenize_delay)
+        if self.options.tokenizer.tokenize_status != HTTPStatus.OK:
             return web.json_response(
                 {"error": "Tokenizer request failed"},
-                status=self.options.tokenize_status,
+                status=self.options.tokenizer.tokenize_status,
             )
 
         payload: Any = await request.json()
@@ -302,10 +322,10 @@ class FakeLLM:
         error = self._authorization_error(request)
         if error is not None:
             return error
-        if self.options.apply_template_status != HTTPStatus.OK:
+        if self.options.tokenizer.apply_template_status != HTTPStatus.OK:
             return web.json_response(
                 {"error": "Template application failed"},
-                status=self.options.apply_template_status,
+                status=self.options.tokenizer.apply_template_status,
             )
 
         payload: Any = await request.json()

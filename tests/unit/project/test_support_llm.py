@@ -12,7 +12,13 @@ import pytest
 
 from bot_obormot.errors import LLMAPIError, LLMTimeoutError, LLMUnavailableError
 from bot_obormot.settings import Settings
-from tests.support.fake_llm import FakeLLM, FakeLLMOptions, open_llm_client
+from tests.support.fake_llm import (
+    FakeChatOptions,
+    FakeLLM,
+    FakeLLMOptions,
+    FakeTokenizerOptions,
+    open_llm_client,
+)
 
 
 def _with_token_counting(settings: Settings, mode: str) -> Settings:
@@ -83,8 +89,8 @@ async def test_fake_llm_supports_real_client_and_non_streaming_requests() -> Non
 @pytest.mark.asyncio
 async def test_fake_llm_can_omit_context_metadata_and_tokenizer() -> None:
     options = FakeLLMOptions(
+        tokenizer=FakeTokenizerOptions(available=False),
         include_context_metadata=False,
-        tokenizer_available=False,
     )
     async with (
         FakeLLM(options=options) as server,
@@ -117,7 +123,7 @@ async def test_fake_llm_can_omit_context_metadata_and_tokenizer() -> None:
 @pytest.mark.asyncio
 async def test_fake_llm_can_return_configured_http_errors(status: int) -> None:
     async with (
-        FakeLLM(options=FakeLLMOptions(chat_status=status)) as server,
+        FakeLLM(options=FakeLLMOptions(chat=FakeChatOptions(status=status))) as server,
         open_llm_client(_configure_client(server)) as client,
     ):
         with pytest.raises(LLMAPIError) as error:
@@ -128,7 +134,7 @@ async def test_fake_llm_can_return_configured_http_errors(status: int) -> None:
 
 @pytest.mark.asyncio
 async def test_fake_llm_can_delay_the_first_token() -> None:
-    options = FakeLLMOptions(first_token_delay=0.05)
+    options = FakeLLMOptions(chat=FakeChatOptions(first_token_delay=0.05))
     async with (
         FakeLLM(options=options) as server,
         open_llm_client(
@@ -145,7 +151,7 @@ async def test_fake_llm_can_delay_the_first_token() -> None:
 
 @pytest.mark.asyncio
 async def test_fake_llm_can_drop_connection_mid_stream() -> None:
-    options = FakeLLMOptions(drop_after_chunks=1)
+    options = FakeLLMOptions(chat=FakeChatOptions(drop_after_chunks=1))
     async with (
         FakeLLM(options=options) as server,
         open_llm_client(_configure_client(server)) as client,
@@ -203,7 +209,7 @@ async def test_real_client_session_configures_auth_header(
 
 @pytest.mark.asyncio
 async def test_stream_can_be_cancelled_by_client() -> None:
-    options = FakeLLMOptions(first_token_delay=0.1)
+    options = FakeLLMOptions(chat=FakeChatOptions(first_token_delay=0.1))
     async with (
         FakeLLM(options=options) as server,
         open_llm_client(_configure_client(server)) as client,
@@ -255,7 +261,7 @@ async def test_real_client_fits_very_long_history() -> None:
 
 @pytest.mark.asyncio
 async def test_real_client_estimates_message_tokens_when_tokenizer_is_missing() -> None:
-    options = FakeLLMOptions(tokenizer_available=False)
+    options = FakeLLMOptions(tokenizer=FakeTokenizerOptions(available=False))
     async with (
         FakeLLM(options=options) as server,
         open_llm_client(_configure_client(server)) as client,
@@ -279,9 +285,15 @@ async def test_real_client_estimates_message_tokens_when_tokenizer_is_missing() 
 @pytest.mark.parametrize(
     ("options", "operation"),
     [
-        (FakeLLMOptions(apply_template_status=500), "messages"),
-        (FakeLLMOptions(tokenize_status=500), "messages"),
-        (FakeLLMOptions(tokenize_status=500), "text"),
+        (
+            FakeLLMOptions(tokenizer=FakeTokenizerOptions(apply_template_status=500)),
+            "messages",
+        ),
+        (
+            FakeLLMOptions(tokenizer=FakeTokenizerOptions(tokenize_status=500)),
+            "messages",
+        ),
+        (FakeLLMOptions(tokenizer=FakeTokenizerOptions(tokenize_status=500)), "text"),
     ],
 )
 @pytest.mark.asyncio
@@ -311,7 +323,7 @@ async def test_real_client_maps_tokenizer_http_errors(
 @pytest.mark.parametrize("operation", ["messages", "text"])
 @pytest.mark.asyncio
 async def test_real_client_maps_tokenizer_timeout(operation: str) -> None:
-    options = FakeLLMOptions(tokenize_delay=0.05)
+    options = FakeLLMOptions(tokenizer=FakeTokenizerOptions(tokenize_delay=0.05))
     async with FakeLLM(options=options) as server:
         settings = _with_token_counting(
             _configure_client(

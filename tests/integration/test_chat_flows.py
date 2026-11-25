@@ -30,7 +30,7 @@ from tests.support.chat_flows import (
     open_flow,
 )
 from tests.support.fake_audiodoc import FakeAudiodoc
-from tests.support.fake_llm import FakeLLM, FakeLLMOptions
+from tests.support.fake_llm import FakeChatOptions, FakeLLM, FakeLLMOptions
 from tests.support.telegram import FakeTelegramSession, make_message, make_update
 
 
@@ -87,7 +87,7 @@ async def test_text_message_streams_answer_and_persists_exchange(
     first_chunk = " ".join(["streamed"] * 180) + " "
     response = f"{first_chunk}complete"
     async with FakeLLM(
-        options=FakeLLMOptions(chunks=(first_chunk, "complete")),
+        options=FakeLLMOptions(chat=FakeChatOptions(chunks=(first_chunk, "complete"))),
     ) as llm_server:
         settings = configure_llm_flow(llm_server.base_url)
 
@@ -157,7 +157,9 @@ async def test_voice_message_is_transcribed_answered_and_persisted(
     async with (
         FakeAudiodoc() as audiodoc_server,
         FakeLLM(
-            options=FakeLLMOptions(chunks=(first_chunk, "complete")),
+            options=FakeLLMOptions(
+                chat=FakeChatOptions(chunks=(first_chunk, "complete"))
+            ),
         ) as llm_server,
     ):
         settings = configure_voice_flow(
@@ -235,7 +237,9 @@ async def test_pdf_document_is_extracted_answered_and_persisted(
     async with (
         FakeAudiodoc() as audiodoc_server,
         FakeLLM(
-            options=FakeLLMOptions(chunks=(first_chunk, "complete")),
+            options=FakeLLMOptions(
+                chat=FakeChatOptions(chunks=(first_chunk, "complete"))
+            ),
         ) as llm_server,
     ):
         settings = configure_document_flow(
@@ -345,7 +349,7 @@ async def test_photo_message_is_processed_by_vision_and_persisted(
     image_data = image_buffer.getvalue()
 
     async with FakeLLM(
-        options=FakeLLMOptions(chunks=(first_chunk, "complete")),
+        options=FakeLLMOptions(chat=FakeChatOptions(chunks=(first_chunk, "complete"))),
     ) as llm_server:
         settings = configure_llm_flow(llm_server.base_url)
 
@@ -530,7 +534,7 @@ async def test_long_answer_is_split_into_multiple_telegram_messages(
     user_text = "Напиши очень длинный ответ."
     response = " ".join(["long-answer"] * 1200)
     async with FakeLLM(
-        options=FakeLLMOptions(chunks=(response,)),
+        options=FakeLLMOptions(chat=FakeChatOptions(chunks=(response,))),
     ) as llm_server:
         settings = configure_llm_flow(llm_server.base_url)
 
@@ -833,7 +837,7 @@ async def test_history_limit_restricts_llm_context_and_preserves_history(
     response = "History limit respected."
 
     async with FakeLLM(
-        options=FakeLLMOptions(chunks=(response,)),
+        options=FakeLLMOptions(chat=FakeChatOptions(chunks=(response,))),
     ) as llm_server:
         settings = _configure_history_limit_flow(llm_server)
         telegram_session = await _dispatch_history_limit_message(

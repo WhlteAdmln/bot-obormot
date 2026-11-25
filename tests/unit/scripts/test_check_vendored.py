@@ -133,6 +133,17 @@ def test_reports_a_differing_file_with_header(local: Path, other: Path) -> None:
     assert errors == expected, "a changed vendored script must be reported"
 
 
+def test_reports_a_differing_docs_check_module(local: Path, other: Path) -> None:
+    (local / "scripts/docs_checks/russian.py").write_text(
+        f"{VENDORED_HEADER}\nbirch gully\n", encoding="utf-8"
+    )
+    expected = ["scripts/docs_checks/russian.py: content differs from other repository"]
+
+    errors = check_vendored(other, root=local)
+
+    assert errors == expected, "a changed shared docs check must be reported"
+
+
 def test_reports_a_differing_headerless_file(local: Path, other: Path) -> None:
     (local / "AGENTS.md").write_text("# Gannet rules\n", encoding="utf-8")
     expected = ["AGENTS.md: content differs from other repository"]

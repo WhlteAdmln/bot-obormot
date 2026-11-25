@@ -160,9 +160,8 @@ default-docstring-type = "google"
 [tool.pylint.basic]
 # Settings fields mirror environment variable names, so UPPER_CASE is accepted.
 attr-rgx = "([a-z_][a-z0-9_]*|[A-Z][A-Z0-9_]*)$"
-# Technical debt, to be removed in a later release: test functions and test modules
-# have no docstrings because descriptive test names replace them.
-no-docstring-rgx = "^(_|test_|tests\\.)"
+# Test functions have no docstrings: descriptive test names replace them.
+no-docstring-rgx = "^(_|test_)"
 
 [tool.pylint.exceptions]
 # ruff BLE001 already requires broad handlers to log or re-raise.
@@ -203,8 +202,8 @@ max-statements = 40
 max-branches = 12
 
 [tool.ruff.lint.per-file-ignores]
-# D1: descriptive test names replace docstrings.
-"tests/*" = ["S101", "D1"]
+# D103: descriptive test names replace docstrings of test functions.
+"tests/*" = ["S101", "D103"]
 # The stub mirrors the name of the third-party function.
 "typings/pymupdf/*" = ["A001"]
 

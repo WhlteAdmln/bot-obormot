@@ -13,6 +13,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - [#130](https://github.com/WhlteAdmln/bot-obormot/issues/130) CI reports the number of changed lines of a pull request against the 256-line limit without failing.
 - [#129](https://github.com/WhlteAdmln/bot-obormot/issues/129) Contributors can read the shared development principles in `docs/development-principles.md` and its Russian twin.
 
+### Changed
+
+- [#109](https://github.com/WhlteAdmln/bot-obormot/issues/109) Ruff and pylint exempt only test functions from docstrings, and test support `__init__` methods have docstrings.
+
 ### Fixed
 
 - [#112](https://github.com/WhlteAdmln/bot-obormot/issues/112) Each bot gets its own Telegram download limit, so a download that waits for a free slot in a new event loop no longer fails with `RuntimeError`.

@@ -13,14 +13,17 @@ from tests.support.concurrency import ConcurrencyProbe
 
 
 @pytest.mark.asyncio
-async def test_extract_with_limit_uses_default_semaphore() -> None:
+async def test_extract_with_limit_returns_the_extractor_result() -> None:
+    semaphore = asyncio.Semaphore(3)
+    payload = b"\x00webm-chunk"
 
     def extractor(data: bytes, media_type: str) -> list[bytes]:
         return [data + media_type.encode("ascii")]
 
-    result = await extract_with_limit(b"data", "gif", extractor)
+    result = await extract_with_limit(payload, "webm", extractor, semaphore)
 
-    assert result == [b"datagif"]
+    expected = [b"\x00webm-chunkwebm"]
+    assert result == expected, "the extractor result must be returned unchanged"
 
 
 @pytest.mark.asyncio

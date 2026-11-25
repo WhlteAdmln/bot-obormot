@@ -33,4 +33,5 @@ def test_public_api_keeps_original_function_signatures() -> None:
         "text_override",
         "settings",
         "downloader",
+        "media_slots",
     ]

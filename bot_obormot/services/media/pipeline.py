@@ -16,17 +16,16 @@ from bot_obormot.services.media.animation import extract_animation_frames
 from bot_obormot.services.media.contact_sheet import build_contact_sheet
 from bot_obormot.services.media.images import prepare_image
 from bot_obormot.services.media.limited import run_limited
-from bot_obormot.services.media.limits import MAX_CONCURRENT_IMAGE_JOBS
 from bot_obormot.services.media.media_types import MEDIA_TYPE_IMAGE
+from bot_obormot.services.media.slots import MediaSlots
 from bot_obormot.services.media.sniff import verify_declared_type
 
 logger = logging.getLogger("bot_obormot.services.media")
-_image_jobs = asyncio.Semaphore(MAX_CONCURRENT_IMAGE_JOBS)
 
 _T = TypeVar("_T")
 
 Downloader = Callable[[Message, str], Awaitable[bytes]]
-AnimationExtractor = Callable[[bytes, str], Awaitable[list[bytes]]]
+AnimationExtractor = Callable[[bytes, str, asyncio.Semaphore], Awaitable[list[bytes]]]
 ImagePreparer = Callable[[bytes], str]
 ContactSheetBuilder = Callable[[list[bytes]], bytes]
 
@@ -36,14 +35,17 @@ class MediaPipelineOptions:
     """Dependencies for media downloading and image preparation."""
 
     downloader: Downloader
+    slots: MediaSlots
     animation_extractor: AnimationExtractor = extract_animation_frames
     image_preparer: ImagePreparer = prepare_image
     contact_sheet_builder: ContactSheetBuilder = build_contact_sheet
 
 
-async def _run_limited(func: Callable[..., _T], *args: object) -> _T:
+async def _run_limited(
+    options: MediaPipelineOptions, func: Callable[..., _T], *args: object
+) -> _T:
     """Run CPU-intensive image processing in at most N threads."""
-    return await run_limited(_image_jobs, func, *args)
+    return await run_limited(options.slots.image_jobs, func, *args)
 
 
 def _ensure_frames(frames: list[bytes]) -> None:
@@ -60,15 +62,17 @@ async def _prepare_images(
 ) -> list[str]:
     """Convert downloaded media into prepared images for the LLM."""
     if media_type == MEDIA_TYPE_IMAGE:
-        return [await _run_limited(options.image_preparer, data)]
+        return [await _run_limited(options, options.image_preparer, data)]
 
-    frames = await options.animation_extractor(data, media_type)
+    frames = await options.animation_extractor(
+        data, media_type, options.slots.animations
+    )
     _ensure_frames(frames)
 
     # Send the Vision model one contact sheet with numbered frames,
     # rather than several independent image_url parts.
-    contact_sheet = await _run_limited(options.contact_sheet_builder, frames)
-    return [await _run_limited(options.image_preparer, contact_sheet)]
+    contact_sheet = await _run_limited(options, options.contact_sheet_builder, frames)
+    return [await _run_limited(options, options.image_preparer, contact_sheet)]
 
 
 async def process_media(

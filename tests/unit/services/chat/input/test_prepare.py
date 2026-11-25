@@ -14,6 +14,7 @@ from bot_obormot.services.chat.input import (
     prepare_message,
 )
 from bot_obormot.services.chat.input import prepare as pipeline_module
+from bot_obormot.services.media.slots import MediaSlots
 from tests.support.message_input import make_info, make_message
 from tests.support.settings import make_settings
 
@@ -35,6 +36,7 @@ async def test_prepare_message_preserves_processing_order_and_result(
         has_document=True,
     )
     image_bytes = [b"image-bytes"]
+    media_slots = MediaSlots()
 
     async def download(_message: object, _file_id: str) -> bytes:
         return b"never-downloaded"
@@ -51,9 +53,13 @@ async def test_prepare_message_preserves_processing_order_and_result(
         return "Распознано"
 
     async def prepare_media(
-        _message: object, _info: object, *, downloader: object
+        _message: object,
+        _info: object,
+        *,
+        downloader: object,
+        media_slots: object,
     ) -> tuple[object, ...]:
-        assert downloader is download
+        assert (downloader, media_slots) == (download, media_slots)
         events.append("media")
         return ["data:image/jpeg;base64,AA=="], image_bytes
 
@@ -97,6 +103,7 @@ async def test_prepare_message_preserves_processing_order_and_result(
         text_override=None,
         settings=app_settings,
         downloader=download,
+        media_slots=media_slots,
     )
 
     assert events == ["audio", "media", "document", "content", "history"]

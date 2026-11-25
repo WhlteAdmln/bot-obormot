@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from aiogram.types import Message
 
     from bot_obormot.services.chat.input.models import MessageInfo
+    from bot_obormot.services.media.slots import MediaSlots
 
 
 async def prepare_media(
@@ -23,6 +24,7 @@ async def prepare_media(
     info: MessageInfo,
     *,
     downloader: Callable[[Message, str], Awaitable[bytes]],
+    media_slots: MediaSlots,
     media_processor: Callable[..., Awaitable[list[str]]] | None = None,
 ) -> tuple[list[str], list[bytes]]:
     """Process Telegram media and decode the resulting Data URLs."""
@@ -34,6 +36,7 @@ async def prepare_media(
         cast("str", info.media_type),
         cast("str", info.file_id),
         downloader=downloader,
+        slots=media_slots,
     )
 
     image_bytes = [base64.b64decode(url.split(",", 1)[1]) for url in image_urls]

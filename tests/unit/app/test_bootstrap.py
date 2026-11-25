@@ -103,6 +103,18 @@ def test_configure_dispatcher_gives_each_dispatcher_its_own_downloader() -> None
     assert first_downloader is not second_downloader, "bots must not share slots"
 
 
+def test_configure_dispatcher_gives_each_dispatcher_its_own_media_slots() -> None:
+    first = FakeRouterDispatcher()
+    second = FakeRouterDispatcher()
+
+    app_routers.configure_dispatcher(first, SETTINGS)
+    app_routers.configure_dispatcher(second, SETTINGS)
+
+    first_slots = first.workflow_data["chat_runtime"].media_slots
+    second_slots = second.workflow_data["chat_runtime"].media_slots
+    assert first_slots is not second_slots, "bots must not share media slots"
+
+
 def test_periodic_cleanup_uses_existing_policy_and_propagates_cancellation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

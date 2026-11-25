@@ -3,8 +3,6 @@
 
 """Fallback handler for unknown slash commands."""
 
-from typing import Any
-
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
@@ -23,8 +21,8 @@ async def cmd_unknown(message: Message, state: FSMContext) -> None:
     """Handle unknown commands."""
     response = await message.answer(UNKNOWN_COMMAND_MESSAGE)
 
-    data: dict[str, Any] = {
+    data: dict[str, int] = {
         UNKNOWN_COMMAND_MESSAGE_KEY: message.message_id,
         UNKNOWN_COMMAND_STATUS_MESSAGE_KEY: response.message_id,
     }
-    await state.update_data(**data)
+    await state.update_data(data)

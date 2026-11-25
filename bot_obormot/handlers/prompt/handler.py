@@ -4,7 +4,7 @@
 """Handlers for viewing, changing and resetting the personal system prompt."""
 
 import logging
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramAPIError
@@ -37,12 +37,12 @@ def format_prompt(prompt: str) -> str:
 async def track_message(state: FSMContext, message: Message) -> None:
     """Track the ID of a message related to prompt configuration."""
     data = await state.get_data()
-    message_ids = data.get(PROMPT_FLOW_KEY, [])
+    message_ids: list[int] = data.get(PROMPT_FLOW_KEY, [])
 
     if message.message_id not in message_ids:
         message_ids.append(message.message_id)
 
-    await state.update_data(**{PROMPT_FLOW_KEY: message_ids})
+    await state.update_data({PROMPT_FLOW_KEY: message_ids})
 
 
 async def delete_prompt_messages(
@@ -84,8 +84,8 @@ async def send_prompt_status(
     """Send a temporary notification and store its ID."""
     response = await message.answer(text)
 
-    data: dict[str, Any] = {PROMPT_STATUS_MESSAGE_KEY: response.message_id}
-    await state.update_data(**data)
+    data: dict[str, int] = {PROMPT_STATUS_MESSAGE_KEY: response.message_id}
+    await state.update_data(data)
 
 
 async def show_prompt(message: Message, state: FSMContext, database: Database) -> None:

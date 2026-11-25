@@ -4,7 +4,7 @@
 """Handler of the /start command."""
 
 import logging
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 from aiogram import Router
 from aiogram.filters import Command
@@ -125,5 +125,5 @@ async def cmd_start(
     text = _build_welcome_text(settings, is_admin=is_admin, is_supervisor=is_supervisor)
     response = await message.answer(text)
 
-    data: dict[str, Any] = {WELCOME_MESSAGE_KEY: response.message_id}
-    await state.update_data(**data)
+    data: dict[str, int] = {WELCOME_MESSAGE_KEY: response.message_id}
+    await state.update_data(data)

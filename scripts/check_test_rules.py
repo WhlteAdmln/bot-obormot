@@ -8,7 +8,8 @@ class inside a function, import ``time.sleep`` or use ``tempfile`` instead of
 ``tmp_path``. A test function must not call ``time.sleep``; a helper may poll with a
 deadline. A comment inside a test function must be a tool pragma (``# noqa``,
 ``# pylint:``, ``# type:`` or ``# pragma:``) followed by a reason after ``  # `` or
-`` - ``, as in ``# noqa: S105  # fake credential``.
+`` - ``, as in ``# noqa: S105  # fake credential``. A test function must not have a
+docstring; its name describes the test.
 
 ``tests/strict_test_files.txt`` lists the files that also follow the strict rules:
 each test has exactly one assert, and every assert has a failure message. A listed
@@ -139,6 +140,13 @@ def _sleep_problems(tests: list[FunctionNode]) -> Iterator[str]:
                 yield f"{node.lineno}: calls time.sleep; wait for a condition instead"
 
 
+def _docstring_problems(tests: list[FunctionNode]) -> Iterator[str]:
+    for test in tests:
+        if ast.get_docstring(test, clean=False) is not None:
+            line = test.body[0].lineno
+            yield f"{line}: docstring in a test function; the test name describes it"
+
+
 def _comment_problems(source: str, tests: list[FunctionNode]) -> Iterator[str]:
     spans = [(_first_line(test), test.end_lineno or test.lineno) for test in tests]
     tokens = tokenize.generate_tokens(io.StringIO(source).readline)
@@ -182,6 +190,7 @@ def file_problems(source: str, *, strict: bool = False) -> list[str]:
     tests = list(_test_functions(tree))
     problems.extend(_comment_problems(source, tests))
     problems.extend(_sleep_problems(tests))
+    problems.extend(_docstring_problems(tests))
     if strict:
         problems.extend(_strict_problems(tests))
     return sorted(set(problems), key=lambda problem: int(problem.split(":")[0]))

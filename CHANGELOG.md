@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- [#148](https://github.com/WhlteAdmln/bot-obormot/issues/148) `scripts/check_test_rules.py` reports a docstring in a test function.
 - [#142](https://github.com/WhlteAdmln/bot-obormot/issues/142) `scripts/check_vendored.py` also compares the shared `tests/unit/scripts/docs_checks/test_settings.py`.
 - [#116](https://github.com/WhlteAdmln/bot-obormot/issues/116) `scripts/check_vendored.py` also compares the shared `docs_checks` modules `links.py`, `markdown.py`, `russian.py` and their tests.
 - [#131](https://github.com/WhlteAdmln/bot-obormot/issues/131) `scripts/check_vendored.py` has its own shared unit tests in `tests/unit/scripts/test_check_vendored.py`.

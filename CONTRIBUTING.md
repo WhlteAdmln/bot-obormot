@@ -18,9 +18,9 @@
 | Command | What it does |
 | --- | --- |
 | `make check` | Every CI gate that needs only Python and network access (see [Checks and CI](#checks-and-ci)). |
-| `make integration` | Integration tests (tests marked `integration`). |
+| `make integration` | Integration tests (tests marked `integration`); they use the fake LLM and audiodoc servers of `tests/support/` and run locally too. |
 | `make installer` | Real-shell installer tests. |
-| `make docs-check` | Links, settings, commands, README section parity and changelog section order. |
+| `make docs-check` | `scripts/check_docs.py` (see [Documentation checks](#documentation-checks)) and the pre-commit hooks on every file. |
 | `make docker` | Validate `compose.yaml` and build the image. |
 
 Shared files: `.editorconfig`, `.pre-commit-config.yaml`, `.github/renovate.json5`, `.markdownlint-cli2.yaml`, `AGENTS.md`, `CLAUDE.md`, `docs/development-principles.md`, `docs/development-principles.ru.md`,
@@ -36,7 +36,9 @@ file here, then run `python scripts/check_vendored.py --other ../audiodoc`.
 
 `make lint` also runs `scripts/check_test_layout.py` and `scripts/check_test_rules.py`. The second one fails when a `test_*.py` or `conftest.py` module under `tests/` uses mocks (`unittest.mock`, `mock`, the `mocker` fixture or `assert_called*`), defines a class inside a function, imports `tempfile` or `time.sleep`, when a test function calls `time.sleep`, when a comment inside a test function is not a `# noqa`, `# pylint:`, `# type:` or `# pragma:` pragma followed by a reason, or when a test function has a docstring. It also fails when a test does not have exactly one assert or an assert has no failure message.
 
-Only CI runs the jobs that need system tools or services: integration tests that need an LLM server (`make integration`), the Docker image (`make docker`), the installer smoke test against a locally served release, and the package metadata check that installs the wheel into a clean virtual environment.
+`make check` does not run the integration tests (`make integration`): they start the bot flows in process against the fake LLM and audiodoc servers of `tests/support/`, need no LLM server and run locally too; without a server the token counting falls back to an estimate. CI runs them in its `integration` job, which starts no LLM server.
+
+Only CI runs the jobs that need system tools or services: the Docker image (`make docker`), the installer smoke test against a locally served release, and the package metadata check that installs the wheel into a clean virtual environment.
 
 CI jobs install the system packages listed in `.github/apt-packages.txt` with the shared step `.github/actions/install-apt-packages`. The `apt-cache.yml` workflow runs nightly and on demand: it downloads the package files with `apt-get install --download-only` and saves them with `actions/cache` under a key of the runner image operating system (`ImageOS`), the package list hash and the date, so jobs on every runner image of one operating system share the cache. The shared step restores the newest matching cache, copies its package files into the apt archive directory, runs `apt-get update` and installs the packages, so apt takes the cached files whose versions match and downloads only the rest; when no cache matches, it installs the packages from the network. Run the workflow by hand after a change to the package list.
 
@@ -44,7 +46,7 @@ On a pull request the `pr-size` CI job runs `scripts/report_pr_size.py --base HE
 
 ## Documentation checks
 
-`make docs-check` runs `scripts/check_docs.py`. It runs the changelog check and the modules of `scripts/docs_checks/`: `links.py` (local links and their anchors), `russian.py` (H2 section parity and Cyrillic text of `.ru.md` twins), `settings.py` (settings against `.env.example` and `docs/configuration.md`), `cli_commands.py` (documented CLI commands against the real parser), the project-specific `telegram_commands.py` (Telegram commands against `docs/commands.md`) and `code_paths.py` (repository paths in the inline code of `README*.md`, `CONTRIBUTING*.md` and `docs/` exist), and `markdown.py` (helpers the others share). Each module has its tests in `tests/unit/scripts/docs_checks/`.
+`make docs-check` runs `scripts/check_docs.py`. It runs the changelog check and the modules of `scripts/docs_checks/`: `links.py` (local links and their anchors), `russian.py` (H2 section parity and Cyrillic text of `.ru.md` twins), `settings.py` (settings against `.env.example` and `docs/configuration.md`), `cli_commands.py` (documented CLI commands against the real parser), the project-specific `telegram_commands.py` (Telegram commands against `docs/commands.md`) and `code_paths.py` (repository paths in the inline code of `README*.md`, `CONTRIBUTING*.md` and `docs/` exist), and `markdown.py` (helpers the others share). Each module has its tests in `tests/unit/scripts/docs_checks/`. After that, `make docs-check` runs `pre-commit run --all-files` with the hooks of `.pre-commit-config.yaml`: whitespace, end-of-file, merge-conflict, YAML, TOML, JSON, large-file, case-conflict, symlink, shebang and private-key checks, codespell, actionlint, zizmor, yamllint, markdownlint-cli2, validate-pyproject and the GitHub workflow schema check.
 
 `markdown.py`, `links.py` and `russian.py` are the same in audiodoc and bot-obormot. The other modules differ on purpose:
 
@@ -54,7 +56,7 @@ On a pull request the `pr-size` CI job runs `scripts/report_pr_size.py --base HE
 
 ## Dependency updates
 
-Renovate is the only tool that updates dependencies, opens pull requests and merges them; its configuration is `.github/renovate.json5`. Minor and patch updates are merged automatically after every check passes, except for the parsers and network libraries listed in the configuration, which are merged automatically only for patches. A human merges every update that can run code with more trust than the application: major updates, `0.x` releases, GitHub Actions, pre-commit hooks and the build tooling (`setuptools`, `wheel`, `build`, `packaging`). Python versions and the image base are changed by hand. The lock is refreshed on the first day of each month in `renovate/pip-compile-refresh`; it is the only way transitive packages change, and a human merges it. `requirements-lock.txt` is generated by `make lock` (it needs `uv`) and is never edited by hand; Renovate regenerates it with the same command, and `make lock` skips releases younger than 14 days (`make lock LOCK_MIN_RELEASE_AGE_DAYS=0` turns the cutoff off when `pyproject.toml` already requires a newer release). A release must be 14 days old before it is proposed; security fixes are not delayed.
+Renovate is the only tool that updates dependencies, opens pull requests and merges them; its configuration is `.github/renovate.json5`. Minor and patch updates are merged automatically after every check passes, except for the parsers and network libraries listed in the configuration, which are merged automatically only for patches. A human merges every update that can run code with more trust than the application: major updates, `0.x` releases, GitHub Actions, pre-commit hooks and the build tooling (`setuptools`, `wheel`, `build`, `packaging`). Renovate does not propose major and minor updates of Python and the image base, so they are changed by hand; it still proposes their patch updates. The lock is refreshed on the first day of each month in `renovate/pip-compile-refresh`; it is the only way transitive packages change, and a human merges it. `requirements-lock.txt` is generated by `make lock` (it needs `uv`) and is never edited by hand; Renovate regenerates it with the same command, and `make lock` skips releases younger than 14 days (`make lock LOCK_MIN_RELEASE_AGE_DAYS=0` turns the cutoff off when `pyproject.toml` already requires a newer release). A release must be 14 days old before it is proposed; security fixes are not delayed.
 
 Dependabot alerts and the dependency graph stay enabled as a second source of vulnerability reports, and Renovate reads the alerts. Dependabot security updates and version updates are disabled so that only one tool opens pull requests.
 
@@ -64,5 +66,5 @@ Use the assignment expression `:=` only when the value is needed for the conditi
 
 ## Open questions
 
-- Abandoned dependencies reported by Renovate (for example `odfpy`, `defusedxml`, `pytesseract`, `python-pptx`): review whether to replace them. Several of them parse untrusted files.
+- Abandoned dependencies reported by Renovate (for example `defusedxml` of the `test` extra, `rlottie-python` of the `tgs` extra and `shellcheck-py` of the `dev` extra): review whether to replace them.
 - `max-try-statements = 1` in the pylint configuration is reported for existing long `try` blocks; they are split gradually.

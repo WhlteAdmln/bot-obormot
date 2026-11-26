@@ -149,4 +149,4 @@ The application still depends on host-level protection, correct `.env` permissio
 - `requirements-lock.txt` pins the runtime dependency set for reproducible production installs.
 - `requirements-dev.txt` installs the project in editable mode with the `dev` extra (`-e .[dev]`); `make install-dev` applies `requirements-lock.txt` as a constraint.
 
-Run `make check` for the full gate and `make integration` for tests marked `integration`; some of them need an LLM server that implements `/tokenize`.
+Run `make check` for the full gate and `make integration` for tests marked `integration`; they run against the fake LLM and audiodoc servers of `tests/support/` and need no LLM server.

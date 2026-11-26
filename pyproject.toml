@@ -76,7 +76,7 @@ filterwarnings = ["error"]
 timeout = 30
 markers = [
     "unit: isolated unit tests",
-    "integration: requires an external service or infrastructure (e.g. a local LLM server)",
+    "integration: runs in-process flows against the fake servers of tests/support",
     "contract: verifies compatibility with external interfaces",
     "e2e: exercises complete application workflows",
 ]

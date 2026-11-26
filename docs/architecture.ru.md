@@ -149,4 +149,4 @@ flowchart LR
 - `requirements-lock.txt` закрепляет runtime-зависимости для воспроизводимой production-установки.
 - `requirements-dev.txt` устанавливает проект в editable-режиме с дополнением `dev` (`-e .[dev]`); `make install-dev` применяет `requirements-lock.txt` как ограничение версий.
 
-Для полной проверки выполните `make check`, а тесты с маркером `integration` — `make integration`; некоторым из них нужен сервер LLM с эндпоинтом `/tokenize`.
+Для полной проверки выполните `make check`, а тесты с маркером `integration` — `make integration`; они работают с фейковыми серверами LLM и audiodoc из `tests/support/` и не требуют сервера LLM.

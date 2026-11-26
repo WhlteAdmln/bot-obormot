@@ -196,6 +196,19 @@ def test_apt_cache_workflow_saves_the_package_files_nightly(snippet: str) -> Non
     assert snippet in text, f"the apt cache workflow does not contain {snippet}"
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        ".github/workflows/apt-cache.yml",
+        ".github/actions/install-apt-packages/action.yml",
+    ],
+)
+def test_apt_cache_key_names_the_image_release_without_its_build(path: str) -> None:
+    key_start = "apt-debs-${ImageOS}-${ImageVersion%%.*}-${PACKAGES_HASH}-"
+    text = (ROOT_DIR / path).read_text(encoding="utf-8")
+    assert key_start in text, f"{path} does not key the apt cache by image release"
+
+
 @pytest.mark.parametrize("name", ["release.yml", "docker-publish.yml"])
 def test_reusable_workflow_references_the_ci_workflow(name: str) -> None:
     workflow_path = "$/.github/workflows/ci.yml"

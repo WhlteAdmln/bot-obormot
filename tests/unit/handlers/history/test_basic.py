@@ -33,10 +33,8 @@ from tests.support.telegram import (
 
 
 def test_forget_me_command_is_registered() -> None:
-    assert any(
-        handler.callback is cmd_forget_me
-        for handler in history_basic.router.message.handlers
-    )
+    callbacks = [handler.callback for handler in history_basic.router.message.handlers]
+    assert cmd_forget_me in callbacks, "forget_me is not registered"
 
 
 @pytest.mark.asyncio
@@ -69,40 +67,67 @@ async def test_handlers_ignore_messages_without_sender(
     assert message.answers == expected_empty, "answered a message without sender"
 
 
+def _denied_settings(
+    dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
+) -> None:
+    """Deny access to users who are not explicitly allowed."""
+    dispatcher_runtime[0].workflow_data["settings"] = replace(
+        SETTINGS, ALLOW_ALL_USERS=False
+    )
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "case",
+    ("user_id", "command_text", "expected_text"),
     [
-        (HISTORY_USER_ID + 10, "/history_clear extra", "clear"),
-        (HISTORY_USER_ID + 11, "/forget_me extra", "forget"),
-        (HISTORY_USER_ID + 12, "/history extra", "show"),
+        (HISTORY_USER_ID + 10, "/history_clear extra", "🧹 История диалога очищена."),
+        (HISTORY_USER_ID + 11, "/forget_me extra", "🧹 Все твои данные удалены."),
+        (
+            HISTORY_USER_ID + 12,
+            "/history extra",
+            (
+                f"📚 Твой лимит истории: 17 полных обменов.\n"
+                f"Стандартный лимит: {SETTINGS.DEFAULT_HISTORY_EXCHANGES}."
+            ),
+        ),
     ],
 )
 async def test_runs_basic_history_commands_through_dispatcher(
     access_database: AccessDatabase,
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
-    case: tuple[int, str, str],
+    user_id: int,
+    command_text: str,
+    expected_text: str,
 ) -> None:
-    user_id, command_text, operation = case
     access_database.history_limits[user_id] = 17
 
     session = await feed_command(dispatcher_runtime, user_id, command_text)
 
-    clear_operation = "clear"
-    forget_operation = "forget"
-    if operation == clear_operation:
-        expected_text = "🧹 История диалога очищена."
-        assert access_database.log.arguments("reset_history") == [(user_id,)]
-    elif operation == forget_operation:
-        expected_text = "🧹 Все твои данные удалены."
-        assert access_database.log.arguments("forget_user") == [(user_id,)]
-    else:
-        expected_text = (
-            f"📚 Твой лимит истории: 17 полных обменов.\n"
-            f"Стандартный лимит: {SETTINGS.DEFAULT_HISTORY_EXCHANGES}."
-        )
+    assert sent_texts(session) == [expected_text], "the command reply differs"
 
-    assert sent_texts(session) == [expected_text]
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("user_id", "command_text", "operation"),
+    [
+        (HISTORY_USER_ID + 13, "/history_clear extra", "reset_history"),
+        (HISTORY_USER_ID + 14, "/forget_me extra", "forget_user"),
+    ],
+)
+async def test_basic_history_commands_update_the_database(
+    access_database: AccessDatabase,
+    dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
+    user_id: int,
+    command_text: str,
+    operation: str,
+) -> None:
+    access_database.history_limits[user_id] = 19
+
+    await feed_command(dispatcher_runtime, user_id, command_text)
+
+    expected_calls = [(user_id,)]
+    calls = access_database.log.arguments(operation)
+    assert calls == expected_calls, f"{operation} was not called for the user"
 
 
 @pytest.mark.asyncio
@@ -125,35 +150,74 @@ async def test_history_basic_commands_propagate_database_failures(
     with pytest.raises(RuntimeError, match="database unavailable"):
         await feed_command(dispatcher_runtime, user_id, command_text)
 
-    assert sent_texts(dispatcher_runtime[2]) == []
+    expected_empty: list[str] = []
+    sent = sent_texts(dispatcher_runtime[2])
+    assert sent == expected_empty, "a reply was sent despite the failure"
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("access_database")
+@pytest.mark.parametrize(
+    ("user_id", "command_text"),
+    [
+        (HISTORY_USER_ID + 90, "/history"),
+        (HISTORY_USER_ID + 91, "/history_clear"),
+        (HISTORY_USER_ID + 92, "/forget_me"),
+        (HISTORY_USER_ID + 93, "/history_limit 10"),
+    ],
+)
+async def test_history_commands_are_denied_without_access(
+    dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
+    user_id: int,
+    command_text: str,
+) -> None:
+    _denied_settings(dispatcher_runtime)
+
+    session = await feed_command(dispatcher_runtime, user_id, command_text)
+
+    expected_texts = ["⛔ У тебя нет доступа к этому боту."]
+    assert sent_texts(session) == expected_texts, "access was not denied"
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "case",
+    ("user_id", "command_text"),
     [
-        (HISTORY_USER_ID + 90, "/history", "show"),
-        (HISTORY_USER_ID + 91, "/history_clear", "clear"),
-        (HISTORY_USER_ID + 92, "/forget_me", "forget"),
-        (HISTORY_USER_ID + 93, "/history_limit 10", "limit"),
+        (HISTORY_USER_ID + 94, "/history"),
+        (HISTORY_USER_ID + 95, "/history_clear"),
+        (HISTORY_USER_ID + 96, "/forget_me"),
+        (HISTORY_USER_ID + 97, "/history_limit 12"),
     ],
 )
-async def test_history_commands_are_denied_without_access(
+async def test_denied_history_commands_do_not_write_to_the_database(
     access_database: AccessDatabase,
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
-    case: tuple[int, str, str],
+    user_id: int,
+    command_text: str,
 ) -> None:
-    user_id, command_text, operation = case
-    dispatcher_runtime[0].workflow_data["settings"] = replace(
-        SETTINGS, ALLOW_ALL_USERS=False
-    )
+    _denied_settings(dispatcher_runtime)
 
-    session = await feed_command(dispatcher_runtime, user_id, command_text)
+    await feed_command(dispatcher_runtime, user_id, command_text)
 
-    assert sent_texts(session) == ["⛔ У тебя нет доступа к этому боту."]
-    assert access_database.log.arguments("reset_history") == []
-    assert access_database.log.arguments("forget_user") == []
-    assert access_database.log.arguments("set_history_limit") == []
-    expected_operation = "show"
-    if operation == expected_operation:
-        assert access_database.history_limits.get(user_id) is None
+    operations = ("reset_history", "forget_user", "set_history_limit")
+    expected_calls: dict[str, list[tuple[object, ...]]] = {
+        operation: [] for operation in operations
+    }
+    calls = {
+        operation: access_database.log.arguments(operation) for operation in operations
+    }
+    assert calls == expected_calls, "a denied command wrote to the database"
+
+
+@pytest.mark.asyncio
+async def test_denied_history_command_does_not_read_the_limit(
+    access_database: AccessDatabase,
+    dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
+) -> None:
+    user_id = HISTORY_USER_ID + 98
+    _denied_settings(dispatcher_runtime)
+
+    await feed_command(dispatcher_runtime, user_id, "/history")
+
+    limit = access_database.history_limits.get(user_id)
+    assert limit is None, "a denied user got a history limit"

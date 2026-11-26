@@ -6,6 +6,9 @@
 from __future__ import annotations
 
 import inspect
+from typing import TYPE_CHECKING
+
+import pytest
 
 from bot_obormot.services.chat import input as chat_input
 from bot_obormot.services.chat.input import (
@@ -15,23 +18,44 @@ from bot_obormot.services.chat.input import (
     prepare_message,
 )
 
-
-def test_new_chat_input_package_reexports_the_public_api() -> None:
-    assert chat_input.MessageInfo is MessageInfo
-    assert chat_input.PreparedMessage is PreparedMessage
-    expected_name = "inspect_message"
-    assert chat_input.inspect_message.__name__ == expected_name
-    expected_name = "prepare_message"
-    assert chat_input.prepare_message.__name__ == expected_name
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
-def test_public_api_keeps_original_function_signatures() -> None:
-    assert list(inspect.signature(inspect_message).parameters) == ["message"]
-    assert list(inspect.signature(prepare_message).parameters) == [
-        "message",
-        "info",
-        "text_override",
-        "settings",
-        "downloader",
-        "media_slots",
-    ]
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [("MessageInfo", MessageInfo), ("PreparedMessage", PreparedMessage)],
+)
+def test_reexports_the_public_models(name: str, expected: type) -> None:
+    exported = getattr(chat_input, name)
+    assert exported is expected, f"chat input does not reexport {name}"
+
+
+@pytest.mark.parametrize("name", ["inspect_message", "prepare_message"])
+def test_reexports_the_public_functions(name: str) -> None:
+    exported = getattr(chat_input, name)
+    assert exported.__name__ == name, f"chat input reexports another {name}"
+
+
+@pytest.mark.parametrize(
+    ("function", "expected"),
+    [
+        (inspect_message, ["message"]),
+        (
+            prepare_message,
+            [
+                "message",
+                "info",
+                "text_override",
+                "settings",
+                "downloader",
+                "media_slots",
+            ],
+        ),
+    ],
+)
+def test_keeps_the_original_function_signatures(
+    function: Callable[..., object], expected: list[str]
+) -> None:
+    parameters = list(inspect.signature(function).parameters)
+    assert parameters == expected, f"the signature of {function.__name__} changed"

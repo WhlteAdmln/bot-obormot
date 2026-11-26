@@ -35,8 +35,30 @@ def _edited_texts(session: FakeTelegramSession) -> list[str]:
     ]
 
 
+async def _fail_get_me(_bot: Bot) -> User:
+    msg = "Telegram unavailable"
+    raise RuntimeError(msg)
+
+
+async def _feed_health_with_failures(
+    access_database: AccessDatabase,
+    dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> FakeTelegramSession:
+    dispatcher, bot, session = dispatcher_runtime
+    access_database.scenario.failed_operation = "health_check"
+    monkeypatch.setattr(Bot, "get_me", _fail_get_me)
+    dispatcher.workflow_data["llm_client"] = FakeLLM((False, "Недоступен"))
+
+    await dispatcher.feed_update(
+        bot,
+        make_update(message=make_message(user_id=SUPERVISOR_ID, text="/health")),
+    )
+    return session
+
+
 @pytest.mark.asyncio
-async def test_health_reports_all_component_statuses(
+async def test_health_sends_a_progress_message(
     access_database: AccessDatabase,
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
@@ -44,8 +66,20 @@ async def test_health_reports_all_component_statuses(
 
     session = await feed_command(dispatcher_runtime, HISTORY_ADMIN_ID, "/health extra")
 
-    assert sent_texts(session) == ["🔎 Проверяю состояние компонентов..."]
-    assert _edited_texts(session) == [
+    expected_texts = ["🔎 Проверяю состояние компонентов..."]
+    assert sent_texts(session) == expected_texts, "progress message was not sent"
+
+
+@pytest.mark.asyncio
+async def test_health_reports_all_component_statuses(
+    access_database: AccessDatabase,
+    dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
+) -> None:
+    access_database.admin_ids = {HISTORY_ADMIN_ID}
+
+    session = await feed_command(dispatcher_runtime, HISTORY_ADMIN_ID, "/health now")
+
+    expected_texts = [
         (
             "🩺 <b>Состояние бота</b>\n\n"
             "🟢 Telegram API: Доступен\n"
@@ -53,6 +87,21 @@ async def test_health_reports_all_component_statuses(
             "🟢 Инференс: Доступен"
         )
     ]
+    assert _edited_texts(session) == expected_texts, "healthy report is wrong"
+
+
+@pytest.mark.asyncio
+async def test_health_sends_a_progress_message_when_components_fail(
+    access_database: AccessDatabase,
+    dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = await _feed_health_with_failures(
+        access_database, dispatcher_runtime, monkeypatch
+    )
+
+    expected_texts = ["🔎 Проверяю состояние компонентов..."]
+    assert sent_texts(session) == expected_texts, "progress message was not sent"
 
 
 @pytest.mark.asyncio
@@ -61,23 +110,11 @@ async def test_health_reports_failed_telegram_database_and_llm(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-
-    async def fail_get_me(_bot: Bot) -> User:
-        msg = "Telegram unavailable"
-        raise RuntimeError(msg)
-
-    dispatcher, bot, session = dispatcher_runtime
-    access_database.scenario.failed_operation = "health_check"
-    monkeypatch.setattr(Bot, "get_me", fail_get_me)
-    dispatcher.workflow_data["llm_client"] = FakeLLM((False, "Недоступен"))
-
-    await dispatcher.feed_update(
-        bot,
-        make_update(message=make_message(user_id=SUPERVISOR_ID, text="/health")),
+    session = await _feed_health_with_failures(
+        access_database, dispatcher_runtime, monkeypatch
     )
 
-    assert sent_texts(session) == ["🔎 Проверяю состояние компонентов..."]
-    assert _edited_texts(session) == [
+    expected_texts = [
         (
             "🩺 <b>Состояние бота</b>\n\n"
             "🔴 Telegram API: Недоступен\n"
@@ -85,6 +122,7 @@ async def test_health_reports_failed_telegram_database_and_llm(
             "🔴 Инференс: Недоступен"
         )
     ]
+    assert _edited_texts(session) == expected_texts, "failure report is wrong"
 
 
 @pytest.mark.asyncio
@@ -100,4 +138,7 @@ async def test_health_denies_user_when_admin_lookup_fails(
         "/health",
     )
 
-    assert sent_texts(session) == ["⚠️ Не удалось проверить права администратора."]
+    expected_texts = ["⚠️ Не удалось проверить права администратора."]
+    assert sent_texts(session) == expected_texts, (
+        "admin lookup failure was not reported"
+    )

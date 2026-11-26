@@ -23,4 +23,5 @@ def test_only_confirmed_parse_errors_are_entity_errors(
     *,
     expected: bool,
 ) -> None:
-    assert is_entity_parse_error(error) is expected
+    result = is_entity_parse_error(error)
+    assert result is expected, "the error was classified wrongly"

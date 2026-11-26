@@ -16,16 +16,14 @@ from tests.support.telegram import (
     FakeTelegramSession,
 )
 
-PROMPT_USER_ID = 555000000
-
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "case",
     [
-        (PROMPT_USER_ID, None, "📄 Стандартный", "Тестовый системный промпт"),
+        (555000000, None, "📄 Стандартный", "Тестовый системный промпт"),
         (
-            PROMPT_USER_ID + 1,
+            555000001,
             "Мой персональный промпт",
             "👤 Персональный",
             "Мой персональный промпт",
@@ -43,7 +41,7 @@ async def test_prompt_command_shows_the_effective_prompt(
 
     session = await feed_command(dispatcher_runtime, user_id, "/prompt extra")
 
-    assert sent_texts(session) == [
+    expected_texts = [
         (
             "Текущий системный промпт\n"
             f"Источник: {source}\n\n"
@@ -54,6 +52,7 @@ async def test_prompt_command_shows_the_effective_prompt(
             "/prompt_reset"
         )
     ]
+    assert sent_texts(session) == expected_texts, "the effective prompt differs"
 
 
 @pytest.mark.asyncio
@@ -61,16 +60,13 @@ async def test_prompt_command_truncates_a_long_effective_prompt(
     access_database: AccessDatabase,
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
+    user_id = 555000002
     access_database.default_system_prompt = "x" * 3501
 
-    session = await feed_command(
-        dispatcher_runtime,
-        PROMPT_USER_ID + 2,
-        "/prompt",
-    )
+    session = await feed_command(dispatcher_runtime, user_id, "/prompt")
 
     displayed_prompt = "x" * 3500 + "\n\n... (промпт сокращён при отображении)"
-    assert sent_texts(session) == [
+    expected_texts = [
         (
             "Текущий системный промпт\n"
             "Источник: 📄 Стандартный\n\n"
@@ -81,6 +77,7 @@ async def test_prompt_command_truncates_a_long_effective_prompt(
             "/prompt_reset"
         )
     ]
+    assert sent_texts(session) == expected_texts, "the long prompt was not truncated"
 
 
 @pytest.mark.asyncio
@@ -88,19 +85,22 @@ async def test_prompt_command_truncates_a_long_effective_prompt(
 async def test_prompt_set_starts_the_input_flow(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
+    user_id = 555000003
+
     session = await feed_command(
         dispatcher_runtime,
-        PROMPT_USER_ID + 3,
+        user_id,
         "/prompt_set extra arguments",
     )
 
-    assert sent_texts(session) == [
+    expected_texts = [
         (
             "✍️ Отправь следующим сообщением новый системный промпт.\n\n"
             "Максимальная длина — 4000 символов.\n"
             "Для отмены используй /cancel."
         )
     ]
+    assert sent_texts(session) == expected_texts, "the input flow did not start"
 
 
 @pytest.mark.asyncio
@@ -108,18 +108,27 @@ async def test_prompt_save_persists_the_new_personal_prompt(
     access_database: AccessDatabase,
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
-    user_id = PROMPT_USER_ID + 4
+    user_id = 555000004
+    new_prompt = "Новый системный промпт"
     await feed_command(dispatcher_runtime, user_id, "/prompt_set")
 
-    session = await feed_command(
-        dispatcher_runtime,
-        user_id,
-        "Новый системный промпт",
-    )
+    await feed_command(dispatcher_runtime, user_id, new_prompt)
 
-    expected_user_prompts = "Новый системный промпт"
-    assert access_database.user_prompts[user_id] == expected_user_prompts
-    assert sent_texts(session) == [
+    stored_prompt = access_database.user_prompts[user_id]
+    assert stored_prompt == new_prompt, "the personal prompt was not stored"
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("access_database")
+async def test_prompt_save_confirms_the_new_personal_prompt(
+    dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
+) -> None:
+    user_id = 555000013
+    await feed_command(dispatcher_runtime, user_id, "/prompt_set")
+
+    session = await feed_command(dispatcher_runtime, user_id, "Отвечай стихами")
+
+    expected_texts = [
         (
             "✍️ Отправь следующим сообщением новый системный промпт.\n\n"
             "Максимальная длина — 4000 символов.\n"
@@ -130,12 +139,26 @@ async def test_prompt_save_persists_the_new_personal_prompt(
             "Теперь он используется только в твоём чате."
         ),
     ]
+    assert sent_texts(session) == expected_texts, "the save was not confirmed"
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("access_database")
+async def test_prompt_save_deletes_the_input_messages(
+    dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
+) -> None:
+    user_id = 555000014
+    await feed_command(dispatcher_runtime, user_id, "/prompt_set")
+
+    session = await feed_command(dispatcher_runtime, user_id, "Be terse, please.")
+
+    expected_ids = [900, 1]
     deleted_ids = [
         request.message_id
         for request in session.requests
         if isinstance(request, DeleteMessage)
     ]
-    assert deleted_ids == [900, 1]
+    assert deleted_ids == expected_ids, "the input messages were not deleted"
 
 
 @pytest.mark.asyncio
@@ -143,9 +166,9 @@ async def test_prompt_save_persists_the_new_personal_prompt(
 @pytest.mark.parametrize(
     "case",
     [
-        (PROMPT_USER_ID + 5, "   ", "Промпт не может быть пустым. Попробуй ещё раз."),
+        (555000005, "   ", "Промпт не может быть пустым. Попробуй ещё раз."),
         (
-            PROMPT_USER_ID + 6,
+            555000006,
             "x" * 4001,
             "Промпт слишком длинный. Максимум 4000 символов.",
         ),
@@ -160,7 +183,7 @@ async def test_prompt_save_rejects_invalid_prompt_text(
 
     session = await feed_command(dispatcher_runtime, user_id, prompt_text)
 
-    assert sent_texts(session) == [
+    expected_texts = [
         (
             "✍️ Отправь следующим сообщением новый системный промпт.\n\n"
             "Максимальная длина — 4000 символов.\n"
@@ -168,6 +191,7 @@ async def test_prompt_save_rejects_invalid_prompt_text(
         ),
         expected_text,
     ]
+    assert sent_texts(session) == expected_texts, "the invalid prompt was accepted"
 
 
 @pytest.mark.asyncio
@@ -175,12 +199,12 @@ async def test_prompt_save_rejects_invalid_prompt_text(
     "case",
     [
         (
-            PROMPT_USER_ID + 7,
+            555000007,
             None,
             "ℹ️ У тебя уже используется стандартный системный промпт.",
         ),
         (
-            PROMPT_USER_ID + 8,
+            555000008,
             "Персональный промпт",
             (
                 "🔄 Персональный системный промпт удалён.\n"
@@ -204,8 +228,30 @@ async def test_prompt_reset_handles_personal_and_standard_prompts(
         "/prompt_reset extra",
     )
 
-    assert sent_texts(session) == [expected_text]
-    assert user_id not in access_database.user_prompts
+    expected_texts = [expected_text]
+    assert sent_texts(session) == expected_texts, "the reset reply differs"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "case",
+    [
+        (555000015, None),
+        (555000016, "Говори как пират"),
+    ],
+)
+async def test_prompt_reset_removes_the_personal_prompt(
+    access_database: AccessDatabase,
+    dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
+    case: tuple[int, str | None],
+) -> None:
+    user_id, personal_prompt = case
+    if personal_prompt is not None:
+        access_database.user_prompts[user_id] = personal_prompt
+
+    await feed_command(dispatcher_runtime, user_id, "/prompt_reset")
+
+    assert user_id not in access_database.user_prompts, "a personal prompt remains"
 
 
 @pytest.mark.asyncio
@@ -213,12 +259,12 @@ async def test_prompt_reset_handles_personal_and_standard_prompts(
 async def test_prompt_cancel_clears_the_input_flow(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
-    user_id = PROMPT_USER_ID + 9
+    user_id = 555000009
     await feed_command(dispatcher_runtime, user_id, "/prompt_set")
 
     session = await feed_command(dispatcher_runtime, user_id, "/cancel extra")
 
-    assert sent_texts(session) == [
+    expected_texts = [
         (
             "✍️ Отправь следующим сообщением новый системный промпт.\n\n"
             "Максимальная длина — 4000 символов.\n"
@@ -226,12 +272,26 @@ async def test_prompt_cancel_clears_the_input_flow(
         ),
         "❎ Ввод системного промпта отменён.",
     ]
+    assert sent_texts(session) == expected_texts, "the input flow was not cancelled"
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("access_database")
+async def test_prompt_cancel_deletes_the_input_messages(
+    dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
+) -> None:
+    user_id = 555000017
+    await feed_command(dispatcher_runtime, user_id, "/prompt_set")
+
+    session = await feed_command(dispatcher_runtime, user_id, "/cancel")
+
+    expected_ids = [900, 1]
     deleted_ids = [
         request.message_id
         for request in session.requests
         if isinstance(request, DeleteMessage)
     ]
-    assert deleted_ids == [900, 1]
+    assert deleted_ids == expected_ids, "the input messages were not deleted"
 
 
 @pytest.mark.asyncio
@@ -244,16 +304,15 @@ async def test_prompt_view_propagates_database_failures(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     failed_operation: str,
 ) -> None:
+    user_id = 555000010
     access_database.scenario.failed_operation = failed_operation
 
     with pytest.raises(RuntimeError, match="database unavailable"):
-        await feed_command(
-            dispatcher_runtime,
-            PROMPT_USER_ID + 10,
-            "/prompt",
-        )
+        await feed_command(dispatcher_runtime, user_id, "/prompt")
 
-    assert sent_texts(dispatcher_runtime[2]) == []
+    expected_empty: list[str] = []
+    sent = sent_texts(dispatcher_runtime[2])
+    assert sent == expected_empty, "a reply was sent after a database failure"
 
 
 @pytest.mark.asyncio
@@ -270,7 +329,7 @@ async def test_prompt_reset_propagates_database_failures(
     case: tuple[str, bool],
 ) -> None:
     failed_operation, has_personal_prompt = case
-    user_id = PROMPT_USER_ID + 11
+    user_id = 555000011
     if has_personal_prompt:
         access_database.user_prompts[user_id] = "Personal prompt"
     access_database.scenario.failed_operation = failed_operation
@@ -282,7 +341,9 @@ async def test_prompt_reset_propagates_database_failures(
             "/prompt_reset",
         )
 
-    assert sent_texts(dispatcher_runtime[2]) == []
+    expected_empty: list[str] = []
+    sent = sent_texts(dispatcher_runtime[2])
+    assert sent == expected_empty, "a reply was sent after a database failure"
 
 
 @pytest.mark.asyncio
@@ -290,7 +351,7 @@ async def test_prompt_save_propagates_database_failure(
     access_database: AccessDatabase,
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
-    user_id = PROMPT_USER_ID + 12
+    user_id = 555000012
     session = await feed_command(dispatcher_runtime, user_id, "/prompt_set")
     access_database.scenario.failed_operation = "set_system_prompt"
 
@@ -301,13 +362,14 @@ async def test_prompt_save_propagates_database_failure(
             "New prompt",
         )
 
-    assert sent_texts(session) == [
+    expected_texts = [
         (
             "✍️ Отправь следующим сообщением новый системный промпт.\n\n"
             "Максимальная длина — 4000 символов.\n"
             "Для отмены используй /cancel."
         )
     ]
+    assert sent_texts(session) == expected_texts, "a save was reported after failure"
 
 
 @pytest.mark.asyncio
@@ -315,9 +377,9 @@ async def test_prompt_save_propagates_database_failure(
 @pytest.mark.parametrize(
     "case",
     [
-        (PROMPT_USER_ID + 20, "/prompt"),
-        (PROMPT_USER_ID + 21, "/prompt_set"),
-        (PROMPT_USER_ID + 22, "/prompt_reset"),
+        (555000020, "/prompt"),
+        (555000021, "/prompt_set"),
+        (555000022, "/prompt_reset"),
     ],
 )
 async def test_prompt_commands_are_denied_without_access(
@@ -331,4 +393,5 @@ async def test_prompt_commands_are_denied_without_access(
 
     session = await feed_command(dispatcher_runtime, user_id, command_text)
 
-    assert sent_texts(session) == ["⛔ У тебя нет доступа к этому боту."]
+    expected_texts = ["⛔ У тебя нет доступа к этому боту."]
+    assert sent_texts(session) == expected_texts, "a user without access was served"

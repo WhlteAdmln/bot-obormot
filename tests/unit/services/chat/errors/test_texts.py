@@ -7,10 +7,17 @@ from bot_obormot.common.validation import MAX_INPUT_TEXT_LENGTH
 from bot_obormot.services.chat.errors import texts
 
 
-def test_user_facing_length_errors_use_configured_input_limit() -> None:
+def test_input_too_long_message_names_the_input_limit() -> None:
     expected_limit = str(MAX_INPUT_TEXT_LENGTH)
-    input_message = texts.input_too_long(Exception())
-    document_message = texts.document_too_long(Exception())
+    message = texts.input_too_long(ValueError("input of 99999 characters"))
+    assert expected_limit in message.replace(" ", ""), (
+        "the input error does not name the limit"
+    )
 
-    assert expected_limit in input_message.replace(" ", "")
-    assert expected_limit in document_message.replace(" ", "")
+
+def test_document_too_long_message_names_the_input_limit() -> None:
+    expected_limit = str(MAX_INPUT_TEXT_LENGTH)
+    message = texts.document_too_long(RuntimeError("document truncated"))
+    assert expected_limit in message.replace(" ", ""), (
+        "the document error does not name the limit"
+    )

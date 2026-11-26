@@ -6,51 +6,78 @@
 from pathlib import Path
 from zipfile import ZipFile
 
+import pytest
+
 from build import ProjectBuilder
 
 
-def test_wheel_contains_prompt_and_excludes_development_files(
-    tmp_path: Path,
-) -> None:
+@pytest.fixture(name="wheel_path")
+def fixture_wheel_path(tmp_path: Path) -> Path:
+    """Build the project wheel into a temporary directory."""
     project_root = Path(__file__).resolve().parents[3]
     wheel_directory = tmp_path / "wheel"
     wheel_directory.mkdir()
-
     wheel_name = ProjectBuilder(str(project_root)).build(
         "wheel",
         str(wheel_directory),
     )
+    return wheel_directory / wheel_name
 
-    with ZipFile(wheel_directory / wheel_name) as wheel:
-        members = wheel.namelist()
 
-        prompt_file = "bot_obormot/prompts/systemPrompt.md"
-        assert prompt_file in members
-        template_file = "bot_obormot/templates/env.example"
-        assert template_file in members
-        main_file = "bot_obormot/__main__.py"
-        assert main_file in members
-        assert not any(path.startswith(("tests/", "scripts/")) for path in members)
+def _members(wheel_path: Path) -> list[str]:
+    with ZipFile(wheel_path) as wheel:
+        return wheel.namelist()
 
-        entry_points = [
-            path for path in members if path.endswith(".dist-info/entry_points.txt")
-        ]
-        assert len(entry_points) == 1
-        entry_point = "bot-obormot = bot_obormot.cli:main"
-        assert entry_point in wheel.read(
-            entry_points[0],
-        ).decode("utf-8")
 
-        metadata_path = next(
-            path for path in members if path.endswith(".dist-info/METADATA")
-        )
-        metadata = wheel.read(metadata_path).decode("utf-8").lower()
-        runtime_dependencies = (
-            "aiogram",
-            "aiohttp",
-            "aiosqlite",
-            "python-dotenv",
-            "pillow",
-        )
-        for dependency in runtime_dependencies:
-            assert f"requires-dist: {dependency}" in metadata
+def _dist_info_text(wheel_path: Path, suffix: str) -> str:
+    with ZipFile(wheel_path) as wheel:
+        member = next(path for path in wheel.namelist() if path.endswith(suffix))
+        return wheel.read(member).decode("utf-8")
+
+
+@pytest.mark.parametrize(
+    "packaged_file",
+    [
+        "bot_obormot/prompts/systemPrompt.md",
+        "bot_obormot/templates/env.example",
+        "bot_obormot/__main__.py",
+    ],
+)
+def test_wheel_contains_runtime_file(wheel_path: Path, packaged_file: str) -> None:
+    assert packaged_file in _members(wheel_path), f"{packaged_file} is not packaged"
+
+
+def test_wheel_excludes_development_files(wheel_path: Path) -> None:
+    development_prefixes = ("tests/", "scripts/")
+    assert not any(
+        path.startswith(development_prefixes) for path in _members(wheel_path)
+    ), "wheel contains tests or scripts"
+
+
+def test_wheel_has_one_entry_points_file(wheel_path: Path) -> None:
+    entry_points_suffix = ".dist-info/entry_points.txt"
+    entry_points = [
+        path for path in _members(wheel_path) if path.endswith(entry_points_suffix)
+    ]
+    expected_count = 1
+    assert len(entry_points) == expected_count, "wrong number of entry point files"
+
+
+def test_wheel_declares_the_console_script(wheel_path: Path) -> None:
+    entry_points_suffix = ".dist-info/entry_points.txt"
+    entry_point = "bot-obormot = bot_obormot.cli:main"
+    assert entry_point in _dist_info_text(wheel_path, entry_points_suffix), (
+        "console script is not declared"
+    )
+
+
+@pytest.mark.parametrize(
+    "dependency",
+    ["aiogram", "aiohttp", "aiosqlite", "python-dotenv", "pillow"],
+)
+def test_wheel_requires_runtime_dependency(wheel_path: Path, dependency: str) -> None:
+    metadata_suffix = ".dist-info/METADATA"
+    metadata = _dist_info_text(wheel_path, metadata_suffix).lower()
+    assert f"requires-dist: {dependency}" in metadata, (
+        f"{dependency} is not a declared dependency"
+    )

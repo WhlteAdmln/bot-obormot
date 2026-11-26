@@ -12,38 +12,75 @@ from bot_obormot.services.chat.formatting import (
 )
 
 
-def test_markdown_splitter_reopens_fenced_code_in_every_part() -> None:
-    code = "\n".join(f"line{i}" for i in range(40))
+def _fenced_code_chunks(line_count: int, limit: int) -> list[str]:
+    code = "\n".join(f"line{index}" for index in range(line_count))
+    return split_markdown_message(f"текст\n\n```py\n{code}\n```", limit)
 
-    chunks = split_markdown_message(f"текст\n\n```py\n{code}\n```", 80)
+
+def test_markdown_splitter_splits_long_fenced_code_into_parts() -> None:
+    chunks = _fenced_code_chunks(40, 80)
 
     code_parts = [chunk for chunk in chunks if chunk.startswith("```py")]
-    assert len(code_parts) > 1
-    assert all(chunk.endswith("```") for chunk in code_parts)
-    expected_utf16_length = 80
-    assert all(utf16_length(chunk) <= expected_utf16_length for chunk in chunks)
+    minimum_parts = 2
+    assert len(code_parts) >= minimum_parts, "the fenced code was not split"
+
+
+def test_markdown_splitter_reopens_fenced_code_in_every_part() -> None:
+    chunks = _fenced_code_chunks(37, 80)
+
+    code_parts = [chunk for chunk in chunks if chunk.startswith("```py")]
+    unclosed = [chunk for chunk in code_parts if not chunk.endswith("```")]
+    expected_empty: list[str] = []
+    assert unclosed == expected_empty, "a code part was not closed"
+
+
+def test_markdown_splitter_keeps_fenced_code_parts_within_the_limit() -> None:
+    limit = 80
+    chunks = _fenced_code_chunks(43, limit)
+
+    oversized = [chunk for chunk in chunks if utf16_length(chunk) > limit]
+    expected_empty: list[str] = []
+    assert oversized == expected_empty, "a part exceeds the limit"
 
 
 def test_markdown_splitter_preserves_block_separators() -> None:
-    assert split_markdown_message("a\n\nb\n\n\nc", 100) == ["a\n\nb\n\n\nc"]
+    text = "a\n\nb\n\n\nc"
+
+    chunks = split_markdown_message(text, 100)
+
+    expected = [text]
+    assert chunks == expected, "the block separators changed"
 
 
 def test_plain_splitter_cuts_long_text_on_word_boundaries() -> None:
     chunks = split_plain_message("слово " * 10, 20)
 
-    assert chunks == ["слово слово слово"] * 3 + ["слово"]
+    expected = ["слово слово слово"] * 3 + ["слово"]
+    assert chunks == expected, "the text was not cut on word boundaries"
 
 
 def test_splitters_reject_invalid_limit() -> None:
-    with pytest.raises(ValueError, match="greater than zero"):
+    with pytest.raises(ValueError, match="greater than zero") as excinfo:
         split_markdown_message("text", 0)
 
+    assert excinfo.type is ValueError, "a zero limit was accepted"
 
-def test_plain_splitter_does_not_treat_fences_as_code() -> None:
+
+def test_plain_splitter_returns_parts_for_fenced_text() -> None:
     text = "```\n" + "слово " * 10 + "\n```"
 
     chunks = split_plain_message(text, 20)
 
-    assert chunks
-    expected_utf16_length = 20
-    assert all(utf16_length(chunk) <= expected_utf16_length for chunk in chunks)
+    expected_empty: list[str] = []
+    assert chunks != expected_empty, "fenced text produced no parts"
+
+
+def test_plain_splitter_does_not_treat_fences_as_code() -> None:
+    limit = 20
+    text = "```\n" + "буква " * 11 + "\n```"
+
+    chunks = split_plain_message(text, limit)
+
+    oversized = [chunk for chunk in chunks if utf16_length(chunk) > limit]
+    expected_empty: list[str] = []
+    assert oversized == expected_empty, "a part exceeds the limit"

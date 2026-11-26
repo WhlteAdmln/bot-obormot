@@ -32,10 +32,11 @@ from bot_obormot.services.chat.formatting import (
     ],
 )
 def test_markdown_is_converted_to_markdown_v2(text: str, expected: str) -> None:
-    assert to_markdown_v2(text) == expected
+    result = to_markdown_v2(text)
+    assert result == expected, "the markdown was converted wrongly"
 
 
 def test_code_block_content_is_not_interpreted_as_markup() -> None:
     text = "```\n**не жирный** _не курсив_ # не заголовок\n```"
-
-    assert to_markdown_v2(text) == text
+    result = to_markdown_v2(text)
+    assert result == text, "the code block content was changed"

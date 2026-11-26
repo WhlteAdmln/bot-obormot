@@ -27,8 +27,7 @@ async def running_server(app: web.Application) -> AsyncIterator[str]:
 
 def _with_token_counting(settings: Settings, mode: str) -> Settings:
     """Return settings with the requested token counting mode."""
-    changes = {"LLM_TOKEN_COUNTING": mode}
-    return replace(settings, **changes)
+    return replace(settings, LLM_TOKEN_COUNTING=mode)
 
 
 @pytest.fixture(name="openai_settings")
@@ -46,9 +45,12 @@ def fixture_openai_settings() -> Settings:
     )
 
 
-def make_openai_only_app() -> tuple[object, ...]:
-    """Make openai only app."""
-    requests = []
+def make_openai_only_app() -> tuple[
+    web.Application, list[tuple[str, str]], list[dict[str, object]]
+]:
+    """Make an OpenAI-only app that records requests and chat payloads."""
+    requests: list[tuple[str, str]] = []
+    payloads: list[dict[str, object]] = []
     app = web.Application()
 
     async def models(_request: web.Request) -> web.Response:
@@ -57,16 +59,13 @@ def make_openai_only_app() -> tuple[object, ...]:
             {"object": "list", "data": [{"id": "test-model", "object": "model"}]}
         )
 
-    async def unsupported(request: web.Request) -> None:
+    async def unsupported(request: web.Request) -> web.Response:
         requests.append((request.method, request.path))
         raise web.HTTPNotFound
 
     async def chat_completions(request: web.Request) -> web.StreamResponse:
         requests.append(("POST", "/v1/chat/completions"))
-        payload = await request.json()
-        expected_model = "test-model"
-        assert payload["model"] == expected_model
-        assert payload["stream"] is True
+        payloads.append(await request.json())
         response = web.StreamResponse(
             status=200,
             headers={"Content-Type": "text/event-stream"},
@@ -86,24 +85,21 @@ def make_openai_only_app() -> tuple[object, ...]:
     app.router.add_post("/tokenize", unsupported)
     app.router.add_post("/apply-template", unsupported)
     app.router.add_post("/v1/chat/completions", chat_completions)
-    return app, requests
+    return app, requests, payloads
 
 
-@pytest.mark.asyncio
-async def test_openai_compatible_server_works_without_llama_endpoints(
+async def _run_openai_scenario(
     openai_settings: Settings,
-) -> None:
-    app, requests = make_openai_only_app()
+) -> tuple[dict[str, object], list[tuple[str, str]], list[dict[str, object]]]:
+    """Run every client call against the OpenAI-only server."""
+    app, requests, payloads = make_openai_only_app()
+    results: dict[str, object] = {}
     async with running_server(app) as base_url:
         settings = replace(openai_settings, LLM_BASE_URL=f"{base_url}/v1")
         async with open_llm_client(settings) as client:
-            expected_number = 8192
-            assert await client.get_context_size() == expected_number
-            expected_text = "estimate"
-            assert await client.get_token_counting_mode() == expected_text
-            expected_number = 2
-            assert await client.count_text_tokens("Привет") == expected_number
-
+            results["context_size"] = await client.get_context_size()
+            results["mode"] = await client.get_token_counting_mode()
+            results["text_tokens"] = await client.count_text_tokens("Привет")
             messages = await client.fit_messages_to_context(
                 "system prompt",
                 [
@@ -112,30 +108,16 @@ async def test_openai_compatible_server_works_without_llama_endpoints(
                 ],
                 "current question",
             )
-            assert [message["role"] for message in messages] == [
-                "system",
-                "user",
-                "assistant",
-                "user",
-            ]
-
-            response = "".join([chunk async for chunk in client.stream(messages)])
-            expected_response = "Hello, world!"
-            assert response == expected_response
-            assert await client.health_check() == (True, "Доступен")
-
-    assert ("POST", "/v1/chat/completions") in requests
-    assert ("GET", "/v1/models") in requests
-    assert ("POST", "/tokenize") in requests
-    assert ("POST", "/apply-template") not in requests
-    assert ("GET", "/props") not in requests
+            results["roles"] = [message["role"] for message in messages]
+            chunks = [chunk async for chunk in client.stream(messages)]
+            results["response"] = "".join(chunks)
+            results["health"] = await client.health_check()
+    return results, requests, payloads
 
 
-@pytest.mark.asyncio
-async def test_auto_mode_keeps_llamacpp_tokenization_when_available(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    requests = []
+def make_llamacpp_app() -> tuple[web.Application, list[tuple[str, str]]]:
+    """Make a llama.cpp app that records requests."""
+    requests: list[tuple[str, str]] = []
     app = web.Application()
 
     async def props(_request: web.Request) -> web.Response:
@@ -145,8 +127,8 @@ async def test_auto_mode_keeps_llamacpp_tokenization_when_available(
     async def tokenize(request: web.Request) -> web.Response:
         requests.append(("POST", "/tokenize"))
         payload = await request.json()
-        expected_content = "rendered"
-        count = 2 if payload["content"] == expected_content else 3
+        rendered_prompt = "rendered"
+        count = 2 if payload["content"] == rendered_prompt else 3
         return web.json_response({"tokens": list(range(count))})
 
     async def apply_template(_request: web.Request) -> web.Response:
@@ -161,77 +143,194 @@ async def test_auto_mode_keeps_llamacpp_tokenization_when_available(
     app.router.add_post("/tokenize", tokenize)
     app.router.add_post("/apply-template", apply_template)
     app.router.add_get("/health", health)
+    return app, requests
 
+
+async def _run_llamacpp_scenario() -> tuple[dict[str, object], list[tuple[str, str]]]:
+    """Run the auto-mode client calls against the llama.cpp server."""
+    app, requests = make_llamacpp_app()
     settings = _with_token_counting(
-        replace(
-            Settings(),
-            LLM_CONTEXT_SIZE=None,
-            LLM_BASE_URL="",
-            LLM_MODEL="test-model",
-        ),
-        "auto",
+        replace(Settings(), LLM_CONTEXT_SIZE=None, LLM_MODEL="test-model"), "auto"
     )
-
+    results: dict[str, object] = {}
     async with running_server(app) as base_url:
         settings = replace(settings, LLM_BASE_URL=f"{base_url}/v1")
         async with open_llm_client(settings) as client:
-            monkeypatch.setattr(client, "_server_url", lambda: base_url)
-            expected_number = 4096
-            assert await client.get_context_size() == expected_number
-            expected_number = 2
-            assert (
-                await client.count_tokens([{"role": "user", "content": "hi"}])
-                == expected_number
+            results["context_size"] = await client.get_context_size()
+            results["tokens"] = await client.count_tokens(
+                [{"role": "user", "content": "hi"}]
             )
-            expected_text = "llamacpp"
-            assert await client.get_token_counting_mode() == expected_text
-            assert await client.health_check() == (True, "Доступен")
+            results["mode"] = await client.get_token_counting_mode()
+            results["health"] = await client.health_check()
+    return results, requests
 
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("key", "expected"),
+    [
+        ("context_size", 8192),
+        ("mode", "estimate"),
+        ("text_tokens", 2),
+        ("roles", ["system", "user", "assistant", "user"]),
+        ("response", "Hello, world!"),
+        ("health", (True, "Доступен")),
+    ],
+)
+async def test_openai_compatible_server_works_without_llama_endpoints(
+    openai_settings: Settings, key: str, expected: object
+) -> None:
+    results, _requests, _payloads = await _run_openai_scenario(openai_settings)
+    assert results[key] == expected, f"{key} is wrong on an OpenAI-only server"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "request_line",
+    [("POST", "/v1/chat/completions"), ("GET", "/v1/models"), ("POST", "/tokenize")],
+)
+async def test_openai_compatible_server_receives_the_expected_requests(
+    openai_settings: Settings, request_line: tuple[str, str]
+) -> None:
+    _results, requests, _payloads = await _run_openai_scenario(openai_settings)
+    assert request_line in requests, f"{request_line} was not requested"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "request_line", [("POST", "/apply-template"), ("GET", "/props")]
+)
+async def test_openai_compatible_server_skips_llama_only_requests(
+    openai_settings: Settings, request_line: tuple[str, str]
+) -> None:
+    _results, requests, _payloads = await _run_openai_scenario(openai_settings)
+    assert request_line not in requests, f"{request_line} was requested"
+
+
+@pytest.mark.asyncio
+async def test_openai_compatible_stream_sends_the_configured_model(
+    openai_settings: Settings,
+) -> None:
+    expected_model = "test-model"
+    _results, _requests, payloads = await _run_openai_scenario(openai_settings)
+    (payload,) = payloads
+    assert payload["model"] == expected_model, "the stream used another model"
+
+
+@pytest.mark.asyncio
+async def test_openai_compatible_stream_requests_streaming(
+    openai_settings: Settings,
+) -> None:
+    _results, _requests, payloads = await _run_openai_scenario(openai_settings)
+    (payload,) = payloads
+    assert payload["stream"] is True, "the chat request is not streaming"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("key", "expected"),
+    [
+        ("context_size", 4096),
+        ("tokens", 2),
+        ("mode", "llamacpp"),
+        ("health", (True, "Доступен")),
+    ],
+)
+async def test_auto_mode_keeps_llamacpp_tokenization_when_available(
+    key: str, expected: object
+) -> None:
+    results, _requests = await _run_llamacpp_scenario()
+    assert results[key] == expected, f"{key} is wrong on a llama.cpp server"
+
+
+@pytest.mark.asyncio
+async def test_auto_mode_tokenizes_twice_on_a_llamacpp_server() -> None:
     expected_count = 2
-    assert requests.count(("POST", "/tokenize")) == expected_count
-    assert ("POST", "/apply-template") in requests
+    _results, requests = await _run_llamacpp_scenario()
+    tokenize_count = requests.count(("POST", "/tokenize"))
+    assert tokenize_count == expected_count, "the tokenize count is wrong"
+
+
+@pytest.mark.asyncio
+async def test_auto_mode_applies_the_llamacpp_chat_template() -> None:
+    request_line = ("POST", "/apply-template")
+    _results, requests = await _run_llamacpp_scenario()
+    assert request_line in requests, "the chat template was not applied"
+
+
+@pytest.mark.asyncio
+async def test_health_check_reports_available_for_unexpected_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {"status": "error", "details": "private prompt content"}
+    fake_session = FakeSession([FakeResponse(payload), FakeResponse({"data": []})])
+    client = make_client(monkeypatch, fake_session)
+    expected_result = (True, "Доступен")
+
+    result = await client.health_check()
+
+    assert result == expected_result, "the health check result is wrong"
 
 
 @pytest.mark.asyncio
 async def test_health_check_does_not_return_raw_unexpected_server_payload(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    payload = {"status": "error", "details": "private prompt content"}
+    prompt_text = "secret user draft 42"
+    payload = {"status": "failed", "details": prompt_text}
     fake_session = FakeSession([FakeResponse(payload), FakeResponse({"data": []})])
     client = make_client(monkeypatch, fake_session)
 
-    result = await client.health_check()
+    _available, message = await client.health_check()
 
-    assert result == (True, "Доступен")
-    prompt_text = "private prompt content"
-    assert prompt_text not in result[1]
+    assert prompt_text not in message, "the raw server payload leaked"
 
 
-def test_llm_client_exposes_public_methods() -> None:
+@pytest.mark.parametrize("name", ["count_tokens", "fit_messages_to_context", "stream"])
+def test_llm_client_exposes_public_methods(name: str) -> None:
     client = LLMClient()
-    assert callable(client.count_tokens)
-    assert callable(client.fit_messages_to_context)
-    assert callable(client.stream)
+    assert callable(getattr(client, name)), f"{name} is not a public method"
 
 
-def test_client_resolves_process_settings_lazily(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    settings = replace(Settings(), LLM_BASE_URL="http://localhost:8080/v1")
-    calls = 0
+def _counting_loader(monkeypatch: pytest.MonkeyPatch, base_url: str) -> list[Settings]:
+    """Patch the settings loader and return the list of its results."""
+    settings = replace(Settings(), LLM_BASE_URL=base_url)
+    calls: list[Settings] = []
 
     def load_settings() -> Settings:
-        nonlocal calls
-        calls += 1
+        calls.append(settings)
         return settings
 
     monkeypatch.setattr("bot_obormot.services.llm.client.get_settings", load_settings)
-    client = LLMClient()
+    return calls
 
-    assert calls == 0
-    expected_get_server_url = "http://localhost:8080"
-    assert client.get_server_url() == expected_get_server_url
-    assert calls == 1
+
+def test_client_does_not_load_settings_on_creation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _counting_loader(monkeypatch, "http://localhost:8080/v1")
+    LLMClient()
+    expected_empty: list[Settings] = []
+    assert calls == expected_empty, "the settings were loaded eagerly"
+
+
+def test_client_resolves_the_server_url_from_process_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _counting_loader(monkeypatch, "http://10.1.2.3:9191/v1")
+    client = LLMClient()
+    expected_server_url = "http://10.1.2.3:9191"
+    assert client.get_server_url() == expected_server_url, "the server URL is wrong"
+
+
+def test_client_loads_process_settings_once_on_first_use(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _counting_loader(monkeypatch, "http://llm.local:8000/v1")
+    client = LLMClient()
+    client.get_server_url()
+    expected_count = 1
+    assert len(calls) == expected_count, "the settings were not loaded exactly once"
 
 
 def test_client_exposes_message_normalization_and_counting_helpers() -> None:
@@ -256,7 +355,7 @@ async def test_close_without_open_session_is_safe() -> None:
 
     await client.close()
 
-    assert client.session is None
+    assert client.session is None, "close opened a session"
 
 
 def test_client_prepares_messages_like_the_messages_module() -> None:

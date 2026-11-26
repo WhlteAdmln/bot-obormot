@@ -6,6 +6,7 @@
 import asyncio
 import logging
 import os
+from collections.abc import Iterable
 from types import SimpleNamespace
 
 import pytest
@@ -15,6 +16,7 @@ import bot_obormot.main as main_module
 from bot_obormot.app import bootstrap, lifecycle
 from bot_obormot.app.background import image_cleanup
 from bot_obormot.middlewares.access import AccessMiddleware
+from bot_obormot.middlewares.correlation_id import CorrelationIdMiddleware
 from bot_obormot.middlewares.temporary_messages import (
     TemporaryMessagesCleanupMiddleware,
 )
@@ -29,154 +31,244 @@ from tests.support.lifecycle import (
 )
 from tests.support.settings import make_settings
 
-SETTINGS = make_settings()
+
+def _identities(values: Iterable[object]) -> list[int]:
+    """Return the identities of the values, to compare objects by identity."""
+    return [id(value) for value in values]
 
 
-def test_dispatcher_registers_middlewares_and_routers_once_in_original_order(
+@pytest.fixture(name="settings")
+def fixture_settings() -> Settings:
+    """Return valid settings for one test."""
+    return make_settings()
+
+
+@pytest.fixture(name="configured")
+def fixture_configured(
     monkeypatch: pytest.MonkeyPatch,
-) -> None:
+    settings: Settings,
+) -> SimpleNamespace:
+    """Configure a recording dispatcher with stand-in routers."""
     router_refs = {name: object() for name in ("start", "admin", "routers", "chat")}
     for name, router in router_refs.items():
         monkeypatch.setattr(app_routers, name, SimpleNamespace(router=router))
-
     dispatcher = FakeRouterDispatcher()
     llm_client = FakeLifecycleLLM([])
     message_aggregator = MessageAggregator()
     database = object()
-    configured = app_routers.configure_dispatcher(
+    result = app_routers.configure_dispatcher(
         dispatcher,
-        SETTINGS,
+        settings,
         llm_client,
         message_aggregator,
         database,
     )
-
-    assert configured is dispatcher
-    assert dispatcher.workflow_data["settings"] is SETTINGS
-    assert dispatcher.workflow_data["llm_client"] is llm_client
-    runtime = dispatcher.workflow_data["chat_runtime"]
-    assert runtime.message_aggregator is message_aggregator
-    assert dispatcher.workflow_data["database"] is database
-    expected_count = 3
-    assert len(dispatcher.middleware_calls) == expected_count
-    assert isinstance(dispatcher.middleware_calls[0], ThrottleMiddleware)
-    assert isinstance(dispatcher.middleware_calls[1], AccessMiddleware)
-    assert isinstance(
-        dispatcher.middleware_calls[2], TemporaryMessagesCleanupMiddleware
+    return SimpleNamespace(
+        result=result,
+        dispatcher=dispatcher,
+        settings=settings,
+        llm_client=llm_client,
+        message_aggregator=message_aggregator,
+        database=database,
+        router_refs=router_refs,
     )
-    assert dispatcher.routers == [
-        router_refs["start"],
-        router_refs["admin"],
-        router_refs["routers"],
-        router_refs["chat"],
+
+
+def test_configure_dispatcher_returns_the_given_dispatcher(
+    configured: SimpleNamespace,
+) -> None:
+    assert configured.result is configured.dispatcher, "another dispatcher returned"
+
+
+@pytest.mark.parametrize("key", ["settings", "llm_client", "database"])
+def test_configure_dispatcher_stores_dependency_in_workflow_data(
+    configured: SimpleNamespace,
+    key: str,
+) -> None:
+    stored = configured.dispatcher.workflow_data[key]
+    assert stored is getattr(configured, key), f"workflow data holds another {key}"
+
+
+def test_configure_dispatcher_gives_handlers_the_message_aggregator(
+    configured: SimpleNamespace,
+) -> None:
+    runtime = configured.dispatcher.workflow_data["chat_runtime"]
+    expected = configured.message_aggregator
+    assert runtime.message_aggregator is expected, "handlers got another aggregator"
+
+
+def test_configure_dispatcher_registers_middlewares_once_in_original_order(
+    configured: SimpleNamespace,
+) -> None:
+    expected_types = [
+        ThrottleMiddleware,
+        AccessMiddleware,
+        TemporaryMessagesCleanupMiddleware,
     ]
+    registered = [type(item) for item in configured.dispatcher.middleware_calls]
+    assert registered == expected_types, "middlewares differ in kind or order"
 
 
-def test_configure_dispatcher_shares_given_user_locks_with_handlers() -> None:
+def test_configure_dispatcher_includes_routers_once_in_original_order(
+    configured: SimpleNamespace,
+) -> None:
+    refs = configured.router_refs
+    expected_routers = [refs["start"], refs["admin"], refs["routers"], refs["chat"]]
+    routers = configured.dispatcher.routers
+    assert routers == expected_routers, "routers differ in identity or order"
+
+
+def test_configure_dispatcher_shares_given_user_locks_with_handlers(
+    settings: Settings,
+) -> None:
     dispatcher = FakeRouterDispatcher()
     user_locks = UserLocks()
 
-    app_routers.configure_dispatcher(dispatcher, SETTINGS, user_locks=user_locks)
+    app_routers.configure_dispatcher(dispatcher, settings, user_locks=user_locks)
 
     stored = dispatcher.workflow_data["chat_runtime"].user_locks
     assert stored is user_locks, "handlers must receive the user locks of the app"
 
 
-def test_configure_dispatcher_creates_user_locks_when_none_is_given() -> None:
+def test_configure_dispatcher_creates_user_locks_when_none_is_given(
+    settings: Settings,
+) -> None:
     dispatcher = FakeRouterDispatcher()
 
-    app_routers.configure_dispatcher(dispatcher, SETTINGS)
+    app_routers.configure_dispatcher(dispatcher, settings)
 
     stored = dispatcher.workflow_data["chat_runtime"].user_locks
     assert isinstance(stored, UserLocks), "handlers must always receive user locks"
 
 
-def test_configure_dispatcher_gives_each_dispatcher_its_own_downloader() -> None:
+def test_configure_dispatcher_gives_each_dispatcher_its_own_downloader(
+    settings: Settings,
+) -> None:
     first = FakeRouterDispatcher()
     second = FakeRouterDispatcher()
 
-    app_routers.configure_dispatcher(first, SETTINGS)
-    app_routers.configure_dispatcher(second, SETTINGS)
+    app_routers.configure_dispatcher(first, settings)
+    app_routers.configure_dispatcher(second, settings)
 
     first_downloader = first.workflow_data["chat_runtime"].downloader
     second_downloader = second.workflow_data["chat_runtime"].downloader
     assert first_downloader is not second_downloader, "bots must not share slots"
 
 
-def test_configure_dispatcher_gives_each_dispatcher_its_own_media_slots() -> None:
+def test_configure_dispatcher_gives_each_dispatcher_its_own_media_slots(
+    settings: Settings,
+) -> None:
     first = FakeRouterDispatcher()
     second = FakeRouterDispatcher()
 
-    app_routers.configure_dispatcher(first, SETTINGS)
-    app_routers.configure_dispatcher(second, SETTINGS)
+    app_routers.configure_dispatcher(first, settings)
+    app_routers.configure_dispatcher(second, settings)
 
     first_slots = first.workflow_data["chat_runtime"].media_slots
     second_slots = second.workflow_data["chat_runtime"].media_slots
     assert first_slots is not second_slots, "bots must not share media slots"
 
 
-def test_periodic_cleanup_uses_existing_policy_and_propagates_cancellation(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls: list[dict[str, object]] = []
+def _run_one_cleanup_iteration(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
+    """Run the periodic cleanup until its first sleep and record what it did."""
+    record = SimpleNamespace(calls=[], delays=[])
 
     async def cleanup_old_images(**kwargs: object) -> dict[str, object]:
-        calls.append(kwargs)
+        record.calls.append(kwargs)
         return {"old_images": 1, "orphan_images": 2, "failed": 0}
 
-    database = SimpleNamespace(cleanup_old_images=cleanup_old_images)
-
-    async def stop_after_first_iteration(_delay: object) -> None:
+    async def stop_after_first_iteration(delay: object) -> None:
+        record.delays.append(delay)
         raise asyncio.CancelledError
 
+    database = SimpleNamespace(cleanup_old_images=cleanup_old_images)
     monkeypatch.setattr(image_cleanup.asyncio, "sleep", stop_after_first_iteration)
-
-    with pytest.raises(asyncio.CancelledError):
+    with pytest.raises(asyncio.CancelledError) as excinfo:
         asyncio.run(image_cleanup.periodic_image_cleanup(database))
+    record.error_type = excinfo.type
+    return record
 
-    assert calls == [{"retention_days": 30, "orphan_grace_hours": 24}]
-    assert image_cleanup.IMAGE_CLEANUP_INTERVAL == 24 * 60 * 60
 
-
-def test_periodic_cleanup_continues_after_database_error(
+def test_periodic_cleanup_uses_existing_retention_policy(
     monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    calls: list[dict[str, object]] = []
-    sleep_calls = 0
+    expected_calls = [{"retention_days": 30, "orphan_grace_hours": 24}]
+    record = _run_one_cleanup_iteration(monkeypatch)
+    assert record.calls == expected_calls, "cleanup used another retention policy"
+
+
+def test_periodic_cleanup_waits_one_day_between_runs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected_delays = [24 * 60 * 60]
+    record = _run_one_cleanup_iteration(monkeypatch)
+    assert record.delays == expected_delays, "cleanup waits another interval"
+
+
+def test_periodic_cleanup_interval_is_one_day() -> None:
+    one_day = 24 * 60 * 60
+    interval = image_cleanup.IMAGE_CLEANUP_INTERVAL
+    assert interval == one_day, "the cleanup interval is not one day"
+
+
+def test_periodic_cleanup_propagates_cancellation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    record = _run_one_cleanup_iteration(monkeypatch)
+    assert record.error_type is asyncio.CancelledError, "cancellation was swallowed"
+
+
+def _run_cleanup_with_one_failure(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
+    """Run the periodic cleanup whose first run fails, until its second sleep."""
+    record = SimpleNamespace(calls=[], sleep_calls=0)
+    expected_sleep_calls = 2
 
     async def cleanup_old_images(**kwargs: object) -> dict[str, object]:
-        calls.append(kwargs)
-        if len(calls) == 1:
+        record.calls.append(kwargs)
+        if len(record.calls) == 1:
             msg = "temporary database failure"
             raise RuntimeError(msg)
         return {"old_images": 0, "orphan_images": 0, "failed": 0}
 
-    database = SimpleNamespace(cleanup_old_images=cleanup_old_images)
-
     async def stop_after_retry(_delay: object) -> None:
-        nonlocal sleep_calls
-        sleep_calls += 1
-        expected_sleep_calls = 2
-        if sleep_calls == expected_sleep_calls:
+        record.sleep_calls += 1
+        if record.sleep_calls == expected_sleep_calls:
             raise asyncio.CancelledError
 
+    database = SimpleNamespace(cleanup_old_images=cleanup_old_images)
     monkeypatch.setattr(image_cleanup.asyncio, "sleep", stop_after_retry)
-
-    with (
-        caplog.at_level(logging.ERROR, logger="bot_obormot.main"),
-        pytest.raises(asyncio.CancelledError),
-    ):
+    with pytest.raises(asyncio.CancelledError):
         asyncio.run(image_cleanup.periodic_image_cleanup(database))
+    return record
 
-    assert calls == [
+
+def test_periodic_cleanup_retries_after_database_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected_calls = [
         {"retention_days": 30, "orphan_grace_hours": 24},
         {"retention_days": 30, "orphan_grace_hours": 24},
     ]
+    record = _run_cleanup_with_one_failure(monkeypatch)
+    assert record.calls == expected_calls, "cleanup did not run again after an error"
+
+
+def test_periodic_cleanup_keeps_sleeping_after_database_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     expected_sleep_calls = 2
-    assert sleep_calls == expected_sleep_calls
+    record = _run_cleanup_with_one_failure(monkeypatch)
+    assert record.sleep_calls == expected_sleep_calls, "cleanup stopped sleeping"
+
+
+def test_periodic_cleanup_logs_database_error(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     cleanup_error = "Scheduled image cleanup failed"
-    assert cleanup_error in caplog.text
+    with caplog.at_level(logging.ERROR, logger="bot_obormot.main"):
+        _run_cleanup_with_one_failure(monkeypatch)
+    assert cleanup_error in caplog.text, "the cleanup error was not logged"
 
 
 @pytest.fixture(name="harness")
@@ -185,8 +277,8 @@ def fixture_harness(monkeypatch: pytest.MonkeyPatch) -> LifecycleHarness:
     result = LifecycleHarness()
 
     async def fake_periodic_cleanup(database: object) -> None:
-        assert database is result.database
-        result.calls.append("cleanup.start")
+        own_database = database is result.database
+        result.calls.append("cleanup.start" if own_database else "cleanup.foreign")
         try:
             await asyncio.Future()
         finally:
@@ -203,16 +295,7 @@ def fixture_harness(monkeypatch: pytest.MonkeyPatch) -> LifecycleHarness:
 def test_lifecycle_preserves_startup_polling_and_shutdown_order(
     harness: LifecycleHarness,
 ) -> None:
-    asyncio.run(
-        lifecycle.run_application(
-            harness.bot,
-            harness.dispatcher,
-            harness.llm,
-            harness.database,
-        )
-    )
-
-    assert harness.calls == [
+    expected_calls = [
         "database.connect",
         "llm.start",
         "polling",
@@ -223,11 +306,29 @@ def test_lifecycle_preserves_startup_polling_and_shutdown_order(
         "telegram.close",
     ]
 
+    asyncio.run(
+        lifecycle.run_application(
+            harness.bot,
+            harness.dispatcher,
+            harness.llm,
+            harness.database,
+        )
+    )
+
+    assert harness.calls == expected_calls, "lifecycle steps ran in another order"
+
 
 def test_lifecycle_closes_database_and_resources_when_llm_startup_fails(
     harness: LifecycleHarness,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    expected_calls = [
+        "database.connect",
+        "llm.start",
+        "database.close",
+        "llm.close",
+        "telegram.close",
+    ]
 
     async def fail_start() -> None:
         harness.calls.append("llm.start")
@@ -246,18 +347,13 @@ def test_lifecycle_closes_database_and_resources_when_llm_startup_fails(
             )
         )
 
-    assert harness.calls == [
-        "database.connect",
-        "llm.start",
-        "database.close",
-        "llm.close",
-        "telegram.close",
-    ]
+    assert harness.calls == expected_calls, "resources were not closed after failure"
 
 
 def test_lifecycle_closes_remaining_resources_when_database_startup_fails(
     harness: LifecycleHarness,
 ) -> None:
+    expected_calls = ["database.connect", "llm.close", "telegram.close"]
     harness.database.fail_on_enter = True
 
     with pytest.raises(RuntimeError, match="application database unavailable"):
@@ -270,17 +366,14 @@ def test_lifecycle_closes_remaining_resources_when_database_startup_fails(
             )
         )
 
-    assert harness.calls == [
-        "database.connect",
-        "llm.close",
-        "telegram.close",
-    ]
+    assert harness.calls == expected_calls, "remaining resources were not closed"
 
 
 def test_lifecycle_continues_closing_after_one_cleanup_error(
     harness: LifecycleHarness,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    expected_tail = ["llm.close", "telegram.close"]
 
     async def fail_llm_close() -> None:
         harness.calls.append("llm.close")
@@ -298,13 +391,14 @@ def test_lifecycle_continues_closing_after_one_cleanup_error(
         )
     )
 
-    assert harness.calls[-2:] == ["llm.close", "telegram.close"]
+    assert harness.calls[-2:] == expected_tail, "closing stopped after an error"
 
 
-def test_lifecycle_cancels_running_request_and_background_task_on_shutdown(
+def _cancel_running_application(
     harness: LifecycleHarness,
     monkeypatch: pytest.MonkeyPatch,
-) -> None:
+) -> asyncio.Event:
+    """Cancel the application while a request is running; return its cancel flag."""
     request_started = asyncio.Event()
     request_cancelled = asyncio.Event()
 
@@ -331,14 +425,26 @@ def test_lifecycle_cancels_running_request_and_background_task_on_shutdown(
         )
         await request_started.wait()
         application_task.cancel()
-
         with pytest.raises(asyncio.CancelledError):
             await application_task
 
     asyncio.run(cancel_application())
+    return request_cancelled
 
-    assert request_cancelled.is_set()
-    assert harness.calls == [
+
+def test_lifecycle_cancels_running_request_on_shutdown(
+    harness: LifecycleHarness,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_cancelled = _cancel_running_application(harness, monkeypatch)
+    assert request_cancelled.is_set(), "the running request was not cancelled"
+
+
+def test_lifecycle_stops_background_task_and_closes_resources_on_shutdown(
+    harness: LifecycleHarness,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected_calls = [
         "database.connect",
         "llm.start",
         "polling",
@@ -349,6 +455,8 @@ def test_lifecycle_cancels_running_request_and_background_task_on_shutdown(
         "llm.close",
         "telegram.close",
     ]
+    _cancel_running_application(harness, monkeypatch)
+    assert harness.calls == expected_calls, "shutdown steps ran in another order"
 
 
 def _patch_main_components(
@@ -380,47 +488,58 @@ def _patch_main_components(
     )
 
 
-def test_bootstrap_main_loads_env_and_passes_settings_down(
+@pytest.fixture(name="main_run")
+def fixture_main_run(
     monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls: list[object] = []
-    bot_instance = object()
-    dispatcher_instance = object()
-    aggregator_instance = object()
-    database_instance = object()
-    _patch_main_components(monkeypatch, calls)
-    llm_instance = FakeLifecycleLLM(calls)
+    settings: Settings,
+) -> SimpleNamespace:
+    """Run ``bootstrap.main`` with recording components and return the record."""
+    record = SimpleNamespace(
+        calls=[],
+        environs=[],
+        run_args=[],
+        settings=settings,
+        bot=object(),
+        dispatcher=object(),
+        aggregator=object(),
+        database=object(),
+    )
+    _patch_main_components(monkeypatch, record.calls)
+    llm = FakeLifecycleLLM(record.calls)
+    record.llm = llm
 
     def load_settings(environ: object) -> Settings:
-        assert environ is os.environ
-        calls.append("settings")
-        return SETTINGS
+        record.environs.append(environ)
+        record.calls.append("settings")
+        return settings
 
     def create_message_aggregator() -> object:
-        calls.append("message_aggregator")
-        return aggregator_instance
+        record.calls.append("message_aggregator")
+        return record.aggregator
 
-    def create_database(settings: Settings) -> object:
-        calls.append(("database", settings))
-        return database_instance
+    def create_database(given: Settings) -> object:
+        record.calls.append(("database", given))
+        return record.database
 
-    def create_llm_client(settings: Settings) -> FakeLifecycleLLM:
-        calls.append(("llm_client", settings))
-        return llm_instance
+    def create_llm_client(given: Settings) -> FakeLifecycleLLM:
+        record.calls.append(("llm_client", given))
+        return llm
 
-    def create_bot(settings: Settings) -> object:
-        calls.append(("bot", settings))
-        return bot_instance
+    def create_bot(given: Settings) -> object:
+        record.calls.append(("bot", given))
+        return record.bot
 
     def create_dispatcher(
-        settings: Settings,
+        given: Settings,
         llm_client: FakeLifecycleLLM,
         message_aggregator: object,
         database: object,
         _user_locks: UserLocks,
     ) -> object:
-        calls.append(("dispatcher", settings, llm_client, message_aggregator, database))
-        return dispatcher_instance
+        record.calls.append(
+            ("dispatcher", given, llm_client, message_aggregator, database)
+        )
+        return record.dispatcher
 
     async def run_application(
         bot: object,
@@ -428,11 +547,8 @@ def test_bootstrap_main_loads_env_and_passes_settings_down(
         llm_client: FakeLifecycleLLM,
         database: object,
     ) -> None:
-        assert bot is bot_instance
-        assert dispatcher is dispatcher_instance
-        assert llm_client is llm_instance
-        assert database is database_instance
-        calls.append("run")
+        record.run_args.extend([bot, dispatcher, llm_client, database])
+        record.calls.append("run")
 
     monkeypatch.setattr(bootstrap, "load_settings", load_settings)
     monkeypatch.setattr(bootstrap, "LLMClient", create_llm_client)
@@ -443,81 +559,128 @@ def test_bootstrap_main_loads_env_and_passes_settings_down(
     monkeypatch.setattr(bootstrap, "run_application", run_application)
 
     asyncio.run(bootstrap.main())
+    return record
 
-    assert calls == [
+
+def test_bootstrap_main_loads_env_and_passes_settings_down(
+    main_run: SimpleNamespace,
+) -> None:
+    settings = main_run.settings
+    expected_calls = [
         ("umask", 0o077),
         "env",
         "settings",
-        ("logging", SETTINGS),
+        ("logging", settings),
         "pillow_limits",
         "tgs",
-        ("access_mode", SETTINGS),
-        ("bot", SETTINGS),
-        ("llm_client", SETTINGS),
+        ("access_mode", settings),
+        ("bot", settings),
+        ("llm_client", settings),
         "message_aggregator",
-        ("database", SETTINGS),
-        ("dispatcher", SETTINGS, llm_instance, aggregator_instance, database_instance),
+        ("database", settings),
+        (
+            "dispatcher",
+            settings,
+            main_run.llm,
+            main_run.aggregator,
+            main_run.database,
+        ),
         "run",
     ]
+    assert main_run.calls == expected_calls, "main ran its steps in another order"
+
+
+def test_bootstrap_main_reads_settings_from_process_environment(
+    main_run: SimpleNamespace,
+) -> None:
+    expected = _identities([os.environ])
+    received = _identities(main_run.environs)
+    assert received == expected, "settings were not read from os.environ"
+
+
+def test_bootstrap_main_runs_application_with_created_components(
+    main_run: SimpleNamespace,
+) -> None:
+    expected = _identities(
+        [main_run.bot, main_run.dispatcher, main_run.llm, main_run.database]
+    )
+    received = _identities(main_run.run_args)
+    assert received == expected, "the application ran with other components"
 
 
 def test_bootstrap_main_stops_on_invalid_settings(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[object] = []
+    expected_calls = [("umask", 0o077), "env"]
     _patch_main_components(monkeypatch, calls)
     monkeypatch.delenv("SUPERVISOR_ID", raising=False)
 
     with pytest.raises(ConfigError, match="SUPERVISOR_ID"):
         asyncio.run(bootstrap.main())
 
-    assert calls == [("umask", 0o077), "env"]
+    assert calls == expected_calls, "main went on after invalid settings"
+
+
+@pytest.fixture(name="created_dispatcher")
+def fixture_created_dispatcher(
+    monkeypatch: pytest.MonkeyPatch,
+    settings: Settings,
+) -> SimpleNamespace:
+    """Create a dispatcher with a recording router configuration."""
+    record = SimpleNamespace(outer_middlewares=[], configure_args=[])
+    record.created = SimpleNamespace(
+        update=SimpleNamespace(outer_middleware=record.outer_middlewares.append),
+    )
+    record.inputs = [
+        settings,
+        FakeLifecycleLLM([]),
+        MessageAggregator(),
+        object(),
+        UserLocks(),
+    ]
+
+    def configure_dispatcher(dispatcher: object, *args: object) -> object:
+        record.configure_args.extend([dispatcher, *args])
+        return dispatcher
+
+    monkeypatch.setattr(bootstrap, "Dispatcher", lambda: record.created)
+    monkeypatch.setattr(bootstrap, "configure_dispatcher", configure_dispatcher)
+    record.result = bootstrap.create_dispatcher(*record.inputs)
+    return record
 
 
 def test_create_dispatcher_passes_settings_to_router_configuration(
-    monkeypatch: pytest.MonkeyPatch,
+    created_dispatcher: SimpleNamespace,
 ) -> None:
-    outer_middlewares: list[object] = []
-    created = SimpleNamespace(
-        update=SimpleNamespace(outer_middleware=outer_middlewares.append),
-    )
-
-    llm_client = FakeLifecycleLLM([])
-    message_aggregator = MessageAggregator()
-    database = object()
-    user_locks = UserLocks()
-
-    def configure_dispatcher(
-        dispatcher: object,
-        settings: Settings,
-        configured_llm: FakeLifecycleLLM,
-        configured_aggregator: MessageAggregator,
-        configured_database: object,
-        configured_user_locks: UserLocks,
-    ) -> object:
-        assert dispatcher is created
-        assert settings is SETTINGS
-        assert configured_llm is llm_client
-        assert configured_aggregator is message_aggregator
-        assert configured_database is database
-        assert configured_user_locks is user_locks
-        return dispatcher
-
-    monkeypatch.setattr(bootstrap, "Dispatcher", lambda: created)
-    monkeypatch.setattr(bootstrap, "configure_dispatcher", configure_dispatcher)
-
-    dispatcher = bootstrap.create_dispatcher(
-        SETTINGS, llm_client, message_aggregator, database, user_locks
-    )
-
-    assert dispatcher is created
-    assert len(outer_middlewares) == 1
-    assert isinstance(outer_middlewares[0], bootstrap.CorrelationIdMiddleware)
+    record = created_dispatcher
+    expected = _identities([record.created, *record.inputs])
+    received = _identities(record.configure_args)
+    assert received == expected, "router configuration got other arguments"
 
 
-def test_main_module_is_a_thin_entrypoint() -> None:
-    assert main_module.main is bootstrap.main
-    assert main_module.__all__ == ["main"]
+def test_create_dispatcher_returns_the_configured_dispatcher(
+    created_dispatcher: SimpleNamespace,
+) -> None:
+    record = created_dispatcher
+    assert record.result is record.created, "another dispatcher was returned"
+
+
+def test_create_dispatcher_adds_one_correlation_id_outer_middleware(
+    created_dispatcher: SimpleNamespace,
+) -> None:
+    expected_types = [CorrelationIdMiddleware]
+    registered = [type(item) for item in created_dispatcher.outer_middlewares]
+    assert registered == expected_types, "outer middlewares differ"
+
+
+def test_main_module_reexports_bootstrap_main() -> None:
+    assert main_module.main is bootstrap.main, "main is not the bootstrap entry point"
+
+
+def test_main_module_exports_only_main() -> None:
+    expected_all = ["main"]
+    assert main_module.__all__ == expected_all, "the entry point exports more names"
 
 
 @pytest.mark.parametrize(
@@ -553,7 +716,7 @@ def test_log_access_mode_reports_configured_mode(
     assert any(
         record.levelname == expected_level and expected_message in record.message
         for record in caplog.records
-    )
+    ), "the access mode was not logged at the expected level"
 
 
 @pytest.fixture(name="created_tokens")
@@ -585,14 +748,15 @@ def test_create_bot_rejects_invalid_token(
     token: str,
 ) -> None:
     settings = make_settings(BOT_TOKEN=token)
+    expected_empty: list[str] = []
 
     with pytest.raises(RuntimeError, match="BOT_TOKEN has an invalid format"):
         bootstrap.create_bot(settings)
 
-    assert created_tokens == []
+    assert created_tokens == expected_empty, "a bot was created with an invalid token"
 
 
-def test_create_bot_accepts_token_with_expected_format(
+def test_create_bot_returns_bot_with_the_configured_token(
     created_tokens: list[str],
 ) -> None:
     token = "123456789:" + "A_b-9" * 7
@@ -600,5 +764,16 @@ def test_create_bot_accepts_token_with_expected_format(
 
     bot = bootstrap.create_bot(settings)
 
-    assert bot.token == token
-    assert created_tokens == [token]
+    assert bot.token == token, f"the bot got another token; created {created_tokens}"
+
+
+def test_create_bot_creates_exactly_one_bot_for_valid_token(
+    created_tokens: list[str],
+) -> None:
+    token = "987654321:" + "zQ_7-x" * 6
+    settings = make_settings(BOT_TOKEN=token)
+    expected_tokens = [token]
+
+    bootstrap.create_bot(settings)
+
+    assert created_tokens == expected_tokens, "the bot was not created exactly once"

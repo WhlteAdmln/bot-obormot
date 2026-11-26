@@ -15,14 +15,27 @@ from bot_obormot.middlewares.temporary_messages import (
 )
 
 
-def test_fsm_and_middleware_imports_use_canonical_modules() -> None:
-    assert PromptStates.waiting_for_prompt is not None
+def test_defines_the_waiting_for_prompt_state() -> None:
+    assert PromptStates.waiting_for_prompt is not None, "prompt state is missing"
+
+
+def test_names_the_prompt_flow_key() -> None:
     expected_prompt_flow_key = "prompt_flow_message_ids"
-    assert expected_prompt_flow_key == PROMPT_FLOW_KEY
+    assert expected_prompt_flow_key == PROMPT_FLOW_KEY, "prompt flow key changed"
+
+
+def test_names_the_welcome_message_key() -> None:
     expected_welcome_message_key = "start_welcome_message_id"
-    assert expected_welcome_message_key == WELCOME_MESSAGE_KEY
+    assert expected_welcome_message_key == WELCOME_MESSAGE_KEY, (
+        "welcome message key changed"
+    )
+
+
+def test_loads_the_cleanup_middleware_from_its_canonical_module() -> None:
     expected_module = "bot_obormot.middlewares.temporary_messages.middleware"
-    assert TemporaryMessagesCleanupMiddleware.__module__ == expected_module
+    assert TemporaryMessagesCleanupMiddleware.__module__ == expected_module, (
+        "middleware is defined in an unexpected module"
+    )
 
 
 def test_settings_migrated_modules_do_not_import_legacy_config() -> None:
@@ -35,4 +48,6 @@ def test_settings_migrated_modules_do_not_import_legacy_config() -> None:
     )
 
     legacy_module = "config"
-    assert all(legacy_module not in vars(module) for module in modules)
+    assert all(legacy_module not in vars(module) for module in modules), (
+        "a migrated module still imports the legacy config"
+    )

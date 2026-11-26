@@ -27,18 +27,11 @@ from tests.support.telegram import (
     FakeTelegramSession,
 )
 
-HISTORY_TARGET_ID = 444000002
 
-
-@pytest.mark.asyncio
-async def test_history_limit_for_another_user_is_audited(
-    monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    actor_id = AUDIT_SETTINGS.SUPERVISOR_ID
-    target_id = 123456789
-    exchange_limit = 35
-    calls = []
+async def _set_limit_for_another_user(
+    monkeypatch: pytest.MonkeyPatch, target_id: int, exchange_limit: int
+) -> list[tuple[int, int | None]]:
+    calls: list[tuple[int, int | None]] = []
 
     async def set_history_limit(user_id: int, limit: int | None) -> None:
         calls.append((user_id, limit))
@@ -52,20 +45,45 @@ async def test_history_limit_for_another_user_is_audited(
         "send_prompt_status",
         send_prompt_status,
     )
-    message = FakeMessage(actor_id)
-    state = SimpleNamespace()
+    message = FakeMessage(AUDIT_SETTINGS.SUPERVISOR_ID)
     command = SimpleNamespace(args=f"{target_id} {exchange_limit}")
 
-    with caplog.at_level(logging.INFO, logger="bot_obormot.audit"):
-        await history_limits_handler.cmd_history_limit(
-            message, state, command, AUDIT_SETTINGS, database
-        )
+    await history_limits_handler.cmd_history_limit(
+        message, SimpleNamespace(), command, AUDIT_SETTINGS, database
+    )
+    return calls
 
-    assert calls == [(target_id, exchange_limit)]
-    assert (
+
+@pytest.mark.asyncio
+async def test_history_limit_for_another_user_is_stored(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target_id = 123456789
+    exchange_limit = 35
+
+    calls = await _set_limit_for_another_user(monkeypatch, target_id, exchange_limit)
+
+    expected_calls = [(target_id, exchange_limit)]
+    assert calls == expected_calls, "the target limit was not stored"
+
+
+@pytest.mark.asyncio
+async def test_history_limit_for_another_user_is_audited(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    actor_id = AUDIT_SETTINGS.SUPERVISOR_ID
+    target_id = 987650001
+    exchange_limit = 17
+
+    with caplog.at_level(logging.INFO, logger="bot_obormot.audit"):
+        await _set_limit_for_another_user(monkeypatch, target_id, exchange_limit)
+
+    expected_record = (
         f"AUDIT action=history_limit_set actor={actor_id} "
         f"target={target_id} result={exchange_limit}"
-    ) in caplog.text
+    )
+    assert expected_record in caplog.text, "the target limit change was not audited"
 
 
 @pytest.mark.asyncio
@@ -95,7 +113,7 @@ async def test_history_limit_without_arguments_shows_usage(
         "/history_limit",
     )
 
-    assert sent_texts(session) == [
+    expected_texts = [
         (
             "Использование:\n"
             "/history — показать текущий лимит\n"
@@ -104,6 +122,7 @@ async def test_history_limit_without_arguments_shows_usage(
             "(только администратор)."
         )
     ]
+    assert sent_texts(session) == expected_texts, "the usage text differs"
 
 
 @pytest.mark.asyncio
@@ -115,7 +134,7 @@ async def test_history_limit_without_arguments_shows_usage(
         (SUPERVISOR_ID, set(), SETTINGS.MAX_HISTORY_EXCHANGES),
     ],
 )
-async def test_history_limit_sets_own_limit_for_user_admin_and_supervisor(
+async def test_history_limit_confirms_own_limit_for_user_admin_and_supervisor(
     access_database: AccessDatabase,
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     case: tuple[int, set[int], int],
@@ -129,10 +148,32 @@ async def test_history_limit_sets_own_limit_for_user_admin_and_supervisor(
         f"/history_limit {limit}",
     )
 
-    assert sent_texts(session) == [
-        f"✅ Твой лимит истории установлен: {limit} полных обменов."
-    ]
-    assert access_database.log.arguments("set_history_limit") == [(user_id, limit)]
+    expected_texts = [f"✅ Твой лимит истории установлен: {limit} полных обменов."]
+    assert sent_texts(session) == expected_texts, "the own limit was not confirmed"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "case",
+    [
+        (HISTORY_USER_ID + 32, set(), 7),
+        (HISTORY_ADMIN_ID, {HISTORY_ADMIN_ID}, SETTINGS.MAX_HISTORY_EXCHANGES - 3),
+        (SUPERVISOR_ID, set(), SETTINGS.MAX_HISTORY_EXCHANGES),
+    ],
+)
+async def test_history_limit_sets_own_limit_for_user_admin_and_supervisor(
+    access_database: AccessDatabase,
+    dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
+    case: tuple[int, set[int], int],
+) -> None:
+    user_id, admin_ids, limit = case
+    access_database.admin_ids = admin_ids
+
+    await feed_command(dispatcher_runtime, user_id, f"/history_limit {limit}")
+
+    expected_calls = [(user_id, limit)]
+    stored = access_database.log.arguments("set_history_limit")
+    assert stored == expected_calls, "the own limit was not stored"
 
 
 @pytest.mark.asyncio
@@ -156,8 +197,8 @@ async def test_history_limit_sets_own_limit_for_user_admin_and_supervisor(
         ),
     ],
 )
+@pytest.mark.usefixtures("access_database")
 async def test_history_limit_rejects_invalid_own_limits(
-    access_database: AccessDatabase,
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     case: tuple[int, str, str],
 ) -> None:
@@ -169,8 +210,31 @@ async def test_history_limit_rejects_invalid_own_limits(
         f"/history_limit {raw_limit}",
     )
 
-    assert sent_texts(session) == [expected_text]
-    assert access_database.log.arguments("set_history_limit") == []
+    expected_texts = [expected_text]
+    assert sent_texts(session) == expected_texts, "the invalid limit was not rejected"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "case",
+    [
+        (HISTORY_USER_ID + 43, "много"),
+        (HISTORY_USER_ID + 44, "0"),
+        (HISTORY_USER_ID + 45, str(SETTINGS.DEFAULT_HISTORY_EXCHANGES + 9)),
+    ],
+)
+async def test_history_limit_keeps_invalid_own_limits_unsaved(
+    access_database: AccessDatabase,
+    dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
+    case: tuple[int, str],
+) -> None:
+    user_id, raw_limit = case
+
+    await feed_command(dispatcher_runtime, user_id, f"/history_limit {raw_limit}")
+
+    expected_empty: list[tuple[object, ...]] = []
+    stored = access_database.log.arguments("set_history_limit")
+    assert stored == expected_empty, "an invalid own limit was stored"
 
 
 @pytest.mark.asyncio
@@ -178,15 +242,39 @@ async def test_history_limit_rejects_invalid_own_limits(
 async def test_history_limit_denies_non_admin_target_changes(
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
+    target_id = 444000002
     session = await feed_command(
         dispatcher_runtime,
         HISTORY_USER_ID + 50,
-        f"/history_limit {HISTORY_TARGET_ID} 10",
+        f"/history_limit {target_id} 10",
     )
 
-    assert sent_texts(session) == [
+    expected_texts = [
         "⛔ Назначать лимиты другим пользователям могут только администраторы."
     ]
+    assert sent_texts(session) == expected_texts, "a non-admin changed a target limit"
+
+
+@pytest.mark.asyncio
+async def test_history_limit_confirms_admin_target_limit(
+    access_database: AccessDatabase,
+    dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
+) -> None:
+    user_id = HISTORY_ADMIN_ID + 1
+    target_id = 444000002
+    limit = 25
+    access_database.admin_ids = {user_id}
+
+    session = await feed_command(
+        dispatcher_runtime,
+        user_id,
+        f"/history_limit {target_id} {limit}",
+    )
+
+    expected_texts = [
+        f"✅ Для пользователя {target_id} установлен лимит {limit} полных обменов."
+    ]
+    assert sent_texts(session) == expected_texts, "the target limit was not confirmed"
 
 
 @pytest.mark.asyncio
@@ -194,25 +282,18 @@ async def test_history_limit_allows_admin_to_change_target_limit(
     access_database: AccessDatabase,
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
 ) -> None:
-    user_id = HISTORY_ADMIN_ID + 1
-    limit = 25
+    user_id = HISTORY_ADMIN_ID + 6
+    target_id = 444000777
+    limit = 9
     access_database.admin_ids = {user_id}
 
-    session = await feed_command(
-        dispatcher_runtime,
-        user_id,
-        f"/history_limit {HISTORY_TARGET_ID} {limit}",
+    await feed_command(
+        dispatcher_runtime, user_id, f"/history_limit {target_id} {limit}"
     )
 
-    assert sent_texts(session) == [
-        (
-            f"✅ Для пользователя {HISTORY_TARGET_ID} установлен лимит "
-            f"{limit} полных обменов."
-        )
-    ]
-    assert access_database.log.arguments("set_history_limit") == [
-        (HISTORY_TARGET_ID, limit)
-    ]
+    expected_calls = [(target_id, limit)]
+    stored = access_database.log.arguments("set_history_limit")
+    assert stored == expected_calls, "the target limit was not stored"
 
 
 @pytest.mark.asyncio
@@ -231,12 +312,12 @@ async def test_history_limit_allows_admin_to_change_target_limit(
         ),
         (
             HISTORY_ADMIN_ID + 4,
-            f"{HISTORY_TARGET_ID} invalid",
+            "444000002 invalid",
             "⚠️ Укажи корректный ID пользователя и целое число лимита.",
         ),
         (
             HISTORY_ADMIN_ID + 5,
-            f"{HISTORY_TARGET_ID} 0",
+            "444000002 0",
             f"⚠️ Допустимый лимит: от 1 до {SETTINGS.MAX_HISTORY_EXCHANGES}.",
         ),
     ],
@@ -255,8 +336,33 @@ async def test_history_limit_rejects_invalid_target_arguments(
         f"/history_limit {arguments}",
     )
 
-    assert sent_texts(session) == [expected_text]
-    assert access_database.log.arguments("set_history_limit") == []
+    expected_texts = [expected_text]
+    assert sent_texts(session) == expected_texts, "invalid target was not rejected"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "case",
+    [
+        (HISTORY_ADMIN_ID + 7, "кто-то 10"),
+        (HISTORY_ADMIN_ID + 8, "0 15"),
+        (HISTORY_ADMIN_ID + 9, "444000003 много"),
+        (HISTORY_ADMIN_ID + 10, "444000004 0"),
+    ],
+)
+async def test_history_limit_keeps_invalid_target_limits_unsaved(
+    access_database: AccessDatabase,
+    dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
+    case: tuple[int, str],
+) -> None:
+    user_id, arguments = case
+    access_database.admin_ids = {user_id}
+
+    await feed_command(dispatcher_runtime, user_id, f"/history_limit {arguments}")
+
+    expected_empty: list[tuple[object, ...]] = []
+    stored = access_database.log.arguments("set_history_limit")
+    assert stored == expected_empty, "an invalid target limit was stored"
 
 
 @pytest.mark.asyncio
@@ -270,12 +376,13 @@ async def test_history_limit_rejects_too_many_arguments(
         "/history_limit 10 20 30",
     )
 
-    assert sent_texts(session) == [
+    expected_texts = [
         (
             "⚠️ Слишком много аргументов.\n"
             "Пример: /history_limit 20 или /history_limit ID 100."
         )
     ]
+    assert sent_texts(session) == expected_texts, "too many arguments were accepted"
 
 
 @pytest.mark.asyncio
@@ -298,7 +405,9 @@ async def test_history_limit_propagates_database_failures(
     else:
         access_database.scenario.failed_operation = failed_operation
 
+    session = dispatcher_runtime[2]
     with pytest.raises(RuntimeError, match="database unavailable"):
         await feed_command(dispatcher_runtime, user_id, command_text)
 
-    assert sent_texts(dispatcher_runtime[2]) == []
+    expected_empty: list[str] = []
+    assert sent_texts(session) == expected_empty, "a reply was sent after a failure"

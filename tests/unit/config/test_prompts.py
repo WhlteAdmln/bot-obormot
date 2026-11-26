@@ -20,7 +20,9 @@ def test_load_default_system_prompt_reports_missing_file_in_english(
     with pytest.raises(RuntimeError) as error:
         prompts.load_default_system_prompt()
 
-    assert str(error.value) == f"System prompt file not found: {prompt_path}"
+    assert str(error.value) == f"System prompt file not found: {prompt_path}", (
+        "the missing-file error message differs"
+    )
 
 
 def test_load_default_system_prompt_reports_empty_file_in_english(
@@ -35,4 +37,6 @@ def test_load_default_system_prompt_reports_empty_file_in_english(
     with pytest.raises(ValueError, match="System prompt file is empty") as error:
         prompts.load_default_system_prompt()
 
-    assert str(error.value) == f"System prompt file is empty: {prompt_path}"
+    assert str(error.value) == f"System prompt file is empty: {prompt_path}", (
+        "the empty-file error message differs"
+    )

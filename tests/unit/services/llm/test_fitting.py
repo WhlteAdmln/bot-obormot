@@ -22,33 +22,36 @@ class FakeFittingClient:
 
     def __init__(
         self,
-        context_size: object,
-        token_counts: object,
+        context_size: int,
+        token_counts: list[int],
         *,
         settings: Settings | None = None,
+        counting_mode: str = "llamacpp",
     ) -> None:
         """Initializes the test double."""
         self.settings = settings if settings is not None else Settings()
         self.context_size = context_size
         self.token_counts = deque(token_counts)
-        self.count_calls = []
+        self.counting_mode = counting_mode
+        self.count_calls: list[list[dict[str, object]]] = []
 
-    async def get_context_size(self) -> int | None:
+    async def get_context_size(self) -> int:
         """Get context size."""
         return self.context_size
 
-    @staticmethod
-    async def get_token_counting_mode() -> str:
+    async def get_token_counting_mode(self) -> str:
         """Get token counting mode."""
-        return "llamacpp"
+        return self.counting_mode
 
     @staticmethod
-    def normalize_messages(messages: object) -> list[dict[str, object]]:
+    def normalize_messages(
+        messages: list[dict[str, object]],
+    ) -> list[dict[str, object]]:
         """Normalize messages."""
         return messages
 
     @staticmethod
-    def count_images(messages: object) -> int:
+    def count_images(messages: list[dict[str, object]]) -> int:
         """Count images."""
         count = 0
         for message in messages:
@@ -62,7 +65,7 @@ class FakeFittingClient:
                 )
         return count
 
-    async def count_tokens(self, messages: object) -> int:
+    async def count_tokens(self, messages: list[dict[str, object]]) -> int:
         """Count tokens."""
         self.count_calls.append(deepcopy(messages))
         return self.token_counts.popleft()
@@ -95,18 +98,38 @@ async def test_fitting_removes_oldest_complete_exchange_and_keeps_recent_history
         "current question",
     )
 
-    assert [message["content"] for message in result] == [
+    expected_contents = [
         "system prompt",
         "recent question",
         "recent answer",
         "current question",
     ]
-    expected_count = 2
-    assert len(client.count_calls) == expected_count
+    contents = [message["content"] for message in result]
+    assert contents == expected_contents, "the oldest exchange was not removed"
 
 
 @pytest.mark.asyncio
-async def test_fitting_discards_leading_assistant_and_does_not_mutate_history() -> None:
+async def test_fitting_counts_tokens_once_per_pruning_step() -> None:
+    client = FakeFittingClient(
+        context_size=12_000,
+        token_counts=[11_000, 7_500],
+    )
+    history = [
+        text("user", "first topic"),
+        text("assistant", "first reply"),
+        text("user", "second topic"),
+        text("assistant", "second reply"),
+    ]
+
+    await fit_messages_to_context(client, "rules", history, "third topic")
+
+    expected_count = 2
+    count_calls = len(client.count_calls)
+    assert count_calls == expected_count, "tokens were counted a wrong number of times"
+
+
+@pytest.mark.asyncio
+async def test_fitting_discards_leading_assistant_message() -> None:
     client = FakeFittingClient(context_size=10_000, token_counts=[100])
     history = [
         text("assistant", "orphan answer"),
@@ -121,29 +144,48 @@ async def test_fitting_discards_leading_assistant_and_does_not_mutate_history() 
         "current question",
     )
 
-    assert [message["role"] for message in result] == [
-        "system",
-        "user",
-        "assistant",
-        "user",
-    ]
-    expected_count = 3
-    assert len(history) == expected_count
-    expected_content = "orphan answer"
-    assert history[0]["content"] == expected_content
+    expected_roles = ["system", "user", "assistant", "user"]
+    roles = [message["role"] for message in result]
+    assert roles == expected_roles, "the leading assistant message was kept"
 
 
 @pytest.mark.asyncio
-async def test_fitting_recalculates_image_reserve_after_removing_old_exchange() -> None:
-    client = FakeFittingClient(
-        context_size=10_000,
-        token_counts=[6_000, 6_000],
-    )
+async def test_fitting_keeps_the_history_length() -> None:
+    client = FakeFittingClient(context_size=9_000, token_counts=[250])
     history = [
+        text("assistant", "stray reply"),
+        text("user", "earlier ask"),
+        text("assistant", "earlier reply"),
+    ]
+
+    await fit_messages_to_context(client, "persona", history, "new ask")
+
+    expected_count = 3
+    assert len(history) == expected_count, "fitting removed messages from the history"
+
+
+@pytest.mark.asyncio
+async def test_fitting_keeps_the_leading_message_in_the_history() -> None:
+    client = FakeFittingClient(context_size=11_000, token_counts=[340])
+    orphan_content = "dangling assistant text"
+    history = [
+        text("assistant", orphan_content),
+        text("user", "a question before"),
+        text("assistant", "an answer before"),
+    ]
+
+    await fit_messages_to_context(client, "guide", history, "a question now")
+
+    first_content = history[0]["content"]
+    assert first_content == orphan_content, "fitting changed the caller history"
+
+
+def _image_history(question: str) -> list[dict[str, object]]:
+    return [
         text(
             "user",
             [
-                {"type": "text", "text": "old question"},
+                {"type": "text", "text": question},
                 {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,"}},
             ],
         ),
@@ -152,6 +194,15 @@ async def test_fitting_recalculates_image_reserve_after_removing_old_exchange() 
         text("assistant", "recent answer"),
     ]
 
+
+@pytest.mark.asyncio
+async def test_fitting_removes_old_exchange_with_an_image() -> None:
+    client = FakeFittingClient(
+        context_size=10_000,
+        token_counts=[6_000, 6_000],
+    )
+    history = _image_history("old question")
+
     result = await fit_messages_to_context(
         client,
         "system prompt",
@@ -159,14 +210,34 @@ async def test_fitting_recalculates_image_reserve_after_removing_old_exchange() 
         "current question",
     )
 
-    assert [message["content"] for message in result] == [
+    expected_contents = [
         "system prompt",
         "recent question",
         "recent answer",
         "current question",
     ]
-    assert client.count_images(client.count_calls[0]) == 1
-    assert client.count_images(client.count_calls[1]) == 0
+    contents = [message["content"] for message in result]
+    assert contents == expected_contents, "the old image exchange was not removed"
+
+
+@pytest.mark.parametrize(
+    ("call_index", "expected_images"),
+    [(0, 1), (1, 0)],
+)
+@pytest.mark.asyncio
+async def test_fitting_recalculates_image_reserve_after_removing_old_exchange(
+    call_index: int, expected_images: int
+) -> None:
+    client = FakeFittingClient(
+        context_size=10_500,
+        token_counts=[6_200, 6_100],
+    )
+    history = _image_history("what is on this photo")
+
+    await fit_messages_to_context(client, "assistant rules", history, "and now?")
+
+    images = client.count_images(client.count_calls[call_index])
+    assert images == expected_images, "the counted messages have a wrong image count"
 
 
 @pytest.mark.asyncio
@@ -176,8 +247,8 @@ async def test_fitting_rejects_context_smaller_than_reserved_tokens() -> None:
     with pytest.raises(InputTooLongError, match="Not enough context space"):
         await fit_messages_to_context(client, "system", [], "question")
 
-    expected_empty = []
-    assert client.count_calls == expected_empty, "expected an empty list"
+    expected_empty: list[object] = []
+    assert client.count_calls == expected_empty, "tokens were counted without space"
 
 
 @pytest.mark.asyncio
@@ -187,7 +258,9 @@ async def test_fitting_rejects_current_message_that_does_not_fit() -> None:
     with pytest.raises(InputTooLongError, match="Message is too large"):
         await fit_messages_to_context(client, "system", [], "question")
 
-    assert len(client.count_calls) == 1
+    expected_count = 1
+    count_calls = len(client.count_calls)
+    assert count_calls == expected_count, "tokens were counted more than once"
 
 
 @pytest.mark.asyncio
@@ -198,8 +271,30 @@ async def test_fitting_rejects_history_with_unexpected_role_after_pruning() -> N
         text("system", "unexpected role"),
     ]
 
-    with pytest.raises(LLMUnavailableError, match="expected a user message"):
+    with pytest.raises(LLMUnavailableError) as error:
         await fit_messages_to_context(client, "system", history, "current")
+
+    expected_detail = "expected a user message"
+    assert expected_detail in str(error.value), "the error does not name the role"
+
+
+@pytest.mark.asyncio
+async def test_llm_client_method_returns_the_fitted_messages(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = LLMClient()
+    expected: list[dict[str, object]] = [{"role": "system", "content": "be brief"}]
+
+    async def fake_fit(
+        _client: object, _system_prompt: object, _history: object, _message: object
+    ) -> list[dict[str, object]]:
+        return expected
+
+    monkeypatch.setattr(client_module, "fit_messages_to_context", fake_fit)
+
+    result = await client.fit_messages_to_context("be brief", [], "hi there")
+
+    assert result is expected, "the method did not return the fitted messages"
 
 
 @pytest.mark.asyncio
@@ -207,8 +302,7 @@ async def test_llm_client_method_delegates_without_changing_public_signature(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     client = LLMClient()
-    expected = [{"role": "system", "content": "system"}]
-    received = {}
+    received: dict[str, object] = {}
 
     async def fake_fit(
         client_arg: object, system_prompt: object, history: object, user_message: object
@@ -219,20 +313,30 @@ async def test_llm_client_method_delegates_without_changing_public_signature(
             history=history,
             user_message=user_message,
         )
-        return expected
+        return []
 
     monkeypatch.setattr(client_module, "fit_messages_to_context", fake_fit)
 
     history = [text("user", "old")]
-    result = await client.fit_messages_to_context("system", history, "new")
+    await client.fit_messages_to_context("system", history, "new")
 
-    assert result is expected
-    assert received == {
+    expected_arguments = {
         "client": client,
         "system_prompt": "system",
         "history": history,
         "user_message": "new",
     }
+    assert received == expected_arguments, "the arguments were not passed through"
+
+
+def _media_content(image_count: int) -> list[dict[str, object]]:
+    image: dict[str, object] = {
+        "type": "image_url",
+        "image_url": {"url": "data:image/jpeg;base64,"},
+    }
+    parts: list[dict[str, object]] = [{"type": "text", "text": "Incoming media"}]
+    parts.extend(dict(image) for _ in range(image_count))
+    return parts
 
 
 @pytest.mark.asyncio
@@ -240,25 +344,44 @@ async def test_llm_client_method_delegates_without_changing_public_signature(
     ("image_count", "expected_budget"),
     [(1, 27_392), (7, 15_104), (3, 23_296)],
 )
-async def test_context_fit_log_distinguishes_window_from_available_budget(
+async def test_context_fit_log_shows_available_budget(
     image_count: int, expected_budget: int, caplog: pytest.LogCaptureFixture
 ) -> None:
     client = FakeFittingClient(context_size=32_000, token_counts=[100])
-    content = [
-        {"type": "text", "text": "Incoming media"},
-        *[
-            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,"}}
-            for _ in range(image_count)
-        ],
-    ]
 
     caplog.set_level(logging.INFO, logger="bot_obormot.services.llm.fitting")
-    await fit_messages_to_context(client, "system", [], content)
+    await fit_messages_to_context(client, "system", [], _media_content(image_count))
 
-    assert f"input_budget={expected_budget}" in caplog.text
+    budget_detail = f"input_budget={expected_budget}"
+    assert budget_detail in caplog.text, "the log lacks the available budget"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("image_count", [2, 5])
+async def test_context_fit_log_shows_context_window(
+    image_count: int, caplog: pytest.LogCaptureFixture
+) -> None:
+    client = FakeFittingClient(context_size=32_000, token_counts=[140])
+
+    caplog.set_level(logging.INFO, logger="bot_obormot.services.llm.fitting")
+    await fit_messages_to_context(client, "rules", [], _media_content(image_count))
+
     context_window_detail = "context_window=32000"
-    assert context_window_detail in caplog.text
-    assert f"images={image_count}" in caplog.text
+    assert context_window_detail in caplog.text, "the log lacks the context window"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("image_count", [1, 7, 4])
+async def test_context_fit_log_shows_image_count(
+    image_count: int, caplog: pytest.LogCaptureFixture
+) -> None:
+    client = FakeFittingClient(context_size=32_000, token_counts=[90])
+
+    caplog.set_level(logging.INFO, logger="bot_obormot.services.llm.fitting")
+    await fit_messages_to_context(client, "persona", [], _media_content(image_count))
+
+    images_detail = f"images={image_count}"
+    assert images_detail in caplog.text, "the log lacks the image count"
 
 
 @pytest.mark.asyncio
@@ -268,11 +391,10 @@ async def test_estimate_mode_uses_larger_safety_margin() -> None:
         context_size=10_000,
         token_counts=[6_500],
         settings=settings,
+        counting_mode="estimate",
     )
 
-    async def estimate_mode() -> str:
-        return "estimate"
-
-    client.get_token_counting_mode = estimate_mode
-    with pytest.raises(InputTooLongError):
+    with pytest.raises(InputTooLongError) as error:
         await fit_messages_to_context(client, "system", [], "question")
+
+    assert error.type is InputTooLongError, "estimate mode accepted the message"

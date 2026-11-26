@@ -16,6 +16,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- [#107](https://github.com/WhlteAdmln/bot-obormot/issues/107) Every test has one assert with a failure message, and every test file is listed in `tests/strict_test_files.txt`.
 - [#123](https://github.com/WhlteAdmln/bot-obormot/issues/123) The tests of the installation diagnostics and of the database access operations have one assert with a failure message per test and are listed in `tests/strict_test_files.txt`.
 - [#119](https://github.com/WhlteAdmln/bot-obormot/issues/119) The Document Engine response is typed with the `DocumentResponse` TypedDict instead of `dict[str, Any]`.
 - [#111](https://github.com/WhlteAdmln/bot-obormot/issues/111) The fake LLM server options group chat and tokenizer settings in `FakeChatOptions` and `FakeTokenizerOptions`, so `FakeLLMOptions` needs no `too-many-instance-attributes` suppression.

@@ -20,5 +20,6 @@ async def test_animation_pipeline_passes_the_polite_error_through(
 ) -> None:
     monkeypatch.setitem(sys.modules, "rlottie_python", None)
 
-    with pytest.raises(MediaError, match=TGS_SUPPORT_UNAVAILABLE):
+    with pytest.raises(MediaError, match=TGS_SUPPORT_UNAVAILABLE) as caught:
         await extract_animation_frames(valid_tgs(), "tgs", asyncio.Semaphore(1))
+    assert str(caught.value) == TGS_SUPPORT_UNAVAILABLE, "the polite error was lost"

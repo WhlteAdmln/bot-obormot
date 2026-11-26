@@ -7,15 +7,16 @@ from pathlib import Path
 
 from scripts.docs_checks.settings import settings_environment_names
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-ENV_EXAMPLE_PATH = PROJECT_ROOT / ".env.example"
+
+def _env_example_path() -> Path:
+    return Path(__file__).resolve().parents[3] / ".env.example"
 
 
-def _env_example_names() -> tuple[set[str], list[str]]:
+def _env_example_names(path: Path) -> tuple[set[str], list[str]]:
     names: set[str] = set()
     duplicates: list[str] = []
 
-    for line in ENV_EXAMPLE_PATH.read_text(encoding="utf-8").splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         stripped = line.strip()
         assignment_sign = "="
         if not stripped or stripped.startswith("#") or assignment_sign not in stripped:
@@ -28,14 +29,19 @@ def _env_example_names() -> tuple[set[str], list[str]]:
     return names, duplicates
 
 
-def test_env_example_matches_config_environment_variables() -> None:
-    settings_names = settings_environment_names()
-    example_names, duplicates = _env_example_names()
+def test_env_example_has_no_duplicate_variables() -> None:
+    _, duplicates = _env_example_names(_env_example_path())
 
-    expected_empty = []
+    expected_empty: list[str] = []
     assert duplicates == expected_empty, (
         f"Duplicate variables in .env.example: {sorted(duplicates)}"
     )
+
+
+def test_env_example_matches_config_environment_variables() -> None:
+    settings_names = settings_environment_names()
+    example_names, _ = _env_example_names(_env_example_path())
+
     assert example_names == settings_names, (
         f"Missing from .env.example: {sorted(settings_names - example_names)}; "
         f"not read by Settings: {sorted(example_names - settings_names)}"

@@ -9,7 +9,7 @@
 ```mermaid
 flowchart LR
     T[Telegram private message] --> M[Middleware: throttle, access, cleanup]
-    M --> R[Routers: start, admin, commands, chat]
+    M --> R[Routers: start, admin, routers, chat]
     R --> C[Chat handler: inspect, aggregate, lock, prepare]
     C -->|audio and documents| A[audiodoc]
     A --> C
@@ -20,7 +20,7 @@ flowchart LR
     P --> O[Reply in Telegram]
 ```
 
-`bot_obormot/app/routers.py` — единственная точка регистрации middleware и корневых роутеров. Порядок middleware имеет значение: сначала ограничение частоты, затем проверка доступа, затем очистка временных сообщений. Роутеры подключаются в порядке `start`, `admin`, `commands`, `chat`; общий chat-обработчик подключён последним, чтобы команды могли обработаться раньше. Каждый модуль обработчиков строит свой роутер функцией `create_router()`, поэтому каждый диспетчер получает новые роутеры. При запуске диспетчера `bot_obormot/app/dependencies.py` проверяет, что в `workflow_data` есть `settings`, `llm_client` и `database`, и останавливает запуск с ошибкой, в которой названа каждая недостающая зависимость.
+`bot_obormot/app/routers.py` — единственная точка регистрации middleware и корневых роутеров. Порядок middleware имеет значение: сначала ограничение частоты, затем проверка доступа, затем очистка временных сообщений. Роутеры подключаются в порядке `start`, `admin`, `routers`, `chat`; общий chat-обработчик подключён последним, чтобы команды могли обработаться раньше. Каждый модуль обработчиков строит свой роутер функцией `create_router()`, поэтому каждый диспетчер получает новые роутеры. При запуске диспетчера `bot_obormot/app/dependencies.py` проверяет, что в `workflow_data` есть `settings`, `llm_client` и `database`, и останавливает запуск с ошибкой, в которой названа каждая недостающая зависимость.
 
 ## 2. Запуск и завершение
 
@@ -51,7 +51,7 @@ flowchart LR
 - `bot_obormot/handlers/prompt/` — `/prompt`, `/prompt_set`, `/prompt_reset`, `/cancel` и FSM-обработка системного промпта.
 - `bot_obormot/handlers/chat/` — координация входящего сообщения и отправка ответа Telegram.
 - `bot_obormot/handlers/fallback/` — резервная обработка неподдерживаемого ввода и состояний.
-- `bot_obormot/handlers/commands/__init__.py` — только агрегатор роутеров. Он экспортирует `create_router` и не является набором compatibility-заглушек.
+- `bot_obormot/handlers/routers.py` — только агрегатор роутеров. Он экспортирует `create_router` и не является набором compatibility-заглушек.
 
 Административные действия журналируются через `bot_obormot/services/audit.py` строками `AUDIT action=... actor=... target=... result=...`. Записываются добавление/удаление администраторов, блокировка/разблокировка пользователей, изменение лимита истории другому пользователю и отказы при вызове административных обработчиков.
 
@@ -116,7 +116,7 @@ flowchart LR
 - audiodoc необязателен. Обработка аудио и документов отключается целиком, если `AUDIODOC_URL` пуст.
 - Настройки `AUDIODOC_*` подключают обе функции к одному сервису audiodoc: `AUDIODOC_URL` — базовый URL, а `AUDIODOC_AUDIO_KEY` и `AUDIODOC_DOCUMENT_KEY` добавляют отдельные необязательные Bearer-заголовки. Старые имена `WHISPER_*` и `DOCUMENT_*` устарели и читаются, если новое имя пусто. Для удалённого audiodoc используйте HTTPS: API-ключ не шифрует HTTP-трафик.
 - Поддерживаемые форматы документов, настройки сервера и руководство по подключению бота описаны в [репозитории audiodoc](https://github.com/WhlteAdmln/audiodoc).
-- `bot_obormot/services/http_limits.py` читает ответы потоково чанками по 64 КиБ: успешное тело ограничено 2 МиБ, чтение тела HTTP-ошибки — 2 КиБ.
+- `bot_obormot/common/http_limits.py` читает ответы потоково чанками по 64 КиБ: успешное тело ограничено 2 МиБ, чтение тела HTTP-ошибки — 2 КиБ.
 
 ## 6. SQLite и локальные файлы
 

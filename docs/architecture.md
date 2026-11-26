@@ -9,7 +9,7 @@ The bot is an asynchronous Python 3.11+ application built on aiogram 3. Telegram
 ```mermaid
 flowchart LR
     T[Telegram private message] --> M[Middleware: throttle, access, cleanup]
-    M --> R[Routers: start, admin, commands, chat]
+    M --> R[Routers: start, admin, routers, chat]
     R --> C[Chat handler: inspect, aggregate, lock, prepare]
     C -->|audio and documents| A[audiodoc]
     A --> C
@@ -20,7 +20,7 @@ flowchart LR
     P --> O[Reply in Telegram]
 ```
 
-`bot_obormot/app/routers.py` is the single registration point. Middleware order is significant: throttling runs before access checks; temporary-message cleanup runs after access. Root router order is `start`, `admin`, `commands`, then `chat`, with the general chat handler last so command handlers get the first opportunity to match. Every handler module builds its router with `create_router()`, so each dispatcher gets fresh routers. At dispatcher startup `bot_obormot/app/dependencies.py` checks that `workflow_data` holds `settings`, `llm_client` and `database` and stops the startup with an error that names each missing one.
+`bot_obormot/app/routers.py` is the single registration point. Middleware order is significant: throttling runs before access checks; temporary-message cleanup runs after access. Root router order is `start`, `admin`, `routers`, then `chat`, with the general chat handler last so command handlers get the first opportunity to match. Every handler module builds its router with `create_router()`, so each dispatcher gets fresh routers. At dispatcher startup `bot_obormot/app/dependencies.py` checks that `workflow_data` holds `settings`, `llm_client` and `database` and stops the startup with an error that names each missing one.
 
 ## 2. Startup and shutdown
 
@@ -51,7 +51,7 @@ The default access mode is closed: with an empty `ALLOWED_USERS` and `ALLOW_ALL_
 - `bot_obormot/handlers/prompt/` — `/prompt`, `/prompt_set`, `/prompt_reset`, `/cancel`, and prompt FSM handling.
 - `bot_obormot/handlers/chat/` — incoming-message coordination and Telegram response delivery.
 - `bot_obormot/handlers/fallback/` — fallback handling for unsupported input/states.
-- `bot_obormot/handlers/commands/__init__.py` is only a router aggregator. It exports `create_router`; it is not a compatibility-shim collection.
+- `bot_obormot/handlers/routers.py` is only a router aggregator. It exports `create_router`; it is not a compatibility-shim collection.
 
 Administrative actions use `bot_obormot/services/audit.py` and emit `AUDIT action=... actor=... target=... result=...` records. Admin add/remove, ban/unban, history-limit changes for another user, and denied calls to administrative handlers are logged.
 
@@ -116,7 +116,7 @@ The video path requires `ffmpeg` and `ffprobe` on `PATH`.
 - audiodoc is optional. Audio and document processing are both disabled when `AUDIODOC_URL` is empty.
 - The `AUDIODOC_*` settings connect both features to the same audiodoc service: `AUDIODOC_URL` is the base URL, and `AUDIODOC_AUDIO_KEY` and `AUDIODOC_DOCUMENT_KEY` add separate optional Bearer authorization headers. The old `WHISPER_*` and `DOCUMENT_*` names are deprecated and still read when the new name is empty. Use HTTPS when audiodoc is remote; API keys do not encrypt HTTP traffic.
 - See the [audiodoc repository](https://github.com/WhlteAdmln/audiodoc) for supported document formats, server configuration and its guide for connecting the bot.
-- `bot_obormot/services/http_limits.py` reads response bodies incrementally in 64 KiB chunks, with a 2 MiB limit for successful service responses and a 2 KiB limit for HTTP error-body reads.
+- `bot_obormot/common/http_limits.py` reads response bodies incrementally in 64 KiB chunks, with a 2 MiB limit for successful service responses and a 2 KiB limit for HTTP error-body reads.
 
 ## 6. SQLite and local files
 

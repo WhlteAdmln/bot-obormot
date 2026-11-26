@@ -4,10 +4,10 @@
 """Tests for media content."""
 
 from types import SimpleNamespace
-from typing import Any
 
 import pytest
 
+from bot_obormot.common.llm_messages import ContentPart
 from bot_obormot.services import media
 from bot_obormot.services.media import content as media_content
 from tests.support.media import make_message
@@ -15,7 +15,7 @@ from tests.support.media import make_message
 
 def _prompt_content(
     monkeypatch: pytest.MonkeyPatch, image_urls: list[str], media_type: str
-) -> str | list[dict[str, Any]] | None:
+) -> str | list[ContentPart] | None:
     """Build user content with a fixed media prompt."""
     monkeypatch.setattr(
         media_content,

@@ -22,6 +22,7 @@ from aiogram.types import Message, PhotoSize
 from PIL import Image
 
 import bot_obormot.app.routers as app_routers
+from bot_obormot.common.llm_messages import MessageContent
 from bot_obormot.middlewares import throttle as throttle_middleware
 from bot_obormot.services.chat.streaming.settings import MAX_MESSAGE_LENGTH
 from bot_obormot.services.database import Database
@@ -83,14 +84,16 @@ def _decoded_image(llm_server: FakeLLM) -> bytes:
     return base64.b64decode(image_url.split(",", 1)[1])
 
 
-async def _history_pairs(test_db: Database, user_id: int) -> list[tuple[str, Any]]:
+async def _history_pairs(
+    test_db: Database, user_id: int
+) -> list[tuple[str, MessageContent]]:
     history = await test_db.get_history(user_id)
     return [(item["role"], item["content"]) for item in history]
 
 
 def _streaming_responses(
     user_id: int, message_id: int
-) -> dict[type[TelegramMethod[Any]], Any]:
+) -> dict[type[TelegramMethod[Any]], bool | Message]:
     answer = make_message(
         message_id=message_id, chat_id=user_id, user_id=message_id, text=None
     )
@@ -720,7 +723,7 @@ async def test_rejected_message_stores_no_exchange(
 ) -> None:
     user_id = 712345636
     await run_flow(test_db, user_id)
-    expected_empty: list[tuple[str, Any]] = []
+    expected_empty: list[tuple[str, MessageContent]] = []
     history = await _history_pairs(test_db, user_id)
     assert history == expected_empty, "the rejected exchange was stored"
 

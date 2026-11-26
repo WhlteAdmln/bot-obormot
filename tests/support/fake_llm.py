@@ -207,7 +207,7 @@ class FakeLLM:
                 status=status,
             )
 
-        payload: Any = await request.json()
+        payload: object = await request.json()
         if isinstance(payload, dict):
             self.chat_requests.append(payload)
         if isinstance(payload, dict) and payload.get("stream") is True:
@@ -311,7 +311,7 @@ class FakeLLM:
                 status=self.options.tokenizer.tokenize_status,
             )
 
-        payload: Any = await request.json()
+        payload: object = await request.json()
         content = payload.get("content", "") if isinstance(payload, dict) else ""
         if not isinstance(content, str):
             content = ""
@@ -328,7 +328,7 @@ class FakeLLM:
                 status=self.options.tokenizer.apply_template_status,
             )
 
-        payload: Any = await request.json()
+        payload: object = await request.json()
         messages = payload.get("messages", []) if isinstance(payload, dict) else []
         parts: list[str] = []
         if isinstance(messages, list):

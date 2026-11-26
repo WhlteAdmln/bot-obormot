@@ -16,7 +16,8 @@ that supports vision.
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /v1/models` | Reports the context size on many servers. |
+| `GET /v1/models` | Reports the context size on many servers. The `/health` command uses it when `GET /health` does not report `ok`. |
+| `GET /health` | The `/health` command tries it first; HTTP 200 with `{"status": "ok"}` means the server is available. |
 | `GET /props` | llama.cpp extension that reports the context size. |
 | `POST /tokenize` | llama.cpp extension for exact token counting. |
 
@@ -27,8 +28,7 @@ It looks for the value in this order:
 
 1. `LLM_CONTEXT_SIZE`, when set.
 2. `/props` of llama.cpp.
-3. The metadata of `/v1/models`. The bot understands the fields `max_model_len`,
-   `context_length`, `max_context_length` and `n_ctx`.
+3. The metadata of `/v1/models`. The bot understands the fields `max_model_len`, `context_length`, `max_context_length`, `model_max_length`, `max_position_embeddings` and `n_ctx`.
 
 If none of them reports a value, set `LLM_CONTEXT_SIZE` yourself.
 

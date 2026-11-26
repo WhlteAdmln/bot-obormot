@@ -38,6 +38,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- [#186](https://github.com/WhlteAdmln/bot-obormot/issues/186) The user documentation describes the history limit of regular users, the `config check`, `service` and `doctor` options and checks, all context size fields, the optional `GET /health` endpoint, the `sha256sum` requirement, the `tgs` extra and the fixed `DATABASE_PATH` under Docker.
 - [#185](https://github.com/WhlteAdmln/bot-obormot/issues/185) The contributing guide, the architecture guide and the `integration` marker describe the development setup as it is: integration tests need no LLM server, `make docs-check` also runs the pre-commit hooks, Renovate proposes Python patch updates and the abandoned dependencies are the ones of this project.
 - [#184](https://github.com/WhlteAdmln/bot-obormot/issues/184) The architecture documents describe the existing entry point, module paths, shutdown order, middleware and development requirements.
 - [#166](https://github.com/WhlteAdmln/bot-obormot/issues/166) The architecture documents name the existing router aggregator `bot_obormot/handlers/routers.py` and `bot_obormot/common/http_limits.py` instead of removed modules.

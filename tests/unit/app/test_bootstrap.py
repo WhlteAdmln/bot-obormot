@@ -10,11 +10,13 @@ from collections.abc import Iterable
 from types import SimpleNamespace
 
 import pytest
+from aiogram import Dispatcher
 
 import bot_obormot.app.routers as app_routers
 import bot_obormot.main as main_module
 from bot_obormot.app import bootstrap, lifecycle
 from bot_obormot.app.background import image_cleanup
+from bot_obormot.app.dependencies import check_dependencies
 from bot_obormot.handlers.chat.handler import ChatRuntime
 from bot_obormot.middlewares.access import AccessMiddleware
 from bot_obormot.middlewares.correlation_id import CorrelationIdMiddleware
@@ -136,6 +138,41 @@ def test_configure_dispatcher_includes_routers_once_in_original_order(
     expected_routers = [refs["start"], refs["admin"], refs["routers"], refs["chat"]]
     routers = configured.dispatcher.routers
     assert routers == expected_routers, "routers differ in identity or order"
+
+
+def test_configure_dispatcher_registers_dependency_check_at_startup(
+    configured: SimpleNamespace,
+) -> None:
+    expected_callbacks = [check_dependencies]
+    callbacks = configured.dispatcher.startup_callbacks
+    assert callbacks == expected_callbacks, "the dependency check is not registered"
+
+
+def test_configured_dispatcher_stops_startup_without_llm_client_and_database(
+    settings: Settings,
+) -> None:
+    dispatcher = app_routers.configure_dispatcher(Dispatcher(), settings)
+    expected = "Dispatcher is missing handler dependencies: llm_client, database"
+
+    with pytest.raises(RuntimeError) as error:
+        asyncio.run(dispatcher.emit_startup(**dispatcher.workflow_data))
+
+    assert str(error.value) == expected, "startup went on without dependencies"
+
+
+def test_configured_dispatcher_continues_startup_with_every_dependency(
+    settings: Settings,
+) -> None:
+    dispatcher = app_routers.configure_dispatcher(
+        Dispatcher(), settings, FakeLifecycleLLM([]), database=object()
+    )
+    started: list[str] = []
+    dispatcher.startup.register(lambda: started.append("после проверки"))
+    expected = ["после проверки"]
+
+    asyncio.run(dispatcher.emit_startup(**dispatcher.workflow_data))
+
+    assert started == expected, "startup stopped although every dependency is set"
 
 
 @pytest.fixture(name="chat_runtimes")

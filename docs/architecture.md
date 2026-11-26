@@ -20,7 +20,7 @@ flowchart LR
     P --> O[Reply in Telegram]
 ```
 
-`bot_obormot/app/routers.py` is the single registration point. Middleware order is significant: throttling runs before access checks; temporary-message cleanup runs after access. Root router order is `start`, `admin`, `commands`, then `chat`, with the general chat handler last so command handlers get the first opportunity to match. Every handler module builds its router with `create_router()`, so each dispatcher gets fresh routers.
+`bot_obormot/app/routers.py` is the single registration point. Middleware order is significant: throttling runs before access checks; temporary-message cleanup runs after access. Root router order is `start`, `admin`, `commands`, then `chat`, with the general chat handler last so command handlers get the first opportunity to match. Every handler module builds its router with `create_router()`, so each dispatcher gets fresh routers. At dispatcher startup `bot_obormot/app/dependencies.py` checks that `workflow_data` holds `settings`, `llm_client` and `database` and stops the startup with an error that names each missing one.
 
 ## 2. Startup and shutdown
 

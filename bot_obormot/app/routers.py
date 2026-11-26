@@ -5,6 +5,7 @@
 
 from aiogram import Dispatcher
 
+from bot_obormot.app.dependencies import check_dependencies
 from bot_obormot.handlers import admin, routers, start
 from bot_obormot.handlers.chat import handler as chat
 from bot_obormot.handlers.chat.handler import ChatRuntime
@@ -62,5 +63,7 @@ def configure_dispatcher(
     dispatcher.include_router(admin.create_router())
     dispatcher.include_router(routers.create_router())
     dispatcher.include_router(chat.create_router(chat_runtime))
+
+    dispatcher.startup.register(check_dependencies)
 
     return dispatcher

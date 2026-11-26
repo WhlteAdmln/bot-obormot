@@ -21,7 +21,7 @@ jobs:
         id: key
         env:
           PACKAGES_HASH: ${{ hashFiles('.github/apt-packages.txt') }}
-        run: echo "key=apt-debs-${ImageOS}-${ImageVersion%%.*}-${PACKAGES_HASH}-$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+        run: echo "key=apt-debs-${ImageOS}-${PACKAGES_HASH}-$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
       - name: Download the package files
         run: |
           set -euo pipefail

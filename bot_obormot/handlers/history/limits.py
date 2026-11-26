@@ -15,8 +15,6 @@ from bot_obormot.services.audit import audit
 from bot_obormot.services.database import Database
 from bot_obormot.settings import Settings
 
-router = Router()
-
 # Number of arguments in "/history_limit ID LIMIT".
 _ARGS_WITH_TARGET_USER = 2
 
@@ -139,7 +137,6 @@ async def _set_user_limit(
     )
 
 
-@router.message(Command("history_limit"))
 async def cmd_history_limit(
     message: Message,
     state: FSMContext,
@@ -184,3 +181,10 @@ async def cmd_history_limit(
             else texts.HISTORY_LIMIT_TOO_MANY_ARGUMENTS
         )
         await send_prompt_status(message, state, text)
+
+
+def create_router() -> Router:
+    """Build a router with the history limit command."""
+    router = Router()
+    router.message.register(cmd_history_limit, Command("history_limit"))
+    return router

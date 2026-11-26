@@ -51,7 +51,8 @@ def fixture_configured(
     """Configure a recording dispatcher with stand-in routers."""
     router_refs = {name: object() for name in ("start", "admin", "routers", "chat")}
     for name, router in router_refs.items():
-        monkeypatch.setattr(app_routers, name, SimpleNamespace(router=router))
+        stand_in = SimpleNamespace(create_router=lambda router=router: router)
+        monkeypatch.setattr(app_routers, name, stand_in)
     dispatcher = FakeRouterDispatcher()
     llm_client = FakeLifecycleLLM([])
     message_aggregator = MessageAggregator()

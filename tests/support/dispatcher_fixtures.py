@@ -23,7 +23,6 @@ from tests.support.dispatcher import (
     SETTINGS,
     AccessDatabase,
     FakeLLM,
-    detach_application_routers,
 )
 from tests.support.telegram import (
     FakeTelegramSession,
@@ -45,12 +44,7 @@ def fixture_access_database(
 
 @pytest.fixture(name="dispatcher")
 def fixture_dispatcher() -> Dispatcher:
-    """Create a configured dispatcher for one test.
-
-    The application routers are shared module-level objects, so they are
-    detached first in case an earlier test left them attached elsewhere.
-    """
-    detach_application_routers()
+    """Create a configured dispatcher for one test."""
     return configure_dispatcher(Dispatcher(storage=MemoryStorage()), SETTINGS)
 
 

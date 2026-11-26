@@ -20,7 +20,7 @@ flowchart LR
     P --> O[Reply in Telegram]
 ```
 
-`bot_obormot/app/routers.py` is the single registration point. Middleware order is significant: throttling runs before access checks; temporary-message cleanup runs after access. Root router order is `start`, `admin`, `commands`, then `chat`, with the general chat handler last so command handlers get the first opportunity to match.
+`bot_obormot/app/routers.py` is the single registration point. Middleware order is significant: throttling runs before access checks; temporary-message cleanup runs after access. Root router order is `start`, `admin`, `commands`, then `chat`, with the general chat handler last so command handlers get the first opportunity to match. Every handler module builds its router with `create_router()`, so each dispatcher gets fresh routers.
 
 ## 2. Startup and shutdown
 
@@ -51,7 +51,7 @@ The default access mode is closed: with an empty `ALLOWED_USERS` and `ALLOW_ALL_
 - `bot_obormot/handlers/prompt/` — `/prompt`, `/prompt_set`, `/prompt_reset`, `/cancel`, and prompt FSM handling.
 - `bot_obormot/handlers/chat/` — incoming-message coordination and Telegram response delivery.
 - `bot_obormot/handlers/fallback/` — fallback handling for unsupported input/states.
-- `bot_obormot/handlers/commands/__init__.py` is only a router aggregator. It exports `router`; it is not a compatibility-shim collection.
+- `bot_obormot/handlers/commands/__init__.py` is only a router aggregator. It exports `create_router`; it is not a compatibility-shim collection.
 
 Administrative actions use `bot_obormot/services/audit.py` and emit `AUDIT action=... actor=... target=... result=...` records. Admin add/remove, ban/unban, history-limit changes for another user, and denied calls to administrative handlers are logged.
 

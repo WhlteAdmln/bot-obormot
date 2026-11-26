@@ -13,10 +13,7 @@ from bot_obormot.fsm.keys import (
 )
 from bot_obormot.handlers.fallback.texts import UNKNOWN_COMMAND_MESSAGE
 
-router = Router()
 
-
-@router.message(F.text.startswith("/"))
 async def cmd_unknown(message: Message, state: FSMContext) -> None:
     """Handle unknown commands."""
     response = await message.answer(UNKNOWN_COMMAND_MESSAGE)
@@ -26,3 +23,10 @@ async def cmd_unknown(message: Message, state: FSMContext) -> None:
         UNKNOWN_COMMAND_STATUS_MESSAGE_KEY: response.message_id,
     }
     await state.update_data(data)
+
+
+def create_router() -> Router:
+    """Build a router with the unknown command handler."""
+    router = Router()
+    router.message.register(cmd_unknown, F.text.startswith("/"))
+    return router

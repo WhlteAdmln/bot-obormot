@@ -33,7 +33,9 @@ from tests.support.telegram import (
 
 
 def test_forget_me_command_is_registered() -> None:
-    callbacks = [handler.callback for handler in history_basic.router.message.handlers]
+    callbacks = [
+        handler.callback for handler in history_basic.create_router().message.handlers
+    ]
     assert cmd_forget_me in callbacks, "forget_me is not registered"
 
 

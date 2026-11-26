@@ -3,7 +3,7 @@
 
 """Admin handlers."""
 
-from bot_obormot.handlers.admin.handler import router
+from bot_obormot.handlers.admin.handler import create_router
 from bot_obormot.handlers.admin.handler.access import is_supervisor
 from bot_obormot.handlers.admin.handler.admins import (
     cmd_admin,
@@ -28,6 +28,6 @@ __all__ = [
     "cmd_ban",
     "cmd_health",
     "cmd_unban",
+    "create_router",
     "is_supervisor",
-    "router",
 ]

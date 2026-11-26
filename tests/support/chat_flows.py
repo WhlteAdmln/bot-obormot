@@ -16,7 +16,6 @@ from bot_obormot.app.routers import configure_dispatcher
 from bot_obormot.services.database import Database
 from bot_obormot.services.llm import LLMClient
 from bot_obormot.settings import Settings
-from tests.support.dispatcher import detach_router
 from tests.support.settings import make_settings
 from tests.support.telegram import FakeTelegramSession, make_message
 
@@ -54,13 +53,6 @@ def configure_llm_flow(llm_base_url: str, **overrides: object) -> Settings:
     }
     options.update(overrides)
     return make_settings(**options)
-
-
-def release_dispatcher(dispatcher: Dispatcher) -> None:
-    """Detach shared application routers after an integration flow."""
-    for router in dispatcher.sub_routers:
-        detach_router(router)
-    dispatcher.sub_routers.clear()
 
 
 def make_private_message(user_id: int, **update: object) -> Message:
@@ -201,5 +193,4 @@ async def open_flow(
         yield bot, dispatcher
     finally:
         await bot.session.close()
-        release_dispatcher(dispatcher)
         await close_flow_llm_client(dispatcher)

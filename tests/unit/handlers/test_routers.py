@@ -3,56 +3,77 @@
 
 """Tests for handlers routers."""
 
+from collections.abc import Callable
+
 import pytest
 from aiogram import Router
 
 from bot_obormot.handlers import admin, fallback, prompt, routers, start
 from bot_obormot.handlers.chat import handler as chat_handler
+from bot_obormot.handlers.fallback import cmd_unknown
 from bot_obormot.handlers.history import basic as history_basic
 from bot_obormot.handlers.history import limits as history_limits
+from bot_obormot.handlers.history.basic import cmd_history_clear
+from bot_obormot.handlers.history.limits import cmd_history_limit
+from bot_obormot.handlers.prompt import cmd_prompt
+
+ROUTER_FACTORIES = [
+    start.create_router,
+    admin.create_router,
+    history_basic.create_router,
+    history_limits.create_router,
+    prompt.create_router,
+    fallback.create_router,
+    routers.create_router,
+    chat_handler.create_router,
+]
 
 
-@pytest.mark.parametrize(
-    "exported",
-    [
-        start.router,
-        admin.router,
-        history_basic.router,
-        history_limits.router,
-        prompt.router,
-        fallback.router,
-        routers.router,
-        chat_handler.router,
-    ],
-)
-def test_exports_a_router_from_each_handler_module(exported: object) -> None:
-    assert isinstance(exported, Router), "a handler module does not export a router"
+@pytest.mark.parametrize("create_router", ROUTER_FACTORIES)
+def test_builds_a_router_in_each_handler_module(
+    create_router: Callable[[], Router],
+) -> None:
+    assert isinstance(create_router(), Router), "a factory does not build a router"
+
+
+@pytest.mark.parametrize("create_router", ROUTER_FACTORIES)
+def test_builds_a_new_router_on_each_call(
+    create_router: Callable[[], Router],
+) -> None:
+    first = create_router()
+    assert create_router() is not first, "a factory returns a shared router"
 
 
 def test_keeps_original_registration_groups_in_order() -> None:
-    expected_routers = [
-        history_basic.router,
-        prompt.router,
-        history_limits.router,
-        fallback.router,
+    expected_callbacks = [
+        cmd_history_clear,
+        cmd_prompt,
+        cmd_history_limit,
+        cmd_unknown,
     ]
-    assert routers.router.sub_routers == expected_routers, "sub-router order changed"
+    first_callbacks = [
+        sub_router.message.handlers[0].callback
+        for sub_router in routers.create_router().sub_routers
+    ]
+    assert first_callbacks == expected_callbacks, "sub-router order changed"
 
 
 def test_registers_unknown_command_router_last() -> None:
-    last_router = routers.router.sub_routers[-1]
-    assert last_router is fallback.router, "the fallback router is not the last one"
+    expected_callbacks = [cmd_unknown]
+    last_router = routers.create_router().sub_routers[-1]
+    callbacks = [handler.callback for handler in last_router.message.handlers]
+    assert callbacks == expected_callbacks, "the fallback router is not the last one"
 
 
 def test_registers_a_single_unknown_command_handler() -> None:
     expected_count = 1
-    handler_count = len(fallback.router.message.handlers)
+    handler_count = len(fallback.create_router().message.handlers)
     assert handler_count == expected_count, "the fallback router has extra handlers"
 
 
-def test_exports_only_router_from_routers_module() -> None:
-    expected_exports = ["router"]
-    assert routers.__all__ == expected_exports, "routers exports more than the router"
+def test_exports_only_router_factory_from_routers_module() -> None:
+    expected_exports = ["create_router"]
+    assert routers.__all__ == expected_exports, "routers exports more than the factory"
 
 
 def test_keeps_handler_functions_out_of_routers_module() -> None:

@@ -23,7 +23,6 @@ from bot_obormot.settings import Settings
 if TYPE_CHECKING:
     from aiogram import Bot
 
-router = Router()
 logger = logging.getLogger("bot_obormot.handlers.start")
 
 
@@ -101,7 +100,6 @@ def _build_welcome_text(
     return text + texts.CAPABILITIES_MESSAGE
 
 
-@router.message(Command("start"))
 async def cmd_start(
     message: Message,
     state: FSMContext,
@@ -127,3 +125,10 @@ async def cmd_start(
 
     data: dict[str, int] = {WELCOME_MESSAGE_KEY: response.message_id}
     await state.update_data(data)
+
+
+def create_router() -> Router:
+    """Build a router with the /start command."""
+    router = Router()
+    router.message.register(cmd_start, Command("start"))
+    return router

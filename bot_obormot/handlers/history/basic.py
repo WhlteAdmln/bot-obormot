@@ -13,10 +13,7 @@ from bot_obormot.handlers.prompt.handler import send_prompt_status
 from bot_obormot.services.database import Database
 from bot_obormot.settings import Settings
 
-router = Router()
 
-
-@router.message(Command("history_clear"))
 async def cmd_history_clear(
     message: Message, state: FSMContext, database: Database
 ) -> None:
@@ -33,7 +30,6 @@ async def cmd_history_clear(
     )
 
 
-@router.message(Command("forget_me"))
 async def cmd_forget_me(
     message: Message, state: FSMContext, database: Database
 ) -> None:
@@ -70,7 +66,6 @@ async def show_history_limit(
     )
 
 
-@router.message(Command("history"))
 async def cmd_history(
     message: Message,
     state: FSMContext,
@@ -79,3 +74,12 @@ async def cmd_history(
 ) -> None:
     """Shows the current history limit of the user."""
     await show_history_limit(message, state, settings, database)
+
+
+def create_router() -> Router:
+    """Build a router with the basic history commands."""
+    router = Router()
+    router.message.register(cmd_history_clear, Command("history_clear"))
+    router.message.register(cmd_forget_me, Command("forget_me"))
+    router.message.register(cmd_history, Command("history"))
+    return router

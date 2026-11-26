@@ -9,7 +9,7 @@ from collections.abc import AsyncIterator, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from http import HTTPStatus
-from typing import Any, Protocol
+from typing import NotRequired, Protocol, TypedDict
 
 import aiohttp
 
@@ -27,6 +27,38 @@ from bot_obormot.settings import Settings
 _STREAM_DONE = "[DONE]"
 
 logger = logging.getLogger(__name__)
+
+
+class _ChunkDelta(TypedDict):
+    """The part of a streamed choice delta that the stream reads."""
+
+    content: NotRequired[str | None]
+    reasoning_content: NotRequired[str | None]
+    reasoning: NotRequired[str | None]
+
+
+class _ChunkChoice(TypedDict):
+    """The part of a streamed choice that the stream reads."""
+
+    delta: NotRequired[_ChunkDelta]
+    finish_reason: NotRequired[str | None]
+
+
+class _StreamChunk(TypedDict):
+    """The part of a server-sent chat/completions chunk that the stream reads."""
+
+    choices: NotRequired[list[_ChunkChoice]]
+
+
+class _CompletionPayload(TypedDict):
+    """The chat/completions request body of a streamed generation."""
+
+    model: str
+    messages: list[ChatMessage]
+    temperature: float
+    top_p: float
+    max_tokens: int
+    stream: bool
 
 
 class StreamingClient(Protocol):
@@ -57,7 +89,7 @@ class _StreamState:
     reasoned: bool = False
     finish_reason: str | None = None
 
-    def read(self, chunk: dict[str, Any]) -> str | None:
+    def read(self, chunk: _StreamChunk) -> str | None:
         """Return the answer text of a chunk and remember how it went."""
         choices = chunk.get("choices", [])
 
@@ -67,8 +99,10 @@ class _StreamState:
         choice = choices[0]
         delta = choice.get("delta", {})
 
-        if choice.get("finish_reason"):
-            self.finish_reason = choice["finish_reason"]
+        finish_reason = choice.get("finish_reason")
+
+        if finish_reason:
+            self.finish_reason = finish_reason
 
         if delta.get("reasoning_content") or delta.get("reasoning"):
             self.reasoned = True
@@ -113,7 +147,7 @@ def _translated_transport_errors() -> Iterator[None]:
 def _completion_payload(
     settings: Settings,
     messages: list[ChatMessage],
-) -> dict[str, Any]:
+) -> _CompletionPayload:
     """Build the chat/completions request body for a streamed generation."""
     return {
         "model": settings.LLM_MODEL,
@@ -128,7 +162,7 @@ def _completion_payload(
 async def _stream_contents(
     client: StreamingClient,
     url: str,
-    payload: dict[str, Any],
+    payload: _CompletionPayload,
 ) -> AsyncIterator[str]:
     """Post the request and yield the answer text of each server-sent chunk."""
     state = _StreamState()
@@ -156,7 +190,8 @@ async def _stream_contents(
                 break
 
             try:
-                chunk = json.loads(data)
+                # The server is trusted to send chunks of the documented shape.
+                chunk: _StreamChunk = json.loads(data)
             except json.JSONDecodeError:
                 logger.warning("Invalid LLM stream chunk: %s", data)
                 continue

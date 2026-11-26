@@ -17,6 +17,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- [#177](https://github.com/WhlteAdmln/bot-obormot/issues/177) The streamed LLM chunks and the chat/completions request body are typed with TypedDicts in `bot_obormot/services/llm/streaming.py` instead of `dict[str, Any]`.
 - [#118](https://github.com/WhlteAdmln/bot-obormot/issues/118) LLM chat messages and their text and `image_url` parts are typed with the `ChatMessage`, `TextPart` and `ImageURLPart` TypedDicts in `bot_obormot/common/llm_messages.py` instead of `dict[str, Any]`.
 - [#146](https://github.com/WhlteAdmln/bot-obormot/issues/146) The chat router factory receives the chat runtime directly, so it no longer travels through `workflow_data`.
 - [#124](https://github.com/WhlteAdmln/bot-obormot/issues/124) Handler modules build their routers with `create_router()` instead of module-level objects, so tests need no router detaching.

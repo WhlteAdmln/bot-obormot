@@ -10,10 +10,14 @@ import sqlite3
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 import aiosqlite
 
+from bot_obormot.common.llm_messages import (
+    ChatMessage,
+    ImageURLPart,
+    MessageContent,
+)
 from bot_obormot.services.database.files.image_storage import is_managed_image
 from bot_obormot.services.database.repositories import messages
 from bot_obormot.services.media.contact_sheet import build_contact_sheet
@@ -32,8 +36,8 @@ def _decode_data_url(data_url: str) -> bytes:
 
 
 def _combine_animation_frames(
-    image_parts: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
+    image_parts: list[ImageURLPart],
+) -> list[ImageURLPart]:
     """Merge image parts into a single contact-sheet image part."""
     frame_data = [_decode_data_url(part["image_url"]["url"]) for part in image_parts]
     contact_sheet = build_contact_sheet(frame_data)
@@ -48,10 +52,10 @@ def _combine_animation_frames(
 
 def _build_history_message_content(
     message_id: int,
-    current_content: str | None,
-    image_parts: list[dict[str, Any]],
+    current_content: str,
+    image_parts: list[ImageURLPart],
     logger: logging.Logger,
-) -> str | list[dict[str, Any]] | None:
+) -> MessageContent:
     message_image_parts = list(image_parts)
     if len(message_image_parts) > 1:
         # Older versions stored each animation frame as a separate file.
@@ -79,18 +83,18 @@ def _build_history_message_content(
 class _PendingMessage:
     """A history message whose image parts are still being collected."""
 
-    message_id: int | None = None
-    role: str | None = None
-    content: str | None = None
-    image_parts: list[dict[str, Any]] = field(default_factory=list)
+    message_id: int
+    role: str
+    content: str
+    image_parts: list[ImageURLPart] = field(default_factory=list)
 
 
 def _append_history_message(
-    history: list[dict[str, Any]],
-    pending: _PendingMessage,
+    history: list[ChatMessage],
+    pending: _PendingMessage | None,
     logger: logging.Logger,
 ) -> None:
-    if pending.message_id is None:
+    if pending is None:
         return
     history.append(
         {
@@ -109,7 +113,7 @@ async def _read_image_part(
     row: sqlite3.Row,
     read_image_as_base64: ImageReader,
     logger: logging.Logger,
-) -> dict[str, Any] | None:
+) -> ImageURLPart | None:
     """Read one stored image as an image part, or None when it is unavailable."""
     file_path = row["file_path"]
     if not file_path:
@@ -140,7 +144,7 @@ async def get_history(
     max_images: int,
     read_image_as_base64: ImageReader,
     logger: logging.Logger,
-) -> list[dict[str, Any]]:
+) -> list[ChatMessage]:
     """Build exchanges for the LLM; max_images limits media messages."""
     max_images = max(0, max_images)
     exchange_limit = -1 if limit is None else max(0, limit)
@@ -151,11 +155,11 @@ async def get_history(
         max_images,
     )
 
-    history: list[dict[str, Any]] = []
-    pending = _PendingMessage()
+    history: list[ChatMessage] = []
+    pending: _PendingMessage | None = None
 
     for row in rows:
-        if row["id"] != pending.message_id:
+        if pending is None or row["id"] != pending.message_id:
             _append_history_message(history, pending, logger)
             pending = _PendingMessage(row["id"], row["role"], row["content"])
 

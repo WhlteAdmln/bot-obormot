@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 from bot_obormot.common.validation import MAX_INPUT_TEXT_LENGTH, validate_input_text
 from bot_obormot.errors import DocumentTooLongError
@@ -16,6 +16,7 @@ from bot_obormot.services.media import get_user_content
 if TYPE_CHECKING:
     from aiogram.types import Document, Message
 
+    from bot_obormot.common.llm_messages import ContentPart
     from bot_obormot.services.chat.input.models import MessageInfo
 
 
@@ -63,7 +64,7 @@ def _select_content(
     transcribed_text: str | None,
     image_urls: list[str] | None,
     document_text: str | None,
-) -> str | list[dict[str, Any]] | None:
+) -> str | list[ContentPart] | None:
     """Pick the content that matches the kind of message."""
     if info.has_audio:
         return _audio_content(message, transcribed_text)
@@ -85,7 +86,7 @@ def build_user_content(
     transcribed_text: str | None,
     image_urls: list[str] | None,
     document_text: str | None,
-) -> str | list[dict[str, Any]] | None:
+) -> str | list[ContentPart] | None:
     """Build text or multimodal content for the LLM."""
     user_content = _select_content(
         message, info, text_override, transcribed_text, image_urls, document_text

@@ -38,6 +38,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- [#184](https://github.com/WhlteAdmln/bot-obormot/issues/184) The architecture documents describe the existing entry point, module paths, shutdown order, middleware and development requirements.
 - [#166](https://github.com/WhlteAdmln/bot-obormot/issues/166) The architecture documents name the existing router aggregator `bot_obormot/handlers/routers.py` and `bot_obormot/common/http_limits.py` instead of removed modules.
 - [#174](https://github.com/WhlteAdmln/bot-obormot/issues/174) CI installs its system packages from the restored apt cache and downloads only the package files that are missing from it.
 - [#172](https://github.com/WhlteAdmln/bot-obormot/issues/172) CI restores the apt cache on every runner image of the same operating system, not only on the image release of the cache workflow.

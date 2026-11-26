@@ -8,7 +8,7 @@ The bot is an asynchronous Python 3.11+ application built on aiogram 3. Telegram
 
 ```mermaid
 flowchart LR
-    T[Telegram private message] --> M[Middleware: throttle, access, cleanup]
+    T[Telegram private message] --> M[Middleware: correlation ID, throttle, access, cleanup]
     M --> R[Routers: start, admin, routers, chat]
     R --> C[Chat handler: inspect, aggregate, lock, prepare]
     C -->|audio and documents| A[audiodoc]
@@ -20,14 +20,14 @@ flowchart LR
     P --> O[Reply in Telegram]
 ```
 
-`bot_obormot/app/routers.py` is the single registration point. Middleware order is significant: throttling runs before access checks; temporary-message cleanup runs after access. Root router order is `start`, `admin`, `routers`, then `chat`, with the general chat handler last so command handlers get the first opportunity to match. Every handler module builds its router with `create_router()`, so each dispatcher gets fresh routers. At dispatcher startup `bot_obormot/app/dependencies.py` checks that `workflow_data` holds `settings`, `llm_client` and `database` and stops the startup with an error that names each missing one.
+`bot_obormot/app/bootstrap.py` registers `CorrelationIdMiddleware` as an outer update middleware, so every update gets its correlation ID before the message middleware runs. `bot_obormot/app/routers.py` registers the message middleware and the root routers. Middleware order is significant: the correlation ID is set first, throttling runs before access checks, and temporary-message cleanup runs after access. Root router order is `start`, `admin`, `routers`, then `chat`, with the general chat handler last so command handlers get the first opportunity to match. Every handler module builds its router with `create_router()`, so each dispatcher gets fresh routers. At dispatcher startup `bot_obormot/app/dependencies.py` checks that `workflow_data` holds `settings`, `llm_client` and `database` and stops the startup with an error that names each missing one.
 
 ## 2. Startup and shutdown
 
-- `bot_obormot/cli.py` is the console entry point (`run`, `version`, `init`, `config check`, `doctor`, `service`); `python -m bot_obormot` runs it. The deprecated `bot/main.py` forwards `python -m bot.main` to `run` and is removed in 0.3.0.
-- `bot_obormot/doctor.py` runs the installation diagnostics, `bot_obormot/service.py` renders systemd units and `bot_obormot/initial_env.py` writes `.env` from `templates/env.example`.
+- `bot_obormot/cli.py` is the console entry point (`run`, `version`, `init`, `config check`, `doctor`, `service`); `python -m bot_obormot` runs it. `bot_obormot/main.py` is a thin entry point that runs the application from `bot_obormot/app/bootstrap.py`.
+- `bot_obormot/doctor.py` runs the installation diagnostics, `bot_obormot/service.py` renders systemd units and `bot_obormot/initial_env.py` writes `.env` from `bot_obormot/templates/env.example`.
 - `bot_obormot/app/bootstrap.py` applies `umask(0o077)`, configures logging and secret filtering, enables Pillow limits, logs the access mode, validates `BOT_TOKEN`, creates the Bot/Dispatcher, and configures routers.
-- `bot_obormot/app/lifecycle.py` connects SQLite, starts the LLM client, starts the named periodic image-cleanup task, and starts Telegram polling. On shutdown it cancels and awaits cleanup, then closes the LLM client, database connection, and Telegram session.
+- `bot_obormot/app/lifecycle.py` connects SQLite, starts the LLM client, starts the named periodic image-cleanup task, and starts Telegram polling. On shutdown it cancels and awaits cleanup, closes the database connection when its `async with` block exits, and then closes the LLM client and the Telegram session.
 - `bot_obormot/app/background/image_cleanup.py` invokes image cleanup once per day with a 30-day media-retention period and a 24-hour grace period for orphaned images.
 - `bot_obormot/env_readers.py` (shared with audiodoc) holds the environment readers and `load_env_file()`, which loads `<home>/.env` and then `./.env`. The home directory is `BOT_OBORMOT_HOME` (default `~/bot-obormot`); relative paths such as `DATABASE_PATH` resolve against it. `bot_obormot/config/model/` builds `Settings` with `load_settings()`: `schema.py` holds the `Settings` dataclass, `readers.py` the typed readers that collect errors, `loader.py` the validation and `ConfigError`, and `cache.py` the process-wide `get_settings()` cache; nothing reads the environment at import time.
 
@@ -39,7 +39,7 @@ flowchart LR
 - `bot_obormot/middlewares/access.py` rejects events without a sender and ignores non-private chats. Denial notifications are sent at most once per user per 60 seconds; the tracking dictionary is bounded.
 - `bot_obormot/services/access/roles.py` contains pure Supervisor/admin/allowlist membership helpers.
 - `bot_obormot/services/access/service.py` applies access policy. The Supervisor is always admitted. For other users, persistent SQLite blocks are checked before database-admin, `ALLOW_ALL_USERS`, and `ALLOWED_USERS` admission.
-- `UserLocks` in `bot_obormot/services/chat/locks.py` serializes work per user and counts active/waiting requests. The application creates one instance at startup and passes it to the chat handler through the dispatcher. `bot_obormot/handlers/chat/handler.py` allows at most 3 pending/active requests for one user.
+- `UserLocks` in `bot_obormot/services/chat/locks.py` serializes work per user and counts active/waiting requests. The application creates one instance at startup and passes it to `chat.create_router()` in `ChatRuntime` (`bot_obormot/app/routers.py`). `bot_obormot/handlers/chat/handler.py` allows at most 3 pending/active requests for one user.
 
 The default access mode is closed: with an empty `ALLOWED_USERS` and `ALLOW_ALL_USERS=false`, only the Supervisor and database administrators can use the bot. `ALLOW_ALL_USERS=true` is an explicit opt-in. `/ban` cannot target the Supervisor or a database administrator; administrators must first be removed with `/admin_remove`. The Supervisor bypasses normal block checks and cannot be blocked through the command or database facade.
 
@@ -78,7 +78,7 @@ Long plain-text messages are combined by `bot_obormot/services/chat/aggregation/
 
 `bot_obormot/services/llm/` contains the OpenAI-compatible client, HTTP session/auth headers, endpoints, message normalization, context fitting, tokenization, context-size queries, and streaming. `normalize_messages()` neutralizes known template/control-token strings in every non-system message, including text parts of multimodal messages. System prompts are left unchanged. This is a defense-in-depth measure; it is not a complete prompt-injection solution.
 
-The default system prompt is stored in `prompts/systemPrompt.md`; an administrator can replace it with a file set by `SYSTEM_PROMPT_PATH`, and users may have a personal system prompt. The default prompt explicitly frames document text, speech transcriptions, and captions as data to analyze rather than instructions.
+The default system prompt is stored in `bot_obormot/prompts/systemPrompt.md`; an administrator can replace it with a file set by `SYSTEM_PROMPT_PATH`, and users may have a personal system prompt. The default prompt explicitly frames document text, speech transcriptions, and captions as data to analyze rather than instructions.
 
 ### Delivery of responses
 
@@ -114,7 +114,7 @@ The video path requires `ffmpeg` and `ffprobe` on `PATH`.
 
 - `bot_obormot/services/audio/client.py` sends audio to [audiodoc](https://github.com/WhlteAdmln/audiodoc) and `bot_obormot/services/documents/client.py` sends documents to it and validates the returned structure. Both append their endpoint path (`/transcribe`, `/process-document`) to `AUDIODOC_URL`.
 - audiodoc is optional. Audio and document processing are both disabled when `AUDIODOC_URL` is empty.
-- The `AUDIODOC_*` settings connect both features to the same audiodoc service: `AUDIODOC_URL` is the base URL, and `AUDIODOC_AUDIO_KEY` and `AUDIODOC_DOCUMENT_KEY` add separate optional Bearer authorization headers. The old `WHISPER_*` and `DOCUMENT_*` names are deprecated and still read when the new name is empty. Use HTTPS when audiodoc is remote; API keys do not encrypt HTTP traffic.
+- The `AUDIODOC_*` settings connect both features to the same audiodoc service: `AUDIODOC_URL` is the base URL, and `AUDIODOC_AUDIO_KEY` and `AUDIODOC_DOCUMENT_KEY` add separate optional Bearer authorization headers. Use HTTPS when audiodoc is remote; API keys do not encrypt HTTP traffic.
 - See the [audiodoc repository](https://github.com/WhlteAdmln/audiodoc) for supported document formats, server configuration and its guide for connecting the bot.
 - `bot_obormot/common/http_limits.py` reads response bodies incrementally in 64 KiB chunks, with a 2 MiB limit for successful service responses and a 2 KiB limit for HTTP error-body reads.
 
@@ -147,6 +147,6 @@ The application still depends on host-level protection, correct `.env` permissio
 
 - `requirements.txt` defines supported version ranges.
 - `requirements-lock.txt` pins the runtime dependency set for reproducible production installs.
-- `requirements-dev.txt` includes the locked runtime set plus pytest tooling.
+- `requirements-dev.txt` installs the project in editable mode with the `dev` extra (`-e .[dev]`); `make install-dev` applies `requirements-lock.txt` as a constraint.
 
 Run `make check` for the full gate and `make integration` for tests marked `integration`; some of them need an LLM server that implements `/tokenize`.

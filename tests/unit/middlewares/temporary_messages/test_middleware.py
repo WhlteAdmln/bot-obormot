@@ -298,11 +298,14 @@ async def test_reraises_the_handler_error(
     bot, _ = telegram
     handler = RecordingHandler(error=RuntimeError("обработчик упал"))
     state = FakeFSMContext({PROMPT_STATUS_MESSAGE_KEY: 841})
+    error_text = "обработчик упал"
 
-    with pytest.raises(RuntimeError, match="обработчик упал"):
+    with pytest.raises(RuntimeError) as excinfo:
         await TemporaryMessagesCleanupMiddleware()(
             handler, _message(bot, "Сломай всё"), {"state": state}
         )
+
+    assert str(excinfo.value) == error_text, "handler error was not re-raised"
 
 
 @pytest.mark.asyncio

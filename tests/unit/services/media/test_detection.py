@@ -14,38 +14,46 @@ from tests.support.media import make_message
 
 def test_get_media_info_prefers_photo_and_uses_largest_photo() -> None:
     message = make_message(
-        photo=[SimpleNamespace(file_id="small"), SimpleNamespace(file_id="large")],
+        photo=[SimpleNamespace(file_id="thumb-81"), SimpleNamespace(file_id="full-4k")],
     )
+    expected = ("full-4k", "image")
+    assert media.get_media_info(message) == expected, "the largest photo was not used"
 
-    assert media.get_media_info(message) == ("large", "image")
 
-
-def test_get_media_info_classifies_stickers_and_documents() -> None:
-    animated_sticker = make_message(
+def test_get_media_info_classifies_an_animated_sticker_as_tgs() -> None:
+    message = make_message(
         sticker=SimpleNamespace(
             file_id="tgs-id",
             is_animated=True,
             is_video=False,
         ),
     )
-    video_sticker = make_message(
+    expected = ("tgs-id", "tgs")
+    assert media.get_media_info(message) == expected, "an animated sticker is not tgs"
+
+
+def test_get_media_info_classifies_a_video_sticker_as_webm() -> None:
+    message = make_message(
         sticker=SimpleNamespace(
             file_id="webm-id",
             is_animated=False,
             is_video=True,
         ),
     )
-    gif_document = make_message(
+    expected = ("webm-id", "webm")
+    assert media.get_media_info(message) == expected, "a video sticker is not webm"
+
+
+def test_get_media_info_classifies_a_gif_document_by_its_name() -> None:
+    message = make_message(
         document=SimpleNamespace(
             file_id="gif-id",
             file_name="IMAGE.GIF",
             mime_type="application/octet-stream",
         ),
     )
-
-    assert media.get_media_info(animated_sticker) == ("tgs-id", "tgs")
-    assert media.get_media_info(video_sticker) == ("webm-id", "webm")
-    assert media.get_media_info(gif_document) == ("gif-id", "gif")
+    expected = ("gif-id", "gif")
+    assert media.get_media_info(message) == expected, "a gif document is not gif"
 
 
 def test_get_media_info_classifies_video_documents_by_mime_type() -> None:
@@ -56,8 +64,8 @@ def test_get_media_info_classifies_video_documents_by_mime_type() -> None:
             mime_type="video/mp4",
         ),
     )
-
-    assert media.get_media_info(message) == ("video-id", "mp4")
+    expected = ("video-id", "mp4")
+    assert media.get_media_info(message) == expected, "a video mime type is not mp4"
 
 
 @pytest.mark.parametrize(
@@ -184,4 +192,4 @@ def test_get_media_info_detects_message_media(
     message: SimpleNamespace,
     expected: tuple[str | None, str | None],
 ) -> None:
-    assert get_media_info(message) == expected
+    assert get_media_info(message) == expected, "the media was misdetected"

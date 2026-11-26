@@ -20,14 +20,14 @@ async def test_reporting_answers_when_no_status_and_logs_send_failure(
         await reporting.report_error(message, None, "ошибка")
 
     send_warning = "Could not send error message"
-    assert send_warning in caplog.text
+    assert send_warning in caplog.text, "the send failure was not logged"
 
 
 @pytest.mark.asyncio
 async def test_reporting_uses_safe_edit_when_status_exists(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    captured = []
+    captured: list[tuple[object, str]] = []
 
     async def fake_safe_edit(message: object, text: str) -> None:
         captured.append((message, text))
@@ -37,4 +37,4 @@ async def test_reporting_uses_safe_edit_when_status_exists(
     status = object()
 
     await reporting.report_error(message, status, "ошибка")
-    assert captured == [(status, "ошибка")]
+    assert captured == [(status, "ошибка")], "the status was not edited safely"

@@ -15,4 +15,6 @@ def test_server_url_removes_trailing_slashes_and_v1() -> None:
         LLM_BASE_URL="http://localhost:8080/v1///",
     )
     expected_server_url = "http://localhost:8080"
-    assert endpoints.server_url(settings) == expected_server_url
+    assert endpoints.server_url(settings) == expected_server_url, (
+        "the server URL keeps a trailing slash or /v1"
+    )

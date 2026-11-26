@@ -20,15 +20,40 @@ ROOT_DIR = Path(__file__).resolve().parents[3]
 WORKFLOWS = ROOT_DIR / ".github" / "workflows"
 
 
+def _workflow_text(name: str) -> str:
+    """Return the text of one workflow file."""
+    return (WORKFLOWS / name).read_text(encoding="utf-8")
+
+
 def _job_names(name: str) -> set[str]:
     """Return the job identifiers declared in a workflow file."""
-    text = (WORKFLOWS / name).read_text(encoding="utf-8")
-    jobs_section = text.split("\njobs:\n", maxsplit=1)[1]
+    jobs_section = _workflow_text(name).split("\njobs:\n", maxsplit=1)[1]
     return set(re.findall(r"(?m)^  ([a-z][a-z-]*):\s*$", jobs_section))
 
 
-def test_ci_has_the_required_jobs() -> None:
-    assert _job_names("ci.yml") == {
+def _installer_step() -> str:
+    """Return the CI step that installs the installer smoke-test tools."""
+    text = _workflow_text("ci.yml")
+    return text.split("      - name: Install installer smoke-test tools\n", maxsplit=1)[
+        1
+    ].split("\n      - name:", maxsplit=1)[0]
+
+
+def _release_entry(version: str) -> str:
+    """Return the changelog section of one release."""
+    changelog = (ROOT_DIR / "CHANGELOG.md").read_text(encoding="utf-8")
+    return changelog.split(f"## [{version}] - ", maxsplit=1)[1].split(
+        "\n## [", maxsplit=1
+    )[0]
+
+
+def _first_line(path: Path) -> str:
+    """Return the first line of a text file."""
+    return path.read_text(encoding="utf-8").splitlines()[0]
+
+
+def test_ci_declares_the_required_jobs() -> None:
+    expected_jobs = {
         "lint",
         "test",
         "integration",
@@ -38,12 +63,12 @@ def test_ci_has_the_required_jobs() -> None:
         "installer",
         "docker",
     }
+    assert _job_names("ci.yml") == expected_jobs, "the CI jobs differ"
 
 
-def test_ci_jobs_call_make_targets() -> None:
-    text = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
-
-    for target in (
+@pytest.mark.parametrize(
+    "target",
+    [
         "make lint",
         "make types pylint deptry vulture import-lint",
         "make test",
@@ -52,8 +77,11 @@ def test_ci_jobs_call_make_targets() -> None:
         "make build",
         "make installer",
         "make docker",
-    ):
-        assert target in text, target
+    ],
+)
+def test_ci_jobs_call_make_target(target: str) -> None:
+    text = _workflow_text("ci.yml")
+    assert target in text, f"the CI workflow does not run {target}"
 
 
 @pytest.mark.parametrize(
@@ -105,43 +133,54 @@ def test_check_target_runs_every_local_ci_gate() -> None:
     assert gates == expected_gates, "make check must run every local CI gate"
 
 
-def test_installer_smoke_test_installs_locked_runtime_dependencies() -> None:
-    text = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
-    installer_step = text.split(
-        "      - name: Install installer smoke-test tools\n", maxsplit=1
-    )[1].split("\n      - name:", maxsplit=1)[0]
+@pytest.mark.parametrize(
+    "option",
+    ["--constraint requirements-lock.txt", "-r requirements.txt"],
+)
+def test_installer_smoke_test_installs_locked_runtime_dependencies(
+    option: str,
+) -> None:
+    installer_step = _installer_step()
+    assert option in installer_step, f"the installer smoke test lacks {option}"
 
-    constraint_option = "--constraint requirements-lock.txt"
-    assert constraint_option in installer_step
-    requirements_option = "-r requirements.txt"
-    assert requirements_option in installer_step
 
-
-def test_ci_build_job_verifies_release_assets_and_metadata() -> None:
-    text = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
-
-    sdist_glob = "sdists=(dist/bot_obormot-*.tar.gz)"
-    assert sdist_glob in text
-    wheel_glob = "wheels=(dist/bot_obormot-*.whl)"
-    assert wheel_glob in text
-    checksum_command = "sha256sum --check --status SHA256SUMS"
-    assert checksum_command in text
-    twine_command = "twine check"
-    assert twine_command in text
-    version_check = 'bot-obormot" version'
-    assert version_check in text
+@pytest.mark.parametrize(
+    "snippet",
+    [
+        "sdists=(dist/bot_obormot-*.tar.gz)",
+        "wheels=(dist/bot_obormot-*.whl)",
+        "sha256sum --check --status SHA256SUMS",
+        "twine check",
+        'bot-obormot" version',
+    ],
+)
+def test_ci_build_job_verifies_release_assets_and_metadata(snippet: str) -> None:
+    text = _workflow_text("ci.yml")
+    assert snippet in text, f"the CI build job does not contain {snippet}"
 
 
 def test_ci_pins_every_third_party_action_to_a_commit() -> None:
-    for workflow in WORKFLOWS.glob("*.yml"):
-        for line in workflow.read_text(encoding="utf-8").splitlines():
-            match = re.search(r"uses:\s*(\S+)", line)
-            if match is None or match.group(1).startswith(("./", "$/")):
-                continue
-            assert re.fullmatch(r"[\w./-]+@[0-9a-f]{40}", match.group(1)), line
+    unpinned = [
+        line
+        for workflow in sorted(WORKFLOWS.glob("*.yml"))
+        for line in workflow.read_text(encoding="utf-8").splitlines()
+        if (match := re.search(r"uses:\s*(\S+)", line)) is not None
+        and not match.group(1).startswith(("./", "$/"))
+        and re.fullmatch(r"[\w./-]+@[0-9a-f]{40}", match.group(1)) is None
+    ]
+    expected_empty: list[str] = []
+    assert unpinned == expected_empty, "some actions are not pinned to a commit"
 
 
-def test_reusable_workflow_references_are_valid() -> None:
+@pytest.mark.parametrize("name", ["release.yml", "docker-publish.yml"])
+def test_reusable_workflow_references_the_ci_workflow(name: str) -> None:
+    workflow_path = "$/.github/workflows/ci.yml"
+    text = _workflow_text(name)
+    assert workflow_path in text, f"{name} does not call the CI workflow"
+
+
+@pytest.mark.parametrize("name", ["release.yml", "docker-publish.yml"])
+def test_reusable_workflow_grants_the_ci_job_its_permissions(name: str) -> None:
     pattern = re.compile(
         r"(?m)^  ci:\n"
         r"(?:    name: .*\n)?"
@@ -153,115 +192,104 @@ def test_reusable_workflow_references_are_valid() -> None:
         r"    permissions:\n      contents: read\n      packages: write\n"
         r"    uses: \$/.github/workflows/ci\.yml\n"
     )
-    for name in ("release.yml", "docker-publish.yml"):
-        text = (WORKFLOWS / name).read_text(encoding="utf-8")
-        workflow_path = "$/.github/workflows/ci.yml"
-        assert workflow_path in text
-        assert pattern.search(text) or pattern_with_permissions_first.search(text), name
+    text = _workflow_text(name)
+    found = bool(pattern.search(text) or pattern_with_permissions_first.search(text))
+    assert found, f"{name} does not declare the ci job with its permissions"
 
 
 def test_workflows_contain_no_russian_text() -> None:
-    for workflow in WORKFLOWS.glob("*.yml"):
-        assert re.search(r"[А-Яа-яЁё]", workflow.read_text(encoding="utf-8")) is None
+    russian = [
+        workflow.name
+        for workflow in sorted(WORKFLOWS.glob("*.yml"))
+        if re.search(r"[А-Яа-яЁё]", workflow.read_text(encoding="utf-8"))
+    ]
+    expected_empty: list[str] = []
+    assert russian == expected_empty, "some workflows contain Russian text"
 
 
-def test_release_workflow_builds_and_publishes_the_release_assets() -> None:
-    text = (WORKFLOWS / "release.yml").read_text(encoding="utf-8")
-
-    ci_dependency = "needs: ci"
-    assert ci_dependency in text
-    notes_script = "scripts/release_notes.py"
-    assert notes_script in text
-    build_script = "scripts/build_release.sh"
-    assert build_script in text
-    attest_action = "actions/attest@"
-    assert attest_action in text
-    draft_option = "--draft"
-    assert draft_option in text
-    prerelease_option = "--prerelease"
-    assert prerelease_option in text
-    dry_run_input = "dry_run"
-    assert dry_run_input in text
-    registry_host = "ghcr.io"
-    assert registry_host in text
+@pytest.mark.parametrize(
+    "snippet",
+    [
+        "needs: ci",
+        "scripts/release_notes.py",
+        "scripts/build_release.sh",
+        "actions/attest@",
+        "--draft",
+        "--prerelease",
+        "dry_run",
+        "ghcr.io",
+    ],
+)
+def test_release_workflow_builds_and_publishes_the_release_assets(
+    snippet: str,
+) -> None:
+    text = _workflow_text("release.yml")
+    assert snippet in text, f"the release workflow does not contain {snippet}"
 
 
 def test_headerless_vendored_files_exist() -> None:
-    for relative_path in HEADERLESS_VENDORED_FILES:
-        assert (ROOT_DIR / relative_path).is_file(), relative_path
+    missing = [
+        relative_path
+        for relative_path in HEADERLESS_VENDORED_FILES
+        if not (ROOT_DIR / relative_path).is_file()
+    ]
+    expected_empty: list[str] = []
+    assert missing == expected_empty, "some headerless vendored files are missing"
 
 
 def test_project_vendored_files_have_required_headers() -> None:
-    for relative_path in VENDORED_FILES:
-        first_line = (
-            (ROOT_DIR / relative_path).read_text(encoding="utf-8").splitlines()[0]
-        )
-        assert first_line == VENDORED_HEADER, relative_path
+    without_header = [
+        relative_path
+        for relative_path in VENDORED_FILES
+        if _first_line(ROOT_DIR / relative_path) != VENDORED_HEADER
+    ]
+    expected_empty: list[str] = []
+    assert without_header == expected_empty, "some vendored files lack the header"
 
+
+def test_package_vendored_files_have_required_headers() -> None:
     package_dir = ROOT_DIR / "bot_obormot"
-    for filename in PACKAGE_VENDORED_FILES:
-        first_line = (
-            (package_dir / filename).read_text(encoding="utf-8").splitlines()[0]
-        )
-        assert first_line == VENDORED_HEADER, filename
+    without_header = [
+        filename
+        for filename in PACKAGE_VENDORED_FILES
+        if _first_line(package_dir / filename) != VENDORED_HEADER
+    ]
+    expected_empty: list[str] = []
+    assert without_header == expected_empty, "some package files lack the header"
 
 
-def test_version_and_changelog_prepare_release_030() -> None:
+def test_version_prepares_release_030() -> None:
     pyproject = tomllib.loads((ROOT_DIR / "pyproject.toml").read_text("utf-8"))
-    changelog = (ROOT_DIR / "CHANGELOG.md").read_text(encoding="utf-8")
-    release_entry = changelog.split("## [0.3.0] - ", maxsplit=1)[1].split(
-        "\n## [", maxsplit=1
-    )[0]
-
     expected_version = "0.3.0"
-    assert pyproject["project"]["version"] == expected_version
-    for section in ("### Added", "### Changed", "### Removed"):
-        assert section in release_entry
-    deprecation_note = "Deprecated functionality is not supported starting with 0.3.0."
-    assert deprecation_note in release_entry
+    version = pyproject["project"]["version"]
+    assert version == expected_version, "the project version is not 0.3.0"
 
 
-def test_changelog_keeps_the_release_022_entry() -> None:
-    changelog = (ROOT_DIR / "CHANGELOG.md").read_text(encoding="utf-8")
-    release_entry = changelog.split("## [0.2.2] - ", maxsplit=1)[1].split(
-        "\n## [", maxsplit=1
-    )[0]
-
-    for section in ("### Added", "### Fixed"):
-        assert section in release_entry
-    prompt_setting = "SYSTEM_PROMPT_PATH"
-    assert prompt_setting in release_entry
-    max_tokens_setting = "LLM_MAX_TOKENS"
-    assert max_tokens_setting in release_entry
-    error_name = "LLMEmptyResponseError"
-    assert error_name in release_entry
-
-
-def test_version_and_changelog_prepare_release_021() -> None:
-    changelog = (ROOT_DIR / "CHANGELOG.md").read_text(encoding="utf-8")
-    release_entry = changelog.split("## [0.2.1] - ", maxsplit=1)[1].split(
-        "\n## [", maxsplit=1
-    )[0]
-
-    for section in ("### Added", "### Changed"):
-        assert section in release_entry
-    reply_field = "reply_parameters"
-    assert reply_field in release_entry
-    parse_mode_field = "parse_mode"
-    assert parse_mode_field in release_entry
-
-
-def test_changelog_keeps_the_release_020_entry() -> None:
-    changelog = (ROOT_DIR / "CHANGELOG.md").read_text(encoding="utf-8")
-    release_entry = changelog.split("## [0.2.0] - ", maxsplit=1)[1].split(
-        "\n## [", maxsplit=1
-    )[0]
-
-    for section in ("### Added", "### Changed", "### Deprecated", "### Removed"):
-        assert section in release_entry
-    whisper_prefix = "WHISPER_"
-    assert whisper_prefix in release_entry
-    legacy_command = "python -m bot.main"
-    assert legacy_command in release_entry
-    release_version = "0.3.0"
-    assert release_version in release_entry
+@pytest.mark.parametrize(
+    ("version", "snippet"),
+    [
+        ("0.3.0", "### Added"),
+        ("0.3.0", "### Changed"),
+        ("0.3.0", "### Removed"),
+        ("0.3.0", "Deprecated functionality is not supported starting with 0.3.0."),
+        ("0.2.2", "### Added"),
+        ("0.2.2", "### Fixed"),
+        ("0.2.2", "SYSTEM_PROMPT_PATH"),
+        ("0.2.2", "LLM_MAX_TOKENS"),
+        ("0.2.2", "LLMEmptyResponseError"),
+        ("0.2.1", "### Added"),
+        ("0.2.1", "### Changed"),
+        ("0.2.1", "reply_parameters"),
+        ("0.2.1", "parse_mode"),
+        ("0.2.0", "### Added"),
+        ("0.2.0", "### Changed"),
+        ("0.2.0", "### Deprecated"),
+        ("0.2.0", "### Removed"),
+        ("0.2.0", "WHISPER_"),
+        ("0.2.0", "python -m bot.main"),
+        ("0.2.0", "0.3.0"),
+    ],
+)
+def test_changelog_release_entry_mentions(version: str, snippet: str) -> None:
+    release_entry = _release_entry(version)
+    assert snippet in release_entry, f"the {version} entry lacks {snippet}"

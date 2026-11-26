@@ -3,6 +3,10 @@
 
 """Tests for the public API of the database package."""
 
+from types import ModuleType
+
+import pytest
+
 import bot_obormot.services.database as database_package
 import bot_obormot.services.database.facade as facade_module
 from bot_obormot.services.database import (
@@ -22,16 +26,24 @@ from bot_obormot.services.database.files.image_storage import (
 )
 
 
-def test_database_package_reexports_facade_api_without_global_instance() -> None:
-    assert Database is FacadeDatabase
-    assert not hasattr(database_package, "db")
-    assert not hasattr(facade_module, "db")
-    expected_number = 3
-    assert expected_number == MAX_HISTORY_MEDIA_MESSAGES
-    assert callable(handle_database_errors)
-    assert callable(read_image_as_base64)
+def test_database_package_reexports_the_facade_database() -> None:
+    assert Database is FacadeDatabase, "the package exports another Database"
 
 
-def test_database_helpers_are_reexported_from_their_new_modules() -> None:
-    assert handle_database_errors is canonical_decorator
-    assert read_image_as_base64 is canonical_image_reader
+@pytest.mark.parametrize("module", [database_package, facade_module])
+def test_database_modules_define_no_global_instance(module: ModuleType) -> None:
+    instance_name = "db"
+    assert not hasattr(module, instance_name), "a global database instance exists"
+
+
+def test_database_package_exports_the_history_media_limit() -> None:
+    expected_limit = 3
+    assert expected_limit == MAX_HISTORY_MEDIA_MESSAGES, "the media limit differs"
+
+
+def test_database_package_reexports_the_error_decorator() -> None:
+    assert handle_database_errors is canonical_decorator, "another decorator exported"
+
+
+def test_database_package_reexports_the_image_reader() -> None:
+    assert read_image_as_base64 is canonical_image_reader, "another reader exported"

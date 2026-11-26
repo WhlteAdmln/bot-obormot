@@ -27,21 +27,31 @@ from tests.support.telegram import (
 async def test_admin_add_writes_audit_record(caplog: pytest.LogCaptureFixture) -> None:
     actor_id = SETTINGS.SUPERVISOR_ID
     target_id = 123456789
-
-    async def add_admin(user_id: int) -> bool:
-        assert user_id == target_id
-        return True
-
-    database = SimpleNamespace(add_admin=add_admin)
+    database = AccessDatabase()
     message = FakeMessage(actor_id)
     command = SimpleNamespace(args=str(target_id))
 
     with caplog.at_level(logging.INFO, logger="bot_obormot.audit"):
         await admins.cmd_admin_add(message, command, SETTINGS, database)
 
-    assert (
+    expected_record = (
         f"AUDIT action=admin_add actor={actor_id} target={target_id} result=added"
-    ) in caplog.text
+    )
+    assert expected_record in caplog.text, "the added administrator was not audited"
+
+
+@pytest.mark.asyncio
+async def test_admin_add_passes_the_target_to_the_database() -> None:
+    target_id = 734120956
+    database = AccessDatabase()
+    message = FakeMessage(SETTINGS.SUPERVISOR_ID)
+    command = SimpleNamespace(args=str(target_id))
+
+    await admins.cmd_admin_add(message, command, SETTINGS, database)
+
+    expected_arguments = [(target_id,)]
+    actual_arguments = database.log.arguments("add_admin")
+    assert actual_arguments == expected_arguments, "add_admin got another user"
 
 
 @pytest.mark.asyncio
@@ -50,39 +60,62 @@ async def test_admin_remove_writes_not_found_result(
 ) -> None:
     actor_id = SETTINGS.SUPERVISOR_ID
     target_id = 123456789
-
-    async def remove_admin(user_id: int) -> bool:
-        assert user_id == target_id
-        return False
-
-    database = SimpleNamespace(remove_admin=remove_admin)
+    database = AccessDatabase()
+    database.scenario.results["remove_admin"] = False
     message = FakeMessage(actor_id)
     command = SimpleNamespace(args=str(target_id))
 
     with caplog.at_level(logging.INFO, logger="bot_obormot.audit"):
         await admins.cmd_admin_remove(message, command, SETTINGS, database)
 
-    assert (
+    expected_record = (
         f"AUDIT action=admin_remove actor={actor_id} "
         f"target={target_id} result=not_found"
-    ) in caplog.text
+    )
+    assert expected_record in caplog.text, "the missing administrator was not audited"
+
+
+@pytest.mark.asyncio
+async def test_admin_remove_passes_the_target_to_the_database() -> None:
+    target_id = 560089123
+    database = AccessDatabase()
+    database.scenario.results["remove_admin"] = False
+    message = FakeMessage(SETTINGS.SUPERVISOR_ID)
+    command = SimpleNamespace(args=str(target_id))
+
+    await admins.cmd_admin_remove(message, command, SETTINGS, database)
+
+    expected_arguments = [(target_id,)]
+    actual_arguments = database.log.arguments("remove_admin")
+    assert actual_arguments == expected_arguments, "remove_admin got another user"
 
 
 @pytest.mark.asyncio
 async def test_non_supervisor_admin_command_is_audited(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    message = FakeMessage(SETTINGS.SUPERVISOR_ID - 1)
+    actor_id = SETTINGS.SUPERVISOR_ID - 1
+    message = FakeMessage(actor_id)
     database = SimpleNamespace()
 
     with caplog.at_level(logging.INFO, logger="bot_obormot.audit"):
         await admins.cmd_admin(message, SETTINGS, database)
 
-    assert (
-        f"AUDIT action=admin_denied actor={SETTINGS.SUPERVISOR_ID - 1} "
-        "target=None result=denied"
-    ) in caplog.text
-    assert message.answers == ["⛔ Доступ запрещён."]
+    expected_record = (
+        f"AUDIT action=admin_denied actor={actor_id} target=None result=denied"
+    )
+    assert expected_record in caplog.text, "the denied command was not audited"
+
+
+@pytest.mark.asyncio
+async def test_non_supervisor_admin_command_is_answered_with_a_denial() -> None:
+    message = FakeMessage(SETTINGS.SUPERVISOR_ID - 17)
+    database = SimpleNamespace()
+
+    await admins.cmd_admin(message, SETTINGS, database)
+
+    expected_answers = ["⛔ Доступ запрещён."]
+    assert message.answers == expected_answers, "the denial answer differs"
 
 
 @pytest.mark.asyncio
@@ -91,7 +124,6 @@ async def test_non_supervisor_admin_command_is_audited(
     ["/admin", "/admins", "/admin_add 123", "/admin_remove 123"],
 )
 async def test_supervisor_commands_deny_non_supervisor(
-    access_database: AccessDatabase,
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     command_text: str,
 ) -> None:
@@ -101,9 +133,42 @@ async def test_supervisor_commands_deny_non_supervisor(
         command_text,
     )
 
-    assert sent_texts(session) == ["⛔ Доступ запрещён."]
-    assert access_database.log.arguments("add_admin") == []
-    assert access_database.log.arguments("remove_admin") == []
+    expected_texts = ["⛔ Доступ запрещён."]
+    assert sent_texts(session) == expected_texts, "a non-supervisor was not denied"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "command_text",
+    ["/admin", "/admins", "/admin_add 123", "/admin_remove 123"],
+)
+async def test_supervisor_commands_from_non_supervisor_add_no_admin(
+    access_database: AccessDatabase,
+    dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
+    command_text: str,
+) -> None:
+    await feed_command(dispatcher_runtime, HISTORY_USER_ID + 202, command_text)
+
+    expected_empty: list[tuple[int, ...]] = []
+    actual_arguments = access_database.log.arguments("add_admin")
+    assert actual_arguments == expected_empty, "a non-supervisor added an admin"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "command_text",
+    ["/admin", "/admins", "/admin_add 123", "/admin_remove 123"],
+)
+async def test_supervisor_commands_from_non_supervisor_remove_no_admin(
+    access_database: AccessDatabase,
+    dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
+    command_text: str,
+) -> None:
+    await feed_command(dispatcher_runtime, HISTORY_USER_ID + 303, command_text)
+
+    expected_empty: list[tuple[int, ...]] = []
+    actual_arguments = access_database.log.arguments("remove_admin")
+    assert actual_arguments == expected_empty, "a non-supervisor removed an admin"
 
 
 @pytest.mark.asyncio
@@ -115,7 +180,7 @@ async def test_admin_panel_reports_database_counts(
 
     session = await feed_command(dispatcher_runtime, SUPERVISOR_ID, "/admin extra")
 
-    assert sent_texts(session) == [
+    expected_texts = [
         (
             "🛠 Панель управления\n\n"
             f"👑 Supervisor ID: {SUPERVISOR_ID}\n"
@@ -127,6 +192,7 @@ async def test_admin_panel_reports_database_counts(
             "/admin_remove ID — удалить администратора"
         )
     ]
+    assert sent_texts(session) == expected_texts, "the admin panel text differs"
 
 
 @pytest.mark.asyncio
@@ -159,7 +225,8 @@ async def test_admins_lists_sorted_ids_or_empty_state(
 
     session = await feed_command(dispatcher_runtime, SUPERVISOR_ID, "/admins")
 
-    assert sent_texts(session) == [expected_text]
+    expected_texts = [expected_text]
+    assert sent_texts(session) == expected_texts, "the administrator list differs"
 
 
 @pytest.mark.asyncio
@@ -175,8 +242,11 @@ async def test_admin_read_commands_propagate_database_failures(
 ) -> None:
     access_database.scenario.failed_operation = operation
 
-    with pytest.raises(RuntimeError, match="database unavailable"):
+    with pytest.raises(RuntimeError) as excinfo:
         await feed_command(dispatcher_runtime, SUPERVISOR_ID, command_text)
+
+    expected_text = "database unavailable"
+    assert expected_text in str(excinfo.value), "the database failure was replaced"
 
 
 @pytest.mark.asyncio
@@ -201,8 +271,25 @@ async def test_admin_add_reports_added_and_existing_users(
         "/admin_add 8001",
     )
 
-    assert sent_texts(session) == [expected_text]
-    assert access_database.log.arguments("add_admin") == [(8001,)]
+    expected_texts = [expected_text]
+    assert sent_texts(session) == expected_texts, "the add answer differs"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("case", [(True, 8001), (False, 8024)])
+async def test_admin_add_command_passes_the_parsed_id_to_the_database(
+    access_database: AccessDatabase,
+    dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
+    case: tuple[bool, int],
+) -> None:
+    result, user_id = case
+    access_database.scenario.results["add_admin"] = result
+
+    await feed_command(dispatcher_runtime, SUPERVISOR_ID, f"/admin_add {user_id}")
+
+    expected_arguments = [(user_id,)]
+    actual_arguments = access_database.log.arguments("add_admin")
+    assert actual_arguments == expected_arguments, "add_admin got another user"
 
 
 @pytest.mark.asyncio
@@ -219,7 +306,6 @@ async def test_admin_add_reports_added_and_existing_users(
     ],
 )
 async def test_admin_add_rejects_invalid_arguments_and_supervisor(
-    access_database: AccessDatabase,
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     arguments: str,
     expected_text: str,
@@ -230,8 +316,26 @@ async def test_admin_add_rejects_invalid_arguments_and_supervisor(
         f"/admin_add {arguments}".rstrip(),
     )
 
-    assert sent_texts(session) == [expected_text]
-    assert access_database.log.arguments("add_admin") == []
+    expected_texts = [expected_text]
+    assert sent_texts(session) == expected_texts, "the rejection answer differs"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("arguments", ["", "invalid", "0", str(SUPERVISOR_ID)])
+async def test_admin_add_with_rejected_arguments_adds_no_admin(
+    access_database: AccessDatabase,
+    dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
+    arguments: str,
+) -> None:
+    await feed_command(
+        dispatcher_runtime,
+        SUPERVISOR_ID,
+        f"/admin_add {arguments}".rstrip(),
+    )
+
+    expected_empty: list[tuple[int, ...]] = []
+    actual_arguments = access_database.log.arguments("add_admin")
+    assert actual_arguments == expected_empty, "a rejected argument added an admin"
 
 
 @pytest.mark.asyncio
@@ -241,8 +345,11 @@ async def test_admin_add_propagates_database_failure(
 ) -> None:
     access_database.scenario.failed_operation = "add_admin"
 
-    with pytest.raises(RuntimeError, match="database unavailable"):
+    with pytest.raises(RuntimeError) as excinfo:
         await feed_command(dispatcher_runtime, SUPERVISOR_ID, "/admin_add 8001")
+
+    expected_text = "database unavailable"
+    assert expected_text in str(excinfo.value), "the database failure was replaced"
 
 
 @pytest.mark.asyncio
@@ -267,8 +374,25 @@ async def test_admin_remove_reports_removed_and_missing_users(
         "/admin_remove 8001",
     )
 
-    assert sent_texts(session) == [expected_text]
-    assert access_database.log.arguments("remove_admin") == [(8001,)]
+    expected_texts = [expected_text]
+    assert sent_texts(session) == expected_texts, "the remove answer differs"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("case", [(True, 8001), (False, 8024)])
+async def test_admin_remove_command_passes_the_parsed_id_to_the_database(
+    access_database: AccessDatabase,
+    dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
+    case: tuple[bool, int],
+) -> None:
+    result, user_id = case
+    access_database.scenario.results["remove_admin"] = result
+
+    await feed_command(dispatcher_runtime, SUPERVISOR_ID, f"/admin_remove {user_id}")
+
+    expected_arguments = [(user_id,)]
+    actual_arguments = access_database.log.arguments("remove_admin")
+    assert actual_arguments == expected_arguments, "remove_admin got another user"
 
 
 @pytest.mark.asyncio
@@ -282,7 +406,6 @@ async def test_admin_remove_reports_removed_and_missing_users(
     ],
 )
 async def test_admin_remove_rejects_invalid_arguments_and_supervisor(
-    access_database: AccessDatabase,
     dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
     arguments: str,
     expected_text: str,
@@ -293,8 +416,26 @@ async def test_admin_remove_rejects_invalid_arguments_and_supervisor(
         f"/admin_remove {arguments}".rstrip(),
     )
 
-    assert sent_texts(session) == [expected_text]
-    assert access_database.log.arguments("remove_admin") == []
+    expected_texts = [expected_text]
+    assert sent_texts(session) == expected_texts, "the rejection answer differs"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("arguments", ["", "invalid", "0", str(SUPERVISOR_ID)])
+async def test_admin_remove_with_rejected_arguments_removes_no_admin(
+    access_database: AccessDatabase,
+    dispatcher_runtime: tuple[Dispatcher, Bot, FakeTelegramSession],
+    arguments: str,
+) -> None:
+    await feed_command(
+        dispatcher_runtime,
+        SUPERVISOR_ID,
+        f"/admin_remove {arguments}".rstrip(),
+    )
+
+    expected_empty: list[tuple[int, ...]] = []
+    actual_arguments = access_database.log.arguments("remove_admin")
+    assert actual_arguments == expected_empty, "a rejected argument removed an admin"
 
 
 @pytest.mark.asyncio
@@ -304,5 +445,8 @@ async def test_admin_remove_propagates_database_failure(
 ) -> None:
     access_database.scenario.failed_operation = "remove_admin"
 
-    with pytest.raises(RuntimeError, match="database unavailable"):
+    with pytest.raises(RuntimeError) as excinfo:
         await feed_command(dispatcher_runtime, SUPERVISOR_ID, "/admin_remove 8001")
+
+    expected_text = "database unavailable"
+    assert expected_text in str(excinfo.value), "the database failure was replaced"

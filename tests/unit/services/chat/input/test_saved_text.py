@@ -22,7 +22,7 @@ def test_build_saved_user_text_preserves_media_descriptions_and_caption() -> Non
     )
 
     expected_result = "[Пользователь отправил анимацию: gif] Подпись"
-    assert result == expected_result
+    assert result == expected_result, "the animation and its caption were not saved"
 
 
 def test_build_saved_user_text_preserves_audio_caption() -> None:
@@ -38,7 +38,7 @@ def test_build_saved_user_text_preserves_audio_caption() -> None:
     )
 
     expected_result = "Контекст\n\n[Голосовое сообщение]: Распознанная фраза"
-    assert result == expected_result
+    assert result == expected_result, "the audio caption and transcript were not saved"
 
 
 def test_build_saved_user_text_distinguishes_photo_from_other_media() -> None:
@@ -52,7 +52,7 @@ def test_build_saved_user_text_distinguishes_photo_from_other_media() -> None:
     )
 
     expected_result = "[Пользователь отправил фотографию]"
-    assert result == expected_result
+    assert result == expected_result, "a photo was saved as other media"
 
 
 def test_build_saved_user_text_preserves_document_format_label() -> None:
@@ -67,4 +67,4 @@ def test_build_saved_user_text_preserves_document_format_label() -> None:
     )
 
     expected_result = "[Пользователь отправил документ: report.pdf (PDF)]"
-    assert result == expected_result
+    assert result == expected_result, "the document format label was not saved"

@@ -104,8 +104,10 @@ async def test_keeps_a_history_limit_below_the_cap() -> None:
 
 @pytest.mark.asyncio
 async def test_raises_on_an_empty_response() -> None:
-    with pytest.raises(LLMEmptyResponseError, match="empty response"):
+    expected_text = "empty response"
+    with pytest.raises(LLMEmptyResponseError) as excinfo:
         await _run(FakePipelineDatabase(), FakePipelineLLM([" ", "\n"]))
+    assert expected_text in str(excinfo.value), "the empty response error is unclear"
 
 
 @pytest.mark.asyncio
@@ -113,7 +115,7 @@ async def test_does_not_persist_an_empty_response() -> None:
     database = FakePipelineDatabase()
     with pytest.raises(LLMEmptyResponseError):
         await _run(database, FakePipelineLLM([]))
-    expected_empty = []
+    expected_empty: list[tuple[object, ...]] = []
     assert database.calls_named("save") == expected_empty, (
         "an empty response must not be saved"
     )

@@ -21,7 +21,7 @@ def test_check_lock_accepts_satisfied_constraints(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    expected_empty = []
+    expected_empty: list[str] = []
     assert check_lock(project, lock) == expected_empty, "expected an empty list"
 
 
@@ -34,7 +34,10 @@ def test_check_lock_reports_missing_direct_dependency(tmp_path: Path) -> None:
     )
     lock.write_text("present-package==1.0\n", encoding="utf-8")
 
-    assert check_lock(project, lock) == ["Missing from lock file: missing-package"]
+    expected_problems = ["Missing from lock file: missing-package"]
+    assert check_lock(project, lock) == expected_problems, (
+        "missing package not reported"
+    )
 
 
 def test_check_lock_reports_out_of_range_version(tmp_path: Path) -> None:
@@ -46,9 +49,8 @@ def test_check_lock_reports_out_of_range_version(tmp_path: Path) -> None:
     )
     lock.write_text("example-package==1.9\n", encoding="utf-8")
 
-    assert check_lock(project, lock) == [
-        "Locked example-package==1.9 does not satisfy <3,>=2"
-    ]
+    expected_problems = ["Locked example-package==1.9 does not satisfy <3,>=2"]
+    assert check_lock(project, lock) == expected_problems, "bad version not reported"
 
 
 def test_check_lock_ignores_optional_dependencies(tmp_path: Path) -> None:
@@ -63,5 +65,5 @@ def test_check_lock_ignores_optional_dependencies(tmp_path: Path) -> None:
     )
     lock.write_text("base-package==1.1\n", encoding="utf-8")
 
-    expected_empty = []
+    expected_empty: list[str] = []
     assert check_lock(project, lock) == expected_empty, "expected an empty list"

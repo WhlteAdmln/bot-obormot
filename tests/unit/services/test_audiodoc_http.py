@@ -26,14 +26,16 @@ def test_endpoint_url_keeps_the_base_path_and_query() -> None:
 
 
 def test_bearer_headers_are_empty_without_a_key() -> None:
-    expected_empty = {}
+    expected_empty: dict[str, str] = {}
     assert bearer_headers("") == expected_empty, "no key means no authorization header"
 
 
 def test_require_base_url_rejects_missing_url() -> None:
     settings = make_settings(AUDIODOC_URL="")
-    with pytest.raises(AudiodocUnavailableError, match="not configured"):
+    expected = "AUDIODOC_URL is not configured"
+    with pytest.raises(AudiodocUnavailableError, match="not configured") as caught:
         require_base_url(settings, AudiodocUnavailableError)
+    assert str(caught.value) == expected, "a missing URL was not rejected"
 
 
 def test_form_response_detail_of_a_missing_body_is_empty() -> None:
@@ -44,8 +46,11 @@ def test_form_response_detail_of_a_missing_body_is_empty() -> None:
 
 
 def test_form_response_rejects_a_non_json_body() -> None:
-    with pytest.raises(ValueError, match="Expecting value"):
-        FormResponse(200, b"<html>").json()
+    body = b"<html>"
+    expected = "Expecting value"
+    with pytest.raises(ValueError, match="Expecting value") as caught:
+        FormResponse(200, body).json()
+    assert expected in str(caught.value), "an HTML body was parsed as JSON"
 
 
 def test_form_response_detail_marks_a_truncated_body() -> None:

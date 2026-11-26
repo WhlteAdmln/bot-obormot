@@ -14,46 +14,79 @@ from tests.support.message_input import make_info, make_message
 from tests.support.settings import make_settings
 
 
-@pytest.mark.asyncio
-async def test_prepare_audio_preserves_validation_download_and_transcription_order(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    events = []
+async def _prepare(transcript: str, events: list[object] | None = None) -> str:
+    recorded = events if events is not None else []
     info = make_info(
         audio_file_id="voice-id", audio_filename="voice.ogg", has_audio=True
     )
 
     def validate(_message: object) -> None:
-        events.append("validate")
+        recorded.append("validate")
 
     async def download(_message: object, file_id: str) -> bytes:
-        events.append(("download", file_id))
+        recorded.append(("download", file_id))
         return b"audio-bytes"
 
     async def transcribe(data: object, filename: object) -> str:
-        events.append(("transcribe", data, filename))
-        return "Распознано"
+        recorded.append(("transcribe", data, filename))
+        return transcript
 
+    return await audio_module.prepare_audio(
+        make_message(),
+        info,
+        duration_validator=validate,
+        downloader=download,
+        transcriber=transcribe,
+        settings=make_settings(),
+    )
+
+
+@pytest.mark.asyncio
+async def test_prepare_audio_returns_the_transcript() -> None:
+    transcript = "Распознано"
+    result = await _prepare(transcript)
+    assert result == transcript, "the transcript was not returned"
+
+
+@pytest.mark.asyncio
+async def test_prepare_audio_does_not_log_the_transcript(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    transcript = "Секретная фраза пользователя"
     with caplog.at_level(logging.INFO, logger=audio_module.logger.name):
-        result = await audio_module.prepare_audio(
-            make_message(),
-            info,
-            duration_validator=validate,
-            downloader=download,
-            transcriber=transcribe,
-            settings=make_settings(),
-        )
+        await _prepare(transcript)
+    assert transcript not in caplog.text, "the transcript leaked into the log"
 
-    expected_result = "Распознано"
-    assert result == expected_result
-    status_text = "Распознано"
-    assert status_text not in caplog.text
-    length_log = "AUDIO: recognized 10 characters"
-    assert length_log in caplog.text
-    transcript_text = "Recognized audio text"
-    assert transcript_text not in caplog.text
-    assert events == [
+
+@pytest.mark.asyncio
+async def test_prepare_audio_logs_the_transcript_length(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    transcript = "Привет, бот"
+    length_log = "AUDIO: recognized 11 characters"
+    with caplog.at_level(logging.INFO, logger=audio_module.logger.name):
+        await _prepare(transcript)
+    assert length_log in caplog.text, "the transcript length was not logged"
+
+
+@pytest.mark.asyncio
+async def test_prepare_audio_does_not_log_the_recognized_text_marker(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    transcript = "Перезвони завтра"
+    marker = "Recognized audio text"
+    with caplog.at_level(logging.INFO, logger=audio_module.logger.name):
+        await _prepare(transcript)
+    assert marker not in caplog.text, "the recognized text marker was logged"
+
+
+@pytest.mark.asyncio
+async def test_prepare_audio_validates_downloads_and_transcribes_in_order() -> None:
+    events: list[object] = []
+    await _prepare("Ок", events)
+    expected = [
         "validate",
         ("download", "voice-id"),
         ("transcribe", b"audio-bytes", "voice.ogg"),
     ]
+    assert events == expected, "the audio steps ran in another order"

@@ -34,4 +34,5 @@ from bot_obormot.services.chat.formatting import (
     ],
 )
 def test_detects_text_format(text: str, expected: str) -> None:
-    assert detect_format(text) == expected
+    result = detect_format(text)
+    assert result == expected, "the text format was detected wrongly"

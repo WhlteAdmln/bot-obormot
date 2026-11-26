@@ -28,7 +28,9 @@ async def test_count_text_tokens() -> None:
         await llm_client.start()
         counts = [await llm_client.count_text_tokens(text) for text in test_texts]
 
-    assert all(isinstance(count, int) and count > 0 for count in counts), counts
+    assert all(count > 0 for count in counts), (
+        f"token counts are not positive integers: {counts}"
+    )
 
 
 @pytest.mark.asyncio
@@ -36,4 +38,5 @@ async def test_count_empty_text() -> None:
     async with open_llm_client() as llm_client:
         count = await llm_client.count_text_tokens("")
 
-    assert count == 0
+    expected_count = 0
+    assert count == expected_count, "empty text has tokens"

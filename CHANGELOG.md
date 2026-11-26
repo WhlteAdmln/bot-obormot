@@ -38,6 +38,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- [#185](https://github.com/WhlteAdmln/bot-obormot/issues/185) The contributing guide, the architecture guide and the `integration` marker describe the development setup as it is: integration tests need no LLM server, `make docs-check` also runs the pre-commit hooks, Renovate proposes Python patch updates and the abandoned dependencies are the ones of this project.
 - [#184](https://github.com/WhlteAdmln/bot-obormot/issues/184) The architecture documents describe the existing entry point, module paths, shutdown order, middleware and development requirements.
 - [#166](https://github.com/WhlteAdmln/bot-obormot/issues/166) The architecture documents name the existing router aggregator `bot_obormot/handlers/routers.py` and `bot_obormot/common/http_limits.py` instead of removed modules.
 - [#174](https://github.com/WhlteAdmln/bot-obormot/issues/174) CI installs its system packages from the restored apt cache and downloads only the package files that are missing from it.

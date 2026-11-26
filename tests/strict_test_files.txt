@@ -15,6 +15,7 @@ tests/unit/services/access/test_service.py
 tests/unit/services/audio/test_client.py
 tests/unit/services/audio/test_validation.py
 tests/unit/services/chat/test_incoming_log.py
+tests/unit/services/database/facade/test_access.py
 tests/unit/services/database/files/test_image_storage.py
 tests/unit/services/database/repositories/test_admins.py
 tests/unit/services/documents/test_client.py
@@ -28,6 +29,7 @@ tests/unit/services/media/test_limited.py
 tests/unit/services/media/test_safety.py
 tests/unit/services/media/test_sniff.py
 tests/unit/services/telegram/test_downloader.py
+tests/unit/test_doctor.py
 tests/unit/test_initial_env.py
 tests/unit/test_log_filters.py
 tests/unit/test_service.py

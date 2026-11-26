@@ -11,7 +11,7 @@ runs:
       shell: bash
       env:
         PACKAGES_HASH: ${{ hashFiles('.github/apt-packages.txt') }}
-      run: echo "prefix=apt-debs-${ImageOS}-${ImageVersion}-${PACKAGES_HASH}-" >> "$GITHUB_OUTPUT"
+      run: echo "prefix=apt-debs-${ImageOS}-${ImageVersion%%.*}-${PACKAGES_HASH}-" >> "$GITHUB_OUTPUT"
     - name: Restore the apt cache
       id: restore
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

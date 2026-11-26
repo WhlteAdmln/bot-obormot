@@ -16,6 +16,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- [#124](https://github.com/WhlteAdmln/bot-obormot/issues/124) Handler modules build their routers with `create_router()` instead of module-level objects, so tests need no router detaching.
 - [#149](https://github.com/WhlteAdmln/bot-obormot/issues/149) `scripts/check_test_rules.py` applies the one-assert and failure-message rules to every test file, so `tests/strict_test_files.txt` is gone.
 - [#107](https://github.com/WhlteAdmln/bot-obormot/issues/107) Every test has one assert with a failure message, and every test file is listed in `tests/strict_test_files.txt`.
 - [#110](https://github.com/WhlteAdmln/bot-obormot/issues/110) The audio and document preparation steps pick the transcriber or document processor before one call, so they need no `consider-ternary-expression` suppression, and every remaining production pylint suppression has a one-line reason.

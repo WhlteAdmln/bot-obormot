@@ -58,9 +58,9 @@ def configure_dispatcher(
     dispatcher.message.middleware(TemporaryMessagesCleanupMiddleware())
 
     # Router order matters: the general chat router must be last.
-    dispatcher.include_router(start.router)
-    dispatcher.include_router(admin.router)
-    dispatcher.include_router(routers.router)
-    dispatcher.include_router(chat.router)
+    dispatcher.include_router(start.create_router())
+    dispatcher.include_router(admin.create_router())
+    dispatcher.include_router(routers.create_router())
+    dispatcher.include_router(chat.create_router())
 
     return dispatcher

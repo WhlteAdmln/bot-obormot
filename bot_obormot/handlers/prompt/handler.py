@@ -21,7 +21,6 @@ if TYPE_CHECKING:
     from aiogram import Bot
 
 logger = logging.getLogger("bot_obormot.handlers.prompt.handler")
-router = Router()
 MAX_SYSTEM_PROMPT_LENGTH = 4000
 MAX_DISPLAY_LENGTH = 3500
 
@@ -116,13 +115,11 @@ async def show_prompt(message: Message, state: FSMContext, database: Database) -
     await track_message(state, response)
 
 
-@router.message(Command("prompt"))
 async def cmd_prompt(message: Message, state: FSMContext, database: Database) -> None:
     """Shows the current system prompt."""
     await show_prompt(message, state, database)
 
 
-@router.message(Command("prompt_set"))
 async def cmd_prompt_set(message: Message, state: FSMContext) -> None:
     """Asks the user to send a new system prompt."""
     await track_message(state, message)
@@ -135,11 +132,6 @@ async def cmd_prompt_set(message: Message, state: FSMContext) -> None:
     await track_message(state, response)
 
 
-@router.message(
-    PromptStates.waiting_for_prompt,
-    F.text,
-    ~F.text.startswith("/"),
-)
 async def save_prompt(message: Message, state: FSMContext, database: Database) -> None:
     """Validates and saves the personal system prompt sent by the user."""
     if message.text is None or message.from_user is None:
@@ -208,7 +200,6 @@ async def reset_prompt(message: Message, state: FSMContext, database: Database) 
     )
 
 
-@router.message(Command("prompt_reset"))
 async def cmd_prompt_reset(
     message: Message, state: FSMContext, database: Database
 ) -> None:
@@ -216,7 +207,6 @@ async def cmd_prompt_reset(
     await reset_prompt(message, state, database)
 
 
-@router.message(Command("cancel"), PromptStates.waiting_for_prompt)
 async def cmd_cancel(message: Message, state: FSMContext) -> None:
     """Cancels the system prompt input."""
     await delete_prompt_messages(
@@ -230,3 +220,21 @@ async def cmd_cancel(message: Message, state: FSMContext) -> None:
         state,
         texts.PROMPT_CANCELLED,
     )
+
+
+def create_router() -> Router:
+    """Build a router with the system prompt commands."""
+    router = Router()
+    router.message.register(cmd_prompt, Command("prompt"))
+    router.message.register(cmd_prompt_set, Command("prompt_set"))
+    router.message.register(
+        save_prompt,
+        PromptStates.waiting_for_prompt,
+        F.text,
+        ~F.text.startswith("/"),
+    )
+    router.message.register(cmd_prompt_reset, Command("prompt_reset"))
+    router.message.register(
+        cmd_cancel, Command("cancel"), PromptStates.waiting_for_prompt
+    )
+    return router

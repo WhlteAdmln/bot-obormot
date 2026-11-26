@@ -6,13 +6,11 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from aiogram import Bot, Dispatcher, Router
+from aiogram import Bot, Dispatcher
 from aiogram.methods import (
     SendMessage,
 )
 
-from bot_obormot.handlers import admin, routers, start
-from bot_obormot.handlers.chat import handler as chat
 from tests.support.settings import make_settings
 from tests.support.telegram import (
     FakeTelegramSession,
@@ -210,15 +208,3 @@ async def feed_command(
         make_update(message=make_message(user_id=user_id, text=text)),
     )
     return session
-
-
-def detach_application_routers() -> None:
-    """Detach the shared application routers left attached by an earlier test."""
-    for router in (start.router, admin.router, routers.router, chat.router):
-        detach_router(router)
-
-
-def detach_router(router: Router) -> None:
-    """Detach a shared application router so another dispatcher can include it."""
-    # pylint: disable-next=protected-access  # aiogram has no public way to detach
-    router._parent_router = None  # noqa: SLF001

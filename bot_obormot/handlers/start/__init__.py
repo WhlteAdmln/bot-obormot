@@ -3,9 +3,9 @@
 
 """Start handlers."""
 
-from bot_obormot.handlers.start.handler import cmd_start, router
+from bot_obormot.handlers.start.handler import cmd_start, create_router
 
 __all__ = [
     "cmd_start",
-    "router",
+    "create_router",
 ]

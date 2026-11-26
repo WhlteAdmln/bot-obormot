@@ -22,7 +22,7 @@ from bot_obormot.handlers.admin.handler.health import cmd_health
 def _commands_of(callback: Callable[..., object]) -> list[tuple[str, ...]]:
     return [
         tuple(str(command) for command in registered_filter.callback.commands)
-        for registered in handler.router.message.handlers
+        for registered in handler.create_router().message.handlers
         if registered.callback is callback
         for registered_filter in registered.filters or []
         if isinstance(registered_filter.callback, Command)
@@ -51,7 +51,7 @@ def test_registers_each_admin_handler_for_its_command_only(
 def test_registers_no_admin_handler_without_a_command_filter() -> None:
     unfiltered = [
         registered.callback.__name__
-        for registered in handler.router.message.handlers
+        for registered in handler.create_router().message.handlers
         if not any(
             isinstance(registered_filter.callback, Command)
             for registered_filter in registered.filters or []

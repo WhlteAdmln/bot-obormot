@@ -51,7 +51,6 @@ if TYPE_CHECKING:
 
 MAX_PENDING_PER_USER = 3
 
-router = Router()
 logger = logging.getLogger("bot_obormot.handlers.chat")
 
 
@@ -119,7 +118,6 @@ async def _answer_turn(
     )
 
 
-@router.message()
 async def handle_message(
     message: Message,
     settings: Settings | None = None,
@@ -229,12 +227,20 @@ async def handle_message(
             )
 
 
+def create_router() -> Router:
+    """Build a router with the general chat message handler."""
+    router = Router()
+    router.message.register(handle_message)
+    return router
+
+
 __all__ = [
     "MAX_MESSAGE_LENGTH",
     "MAX_PENDING_PER_USER",
     "STREAM_TOKEN_THRESHOLD",
     "STREAM_UPDATE_INTERVAL",
     "ChatRuntime",
+    "create_router",
     "handle_chat_error",
     "handle_message",
     "inspect_message",
@@ -244,7 +250,6 @@ __all__ = [
     "prepare_message",
     "prepare_response",
     "process_chat",
-    "router",
     "safe_edit",
     "split_formatted_message",
 ]

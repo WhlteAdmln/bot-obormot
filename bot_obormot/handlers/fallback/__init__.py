@@ -3,9 +3,9 @@
 
 """Fallback handlers, including unknown commands."""
 
-from bot_obormot.handlers.fallback.handler import cmd_unknown, router
+from bot_obormot.handlers.fallback.handler import cmd_unknown, create_router
 
 __all__ = [
     "cmd_unknown",
-    "router",
+    "create_router",
 ]

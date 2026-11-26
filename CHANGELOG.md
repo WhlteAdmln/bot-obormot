@@ -28,6 +28,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- [#161](https://github.com/WhlteAdmln/bot-obormot/issues/161) `ruff check .` sorts the `build` import as third-party even with a leftover `build/` directory, and the packaging test builds the wheel from a copy of the project in a temporary directory.
 - [#144](https://github.com/WhlteAdmln/bot-obormot/issues/144) Each bot gets its own image and animation processing limits, so a job that waits for a free slot in a new event loop no longer fails with `RuntimeError`.
 - [#112](https://github.com/WhlteAdmln/bot-obormot/issues/112) Each bot gets its own Telegram download limit, so a download that waits for a free slot in a new event loop no longer fails with `RuntimeError`.
 - [#114](https://github.com/WhlteAdmln/bot-obormot/issues/114) An error message from the Document Engine or the transcription service keeps the start of a long error body, marked as truncated.

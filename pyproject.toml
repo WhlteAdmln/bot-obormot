@@ -201,6 +201,10 @@ max-args = 6
 max-statements = 40
 max-branches = 12
 
+[tool.ruff.lint.isort]
+# A leftover build/ directory must not turn the build package into first-party.
+known-third-party = ["build"]
+
 [tool.ruff.lint.per-file-ignores]
 # D103: descriptive test names replace docstrings of test functions.
 "tests/*" = ["S101", "D103"]

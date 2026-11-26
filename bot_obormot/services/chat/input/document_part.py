@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+from functools import partial
 from typing import TYPE_CHECKING, cast
 
 from bot_obormot.common.text import log_safe
@@ -54,18 +55,15 @@ async def prepare_document(
         len(document_data),
     )
 
-    # The branches call different signatures, so a ternary would not read well.
-    if document_processor is None:  # pylint: disable=consider-ternary-expression
-        result = await process_document(
-            document_data,
-            document.file_name or "document",
-            settings=settings,
-        )
-    else:
-        result = await document_processor(
-            document_data,
-            document.file_name or "document",
-        )
+    process: Callable[..., Awaitable[DocumentResponse]] = (
+        partial(process_document, settings=settings)
+        if document_processor is None
+        else document_processor
+    )
+    result = await process(
+        document_data,
+        document.file_name or "document",
+    )
 
     if result.get("truncated", False) is True:
         raise DocumentTooLongError

@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+from functools import partial
 from typing import TYPE_CHECKING, cast
 
 from bot_obormot.services.audio import transcribe_audio, validate_audio_duration
@@ -53,18 +54,15 @@ async def prepare_audio(
 
     logger.info("AUDIO: sending file to audiodoc")
 
-    # The branches call different signatures, so a ternary would not read well.
-    if transcriber is None:  # pylint: disable=consider-ternary-expression
-        transcribed_text = await transcribe_audio(
-            audio_data,
-            cast("str", info.audio_filename),
-            settings=settings,
-        )
-    else:
-        transcribed_text = await transcriber(
-            audio_data,
-            cast("str", info.audio_filename),
-        )
+    transcribe: Callable[..., Awaitable[str]] = (
+        partial(transcribe_audio, settings=settings)
+        if transcriber is None
+        else transcriber
+    )
+    transcribed_text = await transcribe(
+        audio_data,
+        cast("str", info.audio_filename),
+    )
 
     logger.info("AUDIO: recognized %d characters", len(transcribed_text))
 

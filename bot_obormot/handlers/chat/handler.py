@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
+from functools import partial
 from typing import TYPE_CHECKING
 
 from aiogram import Router
@@ -227,10 +228,10 @@ async def handle_message(
             )
 
 
-def create_router() -> Router:
-    """Build a router with the general chat message handler."""
+def create_router(runtime: ChatRuntime) -> Router:
+    """Build a router whose chat message handler serves one bot's runtime."""
     router = Router()
-    router.message.register(handle_message)
+    router.message.register(partial(handle_message, chat_runtime=runtime))
     return router
 
 

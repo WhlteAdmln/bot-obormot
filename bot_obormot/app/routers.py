@@ -44,7 +44,7 @@ def configure_dispatcher(
         user_locks = UserLocks()
     # One downloader and one set of media slots per bot keep their limits
     # in the bot's event loop.
-    dispatcher.workflow_data["chat_runtime"] = ChatRuntime(
+    chat_runtime = ChatRuntime(
         message_aggregator=message_aggregator,
         user_locks=user_locks,
         downloader=TelegramDownloader(),
@@ -61,6 +61,6 @@ def configure_dispatcher(
     dispatcher.include_router(start.create_router())
     dispatcher.include_router(admin.create_router())
     dispatcher.include_router(routers.create_router())
-    dispatcher.include_router(chat.create_router())
+    dispatcher.include_router(chat.create_router(chat_runtime))
 
     return dispatcher

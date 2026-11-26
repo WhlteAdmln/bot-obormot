@@ -16,6 +16,22 @@ from bot_obormot.handlers.history import limits as history_limits
 from bot_obormot.handlers.history.basic import cmd_history_clear
 from bot_obormot.handlers.history.limits import cmd_history_limit
 from bot_obormot.handlers.prompt import cmd_prompt
+from bot_obormot.services.chat.aggregation import MessageAggregator
+from bot_obormot.services.chat.locks import UserLocks
+from bot_obormot.services.media import MediaSlots
+from bot_obormot.services.telegram import TelegramDownloader
+
+
+def _create_chat_router() -> Router:
+    """Build the chat router with a fresh runtime of one bot."""
+    runtime = chat_handler.ChatRuntime(
+        message_aggregator=MessageAggregator(),
+        user_locks=UserLocks(),
+        downloader=TelegramDownloader(),
+        media_slots=MediaSlots(),
+    )
+    return chat_handler.create_router(runtime)
+
 
 ROUTER_FACTORIES = [
     start.create_router,
@@ -25,7 +41,7 @@ ROUTER_FACTORIES = [
     prompt.create_router,
     fallback.create_router,
     routers.create_router,
-    chat_handler.create_router,
+    _create_chat_router,
 ]
 
 

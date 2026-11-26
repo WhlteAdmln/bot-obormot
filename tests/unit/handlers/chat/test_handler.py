@@ -296,6 +296,24 @@ async def test_handler_passes_runtime_and_settings_to_prepare_message(
 
 
 @pytest.mark.asyncio
+async def test_router_handler_passes_given_runtime_to_prepare_message(
+    state: SimpleNamespace,
+) -> None:
+    runtime = state.chat_runtime
+    expected = [id(runtime.downloader), id(runtime.media_slots)]
+    router = handler_module.create_router(runtime)
+    callback = router.message.handlers[0].callback
+    await callback(
+        Message(text="через роутер", user_id=58),
+        llm_client=state.llm_client,
+        database=state.database,
+        settings=state.settings,
+    )
+    received = [id(argument) for argument in state.prepare_args[:2]]
+    assert received == expected, "the router handler got another runtime"
+
+
+@pytest.mark.asyncio
 async def test_handler_sends_short_answer_without_streaming(
     state: SimpleNamespace,
 ) -> None:

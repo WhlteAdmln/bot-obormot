@@ -67,8 +67,9 @@ async def test_passes_only_events_within_the_limit_to_the_handler() -> None:
         max_events=2, window_seconds=10, clock=_clock((1.0, 1.0, 1.0))
     )
     handler = RecordingHandler()
-    await _send_all(middleware, handler, [(42, "a"), (42, "b"), (42, "c")])
-    expected = ["a", "b"]
+    first, second, third = "Привет!", "  ёЖ  ", "третье\nсобытие"
+    await _send_all(middleware, handler, [(42, first), (42, second), (42, third)])
+    expected = [first, second]
     assert handler.events == expected, "a dropped event reached the handler"
 
 
@@ -84,7 +85,8 @@ async def test_expires_events_exactly_at_the_window_end(
     middleware = ThrottleMiddleware(
         max_events=1, window_seconds=10, clock=_clock((1.0, second_tick))
     )
-    results = await _send_all(middleware, RecordingHandler(), [(7, "a"), (7, "b")])
+    events = [(7, "/start@Bot"), (7, "ПОВТОР")]
+    results = await _send_all(middleware, RecordingHandler(), events)
     assert results[-1] == expected, "the window boundary is wrong"
 
 
@@ -164,7 +166,7 @@ async def test_counts_each_user_separately() -> None:
 )
 async def test_keeps_unusual_ids_apart(first_id: int, second_id: int) -> None:
     middleware = ThrottleMiddleware(max_events=1, window_seconds=10)
-    events = [(first_id, "a"), (second_id, "b")]
+    events = [(first_id, "Ünïcödé"), (second_id, "数字 123")]
     results = await _send_all(middleware, RecordingHandler(), events)
     expected = ["handled", "handled"]
     assert results == expected, "two different IDs share one counter"

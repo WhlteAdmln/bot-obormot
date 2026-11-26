@@ -41,7 +41,7 @@ def _image_message(url: str) -> list[dict[str, object]]:
     ("content", "expected"),
     [
         (None, ""),
-        ("hello", "hello"),
+        ("Здравствуй, 世界!", "Здравствуй, 世界!"),
         (
             ["text", {"type": "image_url"}, 7, None],
             ["text", {"type": "image_url"}, "7", "None"],
@@ -178,9 +178,12 @@ def test_normalize_messages_neutralizes_only_text_parts(
     [
         (["not-a-message"], "Invalid message structure at index 0"),
         ([{"role": "user"}, None], "Invalid message structure at index 1"),
-        ([{"role": 123, "content": "hello"}], "Invalid message role at index 0"),
+        ([{"role": 123, "content": "Ёлки"}], "Invalid message role at index 0"),
         ([{"content": "no role"}], "Invalid message role at index 0"),
-        ([{"role": ["user"], "content": "x"}], "Invalid message role at index 0"),
+        (
+            [{"role": ["user"], "content": "¯\\_(ツ)_/¯"}],
+            "Invalid message role at index 0",
+        ),
     ],
     ids=["string", "null-second", "numeric-role", "missing-role", "list-role"],
 )

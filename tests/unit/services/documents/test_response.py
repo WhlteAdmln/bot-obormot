@@ -22,7 +22,7 @@ def _failure(payload: object) -> tuple[int, str]:
     [
         {"text": "Текст", "format": "pdf", "characters": 5, "truncated": False},
         {"text": "", "format": "docx", "characters": 0},
-        {"text": "x", "format": "txt", "characters": 1, "truncated": True, "pages": 3},
+        {"text": "Ш", "format": "txt", "characters": 1, "truncated": True, "pages": 3},
     ],
     ids=["full", "without-truncated-flag", "extra-field"],
 )
@@ -38,40 +38,40 @@ def test_returns_a_valid_payload_without_copying(payload: dict[str, object]) -> 
         (None, "Invalid response from Document Engine"),
         ({"format": "pdf", "characters": 1}, "Document Engine returned invalid text"),
         (
-            {"text": ["x"], "format": "pdf", "characters": 1},
+            {"text": ["Список"], "format": "pdf", "characters": 1},
             "Document Engine returned invalid text",
         ),
-        ({"text": "x", "characters": 1}, "Document Engine returned invalid format"),
+        ({"text": "Ü", "characters": 1}, "Document Engine returned invalid format"),
         (
-            {"text": "x", "format": 7, "characters": 1},
+            {"text": "数", "format": 7, "characters": 1},
             "Document Engine returned invalid format",
         ),
         (
-            {"text": "x", "format": "pdf"},
+            {"text": "Ёж", "format": "pdf"},
             "Document Engine returned invalid character count",
         ),
         (
-            {"text": "x", "format": "pdf", "characters": "1"},
+            {"text": " ☂ ", "format": "pdf", "characters": "1"},
             "Document Engine returned invalid character count",
         ),
         (
-            {"text": "x", "format": "pdf", "characters": True},
+            {"text": "ʃ", "format": "pdf", "characters": True},
             "Document Engine returned invalid character count",
         ),
         (
-            {"text": "x", "format": "pdf", "characters": -7},
+            {"text": "Ǆ", "format": "pdf", "characters": -7},
             "Document Engine returned invalid character count",
         ),
         (
-            {"text": "x", "format": "pdf", "characters": 1, "truncated": "false"},
+            {"text": "ꙮ", "format": "pdf", "characters": 1, "truncated": "false"},
             "Document Engine returned invalid truncated flag",
         ),
         (
-            {"text": "x", "format": "pdf", "characters": 1, "truncated": None},
+            {"text": "	☃", "format": "pdf", "characters": 1, "truncated": None},
             "Document Engine returned invalid truncated flag",
         ),
         (
-            {"text": "x", "format": "pdf", "characters": 1, "truncated": 0},
+            {"text": "ﬀ", "format": "pdf", "characters": 1, "truncated": 0},
             "Document Engine returned invalid truncated flag",
         ),
     ],

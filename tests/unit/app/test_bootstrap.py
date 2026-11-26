@@ -776,7 +776,7 @@ def fixture_created_tokens(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     [
         "",
         "YOUR_TELEGRAM_BOT_TOKEN",
-        "abc",
+        "жУк-без-двоеточия",
         "123456789:SHORT",
         "12345:contains spaces and punctuation!",
         "123456789:" + "A" * 29,

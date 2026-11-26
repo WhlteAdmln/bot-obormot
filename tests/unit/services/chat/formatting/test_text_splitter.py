@@ -61,7 +61,7 @@ def test_plain_splitter_cuts_long_text_on_word_boundaries() -> None:
 
 def test_splitters_reject_invalid_limit() -> None:
     with pytest.raises(ValueError, match="greater than zero") as excinfo:
-        split_markdown_message("text", 0)
+        split_markdown_message("Ж", 0)
 
     assert excinfo.type is ValueError, "a zero limit was accepted"
 

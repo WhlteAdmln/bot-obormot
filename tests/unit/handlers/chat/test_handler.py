@@ -162,7 +162,7 @@ class Message:
 
     def __init__(
         self,
-        text: str = "text",
+        text: str = "Как дела, бот?",
         user_id: int = 7,
         message_id: int | None = None,
     ) -> None:

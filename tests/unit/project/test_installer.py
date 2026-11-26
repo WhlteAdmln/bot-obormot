@@ -321,7 +321,7 @@ def test_help_lists_every_option() -> None:
 @pytest.mark.parametrize(
     ("arguments", "message"),
     [
-        (("--version", "abc"), "Invalid version: abc"),
+        (("--version", "v1.O.0"), "Invalid version: v1.O.0"),
         (("--version", "1.0.0;id"), "Invalid version: 1.0.0;id"),
         (("--version", "../1.0.0"), "Invalid version: ../1.0.0"),
         (("--version", "1.0.0 rc"), "Invalid version: 1.0.0 rc"),

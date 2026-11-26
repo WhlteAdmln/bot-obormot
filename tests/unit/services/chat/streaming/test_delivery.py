@@ -256,7 +256,7 @@ async def test_sends_reply_parameters_together_with_parse_mode() -> None:
 @pytest.mark.asyncio
 async def test_plain_text_is_sent_without_parse_mode() -> None:
     message = FakeReplyMessage()
-    response = "hello"
+    response = "Обычный ответ без разметки"
     parse_mode_field = "parse_mode"
     await _deliver_reply(response, message)
     assert parse_mode_field not in message.answers[0][1], "plain text got a parse mode"

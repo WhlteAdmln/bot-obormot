@@ -276,7 +276,7 @@ async def test_fake_llm_can_return_configured_http_errors(status: int) -> None:
         open_llm_client(_configure_client(server)) as client,
     ):
         with pytest.raises(LLMAPIError) as error:
-            async for _token in client.stream([{"role": "user", "content": "hello"}]):
+            async for _token in client.stream([{"role": "user", "content": "Ошибка?"}]):
                 pass
     assert error.value.status == status, "the configured HTTP status was not raised"
 
@@ -307,7 +307,7 @@ async def test_fake_llm_sends_the_first_chunk_before_dropping_the_connection() -
         FakeLLM(options=options) as server,
         open_llm_client(_configure_client(server)) as client,
     ):
-        stream = client.stream([{"role": "user", "content": "hello"}])
+        stream = client.stream([{"role": "user", "content": "Оборвись 🔌"}])
         token = await anext(stream)
     assert token == expected_chunk, "the chunk before the drop was not delivered"
 
@@ -446,7 +446,7 @@ async def test_stream_can_be_cancelled_by_client() -> None:
     async with (
         FakeLLM(options=options) as server,
         open_llm_client(_configure_client(server)) as client,
-        aclosing(client.stream([{"role": "user", "content": "hello"}])) as stream,
+        aclosing(client.stream([{"role": "user", "content": "отмена…"}])) as stream,
     ):
         pending_token = asyncio.create_task(anext(stream))
         await asyncio.wait_for(server.stream_started.wait(), timeout=1)

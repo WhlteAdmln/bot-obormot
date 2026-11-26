@@ -276,8 +276,8 @@ async def _stream_through_patched_module(
         client_arg: object, messages_arg: object
     ) -> AsyncIterator[str]:
         calls.append((client_arg, messages_arg))
-        yield "hello"
-        yield " world"
+        yield "При"
+        yield "вет, 🌍"
 
     monkeypatch.setattr(client_module, "stream_unlimited", fake_stream)
     tokens = await collect(client.stream(messages))
@@ -291,7 +291,7 @@ async def test_public_stream_yields_the_unlimited_stream_tokens(
     tokens, _calls, _client, _messages = await _stream_through_patched_module(
         monkeypatch
     )
-    expected = ["hello", " world"]
+    expected = ["При", "вет, 🌍"]
     assert tokens == expected, "the public stream must yield every token"
 
 

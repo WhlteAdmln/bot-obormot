@@ -9,11 +9,8 @@ class inside a function, import ``time.sleep`` or use ``tempfile`` instead of
 deadline. A comment inside a test function must be a tool pragma (``# noqa``,
 ``# pylint:``, ``# type:`` or ``# pragma:``) followed by a reason after ``  # `` or
 `` - ``, as in ``# noqa: S105  # fake credential``. A test function must not have a
-docstring; its name describes the test.
-
-``tests/strict_test_files.txt`` lists the files that also follow the strict rules:
-each test has exactly one assert, and every assert has a failure message. A listed
-file must exist; the list only grows.
+docstring; its name describes the test. Each test has exactly one assert, and every
+assert has a failure message.
 """
 
 from __future__ import annotations
@@ -30,7 +27,6 @@ if TYPE_CHECKING:
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 TESTS_DIR = Path("tests")
-STRICT_FILE = Path("tests/strict_test_files.txt")
 MOCK_MODULES = frozenset({"mock", "unittest.mock"})
 MOCK_FIXTURE = "mocker"
 MOCK_ASSERT_PREFIXES = ("assert_called", "assert_awaited")
@@ -160,7 +156,7 @@ def _comment_problems(source: str, tests: list[FunctionNode]) -> Iterator[str]:
             yield f"{line}: comment in a test function; only a pragma with a reason"
 
 
-def _strict_problems(tests: list[FunctionNode]) -> Iterator[str]:
+def _assert_problems(tests: list[FunctionNode]) -> Iterator[str]:
     for test in tests:
         asserts = [node for node in ast.walk(test) if isinstance(node, ast.Assert)]
         if len(asserts) != 1:
@@ -170,12 +166,11 @@ def _strict_problems(tests: list[FunctionNode]) -> Iterator[str]:
                 yield f"{node.lineno}: assert without a failure message"
 
 
-def file_problems(source: str, *, strict: bool = False) -> list[str]:
+def file_problems(source: str) -> list[str]:
     """Return the rule violations of one test module.
 
     Args:
         source: The source code of the test module.
-        strict: Whether the module also follows the one-assert rules.
 
     Returns:
         Violations as ``<line>: <message>`` strings.
@@ -191,18 +186,8 @@ def file_problems(source: str, *, strict: bool = False) -> list[str]:
     problems.extend(_comment_problems(source, tests))
     problems.extend(_sleep_problems(tests))
     problems.extend(_docstring_problems(tests))
-    if strict:
-        problems.extend(_strict_problems(tests))
+    problems.extend(_assert_problems(tests))
     return sorted(set(problems), key=lambda problem: int(problem.split(":")[0]))
-
-
-def read_strict(root: Path) -> list[str]:
-    """Return the test files that follow the strict rules."""
-    strict_file = root / STRICT_FILE
-    if not strict_file.is_file():
-        return []
-    lines = strict_file.read_text(encoding="utf-8").splitlines()
-    return [line.strip() for line in lines if line.strip()]
 
 
 def _test_files(root: Path) -> list[Path]:
@@ -213,21 +198,11 @@ def _test_files(root: Path) -> list[Path]:
 
 def find_problems(root: Path) -> list[str]:
     """Return the test rule violations of a repository."""
-    strict = set(read_strict(root))
     problems: list[str] = []
-    seen: set[str] = set()
     for test_file in _test_files(root):
         name = test_file.relative_to(root).as_posix()
-        seen.add(name)
         source = test_file.read_text(encoding="utf-8")
-        problems.extend(
-            f"{name}:{problem}"
-            for problem in file_problems(source, strict=name in strict)
-        )
-    problems.extend(
-        f"{name}: listed in {STRICT_FILE} but the file does not exist"
-        for name in sorted(strict - seen)
-    )
+        problems.extend(f"{name}:{problem}" for problem in file_problems(source))
     return problems
 
 
@@ -238,8 +213,7 @@ def main() -> int:
         sys.stderr.write("Test rule violations:\n")
         sys.stderr.writelines(f"  {problem}\n" for problem in problems)
         return 1
-    strict = len(read_strict(PROJECT_ROOT))
-    sys.stdout.write(f"Test rule checks passed ({strict} files follow strict rules).\n")
+    sys.stdout.write("Test rule checks passed.\n")
     return 0
 
 

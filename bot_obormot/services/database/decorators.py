@@ -47,7 +47,7 @@ def handle_database_errors(
 
     @wraps(func)
     async def wrapper(self: _S, *args: _P.args, **kwargs: _P.kwargs) -> _R:
-        async with self._lock:  # pylint: disable=protected-access
+        async with self._lock:  # pylint: disable=protected-access  # owner's lock
             try:
                 return await func(self, *args, **kwargs)
 

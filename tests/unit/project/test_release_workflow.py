@@ -295,16 +295,19 @@ def test_package_vendored_files_have_required_headers() -> None:
     assert without_header == expected_empty, "some package files lack the header"
 
 
-def test_version_prepares_release_030() -> None:
+def test_version_prepares_release_031() -> None:
     pyproject = tomllib.loads((ROOT_DIR / "pyproject.toml").read_text("utf-8"))
-    expected_version = "0.3.0"
+    expected_version = "0.3.1"
     version = pyproject["project"]["version"]
-    assert version == expected_version, "the project version is not 0.3.0"
+    assert version == expected_version, "the project version is not 0.3.1"
 
 
 @pytest.mark.parametrize(
     ("version", "snippet"),
     [
+        ("0.3.1", "### Added"),
+        ("0.3.1", "### Changed"),
+        ("0.3.1", "### Fixed"),
         ("0.3.0", "### Added"),
         ("0.3.0", "### Changed"),
         ("0.3.0", "### Removed"),

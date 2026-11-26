@@ -8,6 +8,7 @@ from pathlib import Path
 
 from scripts.check_changelog import check_changelog
 from scripts.docs_checks.cli_commands import check_documented_commands
+from scripts.docs_checks.code_paths import check_code_paths
 from scripts.docs_checks.links import check_markdown_links
 from scripts.docs_checks.russian import check_russian_documents, check_section_parity
 from scripts.docs_checks.settings import check_settings
@@ -28,6 +29,7 @@ def check_docs(root: Path = PROJECT_ROOT) -> list[str]:
         check_settings,
         check_documented_commands,
         check_telegram_commands,
+        check_code_paths,
     ):
         errors.extend(check(root))
 

@@ -44,7 +44,7 @@ On a pull request the `pr-size` CI job runs `scripts/report_pr_size.py --base HE
 
 ## Documentation checks
 
-`make docs-check` runs `scripts/check_docs.py`. It runs the changelog check and the modules of `scripts/docs_checks/`: `links.py` (local links and their anchors), `russian.py` (H2 section parity and Cyrillic text of `.ru.md` twins), `settings.py` (settings against `.env.example` and `docs/configuration.md`), `cli_commands.py` (documented CLI commands against the real parser), one project-specific check, and `markdown.py` (helpers the others share). Each module has its tests in `tests/unit/scripts/docs_checks/`.
+`make docs-check` runs `scripts/check_docs.py`. It runs the changelog check and the modules of `scripts/docs_checks/`: `links.py` (local links and their anchors), `russian.py` (H2 section parity and Cyrillic text of `.ru.md` twins), `settings.py` (settings against `.env.example` and `docs/configuration.md`), `cli_commands.py` (documented CLI commands against the real parser), the project-specific `telegram_commands.py` (Telegram commands against `docs/commands.md`) and `code_paths.py` (repository paths in the inline code of `README*.md`, `CONTRIBUTING*.md` and `docs/` exist), and `markdown.py` (helpers the others share). Each module has its tests in `tests/unit/scripts/docs_checks/`.
 
 `markdown.py`, `links.py` and `russian.py` are the same in audiodoc and bot-obormot. The other modules differ on purpose:
 

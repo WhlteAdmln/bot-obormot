@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- [#167](https://github.com/WhlteAdmln/bot-obormot/issues/167) `scripts/check_docs.py` reports a path under `bot_obormot/`, `scripts/` or `tests/` in the inline code of the README, contributing and `docs/` documents that does not exist.
 - [#145](https://github.com/WhlteAdmln/bot-obormot/issues/145) The bot stops at dispatcher startup with an error that names each missing handler dependency (`settings`, `llm_client`, `database`) instead of failing on the first message.
 - [#164](https://github.com/WhlteAdmln/bot-obormot/issues/164) CI installs its system packages from an apt cache that the new `apt-cache.yml` workflow saves nightly, and falls back to the network when no cache matches.
 - [#148](https://github.com/WhlteAdmln/bot-obormot/issues/148) `scripts/check_test_rules.py` reports a docstring in a test function.

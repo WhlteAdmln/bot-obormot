@@ -162,7 +162,10 @@ def test_ci_build_job_verifies_release_assets_and_metadata(snippet: str) -> None
 def test_ci_pins_every_third_party_action_to_a_commit() -> None:
     unpinned = [
         line
-        for workflow in sorted(WORKFLOWS.glob("*.yml"))
+        for workflow in (
+            *sorted(WORKFLOWS.glob("*.yml")),
+            *sorted((ROOT_DIR / ".github" / "actions").glob("*/action.yml")),
+        )
         for line in workflow.read_text(encoding="utf-8").splitlines()
         if (match := re.search(r"uses:\s*(\S+)", line)) is not None
         and not match.group(1).startswith(("./", "$/"))
@@ -170,6 +173,27 @@ def test_ci_pins_every_third_party_action_to_a_commit() -> None:
     ]
     expected_empty: list[str] = []
     assert unpinned == expected_empty, "some actions are not pinned to a commit"
+
+
+def test_ci_installs_system_packages_only_through_the_shared_action() -> None:
+    text = _workflow_text("ci.yml")
+    direct_apt = "apt-get"
+    assert direct_apt not in text, "a CI job installs system packages directly"
+
+
+@pytest.mark.parametrize(
+    "snippet",
+    [
+        "schedule:",
+        "workflow_dispatch:",
+        "--download-only",
+        "actions/cache/save@",
+        "hashFiles('.github/apt-packages.txt')",
+    ],
+)
+def test_apt_cache_workflow_saves_the_package_files_nightly(snippet: str) -> None:
+    text = _workflow_text("apt-cache.yml")
+    assert snippet in text, f"the apt cache workflow does not contain {snippet}"
 
 
 @pytest.mark.parametrize("name", ["release.yml", "docker-publish.yml"])

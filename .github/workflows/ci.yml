@@ -81,9 +81,7 @@ jobs:
             requirements-lock.txt
             requirements-dev.txt
       - name: Install system packages
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg
+        uses: ./.github/actions/install-apt-packages # zizmor: ignore[self-repository] actionlint 1.7.12 rejects $/ for step actions
       - name: Install pinned dependencies
         if: matrix.deps == 'lock'
         run: python -m pip install -r requirements-dev.txt
@@ -134,9 +132,7 @@ jobs:
             requirements-lock.txt
             requirements-dev.txt
       - name: Install system packages
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg
+        uses: ./.github/actions/install-apt-packages # zizmor: ignore[self-repository] actionlint 1.7.12 rejects $/ for step actions
       - name: Install development dependencies
         run: python -m pip install -r requirements-dev.txt
       - name: Check installed dependencies
@@ -242,10 +238,10 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
+      - name: Install system packages
+        uses: ./.github/actions/install-apt-packages # zizmor: ignore[self-repository] actionlint 1.7.12 rejects $/ for step actions
       - name: Install installer smoke-test tools
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends shellcheck ffmpeg
           python -m pip install \
             --constraint requirements-lock.txt \
             -r requirements.txt \

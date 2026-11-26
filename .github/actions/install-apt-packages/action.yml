@@ -1,0 +1,38 @@
+name: Install CI system packages
+description: >-
+  Install the packages of .github/apt-packages.txt from the newest apt cache saved
+  by the apt-cache workflow, or from the network when no cache matches or the
+  install from the cache fails.
+runs:
+  using: composite
+  steps:
+    - name: Compute the apt cache key prefix
+      id: key
+      shell: bash
+      env:
+        PACKAGES_HASH: ${{ hashFiles('.github/apt-packages.txt') }}
+      run: echo "prefix=apt-debs-${ImageOS}-${ImageVersion}-${PACKAGES_HASH}-" >> "$GITHUB_OUTPUT"
+    - name: Restore the apt cache
+      id: restore
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.cache/ci-apt-debs
+        key: ${{ steps.key.outputs.prefix }}
+        restore-keys: ${{ steps.key.outputs.prefix }}
+    - name: Install system packages
+      shell: bash
+      env:
+        MATCHED_KEY: ${{ steps.restore.outputs.cache-matched-key }}
+      run: |
+        set -euo pipefail
+        mapfile -t packages < .github/apt-packages.txt
+        debs="$HOME/.cache/ci-apt-debs"
+        if [ -n "$MATCHED_KEY" ] && compgen -G "$debs/*.deb" > /dev/null \
+          && sudo apt-get install -y --no-install-recommends --no-download "$debs"/*.deb \
+          && dpkg-query --show "${packages[@]}" > /dev/null; then
+          echo "Installed ${packages[*]} from the apt cache $MATCHED_KEY."
+          exit 0
+        fi
+        echo "::notice::No usable apt cache; installing ${packages[*]} from the network."
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends "${packages[@]}"

@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 from bot_obormot.common.text import log_safe
 from bot_obormot.errors import DocumentAPIError, DocumentTooLongError
@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from aiogram.types import Document, Message
 
     from bot_obormot.services.chat.input.models import MessageInfo
+    from bot_obormot.services.documents.response import DocumentResponse
 
 logger = logging.getLogger("bot_obormot.services.chat.input.document_part")
 
@@ -28,7 +29,7 @@ async def prepare_document(
     info: MessageInfo,
     *,
     downloader: Callable[..., Awaitable[bytes]],
-    document_processor: Callable[..., Awaitable[dict[str, Any]]] | None = None,
+    document_processor: Callable[..., Awaitable[DocumentResponse]] | None = None,
     settings: Settings | None = None,
 ) -> tuple[str, str]:
     """Download a document and retrieve its extracted text."""

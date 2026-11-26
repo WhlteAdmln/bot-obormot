@@ -6,7 +6,6 @@
 import logging
 from http import HTTPStatus
 from pathlib import Path
-from typing import Any
 
 import aiohttp
 
@@ -24,7 +23,10 @@ from bot_obormot.services.audiodoc_http import (
     post_form,
     require_base_url,
 )
-from bot_obormot.services.documents.response import validate_document_response
+from bot_obormot.services.documents.response import (
+    DocumentResponse,
+    validate_document_response,
+)
 from bot_obormot.settings import Settings
 
 logger = logging.getLogger(__name__)
@@ -66,7 +68,7 @@ async def process_document(
     filename: str,
     *,
     settings: Settings | None = None,
-) -> dict[str, Any]:
+) -> DocumentResponse:
     """Send a document to the Document Engine and return the result."""
     settings = require_base_url(settings, DocumentUnavailableError)
 

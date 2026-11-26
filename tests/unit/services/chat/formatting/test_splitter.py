@@ -347,7 +347,7 @@ def test_splitter_does_not_split_single_character_larger_than_limit() -> None:
 
 
 def test_splitter_rejects_non_positive_limit() -> None:
-    text = "text"
+    text = "две\nстроки"
     max_length = 0
     expected_message = "max_length must be greater than zero."
     with pytest.raises(ValueError, match=re.escape(expected_message)) as excinfo:

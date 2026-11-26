@@ -513,7 +513,8 @@ def test_collect_makes_no_request_offline(
 
 
 def test_collect_fails_the_settings_check_for_invalid_settings(tmp_path: Path) -> None:
-    environ = _environ(tmp_path, SUPERVISOR_ID="x")
+    supervisor_id = "4O2-ЧЕТЫРЕ"
+    environ = _environ(tmp_path, SUPERVISOR_ID=supervisor_id)
     expected_status = "FAIL"
     checks = doctor.collect_doctor_checks(environ, offline=True)
     by_name = {check.name: check for check in checks}

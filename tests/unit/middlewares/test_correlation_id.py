@@ -40,7 +40,10 @@ async def _record_ids(update_ids: list[int]) -> list[object]:
     observed: list[object] = []
 
     async def handler(_event: TelegramObject, _data: MiddlewareData) -> None:
-        record = logging.LogRecord("bot.test", logging.INFO, __file__, 1, "x", (), None)
+        log_message = "обработка Update — ШАГ 1"
+        record = logging.LogRecord(
+            "bot.test", logging.INFO, __file__, 1, log_message, (), None
+        )
         log_filter.filter(record)
         observed.append(getattr(record, "correlation_id", None))
 

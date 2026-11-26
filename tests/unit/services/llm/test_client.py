@@ -339,7 +339,7 @@ def test_client_exposes_message_normalization_and_counting_helpers() -> None:
         {
             "role": "user",
             "content": [
-                {"type": "text", "text": "hello"},
+                {"type": "text", "text": "Что на фото?"},
                 {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,x"}},
             ],
         }

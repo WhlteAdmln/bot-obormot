@@ -48,7 +48,7 @@ class FakeReplyMessage:
 
     def __init__(
         self,
-        text: str = "x",
+        text: str = "Ответ №7, ок?",
         message_id: int | None = 1,
         failures: list[Exception | None] | None = None,
     ) -> None:

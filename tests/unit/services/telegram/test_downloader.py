@@ -24,8 +24,8 @@ async def _failure(bot: FakeDownloadBot, file_id: str) -> tuple[str, str]:
     return "", ""
 
 
-async def _concurrency_trace(count: int) -> tuple[int, int, list[bytes]]:
-    bot = FakeDownloadBot(file_size=3, data=b"abc", hold=True)
+async def _concurrency_trace(count: int, data: bytes) -> tuple[int, int, list[bytes]]:
+    bot = FakeDownloadBot(file_size=len(data), data=data, hold=True)
     downloader = TelegramDownloader()
     tasks = [
         asyncio.create_task(downloader(make_message(bot), f"file-{index}"))
@@ -40,13 +40,13 @@ async def _concurrency_trace(count: int) -> tuple[int, int, list[bytes]]:
 
 @pytest.mark.parametrize(
     "data",
-    [b"abc", bytearray(b"abc"), memoryview(b"abc")],
+    [b"\x00\xff\x7f", bytearray(b"\x00\xff\x7f"), memoryview(b"\x00\xff\x7f")],
 )
 @pytest.mark.asyncio
 async def test_downloader_accepts_any_buffer_protocol_payload(data: object) -> None:
     bot = FakeDownloadBot(file_size=3, data=data)
     result = await TelegramDownloader()(make_message(bot), "buffer")
-    expected = b"abc"
+    expected = b"\x00\xff\x7f"
     assert result == expected, "every bytes-like payload must be stored"
 
 
@@ -149,14 +149,16 @@ async def test_translates_a_telegram_failure(
 @pytest.mark.asyncio
 async def test_queues_downloads_over_the_limit_and_finishes_them() -> None:
     count = MAX_CONCURRENT_DOWNLOADS + 2
-    trace = await _concurrency_trace(count)
-    expected = (MAX_CONCURRENT_DOWNLOADS, MAX_CONCURRENT_DOWNLOADS, [b"abc"] * count)
+    data = b"\xd0\x81\x00PK"
+    trace = await _concurrency_trace(count, data)
+    expected = (MAX_CONCURRENT_DOWNLOADS, MAX_CONCURRENT_DOWNLOADS, [data] * count)
     assert trace == expected, "the downloads were not limited or a download was lost"
 
 
 def test_limits_downloads_again_in_a_second_event_loop() -> None:
     count = MAX_CONCURRENT_DOWNLOADS + 3
-    asyncio.run(_concurrency_trace(count))
-    trace = asyncio.run(_concurrency_trace(count))
-    expected = (MAX_CONCURRENT_DOWNLOADS, MAX_CONCURRENT_DOWNLOADS, [b"abc"] * count)
+    data = b"\r\n\x1b[0m"
+    asyncio.run(_concurrency_trace(count, data))
+    trace = asyncio.run(_concurrency_trace(count, data))
+    expected = (MAX_CONCURRENT_DOWNLOADS, MAX_CONCURRENT_DOWNLOADS, [data] * count)
     assert trace == expected, "a second event loop could not wait for a free slot"

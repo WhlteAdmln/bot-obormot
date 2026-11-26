@@ -180,7 +180,7 @@ async def test_count_tokens_rejects_invalid_normalized_content(
     )
 
     with pytest.raises(LLMUnavailableError, match="Invalid message content"):
-        await client.count_tokens([{"role": "user", "content": "hello"}])
+        await client.count_tokens([{"role": "user", "content": "Сколько токенов?"}])
 
     expected_empty: list[object] = []
     assert fake_session.post_calls == expected_empty, "invalid content reached HTTP"
@@ -250,7 +250,7 @@ async def test_count_text_tokens_rejects_invalid_token_list(
     client = make_client(monkeypatch, fake_session)
 
     with pytest.raises(LLMUnavailableError) as error:
-        await client.count_text_tokens("hello")
+        await client.count_text_tokens("ЩЁЛК без токенов")
 
     expected_detail = "invalid token list"
     assert expected_detail in str(error.value), "the error does not name the problem"

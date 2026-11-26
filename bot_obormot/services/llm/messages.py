@@ -5,9 +5,10 @@
 
 import json
 import re
-from collections.abc import Sequence
-from typing import Any
+from collections.abc import Mapping, Sequence
+from typing import cast
 
+from bot_obormot.common.llm_messages import ChatMessage
 from bot_obormot.errors import LLMUnavailableError
 from bot_obormot.services.llm.constants import (
     PART_TYPE_IMAGE_URL,
@@ -86,9 +87,9 @@ def normalize_content(content: object) -> str | list[object]:
     return str(content)
 
 
-def normalize_messages(messages: Sequence[object]) -> list[dict[str, Any]]:
+def normalize_messages(messages: Sequence[object]) -> list[ChatMessage]:
     """Validate message structures before sending them to the API."""
-    normalized: list[dict[str, Any]] = []
+    normalized: list[ChatMessage] = []
 
     for index, message in enumerate(messages):
         if not isinstance(message, dict):
@@ -105,14 +106,17 @@ def normalize_messages(messages: Sequence[object]) -> list[dict[str, Any]]:
         if role != ROLE_SYSTEM:
             content = _neutralize_content(content)
 
-        normalized.append({**message, "role": role, "content": content})
+        # Content parts are passed through as given; only the role is checked.
+        normalized.append(
+            cast("ChatMessage", {**message, "role": role, "content": content})
+        )
 
     return normalized
 
 
 def prepare_messages_for_count(
-    messages: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
+    messages: Sequence[Mapping[str, object]],
+) -> list[dict[str, object]]:
     """Remove image base64 data when counting text tokens."""
     prepared = []
 
@@ -145,7 +149,7 @@ def prepare_messages_for_count(
     return prepared
 
 
-def count_images(messages: list[dict[str, Any]]) -> int:
+def count_images(messages: Sequence[Mapping[str, object]]) -> int:
     """Count image_url parts across all messages."""
     count = 0
 

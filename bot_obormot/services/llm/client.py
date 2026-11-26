@@ -5,12 +5,12 @@
 
 import asyncio
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping, Sequence
 from http import HTTPStatus
-from typing import Any
 
 import aiohttp
 
+from bot_obormot.common.llm_messages import ChatMessage
 from bot_obormot.services.llm import texts
 from bot_obormot.services.llm.constants import COUNTING_MODE_AUTO
 from bot_obormot.services.llm.context_size import get_context_size as fetch_context_size
@@ -109,14 +109,14 @@ class LLMClient:
 
     @staticmethod
     def _normalize_messages(
-        messages: list[dict[str, Any]],
-    ) -> list[dict[str, Any]]:
+        messages: Sequence[object],
+    ) -> list[ChatMessage]:
         return normalize_messages(messages)
 
     def normalize_messages(
         self,
-        messages: list[dict[str, Any]],
-    ) -> list[dict[str, Any]]:
+        messages: Sequence[object],
+    ) -> list[ChatMessage]:
         """Normalize messages for the LLM API."""
         return self._normalize_messages(messages)
 
@@ -130,13 +130,13 @@ class LLMClient:
 
     @staticmethod
     def prepare_messages_for_count(
-        messages: list[dict[str, Any]],
-    ) -> list[dict[str, Any]]:
+        messages: Sequence[Mapping[str, object]],
+    ) -> list[dict[str, object]]:
         """Prepare messages for server-side token counting."""
         return prepare_for_token_counting(messages)
 
     @staticmethod
-    def count_images(messages: list[dict[str, Any]]) -> int:
+    def count_images(messages: Sequence[Mapping[str, object]]) -> int:
         """Count image parts in normalized messages."""
         return count_message_images(messages)
 
@@ -159,7 +159,7 @@ class LLMClient:
 
     async def count_tokens(
         self,
-        messages: list[dict[str, Any]],
+        messages: list[ChatMessage],
     ) -> int:
         """Count tokens using llama.cpp or a conservative estimate."""
         return await tokenize_messages(self, messages)
@@ -171,9 +171,9 @@ class LLMClient:
     async def fit_messages_to_context(
         self,
         system_prompt: str,
-        history: list[dict[str, Any]],
+        history: list[ChatMessage],
         user_message: object,
-    ) -> list[dict[str, Any]]:
+    ) -> list[ChatMessage]:
         """Fit the largest possible history into the model context."""
         return await fit_messages_to_context(
             self,
@@ -184,7 +184,7 @@ class LLMClient:
 
     async def stream(
         self,
-        messages: list[dict[str, Any]],
+        messages: list[ChatMessage],
     ) -> AsyncIterator[str]:
         """Streams the reply tokens while holding a generation slot."""
         async with self.semaphore:
@@ -193,7 +193,7 @@ class LLMClient:
 
     async def _stream_unlimited(
         self,
-        messages: list[dict[str, Any]],
+        messages: list[ChatMessage],
     ) -> AsyncIterator[str]:
         """Delegate streaming generation to a separate module."""
         async for chunk in stream_unlimited(self, messages):

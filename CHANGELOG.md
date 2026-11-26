@@ -17,6 +17,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- [#118](https://github.com/WhlteAdmln/bot-obormot/issues/118) LLM chat messages and their text and `image_url` parts are typed with the `ChatMessage`, `TextPart` and `ImageURLPart` TypedDicts in `bot_obormot/common/llm_messages.py` instead of `dict[str, Any]`.
 - [#146](https://github.com/WhlteAdmln/bot-obormot/issues/146) The chat router factory receives the chat runtime directly, so it no longer travels through `workflow_data`.
 - [#124](https://github.com/WhlteAdmln/bot-obormot/issues/124) Handler modules build their routers with `create_router()` instead of module-level objects, so tests need no router detaching.
 - [#149](https://github.com/WhlteAdmln/bot-obormot/issues/149) `scripts/check_test_rules.py` applies the one-assert and failure-message rules to every test file, so `tests/strict_test_files.txt` is gone.

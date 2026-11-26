@@ -5,8 +5,8 @@
 
 import asyncio
 from pathlib import Path
-from typing import Any
 
+from bot_obormot.common.llm_messages import ChatMessage
 from bot_obormot.services.database.decorators import handle_database_errors
 from bot_obormot.services.database.facade.core import DatabaseCore, logger
 from bot_obormot.services.database.files.image_storage import (
@@ -97,7 +97,7 @@ class HistoryOperations(DatabaseCore):
         user_id: int,
         limit: int | None = None,
         max_images: int = MAX_HISTORY_MEDIA_MESSAGES,
-    ) -> list[dict[str, Any]]:
+    ) -> list[ChatMessage]:
         """Load the most recent complete exchanges for a user."""
         return await get_history_usecase(
             self._conn,

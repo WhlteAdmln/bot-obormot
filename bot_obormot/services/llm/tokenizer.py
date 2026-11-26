@@ -5,11 +5,13 @@
 
 import logging
 import math
+from collections.abc import Mapping, Sequence
 from http import HTTPStatus
-from typing import Any, Protocol
+from typing import Protocol
 
 import aiohttp
 
+from bot_obormot.common.llm_messages import ChatMessage
 from bot_obormot.common.text import log_safe
 from bot_obormot.errors import LLMAPIError, LLMTimeoutError, LLMUnavailableError
 from bot_obormot.services.llm.constants import COUNTING_MODE_ESTIMATE, PART_TYPE_TEXT
@@ -40,15 +42,15 @@ class TokenizerClient(Protocol):
 
     def normalize_messages(
         self,
-        messages: list[dict[str, Any]],
-    ) -> list[dict[str, Any]]:
+        messages: Sequence[object],
+    ) -> list[ChatMessage]:
         """Normalize messages for the LLM API."""
         ...
 
     @staticmethod
     def prepare_messages_for_count(
-        messages: list[dict[str, Any]],
-    ) -> list[dict[str, Any]]:
+        messages: Sequence[Mapping[str, object]],
+    ) -> list[dict[str, object]]:
         """Prepare messages for server-side token counting."""
         ...
 
@@ -120,7 +122,7 @@ def estimate_text_tokens(text: str) -> int:
     return math.ceil(len(text) / _ESTIMATE_CHARS_PER_TOKEN)
 
 
-def estimate_message_tokens(messages: list[dict[str, Any]]) -> int:
+def estimate_message_tokens(messages: Sequence[Mapping[str, object]]) -> int:
     """Estimate message text tokens and per-message overhead."""
     return sum(
         estimate_text_tokens(_text_from_content(message.get("content")))
@@ -129,7 +131,7 @@ def estimate_message_tokens(messages: list[dict[str, Any]]) -> int:
     )
 
 
-def _check_message_contents(messages: list[dict[str, Any]]) -> None:
+def _check_message_contents(messages: Sequence[Mapping[str, object]]) -> None:
     """Reject messages whose content is neither text nor a list of parts."""
     for index, message in enumerate(messages):
         content = message.get("content")
@@ -146,7 +148,7 @@ def _check_message_contents(messages: list[dict[str, Any]]) -> None:
 
 async def _count_tokens_llamacpp(
     client: TokenizerClient,
-    messages: list[dict[str, Any]],
+    messages: list[ChatMessage],
 ) -> int:
     session = await client.get_session()
     base_url = client.get_server_url()
@@ -205,7 +207,7 @@ async def _count_tokens_llamacpp(
 
 async def count_tokens(
     client: TokenizerClient,
-    messages: list[dict[str, Any]],
+    messages: list[ChatMessage],
 ) -> int:
     """Count message tokens using the selected backend."""
     mode = await client.get_token_counting_mode()

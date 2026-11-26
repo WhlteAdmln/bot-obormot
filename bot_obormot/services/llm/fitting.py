@@ -5,8 +5,10 @@
 
 import logging
 import math
-from typing import Any, Protocol
+from collections.abc import Mapping, Sequence
+from typing import Protocol
 
+from bot_obormot.common.llm_messages import ChatMessage
 from bot_obormot.errors import InputTooLongError, LLMUnavailableError
 from bot_obormot.services.llm.constants import (
     CONTEXT_SAFETY_MARGIN,
@@ -37,17 +39,17 @@ class FittingClient(Protocol):
 
     def normalize_messages(
         self,
-        messages: list[dict[str, Any]],
-    ) -> list[dict[str, Any]]:
+        messages: Sequence[object],
+    ) -> list[ChatMessage]:
         """Normalize messages for the LLM API."""
         ...
 
     @staticmethod
-    def count_images(messages: list[dict[str, Any]]) -> int:
+    def count_images(messages: Sequence[Mapping[str, object]]) -> int:
         """Count image parts in normalized messages."""
         ...
 
-    async def count_tokens(self, messages: list[dict[str, Any]]) -> int:
+    async def count_tokens(self, messages: list[ChatMessage]) -> int:
         """Counts the prompt tokens of the messages."""
 
     async def get_token_counting_mode(self) -> str:
@@ -57,9 +59,9 @@ class FittingClient(Protocol):
 async def fit_messages_to_context(
     client: FittingClient,
     system_prompt: str,
-    history: list[dict[str, Any]],
+    history: list[ChatMessage],
     user_message: object,
-) -> list[dict[str, Any]]:
+) -> list[ChatMessage]:
     """Fit the largest possible history into the model context."""
     context_size = await client.get_context_size()
     counting_mode = await client.get_token_counting_mode()
@@ -73,13 +75,13 @@ async def fit_messages_to_context(
     while history and history[0].get("role") != ROLE_USER:
         history.pop(0)
 
-    messages = [
-        {"role": "system", "content": system_prompt},
-        *history,
-        {"role": "user", "content": user_message},
-    ]
-
-    messages = client.normalize_messages(messages)
+    messages = client.normalize_messages(
+        [
+            {"role": "system", "content": system_prompt},
+            *history,
+            {"role": "user", "content": user_message},
+        ]
+    )
 
     while True:
         # The number of images changes when older exchanges are removed.

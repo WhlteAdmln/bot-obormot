@@ -5,7 +5,7 @@
 
 import json
 import logging
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from http import HTTPStatus
@@ -13,6 +13,7 @@ from typing import Any, Protocol
 
 import aiohttp
 
+from bot_obormot.common.llm_messages import ChatMessage
 from bot_obormot.common.text import log_safe
 from bot_obormot.errors import (
     LLMAPIError,
@@ -42,8 +43,8 @@ class StreamingClient(Protocol):
 
     def normalize_messages(
         self,
-        messages: list[dict[str, Any]],
-    ) -> list[dict[str, Any]]:
+        messages: Sequence[object],
+    ) -> list[ChatMessage]:
         """Normalize messages for the LLM API."""
         ...
 
@@ -111,7 +112,7 @@ def _translated_transport_errors() -> Iterator[None]:
 
 def _completion_payload(
     settings: Settings,
-    messages: list[dict[str, Any]],
+    messages: list[ChatMessage],
 ) -> dict[str, Any]:
     """Build the chat/completions request body for a streamed generation."""
     return {
@@ -170,7 +171,7 @@ async def _stream_contents(
 
 async def stream_unlimited(
     client: StreamingClient,
-    messages: list[dict[str, Any]],
+    messages: list[ChatMessage],
 ) -> AsyncIterator[str]:
     """Yield response chunks without semaphore management."""
     settings = client.settings

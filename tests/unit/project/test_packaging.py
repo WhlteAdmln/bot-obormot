@@ -3,6 +3,7 @@
 
 """Tests for the installable Python package."""
 
+import shutil
 from pathlib import Path
 from zipfile import ZipFile
 
@@ -12,11 +13,26 @@ from build import ProjectBuilder
 
 @pytest.fixture(name="wheel_path")
 def fixture_wheel_path(tmp_path: Path) -> Path:
-    """Build the project wheel into a temporary directory."""
+    """Build the project wheel from a copy of the project in a temporary directory."""
     project_root = Path(__file__).resolve().parents[3]
+    project_copy = tmp_path / "project"
+    shutil.copytree(
+        project_root,
+        project_copy,
+        ignore=shutil.ignore_patterns(
+            ".git",
+            ".venv",
+            ".*cache*",
+            ".hypothesis",
+            "__pycache__",
+            "*.egg-info",
+            "build",
+            "dist",
+        ),
+    )
     wheel_directory = tmp_path / "wheel"
     wheel_directory.mkdir()
-    wheel_name = ProjectBuilder(str(project_root)).build(
+    wheel_name = ProjectBuilder(str(project_copy)).build(
         "wheel",
         str(wheel_directory),
     )

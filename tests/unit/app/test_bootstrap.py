@@ -15,6 +15,7 @@ import bot_obormot.app.routers as app_routers
 import bot_obormot.main as main_module
 from bot_obormot.app import bootstrap, lifecycle
 from bot_obormot.app.background import image_cleanup
+from bot_obormot.handlers.chat.handler import ChatRuntime
 from bot_obormot.middlewares.access import AccessMiddleware
 from bot_obormot.middlewares.correlation_id import CorrelationIdMiddleware
 from bot_obormot.middlewares.temporary_messages import (
@@ -50,9 +51,18 @@ def fixture_configured(
 ) -> SimpleNamespace:
     """Configure a recording dispatcher with stand-in routers."""
     router_refs = {name: object() for name in ("start", "admin", "routers", "chat")}
-    for name, router in router_refs.items():
+    for name in ("start", "admin", "routers"):
+        router = router_refs[name]
         stand_in = SimpleNamespace(create_router=lambda router=router: router)
         monkeypatch.setattr(app_routers, name, stand_in)
+    chat_runtimes: list[ChatRuntime] = []
+
+    def create_chat_router(runtime: ChatRuntime) -> object:
+        chat_runtimes.append(runtime)
+        return router_refs["chat"]
+
+    chat_stand_in = SimpleNamespace(create_router=create_chat_router)
+    monkeypatch.setattr(app_routers, "chat", chat_stand_in)
     dispatcher = FakeRouterDispatcher()
     llm_client = FakeLifecycleLLM([])
     message_aggregator = MessageAggregator()
@@ -72,6 +82,7 @@ def fixture_configured(
         message_aggregator=message_aggregator,
         database=database,
         router_refs=router_refs,
+        chat_runtimes=chat_runtimes,
     )
 
 
@@ -93,9 +104,17 @@ def test_configure_dispatcher_stores_dependency_in_workflow_data(
 def test_configure_dispatcher_gives_handlers_the_message_aggregator(
     configured: SimpleNamespace,
 ) -> None:
-    runtime = configured.dispatcher.workflow_data["chat_runtime"]
+    runtime = configured.chat_runtimes[0]
     expected = configured.message_aggregator
     assert runtime.message_aggregator is expected, "handlers got another aggregator"
+
+
+def test_configure_dispatcher_keeps_chat_runtime_out_of_workflow_data(
+    configured: SimpleNamespace,
+) -> None:
+    runtime_key = "chat_runtime"
+    stored_keys = configured.dispatcher.workflow_data.keys()
+    assert runtime_key not in stored_keys, "the chat runtime travels in workflow data"
 
 
 def test_configure_dispatcher_registers_middlewares_once_in_original_order(
@@ -119,31 +138,49 @@ def test_configure_dispatcher_includes_routers_once_in_original_order(
     assert routers == expected_routers, "routers differ in identity or order"
 
 
+@pytest.fixture(name="chat_runtimes")
+def fixture_chat_runtimes(monkeypatch: pytest.MonkeyPatch) -> list[ChatRuntime]:
+    """Record the runtime that each configured dispatcher gives the chat router."""
+    runtimes: list[ChatRuntime] = []
+
+    def create_router(runtime: ChatRuntime) -> object:
+        runtimes.append(runtime)
+        return object()
+
+    monkeypatch.setattr(
+        app_routers, "chat", SimpleNamespace(create_router=create_router)
+    )
+    return runtimes
+
+
 def test_configure_dispatcher_shares_given_user_locks_with_handlers(
     settings: Settings,
+    chat_runtimes: list[ChatRuntime],
 ) -> None:
     dispatcher = FakeRouterDispatcher()
     user_locks = UserLocks()
 
     app_routers.configure_dispatcher(dispatcher, settings, user_locks=user_locks)
 
-    stored = dispatcher.workflow_data["chat_runtime"].user_locks
+    stored = chat_runtimes[0].user_locks
     assert stored is user_locks, "handlers must receive the user locks of the app"
 
 
 def test_configure_dispatcher_creates_user_locks_when_none_is_given(
     settings: Settings,
+    chat_runtimes: list[ChatRuntime],
 ) -> None:
     dispatcher = FakeRouterDispatcher()
 
     app_routers.configure_dispatcher(dispatcher, settings)
 
-    stored = dispatcher.workflow_data["chat_runtime"].user_locks
+    stored = chat_runtimes[0].user_locks
     assert isinstance(stored, UserLocks), "handlers must always receive user locks"
 
 
 def test_configure_dispatcher_gives_each_dispatcher_its_own_downloader(
     settings: Settings,
+    chat_runtimes: list[ChatRuntime],
 ) -> None:
     first = FakeRouterDispatcher()
     second = FakeRouterDispatcher()
@@ -151,13 +188,14 @@ def test_configure_dispatcher_gives_each_dispatcher_its_own_downloader(
     app_routers.configure_dispatcher(first, settings)
     app_routers.configure_dispatcher(second, settings)
 
-    first_downloader = first.workflow_data["chat_runtime"].downloader
-    second_downloader = second.workflow_data["chat_runtime"].downloader
+    first_downloader = chat_runtimes[0].downloader
+    second_downloader = chat_runtimes[1].downloader
     assert first_downloader is not second_downloader, "bots must not share slots"
 
 
 def test_configure_dispatcher_gives_each_dispatcher_its_own_media_slots(
     settings: Settings,
+    chat_runtimes: list[ChatRuntime],
 ) -> None:
     first = FakeRouterDispatcher()
     second = FakeRouterDispatcher()
@@ -165,8 +203,8 @@ def test_configure_dispatcher_gives_each_dispatcher_its_own_media_slots(
     app_routers.configure_dispatcher(first, settings)
     app_routers.configure_dispatcher(second, settings)
 
-    first_slots = first.workflow_data["chat_runtime"].media_slots
-    second_slots = second.workflow_data["chat_runtime"].media_slots
+    first_slots = chat_runtimes[0].media_slots
+    second_slots = chat_runtimes[1].media_slots
     assert first_slots is not second_slots, "bots must not share media slots"
 
 

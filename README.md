@@ -12,15 +12,14 @@ Russian version: [README.ru.md](README.ru.md).
 - Streaming answers from any OpenAI-compatible server, such as llama.cpp or vLLM.
 - Replies to your message, with Markdown and HTML in the answer shown as Telegram formatting.
 - Per-user history with adjustable limits and per-user system prompts.
-- Images, GIFs, video and animated stickers are handled locally.
+- Images, GIFs, video and animated stickers are handled locally. Animated stickers need the optional `tgs` extra, which the Docker image does not install.
 - Voice messages, audio files and documents through audiodoc (optional).
 - Supervisor, administrators and an allowlist control who can use the bot.
 - `bot-obormot doctor` checks the installation; the installer upgrades it safely.
 
 ## Installation
 
-You need Linux with glibc, Python 3.11+ with `venv`, `curl`, and a bot token
-from [@BotFather](https://t.me/BotFather). Install `ffmpeg` for video support.
+You need Linux with glibc, Python 3.11+ with `venv`, `curl`, `sha256sum` and a bot token from [@BotFather](https://t.me/BotFather). Install `ffmpeg` for video support.
 
 ### Installer (recommended)
 

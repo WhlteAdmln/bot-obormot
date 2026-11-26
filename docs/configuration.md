@@ -28,7 +28,7 @@ default.
 | `ALLOWED_USERS` | empty | Comma-separated positive IDs of a static allowlist. An empty value does not make the bot public. |
 | `ALLOW_ALL_USERS` | `false` | Set to `true` only to allow every user who is not blocked. |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL`. |
-| `DATABASE_PATH` | `data/bot.db` | SQLite database path, relative to the home directory. |
+| `DATABASE_PATH` | `data/bot.db` | SQLite database path, relative to the home directory. The Docker image and `compose.yaml` set it to `/data/bot.db` in the container environment, which wins over `.env`, so the value in `.env` has no effect there. |
 
 ### LLM server
 
@@ -46,7 +46,7 @@ See [LLM servers](llm-servers.md) for server compatibility.
 | `LLM_CONTEXT_SIZE` | empty | Context size in tokens. Set it when the server does not report it. |
 | `LLM_TOKEN_COUNTING` | `auto` | `auto`, `llamacpp` or `estimate`. |
 | `LLM_MAX_CONCURRENT_GENERATIONS` | `1` | Number of generations that run at the same time. |
-| `MAX_HISTORY_EXCHANGES` | `1000` | Upper bound of the per-user history limit. |
+| `MAX_HISTORY_EXCHANGES` | `1000` | Upper bound of the history limit that administrators and the supervisor can set for themselves and for other users. A regular user can set at most the default limit of 30 exchanges, which is not configurable. |
 | `MAX_STORED_EXCHANGES` | `2000` | Number of exchanges kept per user in SQLite. |
 
 ### System prompt

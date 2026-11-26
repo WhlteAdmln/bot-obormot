@@ -16,6 +16,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- [#119](https://github.com/WhlteAdmln/bot-obormot/issues/119) The Document Engine response is typed with the `DocumentResponse` TypedDict instead of `dict[str, Any]`.
 - [#111](https://github.com/WhlteAdmln/bot-obormot/issues/111) The fake LLM server options group chat and tokenizer settings in `FakeChatOptions` and `FakeTokenizerOptions`, so `FakeLLMOptions` needs no `too-many-instance-attributes` suppression.
 - [#120](https://github.com/WhlteAdmln/bot-obormot/issues/120) FSM updates in the `start`, `prompt` and `fallback` handlers and the temporary-messages middleware pass a typed mapping to `state.update_data` instead of unpacking `dict[str, Any]`.
 - [#121](https://github.com/WhlteAdmln/bot-obormot/issues/121) The optional `message.answer` arguments of streamed responses are typed with the `AnswerOptions` TypedDict instead of `dict[str, Any]`.

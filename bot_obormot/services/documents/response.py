@@ -3,14 +3,23 @@
 
 """Validation of the Document Engine response structure."""
 
-from typing import Any
+from typing import NotRequired, TypedDict, cast
 
 from bot_obormot.errors import DocumentAPIError
 
 _TRUNCATED_FIELD = "truncated"
 
 
-def validate_document_response(result: object) -> dict[str, Any]:
+class DocumentResponse(TypedDict):
+    """Text extracted by the Document Engine and its metadata."""
+
+    text: str
+    format: str
+    characters: int
+    truncated: NotRequired[bool]
+
+
+def validate_document_response(result: object) -> DocumentResponse:
     """Validate the Document Engine response structure without transforming data."""
     if not isinstance(result, dict):
         raise DocumentAPIError(
@@ -49,4 +58,4 @@ def validate_document_response(result: object) -> dict[str, Any]:
             "Document Engine returned invalid truncated flag",
         )
 
-    return result
+    return cast("DocumentResponse", result)

@@ -10,9 +10,8 @@ from bot_obormot.config.prompts import load_default_system_prompt
 _DEFAULT_COUNTING_MODE = "auto"
 
 
-# One field per environment variable; splitting them would only hide the schema.
 @dataclass(frozen=True, slots=True)
-class Settings:  # pylint: disable=too-many-instance-attributes
+class Settings:  # pylint: disable=too-many-instance-attributes  # one per env variable
     """Application settings loaded from environment variables."""
 
     BOT_TOKEN: str = ""

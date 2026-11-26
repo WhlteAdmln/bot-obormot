@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- [#187](https://github.com/WhlteAdmln/bot-obormot/issues/187) `scripts/check_vendored.py` also compares the shared `docs_checks` module `code_paths.py` and its tests.
 - [#167](https://github.com/WhlteAdmln/bot-obormot/issues/167) `scripts/check_docs.py` reports a path under `bot_obormot/`, `scripts/` or `tests/` in the inline code of the README, contributing and `docs/` documents that does not exist.
 - [#145](https://github.com/WhlteAdmln/bot-obormot/issues/145) The bot stops at dispatcher startup with an error that names each missing handler dependency (`settings`, `llm_client`, `database`) instead of failing on the first message.
 - [#164](https://github.com/WhlteAdmln/bot-obormot/issues/164) CI installs its system packages from an apt cache that the new `apt-cache.yml` workflow saves nightly, and falls back to the network when no cache matches.
@@ -19,6 +20,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- [#187](https://github.com/WhlteAdmln/bot-obormot/issues/187) `scripts/check_docs.py` reads only the first word of an inline code span as a path, skips a span with a `<placeholder>` and reports `missing path '<path>'`.
 - [#108](https://github.com/WhlteAdmln/bot-obormot/issues/108) Tests use irregular inputs (non-ASCII text, mixed case, arbitrary bytes) instead of placeholders such as `"x"`, `"abc"` and `"hello"`.
 - [#122](https://github.com/WhlteAdmln/bot-obormot/issues/122) `Any` remains only where a library signature or an arbitrary JSON document requires it; test helpers use `MessageContent`, `ContentPart` and `object` where the precise type is known.
 - [#177](https://github.com/WhlteAdmln/bot-obormot/issues/177) The streamed LLM chunks and the chat/completions request body are typed with TypedDicts in `bot_obormot/services/llm/streaming.py` instead of `dict[str, Any]`.

@@ -1,8 +1,8 @@
 name: Install CI system packages
 description: >-
-  Install the packages of .github/apt-packages.txt from the newest apt cache saved
-  by the apt-cache workflow, or from the network when no cache matches or the
-  install from the cache fails.
+  Install the packages of .github/apt-packages.txt, taking the package files from
+  the newest apt cache saved by the apt-cache workflow and downloading only the
+  files that are missing from it or when no cache matches.
 runs:
   using: composite
   steps:
@@ -27,12 +27,11 @@ runs:
         set -euo pipefail
         mapfile -t packages < .github/apt-packages.txt
         debs="$HOME/.cache/ci-apt-debs"
-        if [ -n "$MATCHED_KEY" ] && compgen -G "$debs/*.deb" > /dev/null \
-          && sudo apt-get install -y --no-install-recommends --no-download "$debs"/*.deb \
-          && dpkg-query --show "${packages[@]}" > /dev/null; then
-          echo "Installed ${packages[*]} from the apt cache $MATCHED_KEY."
-          exit 0
+        if [ -n "$MATCHED_KEY" ] && compgen -G "$debs/*.deb" > /dev/null; then
+          sudo cp "$debs"/*.deb /var/cache/apt/archives/
+          echo "Copied the package files of the apt cache $MATCHED_KEY."
+        else
+          echo "::notice::No apt cache matches; installing ${packages[*]} from the network."
         fi
-        echo "::notice::No usable apt cache; installing ${packages[*]} from the network."
         sudo apt-get update
         sudo apt-get install -y --no-install-recommends "${packages[@]}"

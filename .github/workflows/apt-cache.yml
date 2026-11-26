@@ -1,0 +1,41 @@
+name: APT cache
+
+on:
+  schedule:
+    - cron: "0 22 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  save:
+    name: Save the apt package cache
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Compute the apt cache key
+        id: key
+        env:
+          PACKAGES_HASH: ${{ hashFiles('.github/apt-packages.txt') }}
+        run: echo "key=apt-debs-${ImageOS}-${ImageVersion}-${PACKAGES_HASH}-$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+      - name: Download the package files
+        run: |
+          set -euo pipefail
+          mapfile -t packages < .github/apt-packages.txt
+          debs="$HOME/.cache/ci-apt-debs"
+          mkdir -p "$debs/partial"
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends --download-only \
+            -o Dir::Cache::archives="$debs" "${packages[@]}"
+          sudo rm -rf "$debs/partial" "$debs/lock"
+          sudo chown -R "$(id -u):$(id -g)" "$debs"
+          du -sh "$debs"
+          ls "$debs"/*.deb
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ci-apt-debs
+          key: ${{ steps.key.outputs.key }}

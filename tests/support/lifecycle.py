@@ -15,11 +15,13 @@ class FakeRouterDispatcher:
     """Record middleware and routers attached by the router configuration."""
 
     def __init__(self) -> None:
-        """Start with no middleware, routers or workflow data."""
+        """Start with no middleware, routers, startup callbacks or workflow data."""
         self.middleware_calls: list[object] = []
         self.routers: list[object] = []
         self.workflow_data: dict[str, object] = {}
         self.message = SimpleNamespace(middleware=self.middleware_calls.append)
+        self.startup_callbacks: list[object] = []
+        self.startup = SimpleNamespace(register=self.startup_callbacks.append)
 
     def include_router(self, router: object) -> None:
         """Record an included router."""

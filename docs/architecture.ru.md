@@ -8,7 +8,7 @@
 
 ```mermaid
 flowchart LR
-    T[Telegram private message] --> M[Middleware: throttle, access, cleanup]
+    T[Telegram private message] --> M[Middleware: correlation ID, throttle, access, cleanup]
     M --> R[Routers: start, admin, routers, chat]
     R --> C[Chat handler: inspect, aggregate, lock, prepare]
     C -->|audio and documents| A[audiodoc]
@@ -20,14 +20,14 @@ flowchart LR
     P --> O[Reply in Telegram]
 ```
 
-`bot_obormot/app/routers.py` — единственная точка регистрации middleware и корневых роутеров. Порядок middleware имеет значение: сначала ограничение частоты, затем проверка доступа, затем очистка временных сообщений. Роутеры подключаются в порядке `start`, `admin`, `routers`, `chat`; общий chat-обработчик подключён последним, чтобы команды могли обработаться раньше. Каждый модуль обработчиков строит свой роутер функцией `create_router()`, поэтому каждый диспетчер получает новые роутеры. При запуске диспетчера `bot_obormot/app/dependencies.py` проверяет, что в `workflow_data` есть `settings`, `llm_client` и `database`, и останавливает запуск с ошибкой, в которой названа каждая недостающая зависимость.
+`bot_obormot/app/bootstrap.py` регистрирует `CorrelationIdMiddleware` как внешний middleware обновлений, поэтому каждое обновление получает correlation ID до запуска middleware сообщений. `bot_obormot/app/routers.py` регистрирует middleware сообщений и корневые роутеры. Порядок middleware имеет значение: сначала устанавливается correlation ID, затем ограничение частоты, затем проверка доступа, затем очистка временных сообщений. Роутеры подключаются в порядке `start`, `admin`, `routers`, `chat`; общий chat-обработчик подключён последним, чтобы команды могли обработаться раньше. Каждый модуль обработчиков строит свой роутер функцией `create_router()`, поэтому каждый диспетчер получает новые роутеры. При запуске диспетчера `bot_obormot/app/dependencies.py` проверяет, что в `workflow_data` есть `settings`, `llm_client` и `database`, и останавливает запуск с ошибкой, в которой названа каждая недостающая зависимость.
 
 ## 2. Запуск и завершение
 
-- `bot_obormot/cli.py` — консольная точка входа (`run`, `version`, `init`, `config check`, `doctor`, `service`); `python -m bot_obormot` запускает её. Устаревший `bot/main.py` перенаправляет `python -m bot.main` в `run` и будет удалён в 0.3.0.
-- `bot_obormot/doctor.py` выполняет диагностику установки, `bot_obormot/service.py` формирует unit-файлы systemd, а `bot_obormot/initial_env.py` создаёт `.env` из `templates/env.example`.
+- `bot_obormot/cli.py` — консольная точка входа (`run`, `version`, `init`, `config check`, `doctor`, `service`); `python -m bot_obormot` запускает её. `bot_obormot/main.py` — тонкая точка входа, которая запускает приложение из `bot_obormot/app/bootstrap.py`.
+- `bot_obormot/doctor.py` выполняет диагностику установки, `bot_obormot/service.py` формирует unit-файлы systemd, а `bot_obormot/initial_env.py` создаёт `.env` из `bot_obormot/templates/env.example`.
 - `bot_obormot/app/bootstrap.py` устанавливает `umask(0o077)`, настраивает логирование и фильтр секретов, включает лимиты Pillow, записывает режим доступа, проверяет `BOT_TOKEN`, создаёт Bot/Dispatcher и подключает роутеры.
-- `bot_obormot/app/lifecycle.py` подключает SQLite, запускает LLM-клиент, создаёт именованную фоновую задачу периодической очистки изображений и запускает Telegram polling. При завершении задача очистки отменяется и дожидается остановки; затем закрываются LLM-клиент, соединение БД и Telegram-сессия.
+- `bot_obormot/app/lifecycle.py` подключает SQLite, запускает LLM-клиент, создаёт именованную фоновую задачу периодической очистки изображений и запускает Telegram polling. При завершении задача очистки отменяется и дожидается остановки; соединение БД закрывается при выходе из блока `async with`, затем закрываются LLM-клиент и Telegram-сессия.
 - `bot_obormot/app/background/image_cleanup.py` вызывает очистку раз в сутки с периодом хранения медиа 30 дней и защитным периодом 24 часа для осиротевших изображений.
 - `bot_obormot/env_readers.py` (общий с audiodoc) содержит читалки окружения и `load_env_file()`, которая загружает `<home>/.env`, а затем `./.env`. Домашний каталог задаёт `BOT_OBORMOT_HOME` (по умолчанию `~/bot-obormot`); относительные пути, например `DATABASE_PATH`, считаются от него. `bot_obormot/config/model/` строит `Settings` через `load_settings()`: `schema.py` содержит dataclass `Settings`, `readers.py` — типизированные читалки, собирающие ошибки, `loader.py` — проверку и `ConfigError`, `cache.py` — общий для процесса кэш `get_settings()`; при импорте окружение никто не читает.
 
@@ -39,7 +39,7 @@ flowchart LR
 - `bot_obormot/middlewares/access.py` отклоняет события без отправителя и игнорирует не личные чаты. Уведомление об отказе отправляется не чаще одного раза в 60 секунд на пользователя; словарь учёта также ограничен по размеру.
 - `bot_obormot/services/access/roles.py` содержит чистые функции проверки Supervisor, администратора из БД и статического allowlist.
 - `bot_obormot/services/access/service.py` применяет политику доступа. Supervisor всегда имеет доступ. Для остальных пользователей сначала проверяется постоянная блокировка в SQLite, затем членство в списке администраторов, `ALLOW_ALL_USERS` и `ALLOWED_USERS`.
-- `UserLocks` в `bot_obormot/services/chat/locks.py` сериализует обработку сообщений одного пользователя и считает активные/ожидающие запросы. Приложение создаёт один экземпляр при запуске и передаёт его обработчику чата через диспетчер. `bot_obormot/handlers/chat/handler.py` допускает не более 3 активных и ожидающих запросов от одного пользователя.
+- `UserLocks` в `bot_obormot/services/chat/locks.py` сериализует обработку сообщений одного пользователя и считает активные/ожидающие запросы. Приложение создаёт один экземпляр при запуске и передаёт его в `chat.create_router()` внутри `ChatRuntime` (`bot_obormot/app/routers.py`). `bot_obormot/handlers/chat/handler.py` допускает не более 3 активных и ожидающих запросов от одного пользователя.
 
 По умолчанию доступ закрыт: при пустом `ALLOWED_USERS` и `ALLOW_ALL_USERS=false` ботом могут пользоваться только Supervisor и администраторы из БД. `ALLOW_ALL_USERS=true` — явное включение открытого режима. Команды `/ban` не позволяют указать Supervisor или администратора из БД; перед блокировкой администратора его нужно удалить через `/admin_remove`. Supervisor нельзя заблокировать.
 
@@ -78,7 +78,7 @@ flowchart LR
 
 `bot_obormot/services/llm/` содержит OpenAI-compatible клиент, HTTP-сессию и заголовки авторизации, endpoints, нормализацию сообщений, подгонку контекста, токенизацию, запросы размера контекста и streaming. `normalize_messages()` нейтрализует известные служебные/шаблонные маркеры во всех сообщениях, кроме `system`, включая текстовые части мультимодальных сообщений. Системный промпт остаётся без изменений. Это дополнительная мера защиты, а не полное решение prompt injection.
 
-Стандартный системный промпт хранится в `prompts/systemPrompt.md`; администратор может заменить его файлом из `SYSTEM_PROMPT_PATH`, а пользователь — установить персональный промпт. В стандартном промпте явно сказано, что текст документов, расшифровки голосовых и подписи — данные для анализа, а не команды.
+Стандартный системный промпт хранится в `bot_obormot/prompts/systemPrompt.md`; администратор может заменить его файлом из `SYSTEM_PROMPT_PATH`, а пользователь — установить персональный промпт. В стандартном промпте явно сказано, что текст документов, расшифровки голосовых и подписи — данные для анализа, а не команды.
 
 ### Доставка ответов
 
@@ -114,7 +114,7 @@ flowchart LR
 
 - `bot_obormot/services/audio/client.py` отправляет аудио в [audiodoc](https://github.com/WhlteAdmln/audiodoc), а `bot_obormot/services/documents/client.py` отправляет в него документы и проверяет структуру ответа. Оба клиента дописывают путь эндпоинта (`/transcribe`, `/process-document`) к `AUDIODOC_URL`.
 - audiodoc необязателен. Обработка аудио и документов отключается целиком, если `AUDIODOC_URL` пуст.
-- Настройки `AUDIODOC_*` подключают обе функции к одному сервису audiodoc: `AUDIODOC_URL` — базовый URL, а `AUDIODOC_AUDIO_KEY` и `AUDIODOC_DOCUMENT_KEY` добавляют отдельные необязательные Bearer-заголовки. Старые имена `WHISPER_*` и `DOCUMENT_*` устарели и читаются, если новое имя пусто. Для удалённого audiodoc используйте HTTPS: API-ключ не шифрует HTTP-трафик.
+- Настройки `AUDIODOC_*` подключают обе функции к одному сервису audiodoc: `AUDIODOC_URL` — базовый URL, а `AUDIODOC_AUDIO_KEY` и `AUDIODOC_DOCUMENT_KEY` добавляют отдельные необязательные Bearer-заголовки. Для удалённого audiodoc используйте HTTPS: API-ключ не шифрует HTTP-трафик.
 - Поддерживаемые форматы документов, настройки сервера и руководство по подключению бота описаны в [репозитории audiodoc](https://github.com/WhlteAdmln/audiodoc).
 - `bot_obormot/common/http_limits.py` читает ответы потоково чанками по 64 КиБ: успешное тело ограничено 2 МиБ, чтение тела HTTP-ошибки — 2 КиБ.
 
@@ -147,6 +147,6 @@ flowchart LR
 
 - `requirements.txt` задаёт поддерживаемые диапазоны версий.
 - `requirements-lock.txt` закрепляет runtime-зависимости для воспроизводимой production-установки.
-- `requirements-dev.txt` включает закреплённый runtime-набор и инструменты pytest.
+- `requirements-dev.txt` устанавливает проект в editable-режиме с дополнением `dev` (`-e .[dev]`); `make install-dev` применяет `requirements-lock.txt` как ограничение версий.
 
 Для полной проверки выполните `make check`, а тесты с маркером `integration` — `make integration`; некоторым из них нужен сервер LLM с эндпоинтом `/tokenize`.

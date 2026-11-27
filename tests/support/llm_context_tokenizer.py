@@ -22,14 +22,23 @@ def with_token_counting(settings: Settings, mode: str) -> Settings:
 class FakeResponse:
     """Fake response."""
 
-    def __init__(self, payload: object, status: int = 200, body: str = "") -> None:
-        """Initializes the test double."""
+    def __init__(
+        self,
+        payload: object,
+        status: int = 200,
+        body: str = "",
+        error: Exception | None = None,
+    ) -> None:
+        """Initializes the test double; a given error is raised on entering."""
         self.payload = payload
         self.status = status
         self.body = body
+        self.error = error
 
     async def __aenter__(self) -> Self:
-        """Enters the async context."""
+        """Enters the async context, or raises the configured error."""
+        if self.error is not None:
+            raise self.error
         return self
 
     async def __aexit__(

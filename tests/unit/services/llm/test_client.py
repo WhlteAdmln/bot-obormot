@@ -7,11 +7,12 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import replace
 
+import aiohttp
 import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestServer
 
-from bot_obormot.services.llm import LLMClient
+from bot_obormot.services.llm import LLMClient, texts
 from bot_obormot.services.llm.messages import prepare_messages_for_count
 from bot_obormot.settings import Settings
 from tests.support.fake_llm import open_llm_client
@@ -285,6 +286,33 @@ async def test_health_check_does_not_return_raw_unexpected_server_payload(
     _available, message = await client.health_check()
 
     assert prompt_text not in message, "the raw server payload leaked"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("error", "expected_text"),
+    [
+        (TimeoutError("probe timed out after 5 s"), texts.HEALTH_TIMEOUT),
+        (
+            aiohttp.ClientConnectionError("connection refused on port 8081"),
+            texts.HEALTH_SERVER_UNAVAILABLE,
+        ),
+        (RuntimeError("unexpected probe failure #17"), texts.HEALTH_CHECK_ERROR),
+    ],
+)
+async def test_health_check_reports_the_failure_text_of_a_models_probe_error(
+    monkeypatch: pytest.MonkeyPatch, error: Exception, expected_text: str
+) -> None:
+    health_failure = TimeoutError("health endpoint timed out")
+    fake_session = FakeSession(
+        [FakeResponse(None, error=health_failure), FakeResponse(None, error=error)]
+    )
+    client = make_client(monkeypatch, fake_session)
+    expected_result = (False, expected_text)
+
+    result = await client.health_check()
+
+    assert result == expected_result, f"the health check text is wrong for {error!r}"
 
 
 @pytest.mark.parametrize("name", ["count_tokens", "fit_messages_to_context", "stream"])

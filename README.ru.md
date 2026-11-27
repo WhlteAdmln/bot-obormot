@@ -52,6 +52,8 @@ docker compose up -d
 
 Образ работает от непривилегированного пользователя, хранит данные в томе
 `bot_obormot_data` и проверяет себя командой `bot-obormot doctor --offline`.
+Он собирается из `python:3.12-slim`, закреплённого по digest в `Dockerfile`;
+обновления digest Renovate предлагает через pull request.
 
 ### Из исходников
 

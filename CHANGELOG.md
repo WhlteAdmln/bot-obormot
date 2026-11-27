@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- [#198](https://github.com/WhlteAdmln/bot-obormot/issues/198) SonarQube Cloud analyzes pull requests with automatic analysis configured by `.sonarcloud.properties` and reports its quality gate in each pull request.
+
 ## [0.3.1] - 2026-11-26
 
 ### Added

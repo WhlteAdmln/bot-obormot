@@ -150,3 +150,16 @@ flowchart LR
 - `requirements-dev.txt` устанавливает проект в editable-режиме с дополнением `dev` (`-e .[dev]`); `make install-dev` применяет `requirements-lock.txt` как ограничение версий.
 
 Для полной проверки выполните `make check`, а тесты с маркером `integration` — `make integration`; они работают с фейковыми серверами LLM и audiodoc из `tests/support/` и не требуют сервера LLM.
+
+## 9. Инварианты
+
+Каждое правило ниже должно выполняться после любого изменения; его проверяет указанный рядом файл тестов.
+
+- Приоритет доступа: Supervisor допускается всегда и без чтения базы, постоянная блокировка проверяется раньше допуска администратора из базы, `ALLOW_ALL_USERS` и `ALLOWED_USERS`, а ошибка базы запрещает доступ (`tests/unit/services/access/test_service.py`).
+- История одного пользователя никогда не попадает в контекст другого: история читается, очищается и сокращается по `user_id` (`tests/unit/services/database/test_facade.py`, `tests/unit/services/database/facade/test_history.py`).
+- Содержимое, отправляемое модели, отделено от текста, сохраняемого в историю: `prepare_message()` строит их по отдельности, а конвейер сохраняет только сохраняемый текст (`tests/unit/services/chat/input/test_prepare.py`, `tests/unit/services/chat/test_pipeline.py`).
+- Текст пользователя и документов — это данные, а не инструкции: `normalize_messages()` нейтрализует управляющие токены во всех несистемных сообщениях и оставляет системный промпт без изменений (`tests/unit/services/llm/test_messages.py`).
+- `/history_clear` удаляет сообщения и управляемые изображения пользователя и не трогает историю других пользователей (`tests/unit/services/database/usecases/test_history.py`, `tests/unit/services/database/test_facade.py`).
+- `/forget_me` дополнительно удаляет личный системный промпт и лимит истории и не трогает данные других пользователей (`tests/unit/services/database/facade/test_history.py`).
+- Подгонка контекста сначала удаляет самый старый полный обмен и сохраняет системный промпт и текущее сообщение (`tests/unit/services/llm/test_fitting.py`).
+- Секреты не попадают в логи: токен Telegram, значения Bearer и настроенные секреты LLM и audiodoc вырезаются из сообщений логов и текста исключений (`tests/unit/test_log_filters.py`, `tests/unit/app/test_logging_setup.py`).

@@ -150,3 +150,16 @@ The application still depends on host-level protection, correct `.env` permissio
 - `requirements-dev.txt` installs the project in editable mode with the `dev` extra (`-e .[dev]`); `make install-dev` applies `requirements-lock.txt` as a constraint.
 
 Run `make check` for the full gate and `make integration` for tests marked `integration`; they run against the fake LLM and audiodoc servers of `tests/support/` and need no LLM server.
+
+## 9. Invariants
+
+Each rule below must hold after every change; the test file next to it checks it.
+
+- Access precedence: the Supervisor is always admitted without a database read, a persistent block is checked before database-admin, `ALLOW_ALL_USERS` and `ALLOWED_USERS` admission, and a database failure denies access (`tests/unit/services/access/test_service.py`).
+- One user's history never enters another user's context: history is read, reset and pruned per `user_id` (`tests/unit/services/database/test_facade.py`, `tests/unit/services/database/facade/test_history.py`).
+- The content sent to the model is kept apart from the text saved to history: `prepare_message()` builds them separately and the pipeline saves only the saved text (`tests/unit/services/chat/input/test_prepare.py`, `tests/unit/services/chat/test_pipeline.py`).
+- User and document text is data, not instructions: `normalize_messages()` neutralizes control tokens in every non-system message and keeps the system prompt verbatim (`tests/unit/services/llm/test_messages.py`).
+- `/history_clear` deletes the user's messages and managed images and keeps other users' history (`tests/unit/services/database/usecases/test_history.py`, `tests/unit/services/database/test_facade.py`).
+- `/forget_me` additionally deletes the personal system prompt and history limit and keeps other users' data (`tests/unit/services/database/facade/test_history.py`).
+- Context fitting drops the oldest complete exchange first and keeps the system prompt and the current message (`tests/unit/services/llm/test_fitting.py`).
+- Secrets are not logged: the Telegram token, Bearer values and configured LLM and audiodoc secrets are redacted from log messages and exception text (`tests/unit/test_log_filters.py`, `tests/unit/app/test_logging_setup.py`).

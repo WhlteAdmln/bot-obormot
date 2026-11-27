@@ -4,6 +4,8 @@
 """Tests for formatting text splitter."""
 
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from bot_obormot.common.text import utf16_length
 from bot_obormot.services.chat.formatting import (
@@ -84,3 +86,33 @@ def test_plain_splitter_does_not_treat_fences_as_code() -> None:
     oversized = [chunk for chunk in chunks if utf16_length(chunk) > limit]
     expected_empty: list[str] = []
     assert oversized == expected_empty, "a part exceeds the limit"
+
+
+_PLAIN_TEXTS = st.text(
+    alphabet=st.characters(blacklist_categories=("Cs",)),
+    max_size=400,
+)
+_LIMITS = st.integers(min_value=2, max_value=64)
+
+
+@settings(max_examples=300, deadline=None)
+@given(text=_PLAIN_TEXTS, limit=_LIMITS)
+def test_plain_splitter_property_keeps_every_part_within_the_limit(
+    text: str, limit: int
+) -> None:
+    chunks = split_plain_message(text, limit)
+
+    oversized = [chunk for chunk in chunks if utf16_length(chunk) > limit]
+    expected_empty: list[str] = []
+    assert oversized == expected_empty, "a part exceeds the limit"
+
+
+@settings(max_examples=300, deadline=None)
+@given(text=_PLAIN_TEXTS, limit=_LIMITS)
+def test_plain_splitter_property_joins_back_to_the_text_without_whitespace(
+    text: str, limit: int
+) -> None:
+    chunks = split_plain_message(text, limit)
+
+    joined = "".join("".join(chunks).split())
+    assert joined == "".join(text.split()), "the parts do not join back to the text"

@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- [#205](https://github.com/WhlteAdmln/bot-obormot/issues/205) Renovate updates the digests of images pinned in Compose build arguments and in the `run` steps of the workflows.
 - [#195](https://github.com/WhlteAdmln/bot-obormot/issues/195) `docs/architecture.md` lists the invariants of the chat pipeline and access rules with the test file that checks each of them.
 - [#194](https://github.com/WhlteAdmln/bot-obormot/issues/194) Hypothesis property tests check that `fit_messages_to_context` stays within the token budget and keeps the pinned messages, and that `split_plain_message` keeps every part within the limit and loses no text.
 - [#198](https://github.com/WhlteAdmln/bot-obormot/issues/198) SonarQube Cloud analyzes pull requests with automatic analysis configured by `.sonarcloud.properties` and reports its quality gate in each pull request.

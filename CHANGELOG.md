@@ -13,6 +13,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- [#196](https://github.com/WhlteAdmln/bot-obormot/issues/196) `Dockerfile` pins the `python:3.12-slim` base image by digest, so every build of a commit uses the same base and Renovate proposes digest updates.
 - [#200](https://github.com/WhlteAdmln/bot-obormot/issues/200) `LLMClient.health_check` maps its network errors to the failure text in a helper and has three returns instead of four.
 - [#193](https://github.com/WhlteAdmln/bot-obormot/issues/193) `fit_messages_to_context` returns a frozen `ContextFit` with the fitted messages, the prompt token count and the number of dropped history messages instead of a bare list.
 

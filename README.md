@@ -51,7 +51,9 @@ docker compose up -d
 ```
 
 The image runs as an unprivileged user, keeps data in the `bot_obormot_data`
-volume and checks itself with `bot-obormot doctor --offline`.
+volume and checks itself with `bot-obormot doctor --offline`. It builds from
+`python:3.12-slim` pinned by digest in `Dockerfile`; Renovate proposes digest
+updates as pull requests.
 
 ### From source
 

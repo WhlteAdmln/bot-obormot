@@ -247,3 +247,26 @@ def test_renovate_vulnerability_alerts_use_only_supported_options(
 def test_dependabot_version_updates_are_removed() -> None:
     dependabot_path = ROOT_DIR / ".github" / "dependabot.yml"
     assert dependabot_path.exists() is False, "the Dependabot configuration is back"
+
+
+def test_renovate_runs_the_regex_manager(renovate_config: dict[str, Any]) -> None:
+    regex_manager = "custom.regex"
+    assert regex_manager in renovate_config["enabledManagers"], (
+        "Renovate does not run the regex manager"
+    )
+
+
+def test_renovate_leaves_regex_manager_tag_updates_to_humans(
+    renovate_config: dict[str, Any],
+) -> None:
+    regex_manager = "custom.regex"
+    regex_rules = [
+        rule
+        for rule in renovate_config["packageRules"]
+        if rule.get("matchManagers") == [regex_manager]
+    ]
+
+    expected_automerge = [False]
+    assert [rule["automerge"] for rule in regex_rules] == expected_automerge, (
+        "Renovate merges tag updates of the regex managers"
+    )

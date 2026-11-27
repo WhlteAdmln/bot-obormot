@@ -20,6 +20,7 @@
   "minimumReleaseAge": "14 days",
   "internalChecksFilter": "strict",
   "enabledManagers": [
+    "custom.regex",
     "dockerfile",
     "docker-compose",
     "github-actions",
@@ -28,6 +29,28 @@
     "pre-commit"
   ],
   "pre-commit": { "enabled": true },
+  // The built-in managers skip digest-pinned images in Compose build arguments and
+  // in workflow run steps, so a regex manager finds <image>:<tag>@sha256:<digest> there.
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Digest-pinned images in upper-case Compose build arguments.",
+      "managerFilePatterns": ["/(^|/)compose[^/]*\\.ya?ml$/"],
+      "matchStrings": [
+        "[ \\t][A-Z][A-Z0-9_]*:[ \\t]+[\"']?(?<depName>[a-z0-9][a-z0-9._/-]*):(?<currentValue>[A-Za-z0-9][A-Za-z0-9._-]*)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Digest-pinned images in the run steps of workflows, outside YAML keys and comments.",
+      "managerFilePatterns": ["/^\\.github/workflows/[^/]+\\.ya?ml$/"],
+      "matchStrings": [
+        "\\n[ \\t]+(?:[^\\n:#]*[ \\t])?(?<depName>[a-z0-9][a-z0-9._/-]*):(?<currentValue>[A-Za-z0-9][A-Za-z0-9._-]*)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "datasourceTemplate": "docker"
+    }
+  ],
   // uv wrote the header of requirements-lock.txt, so Renovate regenerates it with uv.
   "pip-compile": { "managerFilePatterns": ["/^requirements-lock\\.txt$/"] },
   // Renovate merges itself after every required check passes.
@@ -128,6 +151,12 @@
     {
       "matchManagers": ["pep621", "pip-compile"],
       "labels": ["dependencies", "python"]
+    },
+    {
+      "description": "Image tags found by the regex managers are base images; only their digests are merged automatically.",
+      "matchManagers": ["custom.regex"],
+      "matchUpdateTypes": ["major", "minor", "patch"],
+      "automerge": false
     },
     {
       "matchManagers": ["dockerfile", "docker-compose"],

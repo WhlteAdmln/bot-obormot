@@ -49,6 +49,13 @@ async def _json_or_none(response: aiohttp.ClientResponse) -> object:
         return None
 
 
+def _network_failure_text(error: TimeoutError | aiohttp.ClientError) -> str:
+    """Map a network error of the health probe to its user-facing text."""
+    if isinstance(error, TimeoutError):
+        return texts.HEALTH_TIMEOUT
+    return texts.HEALTH_SERVER_UNAVAILABLE
+
+
 class LLMClient:
     """Client that keeps one HTTP session and limits concurrent generations."""
 
@@ -203,13 +210,8 @@ class LLMClient:
         """Check the LLM server using /health or the standard /models endpoint."""
         try:
             return await self._probe_server()
-
-        except TimeoutError:
-            return False, texts.HEALTH_TIMEOUT
-
-        except aiohttp.ClientError:
-            return False, texts.HEALTH_SERVER_UNAVAILABLE
-
+        except (TimeoutError, aiohttp.ClientError) as error:
+            return False, _network_failure_text(error)
         except Exception:
             logger.exception("LLM health check failed")
             return False, texts.HEALTH_CHECK_ERROR

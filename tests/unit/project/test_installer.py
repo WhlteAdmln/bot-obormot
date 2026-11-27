@@ -19,8 +19,11 @@ import threading
 import zipfile
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Literal
 
 import pytest
+
+from tests.support.fake_mv import create_mv_stub
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 INSTALLER = PROJECT_ROOT / "install.sh"
@@ -673,6 +676,55 @@ def test_upgrade_keeps_the_old_version_when_offline_doctor_fails(
         "backup left": False,
     }
     assert observed == expected, f"the old version must stay\n{output_of(result)}"
+
+
+@pytest.mark.parametrize(
+    ("failure", "message"),
+    [
+        ("move", "Could not activate the staged virtual environment."),
+        ("relocate", "Could not update the paths of the activated virtual"),
+    ],
+    ids=["move", "relocate"],
+)
+def test_upgrade_restores_the_previous_environment_when_the_switch_fails(
+    tmp_path: Path,
+    user_home: Path,
+    local_release: tuple[str, Path],
+    failure: Literal["move", "relocate"],
+    message: str,
+) -> None:
+    release_url, release_dir = local_release
+    app_home = install_version_one(release_url, user_home)
+    old_marker = app_home / ".venv" / "old-environment-marker"
+    old_marker.write_text("previous environment", encoding="utf-8")
+    publish_version_two(release_dir)
+    fake_bin = create_mv_stub(tmp_path / "mv-bin", failure)
+    result = run_installer(
+        "--upgrade",
+        release_url=release_url,
+        home=user_home,
+        extra_env={"PATH": str(fake_bin) + os.pathsep + os.environ["PATH"]},
+    )
+    restore_error = "Could not restore"
+    observed = {
+        "failed": result.returncode != 0,
+        "switch error": message in result.stderr,
+        "restore error": restore_error in result.stderr,
+        "old marker": old_marker.read_text(encoding="utf-8"),
+        "version": installed_version(app_home),
+        "staged left": (app_home / ".venv.new").exists(),
+        "backup left": (app_home / ".venv.prev").exists(),
+    }
+    expected = {
+        "failed": True,
+        "switch error": True,
+        "restore error": False,
+        "old marker": "previous environment",
+        "version": "1.2.3",
+        "staged left": False,
+        "backup left": False,
+    }
+    assert observed == expected, f"the old environment must return\n{output_of(result)}"
 
 
 def test_upgrade_refuses_while_the_user_service_is_active(

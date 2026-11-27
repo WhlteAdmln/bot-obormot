@@ -100,7 +100,7 @@ async def _run_openai_scenario(
             results["context_size"] = await client.get_context_size()
             results["mode"] = await client.get_token_counting_mode()
             results["text_tokens"] = await client.count_text_tokens("Привет")
-            messages = await client.fit_messages_to_context(
+            fit = await client.fit_messages_to_context(
                 "system prompt",
                 [
                     {"role": "user", "content": "previous question"},
@@ -108,6 +108,7 @@ async def _run_openai_scenario(
                 ],
                 "current question",
             )
+            messages = fit.messages
             results["roles"] = [message["role"] for message in messages]
             chunks = [chunk async for chunk in client.stream(messages)]
             results["response"] = "".join(chunks)

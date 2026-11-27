@@ -5,6 +5,8 @@
 
 from collections.abc import AsyncIterator, Sequence
 
+from bot_obormot.services.llm.fitting import ContextFit
+
 
 class FakePipelineDatabase:
     """Record the pipeline's database calls and return configured values."""
@@ -59,9 +61,13 @@ class FakePipelineLLM:
         self.streamed: list[object] = []
 
     @staticmethod
-    async def fit_messages_to_context(**kwargs: object) -> list[object]:
+    async def fit_messages_to_context(**kwargs: object) -> ContextFit:
         """Return the fitted messages as one marker."""
-        return [kwargs["history"]]
+        return ContextFit(
+            messages=[kwargs["history"]],
+            prompt_tokens=0,
+            dropped_history_messages=0,
+        )
 
     async def stream(self, messages: object) -> AsyncIterator[str]:
         """Record the messages and yield the configured chunks."""

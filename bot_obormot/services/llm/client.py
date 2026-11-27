@@ -15,7 +15,7 @@ from bot_obormot.services.llm import texts
 from bot_obormot.services.llm.constants import COUNTING_MODE_AUTO
 from bot_obormot.services.llm.context_size import get_context_size as fetch_context_size
 from bot_obormot.services.llm.endpoints import server_url
-from bot_obormot.services.llm.fitting import fit_messages_to_context
+from bot_obormot.services.llm.fitting import ContextFit, fit_messages_to_context
 from bot_obormot.services.llm.messages import (
     count_images as count_message_images,
 )
@@ -173,7 +173,7 @@ class LLMClient:
         system_prompt: str,
         history: list[ChatMessage],
         user_message: object,
-    ) -> list[ChatMessage]:
+    ) -> ContextFit:
         """Fit the largest possible history into the model context."""
         return await fit_messages_to_context(
             self,

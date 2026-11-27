@@ -4,17 +4,28 @@
 """Tests for llm fitting."""
 
 import logging
+import math
 from collections import deque
 from copy import deepcopy
-from dataclasses import replace
+from dataclasses import dataclass, replace
 
 import pytest
+from hypothesis import given, reject
+from hypothesis import settings as hypothesis_settings
+from hypothesis import strategies as st
 
 from bot_obormot.errors import InputTooLongError, LLMUnavailableError
 from bot_obormot.services.llm import LLMClient
 from bot_obormot.services.llm import client as client_module
+from bot_obormot.services.llm.constants import (
+    CONTEXT_SAFETY_MARGIN,
+    COUNTING_MODE_ESTIMATE,
+    ESTIMATE_CONTEXT_SAFETY_FACTOR,
+    IMAGE_TOKEN_RESERVE,
+)
 from bot_obormot.services.llm.fitting import ContextFit, fit_messages_to_context
 from bot_obormot.settings import Settings
+from tests.support.fitting_client import MeasuringFittingClient
 
 
 class FakeFittingClient:
@@ -443,3 +454,141 @@ async def test_estimate_mode_uses_larger_safety_margin() -> None:
         await fit_messages_to_context(client, "system", [], "question")
 
     assert error.type is InputTooLongError, "estimate mode accepted the message"
+
+
+_ROLE_USER = "user"
+_ROLE_ASSISTANT = "assistant"
+_IMAGE_PART = {"type": "image_url", "image_url": {"url": "data:image/png;base64,"}}
+_MAX_OUTPUT_TOKENS = 64
+_CONTEXT_SIZES = st.integers(min_value=600, max_value=12_000)
+_COUNTING_MODES = st.sampled_from(["llamacpp", "estimate"])
+_WORDS = st.text(alphabet="abcdefghij ", max_size=400)
+
+
+@st.composite
+def _contents(draw: st.DrawFn) -> object:
+    words = draw(_WORDS)
+    if draw(st.integers(min_value=0, max_value=9)):
+        return words
+    return [{"type": "text", "text": words}, _IMAGE_PART]
+
+
+@st.composite
+def _histories(draw: st.DrawFn) -> list[dict[str, object]]:
+    history: list[dict[str, object]] = []
+    if draw(st.booleans()):
+        history.append(text(_ROLE_ASSISTANT, draw(_WORDS)))
+    for _ in range(draw(st.integers(min_value=0, max_value=8))):
+        history.append(text(_ROLE_USER, draw(_contents())))
+        if draw(st.booleans()):
+            history.append(text(_ROLE_ASSISTANT, draw(_WORDS)))
+    return history
+
+
+@dataclass(frozen=True, slots=True)
+class _FitCase:
+    client: MeasuringFittingClient
+    system_prompt: str
+    history: list[dict[str, object]]
+    user_message: object
+    fit: ContextFit
+
+
+@st.composite
+def _fit_cases(draw: st.DrawFn) -> tuple[MeasuringFittingClient, dict[str, object]]:
+    client = MeasuringFittingClient(
+        draw(_CONTEXT_SIZES),
+        max_tokens=_MAX_OUTPUT_TOKENS,
+        counting_mode=draw(_COUNTING_MODES),
+    )
+    request = {
+        "system_prompt": draw(_WORDS),
+        "history": draw(_histories()),
+        "user_message": draw(_contents()),
+    }
+    return client, request
+
+
+async def _fit(case: tuple[MeasuringFittingClient, dict[str, object]]) -> _FitCase:
+    client, request = case
+    history = list(request["history"])
+    try:
+        fit = await fit_messages_to_context(
+            client, str(request["system_prompt"]), history, request["user_message"]
+        )
+    except InputTooLongError:
+        reject()
+    return _FitCase(
+        client, str(request["system_prompt"]), history, request["user_message"], fit
+    )
+
+
+def _input_budget(case: _FitCase) -> int:
+    client = case.client
+    margin = CONTEXT_SAFETY_MARGIN
+    if client.counting_mode == COUNTING_MODE_ESTIMATE:
+        margin += math.ceil(client.context_size * ESTIMATE_CONTEXT_SAFETY_FACTOR)
+    images = client.count_images(case.fit.messages)
+    return (
+        client.context_size - _MAX_OUTPUT_TOKENS - margin - IMAGE_TOKEN_RESERVE * images
+    )
+
+
+@pytest.mark.asyncio
+@hypothesis_settings(max_examples=200, deadline=None)
+@given(case=_fit_cases())
+async def test_fitting_property_keeps_the_prompt_within_the_input_budget(
+    case: tuple[MeasuringFittingClient, dict[str, object]],
+) -> None:
+    fitted = await _fit(case)
+
+    tokens = await fitted.client.count_tokens(fitted.fit.messages)
+    assert tokens <= _input_budget(fitted), "the prompt exceeds the input budget"
+
+
+@pytest.mark.asyncio
+@hypothesis_settings(max_examples=200, deadline=None)
+@given(case=_fit_cases())
+async def test_fitting_property_keeps_the_system_message(
+    case: tuple[MeasuringFittingClient, dict[str, object]],
+) -> None:
+    fitted = await _fit(case)
+
+    expected = text("system", fitted.system_prompt)
+    assert fitted.fit.messages[0] == expected, "the system message was not kept"
+
+
+@pytest.mark.asyncio
+@hypothesis_settings(max_examples=200, deadline=None)
+@given(case=_fit_cases())
+async def test_fitting_property_keeps_the_current_user_message(
+    case: tuple[MeasuringFittingClient, dict[str, object]],
+) -> None:
+    fitted = await _fit(case)
+
+    expected = text(_ROLE_USER, fitted.user_message)
+    assert fitted.fit.messages[-1] == expected, "the current message was not kept"
+
+
+@pytest.mark.asyncio
+@hypothesis_settings(max_examples=200, deadline=None)
+@given(case=_fit_cases())
+async def test_fitting_property_starts_the_history_with_a_user_message(
+    case: tuple[MeasuringFittingClient, dict[str, object]],
+) -> None:
+    fitted = await _fit(case)
+
+    first_roles = [message["role"] for message in fitted.fit.messages[1:-1][:1]]
+    assert first_roles in ([], [_ROLE_USER]), "the history starts with a non-user"
+
+
+@pytest.mark.asyncio
+@hypothesis_settings(max_examples=200, deadline=None)
+@given(case=_fit_cases())
+async def test_fitting_property_drops_exactly_the_removed_history_messages(
+    case: tuple[MeasuringFittingClient, dict[str, object]],
+) -> None:
+    fitted = await _fit(case)
+
+    kept_history = fitted.history[fitted.fit.dropped_history_messages :]
+    assert fitted.fit.messages[1:-1] == kept_history, "the dropped count is wrong"

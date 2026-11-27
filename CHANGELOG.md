@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- [#194](https://github.com/WhlteAdmln/bot-obormot/issues/194) Hypothesis property tests check that `fit_messages_to_context` stays within the token budget and keeps the pinned messages, and that `split_plain_message` keeps every part within the limit and loses no text.
 - [#198](https://github.com/WhlteAdmln/bot-obormot/issues/198) SonarQube Cloud analyzes pull requests with automatic analysis configured by `.sonarcloud.properties` and reports its quality gate in each pull request.
 - [#197](https://github.com/WhlteAdmln/bot-obormot/issues/197) Installer tests check that a failed move or path update of the staged environment during `install.sh --upgrade` restores the previous `.venv`.
 

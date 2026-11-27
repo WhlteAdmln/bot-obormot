@@ -109,11 +109,12 @@ async def _fit_long_history(
             LLM_MAX_TOKENS=128,
         )
         async with open_llm_client(settings) as client:
-            result: list[dict[str, Any]] = await client.fit_messages_to_context(
+            fit = await client.fit_messages_to_context(
                 "system prompt",
                 history,
                 question,
             )
+    result: list[dict[str, Any]] = fit.messages
     return result
 
 

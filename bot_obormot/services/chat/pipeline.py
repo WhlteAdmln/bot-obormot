@@ -64,11 +64,12 @@ async def process_chat(
         limit=history_limit,
     )
 
-    messages = await dependencies.llm_client.fit_messages_to_context(
+    fit = await dependencies.llm_client.fit_messages_to_context(
         system_prompt=system_prompt,
         history=history,
         user_message=user_content,
     )
+    messages = fit.messages
 
     response_parts = []
 

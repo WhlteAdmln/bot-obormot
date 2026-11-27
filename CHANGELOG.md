@@ -9,6 +9,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - [#198](https://github.com/WhlteAdmln/bot-obormot/issues/198) SonarQube Cloud analyzes pull requests with automatic analysis configured by `.sonarcloud.properties` and reports its quality gate in each pull request.
 
+### Changed
+
+- [#193](https://github.com/WhlteAdmln/bot-obormot/issues/193) `fit_messages_to_context` returns a frozen `ContextFit` with the fitted messages, the prompt token count and the number of dropped history messages instead of a bare list.
+
 ## [0.3.1] - 2026-11-26
 
 ### Added

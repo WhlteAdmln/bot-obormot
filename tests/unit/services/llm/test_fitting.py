@@ -13,7 +13,7 @@ import pytest
 from bot_obormot.errors import InputTooLongError, LLMUnavailableError
 from bot_obormot.services.llm import LLMClient
 from bot_obormot.services.llm import client as client_module
-from bot_obormot.services.llm.fitting import fit_messages_to_context
+from bot_obormot.services.llm.fitting import ContextFit, fit_messages_to_context
 from bot_obormot.settings import Settings
 
 
@@ -104,7 +104,7 @@ async def test_fitting_removes_oldest_complete_exchange_and_keeps_recent_history
         "recent answer",
         "current question",
     ]
-    contents = [message["content"] for message in result]
+    contents = [message["content"] for message in result.messages]
     assert contents == expected_contents, "the oldest exchange was not removed"
 
 
@@ -145,7 +145,7 @@ async def test_fitting_discards_leading_assistant_message() -> None:
     )
 
     expected_roles = ["system", "user", "assistant", "user"]
-    roles = [message["role"] for message in result]
+    roles = [message["role"] for message in result.messages]
     assert roles == expected_roles, "the leading assistant message was kept"
 
 
@@ -178,6 +178,47 @@ async def test_fitting_keeps_the_leading_message_in_the_history() -> None:
 
     first_content = history[0]["content"]
     assert first_content == orphan_content, "fitting changed the caller history"
+
+
+@pytest.mark.asyncio
+async def test_fitting_reports_the_prompt_tokens_of_the_fitted_messages() -> None:
+    client = FakeFittingClient(context_size=10_000, token_counts=[8_700, 5_430])
+    history = [
+        text("user", "long gone question"),
+        text("assistant", "long gone answer"),
+        text("user", "fresh question"),
+        text("assistant", "fresh answer"),
+    ]
+
+    result = await fit_messages_to_context(client, "tone", history, "what next")
+
+    expected_tokens = 5_430
+    assert result.prompt_tokens == expected_tokens, "the prompt tokens are wrong"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("token_counts", "history_roles", "expected_dropped"),
+    [
+        ([310], ["user", "assistant"], 0),
+        ([9_100, 4_200], ["user", "assistant", "user", "assistant"], 2),
+        ([9_300, 8_800, 2_600], ["user", "assistant", "user", "assistant"], 4),
+        ([270], ["assistant", "user", "assistant"], 1),
+        ([9_050, 3_900], ["user", "assistant", "user"], 2),
+    ],
+)
+async def test_fitting_reports_the_dropped_history_messages(
+    token_counts: list[int], history_roles: list[str], expected_dropped: int
+) -> None:
+    client = FakeFittingClient(context_size=10_000, token_counts=token_counts)
+    history = [
+        text(role, f"{role} line {index}") for index, role in enumerate(history_roles)
+    ]
+
+    result = await fit_messages_to_context(client, "manners", history, "latest")
+
+    dropped = result.dropped_history_messages
+    assert dropped == expected_dropped, "the dropped history count is wrong"
 
 
 def _image_history(question: str) -> list[dict[str, object]]:
@@ -216,7 +257,7 @@ async def test_fitting_removes_old_exchange_with_an_image() -> None:
         "recent answer",
         "current question",
     ]
-    contents = [message["content"] for message in result]
+    contents = [message["content"] for message in result.messages]
     assert contents == expected_contents, "the old image exchange was not removed"
 
 
@@ -283,11 +324,15 @@ async def test_llm_client_method_returns_the_fitted_messages(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     client = LLMClient()
-    expected: list[dict[str, object]] = [{"role": "system", "content": "be brief"}]
+    expected = ContextFit(
+        messages=[{"role": "system", "content": "be brief"}],
+        prompt_tokens=37,
+        dropped_history_messages=0,
+    )
 
     async def fake_fit(
         _client: object, _system_prompt: object, _history: object, _message: object
-    ) -> list[dict[str, object]]:
+    ) -> ContextFit:
         return expected
 
     monkeypatch.setattr(client_module, "fit_messages_to_context", fake_fit)
@@ -306,14 +351,14 @@ async def test_llm_client_method_delegates_without_changing_public_signature(
 
     async def fake_fit(
         client_arg: object, system_prompt: object, history: object, user_message: object
-    ) -> list[dict[str, object]]:
+    ) -> ContextFit:
         received.update(
             client=client_arg,
             system_prompt=system_prompt,
             history=history,
             user_message=user_message,
         )
-        return []
+        return ContextFit(messages=[], prompt_tokens=12, dropped_history_messages=0)
 
     monkeypatch.setattr(client_module, "fit_messages_to_context", fake_fit)
 

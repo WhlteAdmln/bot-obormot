@@ -6,6 +6,7 @@
 import logging
 import math
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Protocol
 
 from bot_obormot.common.llm_messages import ChatMessage
@@ -24,6 +25,15 @@ logger = logging.getLogger(__name__)
 
 # The system prompt and the current user message are always kept.
 _PINNED_MESSAGES = 2
+
+
+@dataclass(frozen=True, slots=True)
+class ContextFit:
+    """Messages that fit into the model context and how they were fitted."""
+
+    messages: list[ChatMessage]
+    prompt_tokens: int
+    dropped_history_messages: int
 
 
 class FittingClient(Protocol):
@@ -56,12 +66,20 @@ class FittingClient(Protocol):
         """Returns the selected token counting mode."""
 
 
+def _from_first_user_message(history: list[ChatMessage]) -> list[ChatMessage]:
+    """Return the history without the messages before the first user message."""
+    for index, message in enumerate(history):
+        if message.get("role") == ROLE_USER:
+            return history[index:]
+    return []
+
+
 async def fit_messages_to_context(
     client: FittingClient,
     system_prompt: str,
     history: list[ChatMessage],
     user_message: object,
-) -> list[ChatMessage]:
+) -> ContextFit:
     """Fit the largest possible history into the model context."""
     context_size = await client.get_context_size()
     counting_mode = await client.get_token_counting_mode()
@@ -69,16 +87,10 @@ async def fit_messages_to_context(
     if counting_mode == COUNTING_MODE_ESTIMATE:
         safety_margin += math.ceil(context_size * ESTIMATE_CONTEXT_SAFETY_FACTOR)
 
-    history = list(history)
-
-    # History must start with a user message.
-    while history and history[0].get("role") != ROLE_USER:
-        history.pop(0)
-
     messages = client.normalize_messages(
         [
             {"role": "system", "content": system_prompt},
-            *history,
+            *_from_first_user_message(history),
             {"role": "user", "content": user_message},
         ]
     )
@@ -101,22 +113,29 @@ async def fit_messages_to_context(
         token_count = await client.count_tokens(messages)
 
         if token_count <= available_tokens:
+            fit = ContextFit(
+                messages=messages,
+                prompt_tokens=token_count,
+                dropped_history_messages=(
+                    len(history) - (len(messages) - _PINNED_MESSAGES)
+                ),
+            )
             logger.info(
                 (
                     "Context fit: prompt_tokens=%s, input_budget=%s, "
                     "context_window=%s, output_reserve=%s, safety_margin=%s, "
                     "images=%s, image_reserve=%s, history_messages=%s"
                 ),
-                token_count,
+                fit.prompt_tokens,
                 available_tokens,
                 context_size,
                 client.settings.LLM_MAX_TOKENS,
                 safety_margin,
                 image_count,
                 image_reserved_tokens,
-                len(messages) - _PINNED_MESSAGES,
+                len(fit.messages) - _PINNED_MESSAGES,
             )
-            return messages
+            return fit
 
         # Only the system prompt and current user message remain;
         # even these do not fit into the available context.
